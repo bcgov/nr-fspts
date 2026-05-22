@@ -1,0 +1,177 @@
+# Reusable Deploy
+#
+# Adapted from the BCGov quickstart-openshift template
+# (https://github.com/bcgov/quickstart-openshift) to drop the Postgres
+# database job — we use an external shared Oracle, not a per-PR DB.
+#
+# Each service Template (backend/frontend) is `oc process`-ed with parameters
+# specific to that service. Splitting into named jobs (rather than a matrix
+# with conditional params) keeps the wiring readable.
+name: Reusable Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub/OpenShift environment (e.g. dev, test, prod)
+        default: ""
+        type: string
+      target:
+        description: Deployment target; usually PR number, 'test' or 'prod'
+        default: ${{ github.event.number }}
+        type: string
+      slot:
+        description: |
+          Route hostname slot — PR # mod-50'd into a fixed pool of pre-registered
+          Cognito callback URIs (see pr-open.yml). Omit for TEST/PROD; defaults to
+          `target` in that case so the host stays `nr-fsp-{test,prod}.apps...`.
+        default: ""
+        type: string
+      backend_replicas:
+        description: |
+          Backend pod count (sets both Deployment.spec.replicas and the
+          backend HPA's min/max). Defaults to "1" so PR previews stay light;
+          merge.yml sets "2" for TEST and "3" for PROD. lite_mode strips the
+          HPA on PR previews regardless.
+        default: "1"
+        type: string
+      frontend_replicas:
+        description: |
+          Frontend pod count. Defaults to "2" (the original hardcoded value
+          before this template was parameterized); merge.yml sets "2" for
+          TEST and "3" for PROD. PR previews get 1 via lite_mode.
+        default: "2"
+        type: string
+      tag:
+        description: Container tag
+        default: ${{ github.event.number }}
+        type: string
+      triggers:
+        description: Triggers for deployment (paths that must change)
+        default: ""
+        type: string
+
+    secrets:
+      oc_namespace:
+        description: OpenShift namespace
+        required: true
+      oc_token:
+        description: OpenShift token
+        required: true
+      database_user:
+        description: Oracle DATABASE_USER
+        required: true
+      database_password:
+        description: Oracle DATABASE_PASSWORD
+        required: true
+      database_host:
+        description: Oracle host
+        required: true
+      database_service_name:
+        description: Oracle service name
+        required: true
+      keystore_secret:
+        description: Oracle keystore passphrase
+        required: true
+
+    outputs:
+      triggered:
+        description: Has deployment been triggered?
+        value: ${{ jobs.frontend.outputs.triggered }}
+
+permissions: {}
+
+jobs:
+  backend:
+    name: Deploy (backend)
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      triggered: ${{ steps.deploy.outputs.triggered }}
+    # Plumb sensitive values through job-level env vars rather than expanding
+    # `${{ secrets.* }}` directly inside the `parameters` string. The deployer
+    # action ultimately runs:
+    #   TEMPLATE="$(oc process ... ${{ inputs.parameters }} ...)"
+    # which means GHA substitutes the literal secret into a bash double-quoted
+    # context. Any `$X` inside the value (where X is an unset name) gets
+    # variable-expanded by bash and silently dropped along with its leading
+    # `$`. Going through env + `"$VAR"` means bash performs only a single
+    # expansion to the literal value; characters inside that value are not
+    # re-parsed for `$`/`'`/`"` semantics.
+    env:
+      DATABASE_PASSWORD: ${{ secrets.database_password }}
+      KEYSTORE_SECRET: ${{ secrets.keystore_secret }}
+    steps:
+      - uses: bcgov/action-deployer-openshift@f7bd61ec357fb1dfd1d43f1287bcd21382d06348 # v4.1.0
+        id: deploy
+        with:
+          file: backend/openshift.deploy.yml
+          oc_namespace: ${{ secrets.oc_namespace }}
+          oc_server: ${{ vars.oc_server }}
+          oc_token: ${{ secrets.oc_token }}
+          # debug: true is intentionally OFF. With debug on, the deployer
+          # logs the processed Template (including K8s Secret stringData),
+          # and GitHub's secret-masking misses values that contain JSON-
+          # special characters (<, >, &, etc.) once they get re-encoded.
+          # If you need to debug a deploy, enable this temporarily on a
+          # commit that uses NON-sensitive placeholder values.
+          debug: false
+          overwrite: true
+          parameters:
+            -p ZONE="${{ inputs.target }}"
+            -p NAME="nr-fsp"
+            -p IMAGE_TAG="${{ inputs.tag }}"
+            -p MIN_REPLICAS="${{ inputs.backend_replicas }}"
+            -p MAX_REPLICAS="${{ inputs.backend_replicas }}"
+            -p AWS_COGNITO_ISSUER_URI="${{ vars.AWS_COGNITO_ISSUER_URI }}"
+            -p COGNITO_USERINFO_URI="${{ vars.COGNITO_USERINFO_URI }}"
+            -p IDENTITY_LOOKUP_BASE_URL="${{ vars.IDENTITY_LOOKUP_BASE_URL }}"
+            -p DATABASE_HOST="${{ secrets.database_host }}"
+            -p DATABASE_SERVICE_NAME="${{ secrets.database_service_name }}"
+            -p DATABASE_USER="${{ secrets.database_user }}"
+            -p DATABASE_PASSWORD="$DATABASE_PASSWORD"
+            -p KEYSTORE_SECRET="$KEYSTORE_SECRET"
+          triggers: ${{ inputs.triggers }}
+
+  frontend:
+    name: Deploy (frontend)
+    environment: ${{ inputs.environment }}
+    needs: [backend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      triggered: ${{ steps.deploy.outputs.triggered }}
+    steps:
+      - uses: bcgov/action-deployer-openshift@f7bd61ec357fb1dfd1d43f1287bcd21382d06348 # v4.1.0
+        id: deploy
+        with:
+          file: frontend/openshift.deploy.yml
+          oc_namespace: ${{ secrets.oc_namespace }}
+          oc_server: ${{ vars.oc_server }}
+          oc_token: ${{ secrets.oc_token }}
+          # debug: true is intentionally OFF. With debug on, the deployer
+          # logs the processed Template (including K8s Secret stringData),
+          # and GitHub's secret-masking misses values that contain JSON-
+          # special characters (<, >, &, etc.) once they get re-encoded.
+          # If you need to debug a deploy, enable this temporarily on a
+          # commit that uses NON-sensitive placeholder values.
+          debug: false
+          overwrite: true
+          parameters:
+            -p ZONE="${{ inputs.target }}"
+            -p SLOT="${{ inputs.slot || inputs.target }}"
+            -p NAME="nr-fsp"
+            -p IMAGE_TAG="${{ inputs.tag }}"
+            -p REPLICAS="${{ inputs.frontend_replicas }}"
+            -p VITE_USER_POOLS_ID="${{ vars.VITE_USER_POOLS_ID }}"
+            -p VITE_USER_POOLS_WEB_CLIENT_ID="${{ vars.VITE_USER_POOLS_WEB_CLIENT_ID }}"
+            -p VITE_REDIRECT_SIGN_OUT="${{ vars.VITE_REDIRECT_SIGN_OUT }}"
+            -p VITE_BACKEND_URL="${{ vars.VITE_BACKEND_URL }}"
+            -p VITE_APP_NAME="${{ vars.VITE_APP_NAME }}"
+            -p VITE_ZONE="${{ vars.VITE_ZONE }}"
+          triggers: ${{ inputs.triggers }}

@@ -1,0 +1,116 @@
+# Local-dev Compose for nr-fsp.
+#
+# Two-service stack: Spring Boot backend (port 8080) + Vite frontend (port
+# 3000) + optional Caddy production-image variant (profile `caddy`, port 3005).
+# No database service — this project uses the shared BCGov Oracle at
+# nrcdb03.bcgov:1543; the backend container connects to that directly.
+#
+# Prereqs (host machine):
+#   1. BCGov VPN is connected. Compose can't route traffic to the Oracle
+#      host for you; the reachability comes from your host's routing table.
+#   2. backend/src/main/resources/application-local.yml exists. It's
+#      gitignored and holds the DB password + Cognito + IDIR config that
+#      the `local` profile reads.
+#   3. backend/src/main/resources/cert/jssecacerts exists (the Oracle
+#      truststore). Copy it from a running pod — the procedure is in the
+#      header comment of application-local.yml.
+#   4. frontend/.env exists. Copy frontend/.env.example and fill in the
+#      Cognito client IDs.
+#
+# Usage:
+#   docker compose up                       # backend + frontend
+#   docker compose --profile caddy up caddy # prod-like Caddy variant
+#
+# Limitations:
+#   - Backend has NO hot reload. spring-boot-devtools isn't on the
+#     classpath, so Java code changes require `docker compose restart
+#     backend`. Frontend (Vite) hot-reloads natively.
+#   - First `up` will download the Maven artifact cache (~5 min). The
+#     `maven-cache` named volume persists it across runs.
+
+x-var:
+  - &java-image maven:3.9.9-amazoncorretto-21-alpine
+  - &node-image node:22-alpine
+
+services:
+  backend:
+    image: *java-image
+    container_name: backend
+    working_dir: /app
+    entrypoint: sh -c "mvn -DskipTests spring-boot:run"
+    environment:
+      # Activates application-local.yml AND application-oracle.yml. Spring
+      # merges them; application-local.yml supplies the credentials.
+      SPRING_PROFILES_ACTIVE: local,oracle
+      # Override the host-absolute TRUSTSTORE_PATH baked into
+      # application-local.yml. The cert dir is mounted in via ./backend:/app,
+      # so this is the equivalent in-container path.
+      TRUSTSTORE_PATH: /app/src/main/resources/cert/jssecacerts
+    ports: ["8080:8080"]
+    volumes:
+      - ./backend:/app
+      # Persist the Maven local repo across container restarts so we don't
+      # re-download ~500MB of artifacts every time.
+      - maven-cache:/root/.m2
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 5
+
+  frontend:
+    image: *node-image
+    container_name: frontend
+    working_dir: /app
+    entrypoint: sh -c "npm ci --ignore-scripts && npm run dev"
+    environment:
+      # Bind Vite to all interfaces so the host can reach it via the port
+      # mapping; the default `localhost` only binds inside the container.
+      VITE_DEV_HOST: 0.0.0.0
+      VITE_DEV_PORT: 3000
+      # The dev server's `/api` proxy target. Container DNS resolves
+      # `backend` to the Spring Boot service.
+      VITE_DEV_BACKEND_TARGET: http://backend:8080
+      # HMR runs over WebSocket; the browser is on the host, so it must
+      # dial back to localhost:3000, not the container's internal address.
+      VITE_HMR_HOST: localhost
+      VITE_HMR_PORT: 3000
+      NODE_ENV: development
+    ports: ["3000:3000"]
+    volumes:
+      - ./frontend:/app
+      # Anonymous volume preserves the container's node_modules so the host
+      # bind mount doesn't shadow it with an empty (or wrong-arch) dir.
+      - /app/node_modules
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Production-like frontend image (Caddy + Coraza WAF, runtime config.js
+  # seeded by docker-entrypoint.sh). Useful for replicating prod CSP/header
+  # behaviour locally before pushing.
+  caddy:
+    container_name: caddy
+    profiles: ["caddy"]
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:8080
+      LOG_LEVEL: info
+      PORT: 3000
+      NODE_ENV: development
+    ports: ["3005:3000"]
+    volumes:
+      - ./frontend/Caddyfile:/etc/caddy/Caddyfile
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  maven-cache:

@@ -1,0 +1,85 @@
+# Reusable Tests
+#
+# Adapted from BCGov quickstart-openshift to:
+#   - Drop integration-tests (no common/tests/integration in this repo).
+#   - Drop load-tests   (no k6 scripts; would hammer shared Oracle DEV).
+#   - Keep e2e-tests using our existing Playwright suite. Auth is wired up
+#     programmatically via E2E_IDIR_USER / E2E_IDIR_PASSWORD secrets so the
+#     suite can run unattended in CI.
+name: Reusable Tests
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: PR number, 'test' or 'prod'
+        default: ${{ github.event.number }}
+        type: string
+      slot:
+        description: |
+          Route hostname slot. Tests must hit the actual deployed host, which
+          for PR previews is `nr-fsp-<PR % 50>.apps...` rather than
+          `nr-fsp-<PR>.apps...`. Omit for TEST/PROD; defaults to `target`.
+        default: ""
+        type: string
+
+    secrets:
+      e2e_idir_user:
+        description: IDIR service account username for Playwright auth
+        required: true
+      e2e_idir_password:
+        description: IDIR service account password for Playwright auth
+        required: true
+
+env:
+  DOMAIN: apps.silver.devops.gov.bc.ca
+  PREFIX: nr-fsp-${{ inputs.slot || inputs.target }}
+
+permissions: {}
+
+jobs:
+  e2e-tests:
+    name: E2E (${{ matrix.project }})
+    defaults:
+      run:
+        working-directory: frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # Run chromium only on PRs to keep CI cost down; firefox + safari are
+        # added on merge to TEST via the suite's matrix in merge.yml if you
+        # want broader coverage there.
+        project: [chromium]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps ${{ matrix.project }}
+
+      - name: Run Playwright
+        env:
+          E2E_BASE_URL: https://${{ env.PREFIX }}.${{ env.DOMAIN }}
+          E2E_IDIR_USER: ${{ secrets.e2e_idir_user }}
+          E2E_IDIR_PASSWORD: ${{ secrets.e2e_idir_password }}
+          CI: "true"
+        run: |
+          npx playwright test --project="${{ matrix.project }}" --reporter=html,list
+
+      - uses: actions/upload-artifact@v7
+        if: (! cancelled())
+        with:
+          name: playwright-report-${{ matrix.project }}-${{ inputs.target }}
+          path: frontend/playwright-report
+          retention-days: 7

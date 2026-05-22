@@ -1,0 +1,334 @@
+---
+# Backend deploy Template — consumed by `oc process` in reusable-deploy.yml.
+#
+# Parameters of note:
+#   NAME       Defaults to repo name (nr-fsp).
+#   ZONE       PR number for previews, 'test' for TEST, 'prod' for PROD.
+#              Suffixes every resource name so PR/test/prod resources coexist
+#              in the same namespace.
+#   IMAGE_TAG  GHCR tag. Per-PR builds use the PR number; merge.yml deploys
+#              the same tag to TEST and PROD, then aliases as ':prod'.
+#
+# The image reference uses the BCGov convention:
+#   ghcr.io/<owner>/<repo>/backend:<tag>
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: nr-fsp-backend-deploy
+parameters:
+  - name: NAME
+    description: App name prefix
+    value: nr-fsp
+  - name: ZONE
+    description: PR number, 'test', or 'prod'
+    required: true
+  - name: IMAGE_TAG
+    description: Container image tag (PR number, 'test', or 'prod')
+    value: latest
+  - name: REGISTRY
+    description: Image registry path (no tag)
+    value: ghcr.io/bcgov/nr-fsp/backend
+  - name: MIN_REPLICAS
+    value: "1"
+  - name: MAX_REPLICAS
+    value: "2"
+  - name: MIN_CPU
+    value: "200m"
+  - name: MIN_MEM
+    value: "500Mi"
+  - name: APP_LOG_LEVEL
+    value: INFO
+  - name: SPRING_SECURITY_LOG_LEVEL
+    value: INFO
+  - name: SPRING_WEB_LOG_LEVEL
+    value: INFO
+  - name: SPRING_BOOT_AUTOCONFIG_LOG_LEVEL
+    value: INFO
+  - name: SPRING_JPA_SHOW_SQL
+    value: "false"
+  - name: AWS_COGNITO_ISSUER_URI
+    required: true
+  - name: COGNITO_USERINFO_URI
+    required: true
+  - name: IDENTITY_LOOKUP_BASE_URL
+    required: true
+  - name: DATABASE_HOST
+    required: true
+  - name: DATABASE_SERVICE_NAME
+    required: true
+  - name: DATABASE_USER
+    required: true
+  - name: DATABASE_PASSWORD
+    required: true
+  - name: KEYSTORE_SECRET
+    required: true
+
+objects:
+  # ── Deployment ────────────────────────────────────────────
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${NAME}-backend-${ZONE}
+      labels:
+        app: ${NAME}-backend-${ZONE}
+        app.kubernetes.io/name: ${NAME}-backend
+        app.kubernetes.io/instance: ${ZONE}
+    spec:
+      replicas: ${{MIN_REPLICAS}}
+      selector:
+        matchLabels:
+          app: ${NAME}-backend-${ZONE}
+      # Recreate (not RollingUpdate) — matches BCGov template convention.
+      # The brief swap downtime is acceptable for ephemeral PR previews and
+      # avoids racing against the deployer action, which patches strategy
+      # mid-apply and creates a `rollingUpdate set while type=Recreate`
+      # validation error if the Template ships its own RollingUpdate config.
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            app: ${NAME}-backend-${ZONE}
+            app.kubernetes.io/instance: ${ZONE}
+          annotations:
+            prometheus.io/path: /actuator/prometheus
+            prometheus.io/port: '8080'
+            prometheus.io/scrape: 'true'
+        spec:
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+          initContainers:
+            - name: ${NAME}-backend-init
+              image: ghcr.io/bcgov/nr-forest-client/common:prod
+              imagePullPolicy: Always
+              env:
+                - name: ORACLEDB_HOST
+                  value: ${DATABASE_HOST}
+                - name: ORACLEDB_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${NAME}-backend-secret-${ZONE}
+                      key: KEYSTORE_SECRET
+                - name: ORACLEDB_PORT
+                  value: "1543"
+              volumeMounts:
+                - name: api-cert
+                  mountPath: /cert
+                - name: init-tmp-storage
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "300Mi"
+                  ephemeral-storage: "50Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "500Mi"
+                  ephemeral-storage: "100Mi"
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          containers:
+            - name: ${NAME}-backend
+              image: ${REGISTRY}:${IMAGE_TAG}
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 8080
+                  protocol: TCP
+              env:
+                - name: SPRING_PROFILES_ACTIVE
+                  value: oracle
+                - name: SERVER_PORT
+                  value: "8080"
+                - name: AWS_COGNITO_ISSUER_URI
+                  value: ${AWS_COGNITO_ISSUER_URI}
+                - name: COGNITO_USERINFO_URI
+                  value: ${COGNITO_USERINFO_URI}
+                - name: IDENTITY_LOOKUP_BASE_URL
+                  value: ${IDENTITY_LOOKUP_BASE_URL}
+                - name: DATABASE_HOST
+                  value: ${DATABASE_HOST}
+                - name: DATABASE_SERVICE_NAME
+                  value: ${DATABASE_SERVICE_NAME}
+                - name: DATABASE_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${NAME}-backend-secret-${ZONE}
+                      key: DATABASE_USER
+                - name: DATABASE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${NAME}-backend-secret-${ZONE}
+                      key: DATABASE_PASSWORD
+                - name: APP_LOG_LEVEL
+                  value: ${APP_LOG_LEVEL}
+                - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY
+                  value: ${SPRING_SECURITY_LOG_LEVEL}
+                - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB
+                  value: ${SPRING_WEB_LOG_LEVEL}
+                - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_BOOT_AUTOCONFIGURE
+                  value: ${SPRING_BOOT_AUTOCONFIG_LOG_LEVEL}
+                - name: SPRING_JPA_SHOW_SQL
+                  value: ${SPRING_JPA_SHOW_SQL}
+                - name: KEYSTORE_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${NAME}-backend-secret-${ZONE}
+                      key: KEYSTORE_SECRET
+              resources:
+                requests:
+                  cpu: ${MIN_CPU}
+                  memory: ${MIN_MEM}
+                  ephemeral-storage: "200Mi"
+                limits:
+                  cpu: "1000m"
+                  memory: "800Mi"
+                  ephemeral-storage: "500Mi"
+              livenessProbe:
+                httpGet:
+                  path: /actuator/health
+                  port: 8080
+                initialDelaySeconds: 300
+                periodSeconds: 30
+                timeoutSeconds: 5
+                failureThreshold: 5
+                successThreshold: 1
+              readinessProbe:
+                tcpSocket:
+                  port: 8080
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 20
+                successThreshold: 1
+              volumeMounts:
+                - name: api-cert
+                  mountPath: /cert
+                - name: tls-certs
+                  mountPath: /etc/tls-certs
+                  readOnly: true
+                - name: log-storage
+                  mountPath: /logs
+                - name: app-storage
+                  mountPath: /temp
+                - name: tmp-storage
+                  mountPath: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: tls-certs
+              secret:
+                secretName: ${NAME}-backend-cert-${ZONE}
+            - name: log-storage
+              emptyDir: {}
+            - name: app-storage
+              emptyDir: {}
+            - name: tmp-storage
+              emptyDir: {}
+            - name: init-tmp-storage
+              emptyDir: {}
+            - name: api-cert
+              persistentVolumeClaim:
+                claimName: ${NAME}-backend-api-cert-${ZONE}
+
+  # ── Service ───────────────────────────────────────────────
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${NAME}-backend-${ZONE}
+      labels:
+        app: ${NAME}-backend-${ZONE}
+        app.kubernetes.io/instance: ${ZONE}
+      annotations:
+        service.alpha.openshift.io/serving-cert-secret-name: ${NAME}-backend-cert-${ZONE}
+    spec:
+      selector:
+        app: ${NAME}-backend-${ZONE}
+      ports:
+        - name: 8080-tcp
+          port: 8080
+          protocol: TCP
+
+  # ── HorizontalPodAutoscaler ───────────────────────────────
+  - apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: ${NAME}-backend-${ZONE}-cpu
+      labels:
+        app: ${NAME}-backend-${ZONE}
+        app.kubernetes.io/instance: ${ZONE}
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: ${NAME}-backend-${ZONE}
+      minReplicas: ${{MIN_REPLICAS}}
+      maxReplicas: ${{MAX_REPLICAS}}
+      metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 200
+
+  # ── PVC for Keystore (per-ZONE so PR previews get their own) ────
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${NAME}-backend-api-cert-${ZONE}
+      labels:
+        app: ${NAME}-backend-${ZONE}
+        app.kubernetes.io/instance: ${ZONE}
+    spec:
+      accessModes:
+        - ReadWriteMany
+      resources:
+        requests:
+          storage: 50Mi
+      storageClassName: netapp-file-standard
+
+  # ── Secret ────────────────────────────────────────────────
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: ${NAME}-backend-secret-${ZONE}
+      labels:
+        app: ${NAME}-backend-${ZONE}
+        app.kubernetes.io/instance: ${ZONE}
+    type: Opaque
+    stringData:
+      DATABASE_USER: ${DATABASE_USER}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      KEYSTORE_SECRET: ${KEYSTORE_SECRET}
+
+  # ── NetworkPolicy: ingress from same-zone frontend + cluster monitoring ──
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: ${NAME}-backend-${ZONE}-ingress
+      labels:
+        app: ${NAME}-backend-${ZONE}
+        app.kubernetes.io/instance: ${ZONE}
+    spec:
+      podSelector:
+        matchLabels:
+          app: ${NAME}-backend-${ZONE}
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app: ${NAME}-frontend-${ZONE}
+            - namespaceSelector:
+                matchLabels:
+                  network.openshift.io/policy-group: monitoring
+      policyTypes:
+        - Ingress

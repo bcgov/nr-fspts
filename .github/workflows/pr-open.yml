@@ -1,0 +1,110 @@
+name: PR
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  # AWS Cognito user pool app clients don't accept wildcards in CallbackURLs,
+  # and registering one per PR via the Cognito API on every open/close is
+  # rate-limited and race-prone. Instead, the Cognito client is configured
+  # once with 50 fixed redirect URIs of the form
+  #   https://nr-fsp-<N>.apps.silver.devops.gov.bc.ca/...   for N in 0..49
+  # and each PR is bucketed into a slot via `slot = PR # mod 50`. The PR's
+  # OpenShift objects still carry the full PR # (so cleanup is unambiguous),
+  # but the frontend Route's `spec.host` uses the slot.
+  #
+  # Trade-off: if two PRs land in the same slot (PR 7 and PR 57) and are
+  # both open simultaneously, the second deploy's Route will fail to be
+  # admitted by the OpenShift router with `HostAlreadyClaimed`. Bounded by
+  # having 50 slots and our typical concurrent-PR count being a handful.
+  vars:
+    name: Variables
+    runs-on: ubuntu-24.04
+    outputs:
+      slot: ${{ steps.calc.outputs.slot }}
+    steps:
+      - id: calc
+        run: |
+          slot=$(( ${{ github.event.number }} % 50 ))
+          echo "slot=${slot}" >> "$GITHUB_OUTPUT"
+          echo "PR ${{ github.event.number }} -> Cognito slot ${slot}"
+
+  # Build per-PR images tagged with the PR number. `tag_fallback: latest`
+  # means a frontend-only PR doesn't trigger a backend rebuild — the action
+  # aliases the existing :latest digest forward as :<PR#> instantly.
+  builds:
+    name: Builds
+    permissions:
+      attestations: write
+      id-token: write
+      packages: write
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        package: [backend, frontend]
+    timeout-minutes: 10
+    steps:
+      - uses: bcgov/action-builder-ghcr@de3d575cf158e16f5dc2789630f6d587483b911c # v4.4.0
+        with:
+          package: ${{ matrix.package }}
+          tags: ${{ github.event.number }}
+          tag_fallback: latest
+          triggers: ('${{ matrix.package }}/', '.github/workflows/')
+
+  # Deploy the PR's images to a preview environment in the dev namespace.
+  # `environment: dev` resolves secrets/vars from the dev GitHub Environment.
+  #
+  # `permissions: contents: read` is required HERE on the calling job — GitHub
+  # bounds a called workflow's permissions by the caller. Without this, the
+  # workflow-level `permissions: {}` above propagates as contents=none and
+  # the nested deploy jobs error: "is requesting 'contents: read', but is
+  # only allowed 'contents: none'".
+  deploys:
+    name: Deploys (${{ github.event.number }})
+    needs: [builds, vars]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-deploy.yml
+    secrets:
+      oc_namespace: ${{ secrets.oc_namespace }}
+      oc_token: ${{ secrets.oc_token }}
+      database_user: ${{ secrets.database_user }}
+      database_password: ${{ secrets.database_password }}
+      database_host: ${{ secrets.database_host }}
+      database_service_name: ${{ secrets.database_service_name }}
+      keystore_secret: ${{ secrets.keystore_secret }}
+    with:
+      environment: dev
+      target: ${{ github.event.number }}
+      slot: ${{ needs.vars.outputs.slot }}
+      triggers: ('backend/', 'frontend/', '.github/workflows/')
+
+  tests:
+    name: Tests
+    if: needs.deploys.outputs.triggered == 'true'
+    needs: [deploys, vars]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-tests.yml
+    secrets:
+      e2e_idir_user: ${{ secrets.E2E_IDIR_USER }}
+      e2e_idir_password: ${{ secrets.E2E_IDIR_PASSWORD }}
+    with:
+      target: ${{ github.event.number }}
+      slot: ${{ needs.vars.outputs.slot }}
+
+  results:
+    name: PR Results
+    needs: [builds, deploys, tests]
+    if: always()
+    runs-on: ubuntu-slim
+    steps:
+      - if: contains(needs.*.result, 'failure')||contains(needs.*.result, 'cancelled')
+        run: echo "At least one job has failed." && exit 1
+      - run: echo "Success!"

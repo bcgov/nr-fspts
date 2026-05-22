@@ -1,0 +1,141 @@
+name: Analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
+  schedule:
+    - cron: "0 11 * * 0" # 3 AM PST = 12 PM UDT, runs sundays
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  backend-tests:
+    name: Backend Tests
+    if: (! github.event.pull_request.draft)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Sonar uses git blame for new-code detection; shallow clones break it.
+          fetch-depth: 0
+
+      - name: Set up Java 21 (Temurin) + Maven cache
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      # `-DskipITs` skips the failsafe-bound integration tests (Oracle/Jasper
+      # end-to-end checks via TestContainers). Surefire still runs all
+      # *Test.java unit tests, and the `coverage` profile (default-on in
+      # pom.xml) wires Jacoco's prepare-agent + report executions, so a
+      # jacoco.xml ends up in target/site/jacoco/ for Sonar to consume.
+      - name: Maven verify (unit tests + jacoco coverage)
+        working-directory: backend
+        run: mvn -B -DskipITs verify
+
+      # Sonar is gated on the secret being present so PRs from forks (which
+      # don't get secrets) don't fail. projectKey is currently the BC Gov
+      # starter-kit's — update it when a real FSP SonarCloud project exists.
+      - name: SonarCloud scan
+        if: env.SONAR_TOKEN != ''
+        working-directory: backend
+        env:
+          SONAR_TOKEN: ${{ secrets.sonar_token_backend }}
+        run: |
+          mvn -B sonar:sonar \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.organization=bcgov-sonarcloud \
+            -Dsonar.projectKey=quickstart-openshift_backend \
+            -Dsonar.token="$SONAR_TOKEN"
+
+  frontend-tests:
+    name: Frontend Tests
+    if: (! github.event.pull_request.draft)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: bcgov/action-test-and-analyse@8f699e3fd3fadd9a6adf6f4b1f2638ef7ecfefb9 # v2.0.0
+        env:
+          sonar_token: ${{ secrets.sonar_token_frontend }}
+        with:
+          # `lint` already runs prettier via eslint-plugin-prettier, so no
+          # separate `format:check` step. `test:coverage` is the real script
+          # name in package.json (Vitest with --coverage; auto-installs
+          # Playwright browsers via the pretest:coverage hook).
+          commands: |
+            npm ci
+            npm run lint
+            npm run test:coverage
+          dir: frontend
+          node_version: "22"
+          sonar_args: >
+            -Dsonar.exclusions=**/coverage/**,**/node_modules/**,**/*spec.ts,**/*.test.ts,**/*.test.tsx,**/e2e/**
+            -Dsonar.organization=bcgov-sonarcloud
+            -Dsonar.projectKey=quickstart-openshift_frontend
+            -Dsonar.sources=src
+            -Dsonar.test.inclusions=**/*spec.ts,**/*.test.ts,**/*.test.tsx
+            -Dsonar.javascript.lcov.reportPaths=./coverage/lcov.info
+          sonar_token: ${{ env.sonar_token }}
+          dep_scan: warn
+          supply_scan: true
+          triggers: ('frontend/')
+
+  # https://github.com/marketplace/actions/aqua-security-trivy
+  trivy:
+    name: Trivy Security Scan
+    if: (! github.event.pull_request.draft)
+    continue-on-error: true
+    permissions:
+      security-events: write
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache Trivy DB
+        uses: actions/cache@v5
+        with:
+          path: .trivycache
+          key: ${{ runner.os }}-trivy-v0.36.0-cache-v1
+          restore-keys: |
+            ${{ runner.os }}-trivy-
+
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          format: "sarif"
+          output: "trivy-results.sarif"
+          ignore-unfixed: true
+          scan-type: "fs"
+          scanners: "vuln,secret,misconfig"
+          severity: "CRITICAL,HIGH"
+          trivyignores: ".github/.trivyignore"
+          cache-dir: .trivycache
+          skip-dirs: "**/node_modules,**/coverage,**/dist,.git"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  results:
+    name: Analysis Results
+    needs: [backend-tests, frontend-tests]
+    if: always() && (! github.event.pull_request.draft)
+    runs-on: ubuntu-slim
+    steps:
+      - if: contains(needs.*.result, 'failure')||contains(needs.*.result, 'canceled')
+        run: echo "At least one job has failed." && exit 1
+      - run: echo "Success!"

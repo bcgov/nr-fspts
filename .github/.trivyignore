@@ -1,0 +1,39 @@
+# KSV0125: Restrict container images to trusted registries
+# Trivy does not recognize ghcr.io as trusted by default. We use ghcr.io for application images.
+# Registry validation is enforced at deployment time via policy/OPA Gatekeeper.
+KSV0125
+
+# KSV020, KSV021: runAsUser/runAsGroup > 10000
+# OpenShift restricted-v2 SCC assigns namespace-specific UID range (e.g. 1002750000-1002759999).
+# Cannot hardcode in template; OpenShift injects at deploy time.
+KSV020
+KSV021
+
+# KSV030, KSV104: seccompProfile
+# OpenShift restricted SCC forbids seccomp: "seccomp may not be set".
+KSV030
+KSV104
+
+# CVE-2026-3260: Undertow Denial of Service via premature multipart/form-data
+# parsing on GET requests.
+#
+# Severity: MEDIUM. Backend (Spring Boot) intentionally uses Undertow instead
+# of Tomcat (see backend/pom.xml — tomcat-starter excluded, undertow-starter
+# added).
+#
+# Why we're accepting this temporarily:
+#   - The only fixed Undertow release at the time of writing is 2.4.0.Beta1,
+#     a development build. We don't want a `.Beta` server on production.
+#   - The attack vector (large multipart body in a GET) is blocked upstream:
+#       * Caddy/Coraza in front of the backend caps request body size.
+#       * OpenShift Route default request body cap (1 MiB) applies.
+#       * The whole /api surface is gated by Cognito JWT validation, so
+#         only authenticated IDIR users can reach the upstream at all.
+#   - Memory pressure from a single oversized request is bounded by the
+#     pod's `memory` limit (800Mi); an attacker can at worst force a pod
+#     restart, not exhaust the node.
+#
+# Re-evaluate when a stable Undertow 2.4.0.Final ships, or when Spring Boot
+# 3.5.x's managed Undertow version is bumped to a non-vulnerable release.
+# Last reviewed: 2026-05-19.
+CVE-2026-3260
