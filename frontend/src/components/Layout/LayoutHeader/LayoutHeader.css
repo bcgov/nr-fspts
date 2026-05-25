@@ -1,0 +1,61 @@
+.cds--header .cds--header__name {
+  margin-left: 0;
+  padding-inline-start: 0.25rem;
+  color: #ffffff;
+}
+.cds--header .cds--header__name:hover {
+  color: #ffffff;
+}
+
+/* Carbon hides the menu toggle at lg+ by default; we always want the
+   hamburger visible because it now drives the slide-in drawer at every size. */
+.cds--header .cds--header__menu-toggle,
+.cds--header .cds--header__menu-toggle__hidden {
+  display: flex;
+  color: #ffffff;
+}
+.cds--header .cds--header__menu-toggle.cds--header__action--active,
+.cds--header .cds--header__menu-toggle__hidden.cds--header__action--active {
+  color: var(--cds-layer-selected-inverse);
+}
+.cds--header .cds--header__menu-toggle:focus:not(:focus-visible),
+.cds--header .cds--header__menu-toggle__hidden:focus:not(:focus-visible) {
+  border-color: transparent;
+}
+.cds--header .cds--header__menu-toggle path,
+.cds--header .cds--header__menu-toggle__hidden path {
+  fill: currentColor;
+}
+
+/* Global bar buttons */
+.cds--header__global button.cds--header__action {
+  border-radius: 0;
+  border: 0;
+  outline: 0;
+}
+.cds--header__global button.cds--header__action:focus,
+.cds--header__global button.cds--header__action:focus-visible {
+  outline: 0;
+  border: 0;
+}
+.cds--header__global button.cds--header__action--active {
+  background: var(--cds-layer-02);
+  border: 0;
+}
+.cds--header__global .profile-action-button {
+  width: fit-content;
+  max-width: none;
+  color: #ffffff;
+  padding: 0.75rem;
+  margin: 0 0.5rem;
+}
+.cds--header__global .profile-action-button:focus {
+  outline: 0;
+  border: none;
+}
+.cds--header__global .profile-action-button.cds--header__action--active {
+  color: var(--cds-layer-selected-inverse);
+}
+.cds--header__global .profile-action-button path {
+  fill: currentColor;
+}

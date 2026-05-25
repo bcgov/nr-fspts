@@ -1,30 +1,29 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import BCGovHeader from './components/Header';
-import NavBar from './components/NavBar';
-import BCGovFooter from './components/Footer';
+import type { ReactNode } from 'react';
 
-import { startLogin, logout } from './auth/auth';
+import Layout from './components/Layout';
+import { startLogin } from './auth/auth';
 import { useSession } from './auth/useSession';
 
 // Pages
-import AuthCallbackPage       from './pages/AuthCallbackPage';
-import WelcomePage            from './pages/WelcomePage';
-import SearchPage             from './pages/SearchPage';
-import InboxPage              from './pages/InboxPage';
-import FspInformationPage     from './pages/FspInformationPage';
-import AmendInformationPage   from './pages/AmendInformationPage';
-import ExtensionRequestPage   from './pages/ExtensionRequestPage';
-import ExtensionSummaryPage   from './pages/ExtensionSummaryPage';
-import ReplaceInformationPage from './pages/ReplaceInformationPage';
-import AttachmentsPage        from './pages/AttachmentsPage';
-import StockingStandardsPage  from './pages/StockingStandardsPage';
-import FduMapPage             from './pages/FduMapPage';
-import IdentifiedAreasPage    from './pages/IdentifiedAreasPage';
-import WorkflowPage           from './pages/WorkflowPage';
-import HistoryPage            from './pages/HistoryPage';
+import AuthCallbackPage         from './pages/AuthCallbackPage';
+import WelcomePage              from './pages/WelcomePage';
+import SearchPage               from './pages/SearchPage';
+import InboxPage                from './pages/InboxPage';
+import FspInformationPage       from './pages/FspInformationPage';
+import AmendInformationPage     from './pages/AmendInformationPage';
+import ExtensionRequestPage     from './pages/ExtensionRequestPage';
+import ExtensionSummaryPage     from './pages/ExtensionSummaryPage';
+import ReplaceInformationPage   from './pages/ReplaceInformationPage';
+import AttachmentsPage          from './pages/AttachmentsPage';
+import StockingStandardsPage    from './pages/StockingStandardsPage';
+import FduMapPage               from './pages/FduMapPage';
+import IdentifiedAreasPage      from './pages/IdentifiedAreasPage';
+import WorkflowPage             from './pages/WorkflowPage';
+import HistoryPage              from './pages/HistoryPage';
 import DistrictNotificationPage from './pages/DistrictNotificationPage';
-import XmlSubmissionPage      from './pages/XmlSubmissionPage';
-import JcrsReportsPage        from './pages/JcrsReportsPage';
+import XmlSubmissionPage        from './pages/XmlSubmissionPage';
+import JcrsReportsPage          from './pages/JcrsReportsPage';
 
 import './App.css';
 
@@ -69,78 +68,9 @@ function LoginPage() {
   );
 }
 
-// ── App Shell ──────────────────────────────────────────────
-interface AppShellProps {
-  isLoggedIn: boolean;
-  userName: string;
-  onLogout: () => void;
-}
-
-function AppShell({ isLoggedIn, userName, onLogout }: AppShellProps) {
-  return (
-    <div className="app-shell">
-      <BCGovHeader
-        isLoggedIn={isLoggedIn}
-        userName={userName}
-        onLogoutClick={onLogout}
-      />
-
-      {isLoggedIn && <NavBar />}
-
-      {isLoggedIn ? (
-        <Routes>
-          {/* If a stale callback URL is hit while already signed in, just go home. */}
-          <Route path="/auth/callback"  element={<Navigate to="/welcome" replace />} />
-
-          <Route path="/"               element={<Navigate to="/welcome" replace />} />
-          <Route path="/welcome"        element={<WelcomePage userName={userName} />} />
-
-          {/* Search */}
-          <Route path="/search"         element={<SearchPage />} />
-          <Route path="/links/fta"      element={<WelcomePage userName={userName} />} />
-          <Route path="/links/results"  element={<WelcomePage userName={userName} />} />
-          <Route path="/links/mapview"  element={<WelcomePage userName={userName} />} />
-          <Route path="/links/cims"     element={<WelcomePage userName={userName} />} />
-
-          {/* Inbox */}
-          <Route path="/inbox"          element={<InboxPage />} />
-
-          {/* FSP */}
-          <Route path="/fsp/information"        element={<FspInformationPage />} />
-          <Route path="/fsp/amend-information"  element={<AmendInformationPage />} />
-          <Route path="/fsp/extension-request"  element={<ExtensionRequestPage />} />
-          <Route path="/fsp/extension-summary"  element={<ExtensionSummaryPage />} />
-          <Route path="/fsp/replace-information" element={<ReplaceInformationPage />} />
-          <Route path="/fsp/attachments"        element={<AttachmentsPage />} />
-          <Route path="/fsp/stocking-standards" element={<StockingStandardsPage />} />
-          <Route path="/fsp/fdu-map"            element={<FduMapPage />} />
-          <Route path="/fsp/identified-areas"   element={<IdentifiedAreasPage />} />
-          <Route path="/fsp/workflow"           element={<WorkflowPage />} />
-          <Route path="/fsp/history"            element={<HistoryPage />} />
-
-          {/* Data Submission */}
-          <Route path="/data-submission/xml"    element={<XmlSubmissionPage />} />
-
-          {/* Admin */}
-          <Route path="/admin/district-notification" element={<DistrictNotificationPage />} />
-
-          {/* Reports */}
-          <Route path="/reports/jcrs"           element={<JcrsReportsPage />} />
-
-          {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/welcome" replace />} />
-        </Routes>
-      ) : (
-        <Routes>
-          <Route path="/auth/callback" element={<AuthCallbackPage />} />
-          <Route path="*"              element={<LoginPage />} />
-        </Routes>
-      )}
-
-      <BCGovFooter />
-    </div>
-  );
-}
+// Wraps a page in the Carbon UI Shell. Used inline so the route table reads
+// like REPT's — `element={withLayout(<Page />)}` — without a per-page edit.
+const withLayout = (node: ReactNode) => <Layout>{node}</Layout>;
 
 // ── App ────────────────────────────────────────────────────
 export default function App() {
@@ -150,11 +80,55 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AppShell
-        isLoggedIn={isLoggedIn}
-        userName={userName}
-        onLogout={logout}
-      />
+      {isLoggedIn ? (
+        <Routes>
+          {/* Stale callback URL while already signed in: just go home. */}
+          <Route path="/auth/callback"          element={<Navigate to="/welcome" replace />} />
+
+          <Route path="/"                       element={<Navigate to="/welcome" replace />} />
+          <Route path="/welcome"                element={withLayout(<WelcomePage userName={userName} />)} />
+
+          {/* Search */}
+          <Route path="/search"                 element={withLayout(<SearchPage />)} />
+          <Route path="/links/fta"              element={withLayout(<WelcomePage userName={userName} />)} />
+          <Route path="/links/results"          element={withLayout(<WelcomePage userName={userName} />)} />
+          <Route path="/links/mapview"          element={withLayout(<WelcomePage userName={userName} />)} />
+          <Route path="/links/cims"             element={withLayout(<WelcomePage userName={userName} />)} />
+
+          {/* Inbox */}
+          <Route path="/inbox"                  element={withLayout(<InboxPage />)} />
+
+          {/* FSP */}
+          <Route path="/fsp/information"        element={withLayout(<FspInformationPage />)} />
+          <Route path="/fsp/amend-information"  element={withLayout(<AmendInformationPage />)} />
+          <Route path="/fsp/extension-request"  element={withLayout(<ExtensionRequestPage />)} />
+          <Route path="/fsp/extension-summary"  element={withLayout(<ExtensionSummaryPage />)} />
+          <Route path="/fsp/replace-information" element={withLayout(<ReplaceInformationPage />)} />
+          <Route path="/fsp/attachments"        element={withLayout(<AttachmentsPage />)} />
+          <Route path="/fsp/stocking-standards" element={withLayout(<StockingStandardsPage />)} />
+          <Route path="/fsp/fdu-map"            element={withLayout(<FduMapPage />)} />
+          <Route path="/fsp/identified-areas"   element={withLayout(<IdentifiedAreasPage />)} />
+          <Route path="/fsp/workflow"           element={withLayout(<WorkflowPage />)} />
+          <Route path="/fsp/history"            element={withLayout(<HistoryPage />)} />
+
+          {/* Data Submission */}
+          <Route path="/data-submission/xml"    element={withLayout(<XmlSubmissionPage />)} />
+
+          {/* Admin */}
+          <Route path="/admin/district-notification" element={withLayout(<DistrictNotificationPage />)} />
+
+          {/* Reports */}
+          <Route path="/reports/jcrs"           element={withLayout(<JcrsReportsPage />)} />
+
+          {/* Catch-all */}
+          <Route path="*"                       element={<Navigate to="/welcome" replace />} />
+        </Routes>
+      ) : (
+        <Routes>
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="*"              element={<LoginPage />} />
+        </Routes>
+      )}
     </BrowserRouter>
   );
 }

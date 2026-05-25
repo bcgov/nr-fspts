@@ -1,0 +1,36 @@
+@use '@carbon/type';
+@use './variables' as vars;
+
+.default-grid {
+  margin: 0;
+  width: 100%;
+  padding: 2rem;
+  max-inline-size: none;
+  row-gap: 2.5rem;
+  column-gap: 2rem;
+  flex-grow: 1;
+  align-content: start;
+
+  .#{vars.$bcgov-prefix}--css-grid-column {
+    margin: 0;
+  }
+
+  .#{vars.$bcgov-prefix}--subgrid {
+    margin-inline: 0;
+  }
+}
+
+// Small devices (up to 671px)
+@media only screen and (max-width: 671px) {
+  .default-grid {
+    padding: 2rem 1rem;
+    column-gap: 1rem;
+  }
+}
+
+// Medium devices (up to 1311px)
+@media only screen and (max-width: 1311px) {
+  .default-grid {
+    row-gap: 2rem;
+  }
+}

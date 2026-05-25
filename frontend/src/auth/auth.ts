@@ -33,9 +33,44 @@ export interface CognitoTokens {
 
 export interface User {
   name: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   username?: string;
+  roles: string[];
   claims: JWTPayload;
+}
+
+// Canonical FSPTS roles. Mirrors backend ca.bc.gov.nrs.fsp.api.security.FsptsRoles
+// — keep these two lists in sync.
+export const FSPTS_ROLES = [
+  'FSPTS_ADMINISTRATOR',
+  'FSPTS_DECISION_MAKER',
+  'FSPTS_REVIEWER',
+  'FSPTS_VIEW_ALL',
+  'FSPTS_SUBMITTER',
+  'FSPTS_VIEW_ONLY',
+] as const;
+export type FsptsRole = (typeof FSPTS_ROLES)[number];
+
+// Maps a Cognito group (possibly with org suffix like FSPTS_ADMINISTRATOR_DPG)
+// to its canonical role, mirroring FsptsRoles.canonicalRoleFor in Java.
+function canonicalRoleFor(group: string): FsptsRole | null {
+  for (const role of FSPTS_ROLES) {
+    if (group === role || group.startsWith(`${role}_`)) return role;
+  }
+  return null;
+}
+
+function extractRoles(claims: JWTPayload): FsptsRole[] {
+  const raw = claims['cognito:groups'];
+  const groups = Array.isArray(raw) ? raw.filter((g): g is string => typeof g === 'string') : [];
+  const set = new Set<FsptsRole>();
+  for (const g of groups) {
+    const canonical = canonicalRoleFor(g);
+    if (canonical) set.add(canonical);
+  }
+  return Array.from(set);
 }
 
 export interface Session {
@@ -141,8 +176,11 @@ function extractUser(claims: JWTPayload): User {
 
   return {
     name,
+    firstName: givenName || undefined,
+    lastName: familyName || undefined,
     email: typeof claims.email === 'string' ? claims.email : undefined,
     username: typeof cognitoUsername === 'string' ? cognitoUsername : undefined,
+    roles: extractRoles(claims),
     claims,
   };
 }

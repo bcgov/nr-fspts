@@ -1,10 +1,14 @@
-// Disable ALL local font-face generation from Carbon
+// Disable ALL local font-face generation from Carbon — BC Sans is loaded
+// below from /public/fonts. Must come before any other @use of Carbon SCSS.
 @use '@carbon/styles/scss/config' with (
   $css--font-face: false
 );
 
-// Pull in all Carbon component styles (no fonts emitted)
-@use '@carbon/react';
+// BCGov-themed Carbon overrides (mirrors REPT's src/styles).
+// This file emits :root[data-carbon-theme='white'|'g100'] rules that wire
+// --cds-background-brand, button radius, side-nav icons, and the rest of the
+// BCGov palette into Carbon's theme tokens.
+@use './styles';
 
 // ── BC Sans — served from /public/fonts ───────────────────
 @font-face {
@@ -56,7 +60,7 @@
        url('/fonts/2023_01_01_BCSans-BoldItalic_2f.woff') format('woff');
 }
 
-// ── Apply BC Sans everywhere, overriding Carbon's IBM Plex ─
+// Apply BC Sans everywhere, overriding Carbon's IBM Plex
 html, body, * {
-  font-family: 'BCSans', 'Noto Sans', Arial, sans-serif !important;
+  font-family: 'BCSans', 'BC Sans', 'Noto Sans', Arial, sans-serif !important;
 }

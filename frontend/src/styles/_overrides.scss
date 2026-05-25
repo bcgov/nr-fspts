@@ -1,0 +1,533 @@
+@use "sass:map";
+
+@use "@bcgov-nr/nr-theme/design-tokens/type-family.scss" as types;
+@use "@carbon/type/scss/font-family.scss" with (
+  $font-families: types.$type-family,
+  $font-weights: types.$font-weights
+);
+
+@use "@carbon/themes/scss/utilities";
+@use "./variables" as variables;
+@use "@bcgov-nr/nr-theme/design-tokens/light-theme.scss" as light;
+@use "@bcgov-nr/nr-theme/design-tokens/dark-theme.scss" as dark;
+@use "@bcgov-nr/nr-theme/design-tokens/colors.scss" as colors;
+
+@use "@carbon/react/scss/themes";
+@use "@carbon/react/scss/theme" with (
+  $fallback: themes.$white,
+  $theme: light.$light-theme
+);
+
+@use "@carbon/react/scss/components/button/tokens" as button-tokens;
+@use "@bcgov-nr/nr-theme/design-tokens/light-buttons.scss" as light-button-overrides;
+@use "@bcgov-nr/nr-theme/design-tokens/dark-buttons.scss" as dark-button-overrides;
+
+@use "@carbon/react/scss/components/tag/tokens" as tag-tokens;
+@use "@bcgov-nr/nr-theme/design-tokens/light-tags.scss" as light-tag-overrides;
+@use "@bcgov-nr/nr-theme/design-tokens/dark-tags.scss" as dark-tag-overrides;
+
+@use "@carbon/react/scss/components/notification/tokens" as notification-tokens;
+@use "@bcgov-nr/nr-theme/design-tokens/light-notifications.scss" as light-notification-overrides;
+@use "@bcgov-nr/nr-theme/design-tokens/dark-notifications.scss" as dark-notification-overrides;
+
+@use "@carbon/react";
+@use "@carbon/styles/scss/grid";
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/breakpoint' as *;
+
+@include grid.flex-grid();
+
+:root[data-carbon-theme='white'] {
+  --cds-grid-gutter: 0;
+  $button-tokens: utilities.merge(
+    button-tokens.$button-tokens,
+    light-button-overrides.$light-button-token-overrides
+  );
+  $tag-tokens: utilities.merge(
+    tag-tokens.$tag-tokens,
+    light-tag-overrides.$light-tag-token-overrides
+  );
+
+  $notification-tokens: utilities.merge(
+    notification-tokens.$notification-tokens,
+    light-notification-overrides.$light-notification-token-overrides
+  );
+
+  @include theme.add-component-tokens($button-tokens);
+  @include theme.add-component-tokens($tag-tokens);
+  @include theme.add-component-tokens($notification-tokens);
+  @include theme.theme(themes.$white);
+}
+
+:root[data-carbon-theme='g100'] {
+  --cds-grid-gutter: 0;
+  $button-tokens: utilities.merge(
+    button-tokens.$button-tokens,
+    dark-button-overrides.$dark-button-token-overrides
+  );
+  $tag-tokens: utilities.merge(
+    tag-tokens.$tag-tokens,
+    dark-tag-overrides.$dark-tag-token-overrides
+  );
+  $notification-tokens: utilities.merge(
+    notification-tokens.$notification-tokens,
+    light-notification-overrides.$light-notification-token-overrides
+  );
+
+  @include theme.add-component-tokens($button-tokens);
+  @include theme.add-component-tokens($tag-tokens);
+  @include theme.add-component-tokens($notification-tokens);
+  @include theme.theme(themes.$g100);
+}
+
+/* --------------------- Buttons ---------------------
+- Border-radius: 4px all corners
+---------------------------------------------------- */
+.#{variables.$bcgov-prefix}--btn {
+  border-radius: 0.25rem;
+}
+
+/* Carbon's default pins the icon absolutely to the right edge and reserves
+   extra right padding for it, which makes both text-only and text+icon
+   buttons look lopsided. Center the contents, take the icon out of absolute
+   positioning so it flows next to the text, and equalize padding. */
+.#{variables.$bcgov-prefix}--btn:not(.#{variables.$bcgov-prefix}--btn--icon-only) {
+  justify-content: center;
+  gap: 0.5rem;
+  padding-inline-end: 1rem;
+
+  .#{variables.$bcgov-prefix}--btn__icon {
+    position: static;
+    inset-inline-end: auto;
+    transform: translateY(1px);
+  }
+}
+
+/* ------- Text Input / Text Area / Password Input -------
+- Border-radius: 4px top corners
+-------------------------------------------------------- */
+.#{variables.$bcgov-prefix}--text-input,
+.#{variables.$bcgov-prefix}--text-area {
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0.25rem;
+}
+
+/* ------------------ Number Input ----------------------
+- Border-radius: 4px top corners
+- Control Button: border-radius 4px all corners (this is mistach with Figma, but is documented)
+------------------------------------------------------- */
+.#{variables.$bcgov-prefix}--number,
+.#{variables.$bcgov-prefix}--number__input-wrapper,
+input[type="number"] {
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0.25rem;
+}
+
+.#{variables.$bcgov-prefix}--number__control-btn {
+  border-radius: 0.25rem;
+}
+
+/* ------------------ Select ---------------------------
+- Input field: border-radius 4px top corners
+------------------------------------------------------ */
+.#{variables.$bcgov-prefix}--select-input {
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0.25rem;
+}
+
+/* ------------------ Dropdown ---------------------------
+- Input field (list-box): border-radius 4px top corners
+- Dropdown menu: border-radius 4px all corners (this is mistach with Figma, but is documented)
+--------------------------------------------- */
+.#{variables.$bcgov-prefix}--list-box__field,
+.#{variables.$bcgov-prefix}--list-box {
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0.25rem;
+}
+.#{variables.$bcgov-prefix}--list-box__menu {
+  border-radius: 0.25rem;
+}
+
+/* ------------------ Date Picker ---------------------------
+- Input field: border-radius 4px top corners
+- Calender picker and control buttons: border-radius 4px all corners
+--------------------------------------------- */
+.#{variables.$bcgov-prefix}--date-picker__input {
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0.25rem;
+}
+
+.flatpickr-calendar,
+.flatpickr-prev-month,
+.flatpickr-next-month {
+  border-radius: 0.25rem;
+}
+
+/* ------------------ Time Picker ---------------------------
+- Border-radius: 4px on left top corner and right top corners, no border-radius in the middle
+----------------------------------------------------------------- */
+.#{variables.$bcgov-prefix}--time-picker__input,
+> .#{variables.$bcgov-prefix}--text-input {
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0;
+}
+
+.#{variables.$bcgov-prefix}--time-picker__select,
+> .#{variables.$bcgov-prefix}--select-input {
+  border-radius: 0;
+}
+
+.#{variables.$bcgov-prefix}--time-picker,
+  :last-child,
+  > .#{variables.$bcgov-prefix}--select-input {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0.25rem;
+}
+
+/* --------------- Search ------------------------------
+- Border-radius: 4px top corners
+--------------------------------------------- */
+.#{variables.$bcgov-prefix}--search-input {
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0.25rem;
+}
+
+/* --------------- Notification ------------------------------
+- Border-radius: 4px all corners
+- Update border color for inline notification
+- Add border for toast notification
+- Inline notifications span their full container (override Carbon's 18rem cap)
+--------------------------------------------- */
+// Dark mode
+.#{variables.$bcgov-prefix}--inline-notification,
+.#{variables.$bcgov-prefix}--toast-notification {
+  border-radius: 0.25rem;
+}
+
+.#{variables.$bcgov-prefix}--inline-notification {
+  max-inline-size: 100%;
+  inline-size: 100%;
+}
+
+// Light mode
+div.#{variables.$bcgov-prefix}--inline-notification--low-contrast::before {
+  border-radius: 0 0.25rem 0.25rem 0;
+  filter: none;
+}
+
+$types: "error", "info", "success", "warning";
+@each $notificationType in $types {
+  div.#{variables.$bcgov-prefix}--inline-notification--#{$notificationType} {
+    border-left: 0.25rem
+      solid
+      var(--#{variables.$bcgov-prefix}-support-#{$notificationType}-inverse);
+  }
+  div.#{variables.$bcgov-prefix}--inline-notification--low-contrast.#{variables.$bcgov-prefix}--inline-notification--#{$notificationType} {
+    border-left: 0.25rem
+      solid
+      var(--#{variables.$bcgov-prefix}-support-#{$notificationType});
+  }
+  div.#{variables.$bcgov-prefix}--inline-notification--low-contrast.#{variables.$bcgov-prefix}--inline-notification--#{$notificationType}::before {
+    border-color: var(
+      --#{variables.$bcgov-prefix}-notification-border-#{$notificationType}
+    );
+  }
+}
+
+.#{variables.$bcgov-prefix}--toast-notification--low-contrast {
+  border-width: 0.063rem 0.063rem 0.063rem 0;
+  border-style: solid;
+}
+@each $notificationType in $types {
+  div.#{variables.$bcgov-prefix}--toast-notification--#{$notificationType} {
+    border-left: 0.25rem
+      solid
+      var(--#{variables.$bcgov-prefix}-support-#{$notificationType}-inverse);
+  }
+  div.#{variables.$bcgov-prefix}--toast-notification--low-contrast.#{variables.$bcgov-prefix}--toast-notification--#{$notificationType} {
+    border-left: 0.25rem
+      solid
+      var(--#{variables.$bcgov-prefix}-support-#{$notificationType});
+    border-top-color: var(
+      --#{variables.$bcgov-prefix}-notification-border-#{$notificationType}
+    );
+    border-bottom-color: var(
+      --#{variables.$bcgov-prefix}-notification-border-#{$notificationType}
+    );
+    border-right-color: var(
+      --#{variables.$bcgov-prefix}-notification-border-#{$notificationType}
+    );
+  }
+}
+
+/* ----------------- Tile ----------------------------
+- Border-radius: 4px all corners
+----------------------------------------------------- */
+.#{variables.$bcgov-prefix}--tile {
+  border-radius: 0.25rem;
+}
+
+/* ------------------ Data Table ---------------------------
+- Header: border-radius 4px top corners
+- Table column header: font-weight bold
+- Table row expand button: border-radius 4px all corners
+------------------------------------------------------ */
+.#{variables.$bcgov-prefix}--data-table-header {
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0.25rem;
+}
+
+.#{variables.$bcgov-prefix}--table-header-label,
+.#{variables.$bcgov-prefix}--data-table thead th,
+.#{variables.$bcgov-prefix}--data-table thead .#{variables.$bcgov-prefix}--table-header {
+  @include font-family.font-weight(bold);
+}
+
+/* ----------------- Tabs (contained) -------------------
+   Bump form widgets inside the tab panel to white (--cds-field-02), so they
+   stand out against the panel's gray surface. The panel itself keeps using
+   --cds-layer-01 (gray); we deliberately do NOT override --cds-layer here.
+------------------------------------------------------- */
+.#{variables.$bcgov-prefix}--tab-content {
+  --cds-field: var(--cds-field-02);
+  --cds-field-hover: var(--cds-field-hover-02);
+  --cds-border-subtle: var(--cds-border-subtle-02);
+  --cds-border-subtle-selected: var(--cds-border-subtle-selected-02);
+}
+
+/* ── Inverted nested tabs (Agreement Workspace) ────────
+   The inner sub-tabs sit on top of a gray panel and we want the inverse
+   contrast: white tab pills + white panel, gray widgets inside.
+------------------------------------------------------- */
+.agreement-workspace-tabs,
+.property-tabs {
+  // White tab pill (selected) + white panel surface
+  --cds-layer: var(--cds-layer-02);
+
+  .#{variables.$bcgov-prefix}--tab-content {
+    // Widgets inside the inner panel revert to layer-01 (gray)
+    --cds-field: var(--cds-field-01);
+    --cds-field-hover: var(--cds-field-hover-01);
+    --cds-border-subtle: var(--cds-border-subtle-01);
+    --cds-border-subtle-selected: var(--cds-border-subtle-selected-01);
+  }
+}
+
+.#{variables.$bcgov-prefix}--table-expand__button {
+  border-radius: 0.25rem;
+}
+
+/* -------------------- Pagination -------------------------
+- Border-radius: 4px bottom corners
+- Set height of small (2.5rem), medium (3rem) and large (3.5rem) size
+- Set border-radius of the previous and next button, item per page and page select to 4px all corners
+--------------------------------------------- */
+.#{variables.$bcgov-prefix}--pagination {
+  border-bottom-left-radius: 0.25rem;
+  border-bottom-right-radius: 0.25rem;
+}
+
+// Pagination size variants. Each rule scopes its inner selectors under the size
+// variant so heights only apply to pagination internals, not every
+// `.cds--popover-container` in the app (which Carbon uses as a tooltip wrapper
+// for icon buttons everywhere).
+.#{variables.$bcgov-prefix}--pagination--sm {
+  .#{variables.$bcgov-prefix}--pagination__control-buttons,
+  .#{variables.$bcgov-prefix}--popover-container {
+    height: 2.5rem;
+  }
+}
+
+.#{variables.$bcgov-prefix}--pagination--md {
+  .#{variables.$bcgov-prefix}--pagination__control-buttons,
+  .#{variables.$bcgov-prefix}--popover-container {
+    height: 3rem;
+  }
+}
+
+.#{variables.$bcgov-prefix}--pagination--lg {
+  .#{variables.$bcgov-prefix}--pagination__control-buttons,
+  .#{variables.$bcgov-prefix}--popover-container {
+    height: 3.5rem;
+  }
+}
+
+// Inline selects inside pagination (items-per-page and page-number) — drop the
+// 1px border and round the corners so they match the rest of the toolbar.
+// Scoped under `.cds--pagination` so we don't strip borders off every other
+// Select in the app.
+.#{variables.$bcgov-prefix}--pagination {
+  .#{variables.$bcgov-prefix}--select__item-count,
+  .#{variables.$bcgov-prefix}--select__page-number,
+  .#{variables.$bcgov-prefix}--select-input__wrapper,
+  select.#{variables.$bcgov-prefix}--select-input {
+    border-radius: 0.25rem;
+    border: 0;
+  }
+
+  .#{variables.$bcgov-prefix}--select__item-count,
+  .#{variables.$bcgov-prefix}--select__page-number,
+  .#{variables.$bcgov-prefix}--select-input__wrapper {
+    margin: 0.25rem;
+  }
+
+  .#{variables.$bcgov-prefix}--pagination__button {
+    margin: 0.25rem;
+    border: 0;
+  }
+}
+
+/* ------------------ Overflow Menu ---------------------------
+- Closed trigger button: border-radius 4px on all corners
+- Opened trigger button: border-radius 4px top corners
+- First menu item: border-radius 4px top corners
+- Last menu item: border-radius 4px bottom corners
+------------------------------------------------------------- */
+.#{variables.$bcgov-prefix}--overflow-menu.bcgov--overflow-menu--open {
+  border-radius: 0.25rem 0.25rem 0 0;
+}
+
+.#{variables.$bcgov-prefix}--overflow-menu-options {
+  border-radius: 0 0.25rem 0.25rem 0.25rem;
+}
+
+li.#{variables.$bcgov-prefix}--overflow-menu-options__option:first-child {
+  border-radius: 0 0.25rem 0 0;
+}
+
+li.#{variables.$bcgov-prefix}--overflow-menu-options__option:last-child {
+  border-radius: 0 0 0.25rem 0.25rem;
+}
+
+/* ------------------  Modal ---------------------------
+- Border-radius: 8px on all corners
+------------------------------------------------------ */
+.#{variables.$bcgov-prefix}--modal-container {
+  border-radius: 0.5rem;
+}
+
+/* ------------ Label ---------------
+- Update text color from text-secondary to text-primary
+This will apply to Checkbox, Data Picker, Dropdown, RadioButton, Select, Slider, Text Input, Password Input, Text Area label
+------------------------------- */
+label.#{variables.$bcgov-prefix}--label,
+legend.#{variables.$bcgov-prefix}--label {
+  color: var(--#{variables.$bcgov-prefix}-text-primary);
+}
+
+/* ------------------  Left Panel ---------------------------
+- List item height: 48px
+- Left icons use "link-primary" color
+- Add a right border for the panel
+------------------------------------------------------ */
+.#{variables.$bcgov-prefix}--side-nav__menu,
+  .#{variables.$bcgov-prefix}--side-nav__menu-item,
+  a.#{variables.$bcgov-prefix}--side-nav__link,
+button.#{variables.$bcgov-prefix}--side-nav__submenu,
+.#{variables.$bcgov-prefix}--side-nav__link {
+  height: 3rem;
+}
+
+// Note: this changed to link-primary, previous code is secondary
+.#{variables.$bcgov-prefix}--side-nav__icon {
+  svg {
+    fill: var(--#{variables.$bcgov-prefix}-link-primary) !important;
+  }
+}
+
+nav.#{variables.$bcgov-prefix}--side-nav--expanded {
+    border-right: 0.063rem solid var(--#{variables.$bcgov-prefix}-border-subtle-01);
+}
+
+/* ------------------ Header ---------------------------
+- Update the background color
+- Set the height
+- Adjust the side nav position for the new header height
+------------------------------------------------------ */
+.#{variables.$bcgov-prefix}--header {
+  background-color: var(--#{variables.$bcgov-prefix}-background-brand);
+  //height: 3.5rem; //TODO: height seems kinda arbitrary and doesn't reflect the rest of the menus
+}
+
+// this is new added for the side nav layout
+.#{variables.$bcgov-prefix}--header ~ .#{variables.$bcgov-prefix}--side-nav {
+  inset-block-start: 3.5rem;
+}
+
+a.#{variables.$bcgov-prefix}--header__name {
+  // previously was .#{variables.$bcgov-prefix}--header-site-name
+  // NOTE: family is "BC Sans" (with the space) — that's how
+  // @bcgov-nr/nr-theme/design-tokens/type-family.scss registers the @font-face.
+  // "BCSans" (no space) silently falls through to Noto Sans / Verdana.
+  font-family: "BC Sans", "Noto Sans", Verdana, Arial, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #f3f3f5;
+  padding-left: 2rem;
+}
+
+
+/* ------------------ Other Overrides-------------------
+- Sets the grid gutter
+- Sets the content spacing
+------------------------------------------------------ */
+
+/// Remove overrides once Carbon bugs are fixed upstream.
+/// Need grid option to not add page gutters at large viewports, to also use when nesting grids
+/// @link https://github.com/carbon-design-system/carbon/issues/2792
+@media (min-width: 42rem) {
+  .#{variables.$bcgov-prefix}--grid--no-gutter {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/// Padding was introduced in 10.3.0, needs an option to let grid set the viewport gutter
+/// @link https://github.com/carbon-design-system/carbon/issues/3010
+html,
+body,
+.#{variables.$bcgov-prefix}--content,
+nav.#{variables.$bcgov-prefix}--side-nav,
+.#{variables.$bcgov-prefix}--side-nav__items {
+  background: var(--cds-background);
+}
+
+.#{variables.$bcgov-prefix}--content {
+  padding: 0 1.5rem;
+}
+
+.#{variables.$bcgov-prefix}--header ~ .#{variables.$bcgov-prefix}--content, div:has(.#{variables.$bcgov-prefix}--header) ~ .#{variables.$bcgov-prefix}--content {
+    margin-block-start: $layout-05;
+}
+
+.#{variables.$bcgov-prefix}--content .#{variables.$bcgov-prefix}--css-grid {
+  max-width: 100%;
+  @include breakpoint(md) {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+// If you don't have the Carbon mixin available:
+// Hide the "Close" tooltip label on modal close buttons
+// Hide the "Close" tooltip on modal close buttons
+.cds--modal-close-button .cds--popover {
+  display: none;
+}
+
+// Soften the focus ring on the modal close button
+.cds--modal-close:focus {
+  outline: 2px solid var(--cds-focus, #0f62fe);
+  outline-offset: -2px;
+  box-shadow: none;
+  border-color: transparent;
+}
+
+// Suppress every IconButton's hover tooltip popover. The `label` prop is still
+// passed through (it stays as aria-labelledby content for assistive tech), but
+// the visible bubble is hidden. .cds--icon-tooltip is the wrapper class Carbon
+// applies to the Tooltip rendered around any IconButton; the popover popup
+// underneath it is what we hide.
+.cds--icon-tooltip > .cds--popover {
+  display: none;
+}

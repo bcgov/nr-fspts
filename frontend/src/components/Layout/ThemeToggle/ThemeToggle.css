@@ -1,0 +1,54 @@
+.theme-toggle {
+  width: 3rem;
+  height: 1.5rem;
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+  padding: 0.188rem;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-toggle .circle {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.3s, background-color 0.3s;
+  background-color: var(--cds-background-brand, #0f62fe);
+}
+
+.theme-toggle .icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.theme-toggle.off {
+  background-color: #ffffff;
+}
+.theme-toggle.off .circle {
+  transform: translateX(0);
+}
+.theme-toggle.off .icon {
+  color: #ffffff;
+}
+.theme-toggle.off .icon path {
+  fill: currentColor;
+}
+
+.theme-toggle.on {
+  background-color: #161616;
+}
+.theme-toggle.on .circle {
+  transform: translateX(24px);
+  background-color: #ffffff;
+}
+.theme-toggle.on .icon {
+  color: #161616;
+}
+.theme-toggle.on .icon path {
+  fill: currentColor;
+}

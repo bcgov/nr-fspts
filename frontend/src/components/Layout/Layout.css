@@ -1,0 +1,6 @@
+/* Carbon's <Content> defaults to a fixed offset for the top Header bar. */
+.cds--content {
+  background-color: var(--cds-background, #ffffff);
+  min-height: calc(100vh - 3rem);
+  padding: 2rem;
+}
