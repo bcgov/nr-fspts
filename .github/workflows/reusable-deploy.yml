@@ -171,7 +171,7 @@ jobs:
             -p VITE_USER_POOLS_ID="${{ vars.VITE_USER_POOLS_ID }}"
             -p VITE_USER_POOLS_WEB_CLIENT_ID="${{ vars.VITE_USER_POOLS_WEB_CLIENT_ID }}"
             -p VITE_REDIRECT_SIGN_OUT="${{ vars.VITE_REDIRECT_SIGN_OUT }}"
-            -p VITE_BACKEND_URL="${{ vars.VITE_BACKEND_URL }}"
+            -p VITE_API_BASE_URL="${{ vars.VITE_API_BASE_URL || '/api' }}"
             -p VITE_APP_NAME="${{ vars.VITE_APP_NAME }}"
             -p VITE_ZONE="${{ vars.VITE_ZONE }}"
           triggers: ${{ inputs.triggers }}

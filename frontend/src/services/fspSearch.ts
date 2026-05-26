@@ -1,4 +1,4 @@
-import { apiFetch } from '@/auth/auth';
+import { apiFetch } from '@/services/apiFetch';
 
 // Mirrors backend ca.bc.gov.nrs.fsp.api.struct.v1.CodeOption.
 export interface CodeOption {

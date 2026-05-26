@@ -24,8 +24,8 @@ jobs:
       cleanup: label
       packages: backend frontend
       # The helper's default cleanup label is `app=<repo-name>-<target>`
-      # (i.e. `app=nr-fsp-<PR#>`), but every object in our templates is
-      # labelled `app=nr-fsp-{backend,frontend}-<PR#>` — those labels are
+      # (i.e. `app=nr-fspts-<PR#>`), but every object in our templates is
+      # labelled `app=nr-fspts-{backend,frontend}-<PR#>` — those labels are
       # also the matchLabels/selector for the Deployment, Service, and
       # NetworkPolicy podSelector, so they can't be flattened to a single
       # PR-wide value without colliding backend and frontend Pods.
@@ -35,10 +35,34 @@ jobs:
       # for each. Listing both sub-app labels here makes PR close actually
       # remove the deployed objects.
       #
-      # Caveat: `oc`'s `all` alias does NOT include NetworkPolicy, so the
-      # per-PR ingress NetworkPolicies (defined in both openshift.deploy.yml
-      # files) are NOT swept by this cleanup. They accumulate over time;
-      # if that becomes a problem, add an explicit
-      #   oc delete networkpolicy -l app=...
-      # step here.
-      cleanup_name: nr-fsp-backend-${{ github.event.number }} nr-fsp-frontend-${{ github.event.number }}
+      # NetworkPolicies are NOT covered by `oc delete all` — the
+      # cleanup-networkpolicies job below handles them explicitly.
+      cleanup_name: nr-fspts-backend-${{ github.event.number }} nr-fspts-frontend-${{ github.event.number }}
+
+  # `oc delete all` (used by the helper above) expands to pods, services,
+  # routes, deployments, replicasets, configmaps, etc. — but NOT
+  # networkpolicy. Both openshift.deploy.yml templates create per-PR
+  # NetworkPolicies (frontend ingress + backend ingress-from-frontend), so
+  # without this step they accumulate forever in the namespace. Match by
+  # the same `app=` label values the helper uses.
+  cleanup-networkpolicies:
+    name: Cleanup PR NetworkPolicies
+    needs: cleanup
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    steps:
+      - name: Delete per-PR NetworkPolicies
+        uses: bcgov/action-oc-runner@d2fc921aaa9d70684c186dbb7754e6985d44d86f # v1.4.1
+        with:
+          oc_namespace: ${{ secrets.oc_namespace }}
+          oc_token: ${{ secrets.oc_token }}
+          oc_server: ${{ vars.oc_server }}
+          commands: |
+            set -eu
+            for label in \
+              "nr-fspts-backend-${{ github.event.number }}" \
+              "nr-fspts-frontend-${{ github.event.number }}"
+            do
+              echo "Deleting networkpolicies matching app=${label}"
+              oc delete networkpolicy -l "app=${label}" --ignore-not-found
+            done

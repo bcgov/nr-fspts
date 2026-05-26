@@ -7,6 +7,11 @@
     <meta name="description" content="Forest Stewardship Plan Tracking System React App" />
     <link rel="icon" type="image/png" href="/bcid-192x192.png" />
     <title>Forest Stewardship Plan Tracking System</title>
+    <!-- Runtime config: written by docker-entrypoint.sh from VITE_* env vars
+         at container start. MUST load before the app bundle so window.config
+         is populated when env.ts initialises. In dev, public/config.js
+         provides an empty-object stub so the load doesn't 404. -->
+    <script src="/config.js"></script>
   </head>
   <body>
     <div id="root"></div>
