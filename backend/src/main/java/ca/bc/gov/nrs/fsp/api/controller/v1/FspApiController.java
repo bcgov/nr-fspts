@@ -24,11 +24,12 @@ public class FspApiController implements FspApiEndpoint {
     private final InboxService inboxService;
     private final HistoryService historyService;
     private final CodeListsService codeListsService;
+    private final FspExtentService fspExtentService;
 
     public FspApiController(FspService fspService, WorkflowService workflowService,
                             StandardsService standardsService, AttachmentsService attachmentsService,
                             InboxService inboxService, HistoryService historyService,
-                            CodeListsService codeListsService) {
+                            CodeListsService codeListsService, FspExtentService fspExtentService) {
         this.fspService = fspService;
         this.workflowService = workflowService;
         this.standardsService = standardsService;
@@ -36,6 +37,7 @@ public class FspApiController implements FspApiEndpoint {
         this.inboxService = inboxService;
         this.historyService = historyService;
         this.codeListsService = codeListsService;
+        this.fspExtentService = fspExtentService;
     }
 
     // --- Code Lists (dropdown options) ---
@@ -128,8 +130,8 @@ public class FspApiController implements FspApiEndpoint {
     // --- Inbox ---
 
     @Override
-    public ResponseEntity<List<FspSearchResult>> getInbox() {
-        return ResponseEntity.ok(inboxService.getInboxForCurrentUser());
+    public ResponseEntity<PageableResponse<FspSearchResult>> getInbox(InboxRequest request) {
+        return ResponseEntity.ok(inboxService.getInbox(request));
     }
 
     // --- History ---
@@ -137,5 +139,14 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<List<WorkflowResponse>> getHistory(String fspId) {
         return ResponseEntity.ok(historyService.getHistory(fspId));
+    }
+
+    // --- Map View extent ---
+
+    @Override
+    public ResponseEntity<FspExtentResponse> getExtent(String fspId, String amendmentNumber) {
+        int fsp = Integer.parseInt(fspId);
+        int amend = Integer.parseInt(amendmentNumber);
+        return ResponseEntity.ok(fspExtentService.getExtent(fsp, amend));
     }
 }

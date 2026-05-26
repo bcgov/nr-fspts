@@ -1,0 +1,141 @@
+// Mirrors src/pages/SearchPage.scss almost verbatim — only the BEM
+// prefix differs (fsp-inbox__* vs fsp-search__*). Keeping them as
+// parallel files rather than a shared module makes future per-page
+// tweaks easier without one-page changes leaking into the other.
+
+.fsp-inbox-grid {
+  row-gap: 2rem;
+}
+
+.fsp-inbox__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.fsp-inbox__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  // Bump the field surface to layer-02 (white) so input widgets stand
+  // out against the Tile's default gray — same trick SearchPage uses.
+  --cds-field: var(--cds-field-02);
+  --cds-field-hover: var(--cds-field-hover-02);
+}
+
+.fsp-inbox__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.fsp-inbox__field-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 672px) {
+  .fsp-inbox__field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1056px) {
+  .fsp-inbox__field-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.fsp-inbox__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.fsp-inbox__summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+// Agreement Holder field — flexbox for input + icon-button-trigger.
+// Same trick as fsp-search__holder-field.
+.fsp-inbox__holder-field {
+  display: flex;
+  gap: 0.25rem;
+  align-items: end;
+
+  .cds--form-item {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+}
+
+.fsp-inbox__holder-trigger.cds--btn {
+  flex: 0 0 auto;
+}
+
+// Map View trigger in the trailing actions column. Rendered as a
+// <button> (not an <a>) because the destination URL isn't known until
+// the user clicks — we fetch the per-row extent first, then open the
+// real arcmaps URL in a new tab. Strip the native button chrome so it
+// reads as a Carbon inline link.
+.fsp-inbox__map-link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--cds-link-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.fsp-inbox__map-link:hover,
+.fsp-inbox__map-link:focus {
+  text-decoration: underline;
+}
+
+.fsp-inbox__map-link:disabled {
+  cursor: progress;
+  color: var(--cds-text-disabled);
+  text-decoration: none;
+}
+
+// Full-Content-area centering for the initial code-table load.
+.fsp-inbox__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: calc(100vh - 3rem);
+}
+
+// Pagination-fetch in-flight overlay — dim the table, park a spinner
+// in the middle. Same pattern as fsp-search__table*.
+.fsp-inbox__table-container {
+  position: relative;
+}
+
+.fsp-inbox__table--loading {
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+.fsp-inbox__table-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.35);
+  z-index: 1;
+}

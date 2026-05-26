@@ -23,7 +23,8 @@ public class Fsp100SearchDaoImpl extends AbstractStoredProcedureDao implements F
       String pAhClientNumber, String pFspAmendmentName,
       String pEntryUserClientNumber, String pEntryUserid, String pEntryUserRole,
       String pFspDateStart, String pFspDateEnd, String pFspDateType,
-      String pFspStatusCode, String pApprovalRequired) {
+      String pFspStatusCode, String pApprovalRequired,
+      int maxRows) {
 
     return executeCall(CALL,
         cs -> {
@@ -56,7 +57,7 @@ public class Fsp100SearchDaoImpl extends AbstractStoredProcedureDao implements F
               rs.getString(8),  // agreement_holder
               rs.getString(9),  // amendment_approval_requird_ind
               rs.getString(10)  // fsp_status_desc
-          ));
+          ), maxRows);
           Header header = new Header(
               cs.getString(1),  cs.getString(2),  cs.getString(3),  cs.getString(4),
               cs.getString(5),  cs.getString(6),  cs.getString(7),  cs.getString(8),

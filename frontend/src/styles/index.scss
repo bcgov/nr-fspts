@@ -37,7 +37,14 @@
   border-radius: 0.25rem;
   overflow: hidden;
 
-  &.cds--data-table-container {
+  // Carbon's TableContainer has a default padding-block-start that renders
+  // as a thin white strip between this wrapper's border and the table
+  // header. Descendant selector (space, not concat) because the
+  // TableContainer is a nested child of .bordered-table, not the same
+  // element. Also flatten the container's own background so it doesn't
+  // double up against the table's zebra-row layer color.
+  .cds--data-table-container {
     padding-block-start: 0;
+    background: transparent;
   }
 }

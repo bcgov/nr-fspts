@@ -107,12 +107,19 @@ public interface FspApiEndpoint {
     // --- Inbox ---
 
     @GetMapping(URL.INBOX)
-    @Operation(summary = "Get inbox items via fsp_200_inbox.MAINLINE")
-    ResponseEntity<List<FspSearchResult>> getInbox();
+    @Operation(summary = "Get inbox items via fsp_200_inbox.MAINLINE (paginated + sorted in-memory)")
+    ResponseEntity<PageableResponse<FspSearchResult>> getInbox(@Valid InboxRequest request);
 
     // --- History ---
 
     @GetMapping(URL.HISTORY)
     @Operation(summary = "Get audit history via FSP_800_HISTORY.MAINLINE")
     ResponseEntity<List<WorkflowResponse>> getHistory(@PathVariable String fspId);
+
+    // --- Map View extent ---
+
+    @GetMapping(URL.EXTENT)
+    @Operation(summary = "Compute Map View MBR (minX,minY,maxX,maxY) over fdu_geometry_gets polygons")
+    ResponseEntity<FspExtentResponse> getExtent(
+            @PathVariable String fspId, @PathVariable String amendmentNumber);
 }

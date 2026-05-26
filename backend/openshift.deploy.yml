@@ -2,7 +2,7 @@
 # Backend deploy Template — consumed by `oc process` in reusable-deploy.yml.
 #
 # Parameters of note:
-#   NAME       Defaults to repo name (nr-fsp).
+#   NAME       Defaults to repo name (nr-fspts).
 #   ZONE       PR number for previews, 'test' for TEST, 'prod' for PROD.
 #              Suffixes every resource name so PR/test/prod resources coexist
 #              in the same namespace.
@@ -11,14 +11,16 @@
 #
 # The image reference uses the BCGov convention:
 #   ghcr.io/<owner>/<repo>/backend:<tag>
+# This differs from the legacy Build-and-Deploy workflow which used
+# ghcr.io/<owner>/fspts-backend:latest.
 apiVersion: template.openshift.io/v1
 kind: Template
 metadata:
-  name: nr-fsp-backend-deploy
+  name: nr-fspts-backend-deploy
 parameters:
   - name: NAME
     description: App name prefix
-    value: nr-fsp
+    value: nr-fspts
   - name: ZONE
     description: PR number, 'test', or 'prod'
     required: true
@@ -27,7 +29,7 @@ parameters:
     value: latest
   - name: REGISTRY
     description: Image registry path (no tag)
-    value: ghcr.io/bcgov/nr-fsp/backend
+    value: ghcr.io/bcgov/nr-fspts/backend
   - name: MIN_REPLICAS
     value: "1"
   - name: MAX_REPLICAS

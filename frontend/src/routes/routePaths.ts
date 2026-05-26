@@ -63,7 +63,7 @@ const NAV: MenuItem[] = [
   },
   {
     id: 'FSP',
-    label: 'FSP',
+    label: 'FSPTS',
     icon: Document,
     children: [
       { id: 'Information', label: 'FSP Information', path: '/fsp/information' },

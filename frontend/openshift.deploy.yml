@@ -7,18 +7,18 @@
 apiVersion: template.openshift.io/v1
 kind: Template
 metadata:
-  name: nr-fsp-frontend-deploy
+  name: nr-fspts-frontend-deploy
 parameters:
   - name: NAME
     description: App name prefix
-    value: nr-fsp
+    value: nr-fspts
   - name: ZONE
     description: PR number, 'test', or 'prod'
     required: true
   # SLOT decouples the public-facing Route hostname from the OpenShift object
   # names so per-PR previews can share a fixed pool of Cognito callback URIs.
   # AWS Cognito user pool app clients don't accept wildcards in CallbackURLs;
-  # we pre-register 50 URIs (nr-fsp-0…nr-fsp-49.apps.silver.devops.gov.bc.ca)
+  # we pre-register 50 URIs (nr-fspts-0…nr-fspts-49.apps.silver.devops.gov.bc.ca)
   # and bucket PRs into them via PR % 50.
   # pr-open.yml computes SLOT = PR % 50; merge.yml passes SLOT = ZONE = test/prod.
   - name: SLOT
@@ -32,7 +32,7 @@ parameters:
     value: latest
   - name: REGISTRY
     description: Image registry path (no tag)
-    value: ghcr.io/bcgov/nr-fsp/frontend
+    value: ghcr.io/bcgov/nr-fspts/frontend
   - name: DOMAIN
     description: Cluster apps domain (do not include leading dot)
     value: apps.silver.devops.gov.bc.ca
@@ -49,7 +49,7 @@ parameters:
     description: Browser-facing API base path; usually '/api'
     value: /api
   - name: VITE_APP_NAME
-    value: Forest Stewardship Plan
+    value: Forest Stewardship Plan Tracking System
   # VITE_ZONE = the deploy zone. AuthProvider uppercases this to pick the
   # Cognito identity provider (e.g. ZONE=42 → identity_provider=42-IDIR,
   # which won't exist; map PR ZONEs to 'dev' below in reusable-deploy.yml).

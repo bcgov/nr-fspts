@@ -7,7 +7,7 @@ import { useLayout } from '@/context/layout/useLayout';
 import LayoutHeaderGlobalBar from './LayoutHeaderGlobalBar';
 import './LayoutHeader.css';
 
-const APP_NAME = (import.meta.env.VITE_APP_NAME as string) || 'Forest Stewardship Plan';
+const APP_NAME = (import.meta.env.VITE_APP_NAME as string) || 'Forest Stewardship Plan Tracking System';
 
 export const LayoutHeader: FC = () => {
   const { isSideNavExpanded, toggleSideNav } = useLayout();

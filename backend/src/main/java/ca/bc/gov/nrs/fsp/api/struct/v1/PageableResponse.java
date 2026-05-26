@@ -54,4 +54,35 @@ public class PageableResponse<T> {
             .build())
         .build();
   }
+
+  /**
+   * Build a page envelope when the caller only read enough rows for the
+   * current page (+1 for a hasNext probe) instead of draining the whole
+   * source. {@code probedRows} is the slice the caller actually has on
+   * hand, indexed from the start of the data set (NOT from the current
+   * page offset); pass it as-is from a bounded {@code readCursor} call.
+   *
+   * <p>If {@code probedRows.size() > page*size+size} we know at least
+   * one more row exists in the source, so totalElements/totalPages are
+   * lower bounds (Carbon Pagination will show one extra page enabled
+   * past the current one — user clicks Next, we probe again).</p>
+   */
+  public static <T> PageableResponse<T> ofProbedPage(List<T> probedRows, int page, int size) {
+    int from = Math.min(page * size, probedRows.size());
+    int to = Math.min(from + size, probedRows.size());
+    boolean hasMore = probedRows.size() > from + size;
+    long totalElements = hasMore ? (long) from + size + 1 : probedRows.size();
+    int totalPages = size > 0
+        ? (int) Math.ceil((double) totalElements / size)
+        : 0;
+    return PageableResponse.<T>builder()
+        .content(probedRows.subList(from, to))
+        .page(PageInfo.builder()
+            .size(size)
+            .number(page)
+            .totalElements(totalElements)
+            .totalPages(totalPages)
+            .build())
+        .build();
+  }
 }

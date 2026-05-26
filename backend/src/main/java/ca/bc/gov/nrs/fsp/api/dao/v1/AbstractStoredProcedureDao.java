@@ -4,6 +4,8 @@ import ca.bc.gov.nrs.fsp.api.dao.v1.bean.LicenseeArrayElement;
 import ca.bc.gov.nrs.fsp.api.dao.v1.bean.OrgUnitArrayElement;
 import oracle.jdbc.OracleConnection;
 import oracle.jdbc.OracleTypes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.lang.Nullable;
@@ -26,6 +28,8 @@ import java.util.List;
  * OracleConnection.createOracleArray / createOracleStruct.
  */
 public abstract class AbstractStoredProcedureDao {
+
+  private static final Logger log = LoggerFactory.getLogger(AbstractStoredProcedureDao.class);
 
   public static final String SCHEMA = "THE";
   public static final String ORG_UNIT_VARRAY_TYPE = SCHEMA + ".FSP_ORG_UNIT_VARRAY";
@@ -52,11 +56,59 @@ public abstract class AbstractStoredProcedureDao {
   protected <T> T executeCall(String sql, CallStatementSetter setter, CallResultExtractor<T> extractor) {
     return jdbcTemplate.execute((ConnectionCallback<T>) conn -> {
       try (CallableStatement cs = conn.prepareCall(sql)) {
+        // Set fetch size on the statement BEFORE execute so it
+        // propagates to any REF CURSOR OUT params at cursor-open time,
+        // not just on subsequent fetches. Oracle JDBC otherwise uses
+        // the connection-level defaultRowPrefetch (10) for the first
+        // batch — meaning a 500-row search still pays for ~50 of those
+        // round-trips before the per-ResultSet setFetchSize in
+        // readCursor takes over. With it set here, even the first
+        // batch is 500 wide; this is why inbox (small result set, fits
+        // in one prefetch anyway) felt fast and search (larger set)
+        // felt slow despite sharing the same readCursor path.
+        cs.setFetchSize(CURSOR_FETCH_SIZE);
         setter.apply(cs);
+
+        // Per-call timing breakdown so a slow proc shows whether the
+        // cost is the server-side PL/SQL run (cs.execute) or draining
+        // the cursor over the wire (extractor). When we see e.g.
+        // exec=197s, extract=1s — it's plan/PL/SQL. When we see
+        // exec=1s, extract=197s — it's network/fetch volume. Logged at
+        // DEBUG so prod is silent; flip ca.bc.gov.nrs.fsp.api.dao to
+        // DEBUG in application-local.properties to investigate.
+        long t0 = System.nanoTime();
         cs.execute();
-        return extractor.apply(cs);
+        long execNs = System.nanoTime() - t0;
+
+        long t1 = System.nanoTime();
+        T out = extractor.apply(cs);
+        long extractNs = System.nanoTime() - t1;
+
+        if (log.isDebugEnabled()) {
+          log.debug("Proc {} timing: exec={} ms, extract={} ms",
+              shortSql(sql),
+              execNs / 1_000_000,
+              extractNs / 1_000_000);
+        } else if (execNs + extractNs > 5_000_000_000L) {
+          // Warn at INFO when a single call crosses the 5-second mark
+          // even without DEBUG logging — operationally that's the
+          // signal that DBA-side investigation is warranted.
+          log.warn("Slow proc {}: exec={} ms, extract={} ms",
+              shortSql(sql),
+              execNs / 1_000_000,
+              extractNs / 1_000_000);
+        }
+        return out;
       }
     });
+  }
+
+  /** "{call PKG.PROC(?,...)}" → "PKG.PROC" for compact log output. */
+  private static String shortSql(String sql) {
+    int open = sql.indexOf('(');
+    int call = sql.indexOf("call ");
+    if (call >= 0 && open > call) return sql.substring(call + 5, open).trim();
+    return sql;
   }
 
   /** Throw if Oracle returned an error message. */
@@ -166,13 +218,36 @@ public abstract class AbstractStoredProcedureDao {
 
   /** Read an OUT REF CURSOR via cs.getObject(index) into a list using a per-row reader. */
   protected <T> List<T> readCursor(CallableStatement cs, int index, CursorRowReader<T> reader) throws SQLException {
-    List<T> out = new ArrayList<>();
+    return readCursor(cs, index, reader, -1);
+  }
+
+  /**
+   * Read an OUT REF CURSOR with an upper bound on rows. Pass {@code maxRows
+   * <= 0} for unbounded drain (legacy behavior; safe for small cursors like
+   * inbox or code-list lookups). Pass a positive value to stop iterating
+   * after that many rows — the cursor is closed via try-with-resources, so
+   * the unread tail is discarded server-side without us paying for it.
+   *
+   * The pattern callers use to detect "is there a next page": ask for
+   * {@code requestedPageSize + 1} rows. If the returned list is exactly
+   * that size, at least one more row exists in the cursor and the caller
+   * knows hasNext=true; if shorter, the cursor was exhausted.
+   *
+   * This is the only practical knob we have for paginating procs that
+   * return a REF CURSOR with no native ORDER BY / OFFSET / FETCH FIRST
+   * (FSP_100_SEARCH.MAINLINE et al). Without it, search for a large org
+   * unit drains tens of thousands of rows over VPN before the service
+   * layer even sees the data.
+   */
+  protected <T> List<T> readCursor(CallableStatement cs, int index, CursorRowReader<T> reader, int maxRows) throws SQLException {
+    List<T> out = maxRows > 0 ? new ArrayList<>(maxRows) : new ArrayList<>();
     Object obj = cs.getObject(index);
     if (!(obj instanceof ResultSet rs)) return out;
     try (ResultSet auto = rs) {
       auto.setFetchSize(CURSOR_FETCH_SIZE);
       while (auto.next()) {
         out.add(reader.read(auto));
+        if (maxRows > 0 && out.size() >= maxRows) break;
       }
     }
     return out;

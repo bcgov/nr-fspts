@@ -12,10 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
 /**
  * Search via FSP_100_SEARCH.MAINLINE; fetch + update via fsp_300_information.MAINLINE.
@@ -37,23 +34,6 @@ public class FspService {
   private final Fsp100SearchDao searchDao;
   private final Fsp300InformationDao informationDao;
 
-  // Allow-listed sort keys. Maps the JSON field name the front-end sends
-  // (sortBy) onto a Comparator over FspSearchResult. Kept narrow so
-  // arbitrary input can't trigger a NullPointerException or sort by a
-  // field the client wasn't supposed to know about. Any unknown sortBy
-  // falls back to fspId.
-  private static final Map<String, Function<FspSearchResult, String>> SORT_KEYS = Map.of(
-      "fspId", FspSearchResult::getFspId,
-      "planName", FspSearchResult::getPlanName,
-      "fspAmendmentNumber", FspSearchResult::getFspAmendmentNumber,
-      "fspAmendmentName", FspSearchResult::getFspAmendmentName,
-      "orgUnitCode", FspSearchResult::getOrgUnitCode,
-      "planStartDate", FspSearchResult::getPlanStartDate,
-      "planEndDate", FspSearchResult::getPlanEndDate,
-      "fspStatusDesc", FspSearchResult::getFspStatusDesc,
-      "agreementHolder", FspSearchResult::getAgreementHolder
-  );
-
   public PageableResponse<FspSearchResult> search(FspSearchRequest request) {
     // P_ENTRY_USER_ROLE — legacy handleGet pulled User.getUser_roles()
     // which returned a space-separated list. The MAINLINE proc uses it
@@ -61,6 +41,44 @@ public class FspService {
     // view-only gates to APP, etc.). Map our canonical FSPTS_* roles
     // onto the legacy FSP_* names the proc expects.
     String userRoles = currentUserLegacyRoles();
+    int page = request.getPage() == null ? 0 : Math.max(0, request.getPage());
+    int size = request.getSize() == null || request.getSize() <= 0 ? 10 : request.getSize();
+
+    // Only drain what we need for the current page, plus one extra row
+    // to detect whether a next page exists (PageableResponse.ofProbedPage
+    // unpacks that signal). Bounded cursor read replaces the previous
+    // drain-everything-then-sort pattern; org units with thousands of
+    // matching FSPs were taking ~3 minutes over VPN just to drain their
+    // REF CURSOR. The proc returns rows in its natural order — legacy's
+    // fsp100Search.jsp also iterated in cursor order and never sorted,
+    // so we lose nothing dropping the in-memory sort.
+    int maxRows = (page + 1) * size + 1;
+
+    // Temporary diagnostic — compare against the legacy proc inputs
+    // to confirm we're not sending a role/user that the proc treats
+    // differently. Dumps every claim on the current JWT that looks like
+    // it could carry the IDIR username (legacy passed `MARCOV`-style
+    // IDs, we currently send the Cognito synthetic `dev-idir_<sub>@idir`
+    // which won't match any FSP_USER row). Remove once the
+    // org-unit-1908 slowness is root-caused.
+    var jwt = RequestUtil.getCurrentJwt();
+    log.info("FSP_100_SEARCH inputs: orgUnitNo={}, fspId={}, fspStatusCode={}, "
+            + "userId={}, userRoles=[{}], maxRows={}",
+        nz(request.getOrgUnitNo()), nz(request.getFspId()), nz(request.getFspStatusCode()),
+        nz(RequestUtil.getCurrentUserName()), userRoles, maxRows);
+    log.info("JWT identity claims — username={}, cognito:username={}, preferred_username={}, "
+            + "custom:idp_username={}, custom:idir_username={}, custom:idp_name={}, "
+            + "email={}, sub={}, identities={}",
+        jwt.getClaimAsString("username"),
+        jwt.getClaimAsString("cognito:username"),
+        jwt.getClaimAsString("preferred_username"),
+        jwt.getClaimAsString("custom:idp_username"),
+        jwt.getClaimAsString("custom:idir_username"),
+        jwt.getClaimAsString("custom:idp_name"),
+        jwt.getClaimAsString("email"),
+        jwt.getSubject(),
+        jwt.getClaim("identities"));
+
     Fsp100SearchDao.Result result = searchDao.mainline(
         ACTION_GET,
         nz(request.getFspId()),
@@ -75,30 +93,14 @@ public class FspService {
         nz(request.getFspDateEnd()),
         nz(request.getFspDateType()),
         nz(request.getFspStatusCode()),
-        nz(request.getApprovalRequired())
+        nz(request.getApprovalRequired()),
+        maxRows
     );
-    // Pull the full cursor (proc has no native paging), sort + slice
-    // in-memory. For typical FSP search result counts (<= a few hundred
-    // rows) this is fine; if we ever need to scale past that, push the
-    // ORDER BY + ROWNUM windowing into a wrapper view around the proc.
-    List<FspSearchResult> all = result.rows().stream()
+
+    List<FspSearchResult> probed = result.rows().stream()
         .map(FspService::toSearchDto)
-        .sorted(buildComparator(request.getSortBy(), request.getSortDir()))
         .toList();
-
-    int page = request.getPage() == null ? 0 : Math.max(0, request.getPage());
-    int size = request.getSize() == null || request.getSize() <= 0 ? 10 : request.getSize();
-    return PageableResponse.of(all, page, size);
-  }
-
-  private static Comparator<FspSearchResult> buildComparator(String sortBy, String sortDir) {
-    Function<FspSearchResult, String> key = SORT_KEYS.getOrDefault(sortBy, FspSearchResult::getFspId);
-    // nullsLast so rows with a missing value land at the bottom in both
-    // directions; caseInsensitiveOrder so mixed-case values (planName
-    // free-text) sort intuitively.
-    Comparator<FspSearchResult> asc = Comparator.comparing(
-        key, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
-    return "asc".equalsIgnoreCase(sortDir) ? asc : asc.reversed();
+    return PageableResponse.ofProbedPage(probed, page, size);
   }
 
   /**

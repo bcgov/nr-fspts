@@ -46,6 +46,12 @@ public interface Fsp100SearchDao {
 
   record Result(Header header, List<Row> rows) {}
 
+  /**
+   * @param maxRows upper bound on rows drained from the REF CURSOR. Use
+   *     a positive value for paged reads (typically {@code (page+1)*size + 1}
+   *     to detect hasNext); 0 or negative drains the whole cursor
+   *     (legacy behavior — only use when the result set is known small).
+   */
   Result mainline(
       String pAction,
       String pFspId,
@@ -60,6 +66,7 @@ public interface Fsp100SearchDao {
       String pFspDateEnd,
       String pFspDateType,
       String pFspStatusCode,
-      String pApprovalRequired
+      String pApprovalRequired,
+      int maxRows
   );
 }

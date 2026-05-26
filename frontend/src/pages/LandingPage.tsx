@@ -24,11 +24,11 @@ const LandingPage: FC = () => {
             </div>
 
             <h1 data-testid="landing-title" className="landing-title">
-              FSP
+              FSPTS
             </h1>
 
             <h2 data-testid="landing-subtitle" className="landing-subtitle">
-              Forest Stewardship Plan
+              Forest Stewardship Plan Tracking System
             </h2>
 
             <div className="buttons-container two-rows">

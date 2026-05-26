@@ -24,4 +24,9 @@ public final class URL {
   public static final String ATTACHMENT_DOWNLOAD = "/{fspId}/attachments/{attachmentId}/download";
   public static final String INBOX = "/inbox";
   public static final String HISTORY = "/{fspId}/history";
+
+  // Map View extent — bounding box of all FDU polygons for this FSP +
+  // amendment. Fetched lazily by the front-end inbox/results pages so
+  // the spatial query only runs when the user actually clicks Map View.
+  public static final String EXTENT = "/{fspId}/amendments/{amendmentNumber}/extent";
 }

@@ -311,7 +311,12 @@ const SearchPage: FC = () => {
           fspAmendmentName: form.amendName,
           fspDateStart: form.dateFrom,
           fspDateEnd: form.dateTo,
-          fspDateType: form.dateType,
+          // Date Type is only meaningful when paired with a date — the
+          // proc otherwise filters by an unused dimension and either
+          // returns nothing or scans a wider index than needed. Drop
+          // it when both date bounds are empty so the proc treats this
+          // as "no date filter at all".
+          fspDateType: form.dateFrom || form.dateTo ? form.dateType : '',
           fspStatusCode: form.status,
           approvalRequired: form.approval,
           page: nextPage,

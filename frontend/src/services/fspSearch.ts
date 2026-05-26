@@ -71,6 +71,22 @@ export interface PageableResponse<T> {
   };
 }
 
+// Mirrors backend ca.bc.gov.nrs.fsp.api.struct.v1.InboxRequest. Same
+// page/size/sort defaults as FspSearchRequest. orgUnitNo is optional —
+// when blank the backend falls back to the user's JWT
+// custom:org_unit_no claim (matches legacy Fsp200InboxForm.setDefaults).
+export interface InboxRequest {
+  orgUnitNo?: string;
+  fspId?: string;
+  fspPlanName?: string;
+  fspStatusCode?: string;
+  ahClientNumber?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
+}
+
 // Mirrors backend ca.bc.gov.nrs.fsp.api.struct.v1.FspSearchResult — the
 // union of FSP_100_SEARCH and fsp_200_inbox cursor columns. Several fields
 // are populated only by one of those two sources (see the Javadoc on the
@@ -97,7 +113,10 @@ export interface FspSearchResult {
 // when 0 — page=0 is a legitimate first-page request that the backend
 // needs to see. Sending blank string criteria would otherwise be treated
 // by the backend as "filter for empty string" rather than "no filter".
-function buildSearchQuery(criteria: FspSearchRequest): string {
+// Generic over the criteria object shape so the same builder serves
+// FspSearchRequest, InboxRequest, and future request DTOs without
+// per-call type assertions.
+function buildSearchQuery(criteria: Record<string, unknown>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(criteria)) {
     if (typeof value === 'string' && value.trim()) {
@@ -119,7 +138,7 @@ function buildSearchQuery(criteria: FspSearchRequest): string {
 export async function searchFsp(
   criteria: FspSearchRequest,
 ): Promise<PageableResponse<FspSearchResult>> {
-  const qs = buildSearchQuery(criteria);
+  const qs = buildSearchQuery(criteria as Record<string, unknown>);
   const path = qs ? `/v1/fsp/search?${qs}` : '/v1/fsp/search';
   const res = await apiFetch(path);
   if (!res.ok) {
@@ -129,4 +148,59 @@ export async function searchFsp(
     );
   }
   return res.json() as Promise<PageableResponse<FspSearchResult>>;
+}
+
+/**
+ * GET /api/v1/fsp/inbox — wraps fsp_200_inbox.MAINLINE.
+ *
+ * Returns the same FspSearchResult shape as searchFsp (the inbox proc
+ * populates a subset of fields; see InboxService Javadoc). When the
+ * criteria omits orgUnitNo the backend defaults it from the JWT, so a
+ * no-criteria call returns the current user's home-district inbox.
+ */
+export async function searchInbox(
+  criteria: InboxRequest,
+): Promise<PageableResponse<FspSearchResult>> {
+  const qs = buildSearchQuery(criteria as Record<string, unknown>);
+  const path = qs ? `/v1/fsp/inbox?${qs}` : '/v1/fsp/inbox';
+  const res = await apiFetch(path);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail ? `Inbox load failed (${res.status}): ${detail}` : `Inbox load failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<PageableResponse<FspSearchResult>>;
+}
+
+export interface FspExtentResponse {
+  // "minX,minY,maxX,maxY" — null when the FSP/amendment has no FDU
+  // geometry. Callers treat null as "no Map View available" rather
+  // than as an error.
+  extent: string | null;
+}
+
+/**
+ * Fetches the Map View MBR for a single FSP + amendment. Lazy-loaded
+ * by inbox/results pages on the user's Map View click — the spatial
+ * query is per-row, so doing it eagerly on page render would mean N
+ * round-trips per page that the user mostly won't open.
+ */
+export async function getFspExtent(
+  fspId: string,
+  amendmentNumber: string,
+): Promise<FspExtentResponse> {
+  const path = `/v1/fsp/${encodeURIComponent(fspId)}/amendments/${encodeURIComponent(
+    amendmentNumber,
+  )}/extent`;
+  const res = await apiFetch(path);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Extent load failed (${res.status}): ${detail}`
+        : `Extent load failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<FspExtentResponse>;
 }
