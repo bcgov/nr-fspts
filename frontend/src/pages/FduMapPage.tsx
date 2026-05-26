@@ -23,7 +23,7 @@ export default function FduMapPage() {
   const [newLicence, setNewLicence] = useState('');
 
   return (
-    <PageLayout screenId="FSP600" title="FDU / Map">
+    <PageLayout title="FDU / Map">
       <FspTombstone fspId="10001" amendNo="1" status="Draft" />
       <FspTabStrip />
 

@@ -34,7 +34,7 @@ export default function WorkflowPage() {
     setReviews(r => ({ ...r, [key]: { ...r[key], [field]: value } }));
 
   return (
-    <PageLayout screenId="FSP700" title="Workflow">
+    <PageLayout title="Workflow">
       <FspTombstone fspId="10001" amendNo="1" status="Submitted" />
       <FspTabStrip />
 

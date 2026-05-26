@@ -37,7 +37,7 @@ export default function StockingStandardsPage() {
   const [rows] = useState<StockingStandard[]>(MOCK_STANDARDS);
 
   return (
-    <PageLayout screenId="FSP500" title="Stocking Standards">
+    <PageLayout title="Stocking Standards">
       <FspTombstone fspId="10001" amendNo="1" status="Draft" />
       <FspTabStrip />
 

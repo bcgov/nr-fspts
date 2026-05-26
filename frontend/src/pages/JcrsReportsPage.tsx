@@ -38,7 +38,7 @@ export default function JcrsReportsPage() {
   const [results, setResults]       = useState<ReportRow[] | null>(null);
 
   return (
-    <PageLayout screenId="RPT" title="JCRS Reports">
+    <PageLayout title="JCRS Reports">
 
       <div className="form-section">
         <div className="form-section__title">Report Parameters</div>

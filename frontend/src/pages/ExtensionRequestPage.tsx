@@ -19,7 +19,7 @@ export default function ExtensionRequestPage() {
   const set = <K extends keyof ExtensionForm>(k: K, v: ExtensionForm[K]) => setForm(f => ({ ...f, [k]: v }));
 
   return (
-    <PageLayout screenId="FSP302" title="Extension Request">
+    <PageLayout title="Extension Request">
       <FspTombstone fspId="10001" amendNo="0" status="Approved" expiryDate="2028-03-31" />
       <FspTabStrip />
 

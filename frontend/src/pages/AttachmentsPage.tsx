@@ -22,7 +22,7 @@ export default function AttachmentsPage() {
   const [display, setDisplay] = useState<string>('N');
 
   return (
-    <PageLayout screenId="FSP400" title="Attachments">
+    <PageLayout title="Attachments">
       <FspTombstone fspId="10001" amendNo="1" status="Draft" />
       <FspTabStrip />
 

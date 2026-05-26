@@ -37,7 +37,7 @@ export default function ExtensionSummaryPage() {
   const [results, setResults] = useState<ExtensionRow[] | null>(MOCK_EXTENSIONS);
 
   return (
-    <PageLayout screenId="FSP303" title="Extension Summary">
+    <PageLayout title="Extension Summary">
       <div className="form-section">
         <div className="search-grid" style={{ maxWidth: 480 }}>
           <TextInput id="fspId" labelText="FSP ID" value={fspId} onChange={e => setFspId(e.target.value)} maxLength={10} />

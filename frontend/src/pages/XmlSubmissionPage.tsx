@@ -9,7 +9,7 @@ export default function XmlSubmissionPage() {
   const [submitted, setSubmitted] = useState(false);
 
   return (
-    <PageLayout screenId="DATA" title="XML Submission">
+    <PageLayout title="XML Submission">
 
       <div className="form-section">
         <div className="form-section__title">FSP Identification</div>

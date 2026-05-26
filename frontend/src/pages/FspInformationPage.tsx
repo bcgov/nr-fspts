@@ -46,7 +46,7 @@ export default function FspInformationPage() {
   const set = <K extends keyof FspInfoForm>(k: K, v: FspInfoForm[K]) => setForm(f => ({ ...f, [k]: v }));
 
   return (
-    <PageLayout screenId="FSP300" title="FSP Information">
+    <PageLayout title="FSP Information">
       <FspTombstone fspId={form.fspId || 'New'} amendNo="0" status="Draft" />
       <FspTabStrip />
 

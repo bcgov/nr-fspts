@@ -19,15 +19,6 @@
   border-bottom: 3px solid #003366;
 }
 
-.page-layout__screen-id {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #6f6f6f;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-}
-
 .page-layout__title {
   font-size: 1.4rem;
   font-weight: 700;
