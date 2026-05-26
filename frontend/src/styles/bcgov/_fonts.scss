@@ -1,0 +1,90 @@
+@use 'sass:string';
+
+// BC Sans @font-face — paths point at frontend/public/fonts/ (served as
+// /fonts/* by Vite/Caddy). These files were already in /public/fonts/ from
+// FSP's original setup; we no longer depend on nr-theme's bundled assets.
+//
+// Note the keyword `font-weight: light` on the Light face — this matches
+// what nr-theme 1.8.9 emits. The keyword is technically invalid per the
+// CSS spec, so browsers fall back to using Regular for any rule asking
+// for weight 300; that's the intended behaviour (Carbon's `light` token
+// is aliased to 400 below for the same reason). Don't "fix" this to
+// `font-weight: 300` — that would silently make headings render in true
+// Light and break the visual match with REPT.
+
+@font-face {
+  font-family: 'BC Sans';
+  src: url('/fonts/2023_01_01_BCSans-Regular_2f.woff') format('woff'),
+       url('/fonts/2023_01_01_BCSans-Regular_2f.woff2') format('woff2');
+  font-style: normal;
+  font-weight: normal;
+}
+
+@font-face {
+  font-family: 'BC Sans';
+  src: url('/fonts/2023_01_01_BCSans-Italic_2f.woff') format('woff'),
+       url('/fonts/2023_01_01_BCSans-Italic_2f.woff2') format('woff2');
+  font-style: italic;
+  font-weight: normal;
+}
+
+@font-face {
+  font-family: 'BC Sans';
+  src: url('/fonts/2023_01_01_BCSans-Bold_2f.woff') format('woff'),
+       url('/fonts/2023_01_01_BCSans-Bold_2f.woff2') format('woff2');
+  font-style: normal;
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: 'BC Sans';
+  src: url('/fonts/2023_01_01_BCSans-BoldItalic_2f.woff') format('woff'),
+       url('/fonts/2023_01_01_BCSans-BoldItalic_2f.woff2') format('woff2');
+  font-style: italic;
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: 'BC Sans';
+  src: url('/fonts/2023_03_14_BCSans-Light_2g.woff') format('woff'),
+       url('/fonts/2023_03_14_BCSans-Light_2g.woff2') format('woff2');
+  font-style: normal;
+  font-weight: light;
+}
+
+@font-face {
+  font-family: 'BC Sans';
+  src: url('/fonts/2023_01_01_BCSans-LightItalic_2f.woff') format('woff'),
+       url('/fonts/2023_01_01_BCSans-LightItalic_2f.woff2') format('woff2');
+  font-style: italic;
+  font-weight: light;
+}
+
+// Maps consumed by Carbon's @carbon/type module via:
+//   @use '@carbon/type/scss/font-family.scss' with (
+//     $font-families: types.$type-family,
+//     $font-weights: types.$font-weights
+//   );
+//
+// 'light': 400 is deliberate — see the comment on the Light @font-face
+// above. This aliases Carbon's "light" weight back to Regular so display
+// and paragraph type tokens render at 400, matching nr-theme 1.8.9 (and
+// therefore REPT's appearance).
+$type-family: (
+  'mono': string.unquote(
+    "'IBM Plex Mono', system-ui, -apple-system, BlinkMacSystemFont, '.SFNSText-Regular', monospace"
+  ),
+  'sans': string.unquote(
+    "'BC Sans', 'IBM Plex Sans', system-ui, -apple-system, BlinkMacSystemFont, '.SFNSText-Regular', sans-serif"
+  ),
+);
+
+$font-weights: (
+  'light': 400,
+  'regular': 400,
+  'bold': 700,
+);
+
+@function font-weight($weight) {
+  @return map-get($font-weights, $weight);
+}

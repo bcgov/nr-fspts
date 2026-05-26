@@ -1,66 +1,15 @@
-// Disable ALL local font-face generation from Carbon — BC Sans is loaded
-// below from /public/fonts. Must come before any other @use of Carbon SCSS.
-@use '@carbon/styles/scss/config' with (
-  $css--font-face: false
-);
-
-// BCGov-themed Carbon overrides (mirrors REPT's src/styles).
-// This file emits :root[data-carbon-theme='white'|'g100'] rules that wire
-// --cds-background-brand, button radius, side-nav icons, and the rest of the
-// BCGov palette into Carbon's theme tokens.
+// FSP global styles. Font loading + the BCGov Carbon overrides come from the
+// BCGov theme package wired up inside ./styles/_overrides.scss:
+//   • @bcgov-nr/nr-theme/design-tokens/type-family.scss registers @font-face
+//     for "BC Sans" (with a space) and exports the BCGov $type-family /
+//     $font-weights maps.
+//   • _overrides.scss configures @carbon/type/scss/font-family with those
+//     maps, so every Carbon type-style mixin uses BC Sans automatically.
+//
+// We deliberately do NOT register our own @font-face blocks or apply a
+// blanket `* { font-family: !important }` rule. Doing so makes FSP render
+// font-weight 300 (Light) using a real Light file, while REPT's `light`
+// keyword in nr-theme silently falls back to Regular — the result is FSP
+// looking lighter than REPT for the same Carbon type-style tokens.
+// Matching REPT's behaviour means letting nr-theme alone do font loading.
 @use './styles';
-
-// ── BC Sans — served from /public/fonts ───────────────────
-@font-face {
-  font-family: 'BCSans';
-  font-style: normal;
-  font-weight: 300;
-  font-display: swap;
-  src: url('/fonts/2023_03_14_BCSans-Light_2g.woff2') format('woff2'),
-       url('/fonts/2023_03_14_BCSans-Light_2g.woff') format('woff');
-}
-@font-face {
-  font-family: 'BCSans';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/2023_01_01_BCSans-Regular_2f.woff2') format('woff2'),
-       url('/fonts/2023_01_01_BCSans-Regular_2f.woff') format('woff');
-}
-@font-face {
-  font-family: 'BCSans';
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/2023_01_01_BCSans-Italic_2f.woff2') format('woff2'),
-       url('/fonts/2023_01_01_BCSans-Italic_2f.woff') format('woff');
-}
-@font-face {
-  font-family: 'BCSans';
-  font-style: italic;
-  font-weight: 300;
-  font-display: swap;
-  src: url('/fonts/2023_01_01_BCSans-LightItalic_2f.woff2') format('woff2'),
-       url('/fonts/2023_01_01_BCSans-LightItalic_2f.woff') format('woff');
-}
-@font-face {
-  font-family: 'BCSans';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/2023_01_01_BCSans-Bold_2f.woff2') format('woff2'),
-       url('/fonts/2023_01_01_BCSans-Bold_2f.woff') format('woff');
-}
-@font-face {
-  font-family: 'BCSans';
-  font-style: italic;
-  font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/2023_01_01_BCSans-BoldItalic_2f.woff2') format('woff2'),
-       url('/fonts/2023_01_01_BCSans-BoldItalic_2f.woff') format('woff');
-}
-
-// Apply BC Sans everywhere, overriding Carbon's IBM Plex
-html, body, * {
-  font-family: 'BCSans', 'BC Sans', 'Noto Sans', Arial, sans-serif !important;
-}

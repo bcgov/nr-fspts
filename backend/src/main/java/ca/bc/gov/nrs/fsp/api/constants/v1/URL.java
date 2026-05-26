@@ -6,6 +6,10 @@ public final class URL {
 
   public static final String BASE_URL = "/api/v1/fsp";
 
+  // Code lists (dropdown options) — backed by FSP_CODE_LISTS / PKG_SIL_CODE_LISTS.
+  public static final String CODE_LISTS_ORG_UNITS = "/code-lists/org-units";
+  public static final String CODE_LISTS_FSP_STATUS = "/code-lists/fsp-status";
+
   // FSP
   public static final String FSP_SEARCH = "/search";
   public static final String FSP_BY_ID = "/{fspId}";

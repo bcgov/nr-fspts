@@ -1,6 +1,6 @@
-/* Carbon's <Content> defaults to a fixed offset for the top Header bar. */
-.cds--content {
-  background-color: var(--cds-background, #ffffff);
-  min-height: calc(100vh - 3rem);
-  padding: 2rem;
-}
+/* The Carbon <Content> defaults plus the BCGov overrides in
+   src/styles/_overrides.scss (`.cds--content { padding: 0 1.5rem }` and
+   the `margin-block-start: $layout-05` sibling-of-header rule) handle
+   chrome positioning the same way REPT does. We deliberately don't add
+   per-app padding here — duplicating it caused 2rem of extra top
+   whitespace above page H1s, breaking visual parity with REPT. */

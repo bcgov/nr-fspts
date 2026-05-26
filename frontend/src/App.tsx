@@ -2,11 +2,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
 import Layout from './components/Layout';
-import { startLogin } from './auth/auth';
 import { useSession } from './auth/useSession';
 
 // Pages
 import AuthCallbackPage         from './pages/AuthCallbackPage';
+import LandingPage              from './pages/LandingPage';
 import WelcomePage              from './pages/WelcomePage';
 import SearchPage               from './pages/SearchPage';
 import InboxPage                from './pages/InboxPage';
@@ -26,47 +26,6 @@ import XmlSubmissionPage        from './pages/XmlSubmissionPage';
 import JcrsReportsPage          from './pages/JcrsReportsPage';
 
 import './App.css';
-
-const AUTH_IDP_IDIR  = import.meta.env.VITE_AUTH_IDP_IDIR;
-const AUTH_IDP_BCEID = import.meta.env.VITE_AUTH_IDP_BCEID;
-
-// ── Login Page ─────────────────────────────────────────────
-function LoginPage() {
-  return (
-    <main className="login-page" id="main-content">
-      <div className="login-card">
-        <div className="login-card__logo-wrap">
-          <img src="/BCID_H_RGB_pos.png" alt="Government of British Columbia" className="login-card__logo" />
-        </div>
-        <h1 className="login-card__title">Forest Stewardship Plan</h1>
-        <p className="login-card__subtitle">
-          Sign in with your BC Government account to access and manage your plans.
-        </p>
-
-        <button type="button" onClick={() => startLogin(AUTH_IDP_IDIR)} className="login-card__btn">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" width="20" height="20" aria-hidden="true" className="login-card__btn-icon">
-            <rect x="0"  y="0"  width="10" height="10" fill="#f25022"/>
-            <rect x="11" y="0"  width="10" height="10" fill="#7fba00"/>
-            <rect x="0"  y="11" width="10" height="10" fill="#00a4ef"/>
-            <rect x="11" y="11" width="10" height="10" fill="#ffb900"/>
-          </svg>
-          Log in with IDIR
-        </button>
-
-        <div className="login-card__divider"><span>or</span></div>
-
-        <button type="button" onClick={() => startLogin(AUTH_IDP_BCEID)} className="login-card__btn login-card__btn--secondary">
-          <img src="/bcid-192x192.png" alt="" aria-hidden="true" className="login-card__btn-icon login-card__btn-icon--bcid" />
-          Log in with Business BCeID
-        </button>
-
-        <p className="login-card__help">
-          Need help? <a href="#" className="login-card__link">Contact support</a>
-        </p>
-      </div>
-    </main>
-  );
-}
 
 // Wraps a page in the Carbon UI Shell. Used inline so the route table reads
 // like REPT's — `element={withLayout(<Page />)}` — without a per-page edit.
@@ -126,7 +85,7 @@ export default function App() {
       ) : (
         <Routes>
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
-          <Route path="*"              element={<LoginPage />} />
+          <Route path="*"              element={<LandingPage />} />
         </Routes>
       )}
     </BrowserRouter>

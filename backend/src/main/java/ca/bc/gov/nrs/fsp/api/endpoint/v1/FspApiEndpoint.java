@@ -25,15 +25,25 @@ import java.util.List;
 @Tag(name = "FSP API", description = "Forest Stewardship Plan operations")
 public interface FspApiEndpoint {
 
+    // --- Code Lists (dropdown options) ---
+
+    @GetMapping(URL.CODE_LISTS_ORG_UNITS)
+    @Operation(summary = "List org units via FSP_CODE_LISTS.get_org_unit_filtered (unfiltered)")
+    ResponseEntity<List<CodeOption>> getOrgUnits();
+
+    @GetMapping(URL.CODE_LISTS_FSP_STATUS)
+    @Operation(summary = "List FSP status codes via FSP_CODE_LISTS.get_fsp_status_code")
+    ResponseEntity<List<CodeOption>> getFspStatusCodes();
+
     // --- FSP ---
 
     @GetMapping(URL.FSP_SEARCH)
-    @Operation(summary = "Search FSPs via FSP_100_SEARCH.MAINLINE")
+    @Operation(summary = "Search FSPs via FSP_100_SEARCH.MAINLINE (paginated + sorted in-memory)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Search results returned"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    ResponseEntity<List<FspSearchResult>> searchFsp(@Valid FspSearchRequest request);
+    ResponseEntity<PageableResponse<FspSearchResult>> searchFsp(@Valid FspSearchRequest request);
 
     @GetMapping(URL.FSP_BY_ID)
     @Operation(summary = "Get FSP by ID via fsp_300_information.MAINLINE")

@@ -1,0 +1,79 @@
+// Modal contents — match the main SearchPage's tile-style form so the
+// user has a consistent picker experience whether they're on /search
+// or inside this dialog.
+
+.client-search-modal {
+  // Bump field surface to layer-02 (white) so input widgets stand out
+  // inside the modal body — same trick the main search tile uses.
+  --cds-field: var(--cds-field-02);
+  --cds-field-hover: var(--cds-field-hover-02);
+}
+
+.client-search__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-block-end: 1.5rem;
+}
+
+.client-search__field-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 672px) {
+  .client-search__field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1056px) {
+  // Five criteria → keep the row tidy at lg with three columns
+  // (first row of three, second of two), so each field has reasonable
+  // width inside the modal.
+  .client-search__field-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.client-search__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.client-search__results {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-block-start: 1.5rem;
+}
+
+// Same in-flight overlay pattern as SearchPage: dim the table, park a
+// spinner in the middle. Keeps the rows visible (so the user has
+// context while paging) without letting them click anything stale.
+.client-search__table-container {
+  position: relative;
+}
+
+.client-search__table--loading {
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+.client-search__table-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.35);
+  z-index: 1;
+}
+
+.client-search__summary {
+  margin: 0;
+  font-weight: 600;
+  padding: 1rem 0;
+}

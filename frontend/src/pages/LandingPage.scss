@@ -1,0 +1,107 @@
+// Per-file Sass: Vite runs a fresh dart-sass compilation for each entry,
+// so the @use ... with (...) configuration in src/styles/_overrides.scss
+// doesn't reach files imported directly from a .tsx (this one). Without
+// configuring font-family here, `@use '@carbon/type'` loads Carbon's
+// default $font-weights map ('light': 300), so type-style mixins emit
+// font-weight: 300. Configure the same maps overrides.scss uses so
+// fluid-display-01 / fluid-paragraph-01 emit font-weight: 400 — keep
+// this in sync with src/styles/_overrides.scss.
+@use '../styles/bcgov/fonts' as types;
+@use '@carbon/type/scss/font-family.scss' with (
+  $font-families: types.$type-family,
+  $font-weights: types.$font-weights
+);
+@use '../styles/variables' as vars;
+@use '@carbon/react/scss/breakpoint' as *;
+@use '@carbon/type';
+
+.logo {
+  margin-top: 1.2rem;
+}
+
+.landing-grid-container {
+  .landing-grid {
+    padding: 0;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+    padding-inline: 0;
+
+    .landing-content-col {
+      margin: 0;
+      padding: 2rem;
+
+      @include breakpoint-down(md) {
+        padding: 1rem;
+      }
+
+      .landing-content-wrapper {
+        display: flex;
+        flex-direction: column;
+        // Vertical spacing between logo, title, subtitle, and button stack —
+        // matches REPT's breakpoint-driven gap. Plain rem here to avoid the
+        // useBreakpoint hook dependency; the responsive `breakpoint-down`
+        // rule below tightens it on small screens.
+        gap: 6rem;
+
+        @include breakpoint-down(md) {
+          gap: 3rem;
+        }
+        @include breakpoint-down(sm) {
+          gap: 2.5rem;
+        }
+
+        .landing-title {
+          @include type.type-style('fluid-display-01', true);
+        }
+
+        .landing-subtitle {
+          @include type.type-style('fluid-paragraph-01', true);
+          color: var(--#{vars.$bcgov-prefix}-text-secondary);
+        }
+      }
+
+      .buttons-container {
+        display: flex;
+        justify-content: flex-start;
+        width: 100%;
+        margin-top: -2rem;
+
+        .login-btn {
+          width: 20rem;
+          max-width: 100%;
+          justify-content: space-between;
+        }
+      }
+
+      .single-row {
+        flex-direction: row;
+        gap: 1rem;
+      }
+
+      .two-rows {
+        flex-direction: column;
+        gap: 1rem;
+      }
+    }
+
+    .landing-img-col {
+      padding: 0;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      height: 100vh;
+      max-height: 100vh;
+
+      .landing-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        object-position: center;
+      }
+    }
+  }
+}

@@ -23,22 +23,37 @@ public class FspApiController implements FspApiEndpoint {
     private final AttachmentsService attachmentsService;
     private final InboxService inboxService;
     private final HistoryService historyService;
+    private final CodeListsService codeListsService;
 
     public FspApiController(FspService fspService, WorkflowService workflowService,
                             StandardsService standardsService, AttachmentsService attachmentsService,
-                            InboxService inboxService, HistoryService historyService) {
+                            InboxService inboxService, HistoryService historyService,
+                            CodeListsService codeListsService) {
         this.fspService = fspService;
         this.workflowService = workflowService;
         this.standardsService = standardsService;
         this.attachmentsService = attachmentsService;
         this.inboxService = inboxService;
         this.historyService = historyService;
+        this.codeListsService = codeListsService;
+    }
+
+    // --- Code Lists (dropdown options) ---
+
+    @Override
+    public ResponseEntity<List<CodeOption>> getOrgUnits() {
+        return ResponseEntity.ok(codeListsService.getOrgUnits());
+    }
+
+    @Override
+    public ResponseEntity<List<CodeOption>> getFspStatusCodes() {
+        return ResponseEntity.ok(codeListsService.getFspStatusCodes());
     }
 
     // --- FSP ---
 
     @Override
-    public ResponseEntity<List<FspSearchResult>> searchFsp(FspSearchRequest request) {
+    public ResponseEntity<PageableResponse<FspSearchResult>> searchFsp(FspSearchRequest request) {
         return ResponseEntity.ok(fspService.search(request));
     }
 

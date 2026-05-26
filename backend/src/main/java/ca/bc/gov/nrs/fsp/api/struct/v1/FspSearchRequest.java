@@ -25,4 +25,12 @@ public class FspSearchRequest {
   private String fspDateType;
   private String fspStatusCode;
   private String approvalRequired;
+
+  // Pagination + sort. Not part of the PL/SQL proc surface; applied
+  // post-cursor by FspService. Defaults match the front-end's initial
+  // table state (page=0, size=10, sort by FSP ID descending).
+  @Builder.Default private Integer page = 0;
+  @Builder.Default private Integer size = 10;
+  @Builder.Default private String sortBy = "fspId";
+  @Builder.Default private String sortDir = "desc";
 }

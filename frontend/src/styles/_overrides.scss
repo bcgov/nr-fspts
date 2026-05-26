@@ -1,6 +1,9 @@
 @use "sass:map";
 
-@use "@bcgov-nr/nr-theme/design-tokens/type-family.scss" as types;
+// Local BCGov bits (inlined from @bcgov-nr/nr-theme 1.8.9; the package was
+// dropped — see src/styles/bcgov/_fonts.scss for why 'light' is aliased to
+// 400, and src/styles/bcgov/_colors.scss for the palette).
+@use "./bcgov/fonts" as types;
 @use "@carbon/type/scss/font-family.scss" with (
   $font-families: types.$type-family,
   $font-weights: types.$font-weights
@@ -8,27 +11,24 @@
 
 @use "@carbon/themes/scss/utilities";
 @use "./variables" as variables;
-@use "@bcgov-nr/nr-theme/design-tokens/light-theme.scss" as light;
-@use "@bcgov-nr/nr-theme/design-tokens/dark-theme.scss" as dark;
-@use "@bcgov-nr/nr-theme/design-tokens/colors.scss" as colors;
 
 @use "@carbon/react/scss/themes";
 @use "@carbon/react/scss/theme" with (
   $fallback: themes.$white,
-  $theme: light.$light-theme
+  $theme: themes.$white
 );
 
 @use "@carbon/react/scss/components/button/tokens" as button-tokens;
-@use "@bcgov-nr/nr-theme/design-tokens/light-buttons.scss" as light-button-overrides;
-@use "@bcgov-nr/nr-theme/design-tokens/dark-buttons.scss" as dark-button-overrides;
+@use "./bcgov/light-buttons" as light-button-overrides;
+@use "./bcgov/dark-buttons" as dark-button-overrides;
 
 @use "@carbon/react/scss/components/tag/tokens" as tag-tokens;
-@use "@bcgov-nr/nr-theme/design-tokens/light-tags.scss" as light-tag-overrides;
-@use "@bcgov-nr/nr-theme/design-tokens/dark-tags.scss" as dark-tag-overrides;
+@use "./bcgov/light-tags" as light-tag-overrides;
+@use "./bcgov/dark-tags" as dark-tag-overrides;
 
 @use "@carbon/react/scss/components/notification/tokens" as notification-tokens;
-@use "@bcgov-nr/nr-theme/design-tokens/light-notifications.scss" as light-notification-overrides;
-@use "@bcgov-nr/nr-theme/design-tokens/dark-notifications.scss" as dark-notification-overrides;
+@use "./bcgov/light-notifications" as light-notification-overrides;
+@use "./bcgov/dark-notifications" as dark-notification-overrides;
 
 @use "@carbon/react";
 @use "@carbon/styles/scss/grid";

@@ -1,0 +1,175 @@
+// Mirrors REPT's src/pages/Projects/projects.scss — same Tile-based search
+// layout, same responsive field grid, same field background contrast.
+// Class names use fsp-search__* to make the lineage clear when someone
+// greps either app.
+
+.fsp-search-grid {
+  row-gap: 2rem;
+}
+
+.fsp-search__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.fsp-search__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  // Bump the field surface to layer-02 (white) so input widgets stand out
+  // against the Tile's default gray (layer-01). Same trick REPT uses on its
+  // project search tile — without it, inputs blend into the tile and look
+  // like underline-only Carbon defaults.
+  --cds-field: var(--cds-field-02);
+  --cds-field-hover: var(--cds-field-hover-02);
+}
+
+.fsp-search__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.fsp-search__field-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+// Breakpoints chosen to match Carbon's md / lg, same as REPT.
+@media (min-width: 672px) {
+  .fsp-search__field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1056px) {
+  .fsp-search__field-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  // Force the marked field to start a new row at column 1. The auto-flow
+  // grid would otherwise tuck it into the next empty cell on the current
+  // row; we want a clean row break so Date Type + Date From + Date To
+  // land together on their own row 3. Only applied at lg because at md
+  // (2 columns) the layout is already 2-wide and forcing column 1 would
+  // create awkward gaps.
+  .fsp-search__field-grid .fsp-search__row-start {
+    grid-column: 1;
+  }
+}
+
+// The range DatePicker occupies a single grid cell (under Status, since the
+// JSX order places it at slot 7 = row 2 col 3). Inside that cell, lay the
+// two DatePickerInputs out as 50/50 flex children so Date From and Date To
+// evenly split the column's width.
+//
+// Carbon's default for .cds--date-picker--range uses fixed-width input
+// containers (~8.5rem each) that don't fill the parent; we override to
+// flex: 1 so they grow with the grid cell instead. width: 100% on the
+// inner input element pushes the actual <input> out to its container's
+// full width.
+.fsp-search__field-grid .fsp-search__date-range .cds--date-picker--range {
+  display: flex;
+  gap: 0.5rem;
+  inline-size: 100%;
+}
+
+.fsp-search__field-grid .fsp-search__date-range .cds--date-picker-container {
+  flex: 1 1 0;
+  inline-size: auto;
+  min-inline-size: 0;
+}
+
+.fsp-search__field-grid .fsp-search__date-range .cds--date-picker__input {
+  inline-size: 100%;
+}
+
+.fsp-search__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.fsp-search__summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+// Agreement Holder field = TextInput + a magnifying-glass icon button
+// that opens the client-search modal. Carbon's TextInput stretches to
+// fill its container by default, so we flex the wrapper and let the
+// input take all remaining width while the icon button sits flush to
+// the right at its natural icon-only size. The align-items: end pin
+// lines the button up with the input baseline rather than the label
+// baseline above it.
+.fsp-search__holder-field {
+  display: flex;
+  gap: 0.25rem;
+  align-items: end;
+
+  // The TextInput's outer .cds--form-item wrapper is the flex item we
+  // want to grow; targeting it directly avoids relying on the
+  // less-specific input element.
+  .cds--form-item {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+}
+
+.fsp-search__holder-trigger.cds--btn {
+  flex: 0 0 auto;
+}
+
+// Full-Content-area centering for the initial code-table load. Sized
+// to the available viewport minus the Carbon header (3rem) so the
+// spinner sits visually in the middle of the page; without this the
+// flex item would only be as tall as the spinner itself and the
+// centring would be a no-op.
+.fsp-search__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: calc(100vh - 3rem);
+}
+
+// Pagination-fetch in-flight overlay. The container is the relative
+// anchor; the inner wrapper dims and disables the existing table; the
+// overlay sibling parks a centred spinner over the dimmed table area.
+// The user sees their current page fade slightly, the spinner appear
+// in the middle, and the new page snap in when the response lands —
+// no layout shift, no flash of empty content.
+.fsp-search__table-container {
+  position: relative;
+}
+
+.fsp-search__table--loading {
+  opacity: 0.45;
+  pointer-events: none;
+  // user-select prevents accidental text-highlighting while the table
+  // is in its "frozen" state.
+  user-select: none;
+}
+
+.fsp-search__table-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  // Very subtle wash so the spinner reads cleanly against zebra rows
+  // without obscuring the underlying content the user is waiting on.
+  background-color: rgba(255, 255, 255, 0.35);
+  // The dimmed table below sits at z-index auto; this overlay needs
+  // to be above it but stay scoped — fixed positioning would escape
+  // the container. position:absolute + inset:0 already handles that.
+  z-index: 1;
+}

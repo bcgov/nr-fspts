@@ -151,12 +151,26 @@ public abstract class AbstractStoredProcedureDao {
     return out;
   }
 
+  /**
+   * Oracle JDBC's default cursor fetch size is 10 rows per round-trip
+   * (oracle.jdbc.defaultRowPrefetch). On a low-latency in-cluster
+   * connection that's invisible; from a developer laptop over VPN
+   * (~300 ms RTT to the BCGov Oracle) a 1000-row SIL21 client search
+   * needs 100 round-trips and takes 30+ seconds. Bump to 500 so a
+   * typical search comes back in 1-2 round-trips.
+   *
+   * Memory cost is bounded — 500 rows × ~200 bytes/row ≈ 100 KB per
+   * fetch. Safe for any FSP/SIL cursor we read.
+   */
+  private static final int CURSOR_FETCH_SIZE = 500;
+
   /** Read an OUT REF CURSOR via cs.getObject(index) into a list using a per-row reader. */
   protected <T> List<T> readCursor(CallableStatement cs, int index, CursorRowReader<T> reader) throws SQLException {
     List<T> out = new ArrayList<>();
     Object obj = cs.getObject(index);
     if (!(obj instanceof ResultSet rs)) return out;
     try (ResultSet auto = rs) {
+      auto.setFetchSize(CURSOR_FETCH_SIZE);
       while (auto.next()) {
         out.add(reader.read(auto));
       }

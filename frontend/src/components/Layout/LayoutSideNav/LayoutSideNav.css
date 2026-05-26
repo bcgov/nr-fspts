@@ -1,7 +1,26 @@
-/* Carbon's default ux side nav is 16rem; trim to 12rem so the column doesn't
-   trail empty space for our short labels. */
+/* Size the side nav to the widest visible label. Carbon's default ux side
+   nav is a fixed 16rem; FSP has labels like "Identified Areas/Map" and
+   "District Notification" that don't fit and get clipped. `max-content`
+   grows the column to the longest line currently in the layout; when the
+   user expands a SideNavMenu, the children become layout-contributing
+   and the column widens to fit them. `min-inline-size` keeps short
+   collapsed states from looking too narrow; `max-inline-size` caps any
+   pathological label length so the drawer never eats more than a third
+   of a typical viewport. */
 .cds--side-nav--ux {
-  inline-size: 12rem;
+  inline-size: max-content;
+  min-inline-size: 12rem;
+  max-inline-size: 24rem;
+}
+
+/* Pad each visible link/menu-item so the longest label has breathing room
+   on the right edge instead of butting against the chevron or drawer
+   border. Carbon's defaults leave space for a fixed-width column; with a
+   max-content column we have to add the padding ourselves. */
+.cds--side-nav__link,
+.cds--side-nav__submenu,
+.cds--side-nav__menu-item {
+  padding-inline-end: 1rem;
 }
 
 .cds--side-nav__link-text svg {
@@ -13,7 +32,9 @@
    transform. Carbon's built-in width transition is overridden for smooth motion
    that doesn't trigger in-flow layout shift. */
 .side-nav-drawer.cds--side-nav {
-  inline-size: 12rem;
+  inline-size: max-content;
+  min-inline-size: 12rem;
+  max-inline-size: 24rem;
   transform: translateX(-100%);
   transition: transform 400ms cubic-bezier(0.4, 0.14, 0.3, 1);
   will-change: transform;
