@@ -18,8 +18,8 @@ on:
       slot:
         description: |
           Route hostname slot. Tests must hit the actual deployed host, which
-          for PR previews is `nr-fsp-<PR % 50>.apps...` rather than
-          `nr-fsp-<PR>.apps...`. Omit for TEST/PROD; defaults to `target`.
+          for PR previews is `nr-fspts-<PR % 50>.apps...` rather than
+          `nr-fspts-<PR>.apps...`. Omit for TEST/PROD; defaults to `target`.
         default: ""
         type: string
 
@@ -33,7 +33,7 @@ on:
 
 env:
   DOMAIN: apps.silver.devops.gov.bc.ca
-  PREFIX: nr-fsp-${{ inputs.slot || inputs.target }}
+  PREFIX: nr-fspts-${{ inputs.slot || inputs.target }}
 
 permissions: {}
 

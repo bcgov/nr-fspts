@@ -32,8 +32,12 @@
     "test": "echo 'No unit tests yet' && exit 0",
     "test:ci": "echo 'No unit tests yet' && exit 0",
     "test:coverage": "echo 'No unit tests yet' && exit 0",
+    "pree2e:login": "playwright install chromium && rm -f e2e/.auth/user.json",
+    "e2e:login": "playwright test --project=setup --headed",
     "pree2e": "playwright install chromium",
     "e2e": "playwright test --project=chromium",
+    "pree2e:all-browsers": "playwright install",
+    "e2e:all-browsers": "playwright test",
     "pree2e:ui": "playwright install chromium",
     "e2e:ui": "playwright test --ui",
     "e2e:report": "playwright show-report"
