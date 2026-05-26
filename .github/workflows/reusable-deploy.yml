@@ -24,7 +24,7 @@ on:
         description: |
           Route hostname slot — PR # mod-50'd into a fixed pool of pre-registered
           Cognito callback URIs (see pr-open.yml). Omit for TEST/PROD; defaults to
-          `target` in that case so the host stays `nr-fsp-{test,prod}.apps...`.
+          `target` in that case so the host stays `nr-fspts-{test,prod}.apps...`.
         default: ""
         type: string
       backend_replicas:
@@ -122,7 +122,7 @@ jobs:
           overwrite: true
           parameters:
             -p ZONE="${{ inputs.target }}"
-            -p NAME="nr-fsp"
+            -p NAME="nr-fspts"
             -p IMAGE_TAG="${{ inputs.tag }}"
             -p MIN_REPLICAS="${{ inputs.backend_replicas }}"
             -p MAX_REPLICAS="${{ inputs.backend_replicas }}"
@@ -165,7 +165,7 @@ jobs:
           parameters:
             -p ZONE="${{ inputs.target }}"
             -p SLOT="${{ inputs.slot || inputs.target }}"
-            -p NAME="nr-fsp"
+            -p NAME="nr-fspts"
             -p IMAGE_TAG="${{ inputs.tag }}"
             -p REPLICAS="${{ inputs.frontend_replicas }}"
             -p VITE_USER_POOLS_ID="${{ vars.VITE_USER_POOLS_ID }}"
