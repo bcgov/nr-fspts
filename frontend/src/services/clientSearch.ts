@@ -1,4 +1,4 @@
-import { apiFetch } from '@/auth/auth';
+import { apiFetch } from '@/services/apiFetch';
 import type { PageableResponse } from './fspSearch';
 
 // Mirrors backend ca.bc.gov.nrs.fsp.api.struct.v1.ClientSearchRequest.

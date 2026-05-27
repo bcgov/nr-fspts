@@ -27,7 +27,7 @@ export default function DistrictNotificationPage() {
   const [results,  setResults]    = useState<Designate[] | null>(null);
 
   return (
-    <PageLayout screenId="FSP900" title="District Auto Notification">
+    <PageLayout title="District Auto Notification">
 
       {/* District selector */}
       <div className="form-section">

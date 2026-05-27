@@ -2,10 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
 import Layout from './components/Layout';
-import { useSession } from './auth/useSession';
+import { useAuth } from './context/auth/useAuth';
 
 // Pages
-import AuthCallbackPage         from './pages/AuthCallbackPage';
 import LandingPage              from './pages/LandingPage';
 import WelcomePage              from './pages/WelcomePage';
 import SearchPage               from './pages/SearchPage';
@@ -33,9 +32,20 @@ const withLayout = (node: ReactNode) => <Layout>{node}</Layout>;
 
 // ── App ────────────────────────────────────────────────────
 export default function App() {
-  const session = useSession();
-  const isLoggedIn = !!session;
-  const userName = session?.user?.name ?? '';
+  const { user, isLoggedIn, isLoading } = useAuth();
+  const userName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
+    || user?.displayName
+    || user?.userName
+    || '';
+
+  // Show a minimal placeholder during the initial auth bootstrap so a
+  // page reload mid-session doesn't briefly render the LandingPage
+  // before AuthProvider's useEffect has finished reading the cookie
+  // session. After Amplify exchanges any ?code=&state= and AuthProvider
+  // hydrates the user, the routing branch below picks up.
+  if (isLoading) {
+    return <div aria-busy="true" />;
+  }
 
   return (
     <BrowserRouter>
@@ -84,8 +94,13 @@ export default function App() {
         </Routes>
       ) : (
         <Routes>
-          <Route path="/auth/callback" element={<AuthCallbackPage />} />
-          <Route path="*"              element={<LandingPage />} />
+          {/* While unauthenticated, every URL falls through to the
+              Landing page. Amplify handles ?code=&state= at boot time
+              (see main.tsx) so /auth/callback doesn't need a dedicated
+              component — the URL is just a momentary landing pad
+              before the AuthProvider hydrates and the authenticated
+              branch kicks in. */}
+          <Route path="*" element={<LandingPage />} />
         </Routes>
       )}
     </BrowserRouter>

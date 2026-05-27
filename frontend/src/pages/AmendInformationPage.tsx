@@ -21,7 +21,7 @@ export default function AmendInformationPage() {
   const set = <K extends keyof AmendForm>(k: K, v: AmendForm[K]) => setForm(f => ({ ...f, [k]: v }));
 
   return (
-    <PageLayout screenId="FSP301" title="Amendment Information">
+    <PageLayout title="Amendment Information">
       <FspTombstone fspId="10001" amendNo="1" status="Draft" />
       <FspTabStrip />
 

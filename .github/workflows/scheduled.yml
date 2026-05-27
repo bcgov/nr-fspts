@@ -58,7 +58,7 @@ jobs:
 
             # Before date
             BEFORE=$(date +%s -d "${{ env.CUTOFF }}")
-            REPO="nr-fsp"
+            REPO="nr-fspts"
 
             # Get deployments matching the repo-PR naming pattern
             DEPLOYS=$(oc get deploy --no-headers -o custom-columns=:metadata.name,:metadata.creationTimestamp 2>/dev/null | grep -E "${REPO}-[0-9]+" || :)
@@ -86,7 +86,7 @@ jobs:
                 fi
               done <<< "${DEPLOYS}"
             else
-              echo "No PR deployments found for nr-fsp"
+              echo "No PR deployments found for ${REPO}"
             fi
 
   schema-spy:
@@ -109,4 +109,4 @@ jobs:
           allow_issue_writing: true
           issue_title: "ZAP Security Report"
           token: ${{ secrets.GITHUB_TOKEN }}
-          target: https://nr-fsp-test.apps.silver.devops.gov.bc.ca
+          target: https://nr-fspts-test.apps.silver.devops.gov.bc.ca

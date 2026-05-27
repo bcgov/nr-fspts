@@ -3,28 +3,13 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 /**
  * InboxPage end-to-end coverage.
  *
- * Mirrors search.spec.ts: seed sessionStorage so auth passes, mock the
- * three backend endpoints the page touches (/code-lists/org-units,
- * /fsp/inbox, /clients/search), and walk the happy paths via accessible
- * locators. No real Cognito flow, no Oracle dependency — runs fully
- * offline against the static dev server.
+ * Mirrors search.spec.ts: mocks the backend endpoints the page touches
+ * (/code-lists/org-units, /fsp/inbox, /clients/search) and walks the
+ * happy paths via accessible locators. Auth state is supplied by the
+ * Cognito cookie storageState produced by e2e/auth.setup.ts (run
+ * `npm run e2e:login` first locally; CI runs it programmatically via
+ * E2E_IDIR_USER / E2E_IDIR_PASSWORD secrets).
  */
-
-const FAKE_SESSION = {
-  idToken: 'fake-id-token',
-  accessToken: 'fake-access-token',
-  refreshToken: null,
-  expiresAt: Date.now() + 60 * 60 * 1000,
-  user: {
-    name: 'Test User',
-    firstName: 'Test',
-    lastName: 'User',
-    email: 'test.user@gov.bc.ca',
-    username: 'tuser',
-    roles: ['FSPTS_ADMINISTRATOR'],
-    claims: {},
-  },
-};
 
 const ORG_UNITS = [
   { code: '1826', description: 'DPG – Penticton' },
@@ -91,10 +76,6 @@ const CLIENT_HITS = [
 
 async function seedInboxApp(page: Page) {
   const inboxCalls: URLSearchParams[] = [];
-
-  await page.addInitScript((session) => {
-    window.sessionStorage.setItem('auth.session', JSON.stringify(session));
-  }, FAKE_SESSION);
 
   await page.route('**/api/v1/fsp/code-lists/org-units', (route: Route) =>
     route.fulfill({

@@ -2,16 +2,14 @@ import { Login } from '@carbon/icons-react';
 import { Button, Column, Grid } from '@carbon/react';
 import type { FC } from 'react';
 
-import { startLogin } from '@/auth/auth';
+import { useAuth } from '@/context/auth/useAuth';
 import { useTheme } from '@/context/theme/useTheme';
 
 import './LandingPage.scss';
 
-const AUTH_IDP_IDIR  = import.meta.env.VITE_AUTH_IDP_IDIR;
-const AUTH_IDP_BCEID = import.meta.env.VITE_AUTH_IDP_BCEID;
-
 const LandingPage: FC = () => {
   const { theme } = useTheme();
+  const { login } = useAuth();
   const logoSrc = theme === 'g100' ? '/bc-gov-logo-rev.png' : '/bc-gov-logo.png';
 
   return (
@@ -34,7 +32,7 @@ const LandingPage: FC = () => {
             <div className="buttons-container two-rows">
               <Button
                 type="button"
-                onClick={() => startLogin(AUTH_IDP_IDIR)}
+                onClick={() => login('idir')}
                 renderIcon={Login}
                 size="md"
                 data-testid="landing-button__idir"
@@ -46,7 +44,7 @@ const LandingPage: FC = () => {
               <Button
                 type="button"
                 kind="tertiary"
-                onClick={() => startLogin(AUTH_IDP_BCEID)}
+                onClick={() => login('bceid')}
                 renderIcon={Login}
                 size="md"
                 data-testid="landing-button__bceid"

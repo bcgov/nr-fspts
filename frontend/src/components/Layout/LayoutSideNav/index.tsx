@@ -1,7 +1,7 @@
 import { SideNav, SideNavItems, SideNavLink, SideNavMenu, SideNavMenuItem } from '@carbon/react';
 import { useEffect, type FC } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useSession } from '@/auth/useSession';
+import { useAuth } from '@/context/auth/useAuth';
 import { useLayout } from '@/context/layout/useLayout';
 import { getMenuEntries, isMenuParent, type MenuItem, type MenuLeaf } from '@/routes/routePaths';
 import './LayoutSideNav.css';
@@ -9,8 +9,8 @@ import './LayoutSideNav.css';
 export const LayoutSideNav: FC = () => {
   const { isSideNavExpanded, closeSideNav } = useLayout();
   const location = useLocation();
-  const session = useSession();
-  const roles = session?.user?.roles ?? [];
+  const { user } = useAuth();
+  const roles = user?.roles ?? [];
 
   useEffect(() => {
     if (!isSideNavExpanded) return;

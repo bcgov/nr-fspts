@@ -21,7 +21,7 @@ export default function ReplaceInformationPage() {
   const set = <K extends keyof ReplaceForm>(k: K, v: ReplaceForm[K]) => setForm(f => ({ ...f, [k]: v }));
 
   return (
-    <PageLayout screenId="FSP304" title="Replacement Information">
+    <PageLayout title="Replacement Information">
       <FspTombstone fspId="10001" amendNo="2" status="Draft" />
       <FspTabStrip />
 

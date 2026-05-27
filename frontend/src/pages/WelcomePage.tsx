@@ -15,7 +15,7 @@ export default function WelcomePage({ userName }: WelcomePageProps) {
   ];
 
   return (
-    <PageLayout screenId="FSP000" title="Welcome">
+    <PageLayout title="Welcome">
       <div className="welcome-meta">
         <span><strong>User:</strong> {userName || '—'}</span>
       </div>

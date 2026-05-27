@@ -51,7 +51,7 @@ function AreaTable({ rows }: { rows: AreaRow[] }) {
 
 export default function IdentifiedAreasPage() {
   return (
-    <PageLayout screenId="FSP650" title="Identified Areas / Map">
+    <PageLayout title="Identified Areas / Map">
       <FspTombstone fspId="10001" amendNo="1" status="Draft" />
       <FspTabStrip />
 

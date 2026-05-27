@@ -1,7 +1,6 @@
 import {
   Catalog,
   ChartLineData,
-  Document,
   Notification,
   Report,
   Search,
@@ -60,20 +59,6 @@ const NAV: MenuItem[] = [
     label: 'Inbox',
     path: '/inbox',
     icon: Notification,
-  },
-  {
-    id: 'FSP',
-    label: 'FSPTS',
-    icon: Document,
-    children: [
-      { id: 'Information', label: 'FSP Information', path: '/fsp/information' },
-      { id: 'Attachments', label: 'Attachments', path: '/fsp/attachments' },
-      { id: 'Stocking Standards', label: 'Stocking Standards', path: '/fsp/stocking-standards' },
-      { id: 'FDU/Map', label: 'FDU/Map', path: '/fsp/fdu-map' },
-      { id: 'Identified Areas', label: 'Identified Areas/Map', path: '/fsp/identified-areas' },
-      { id: 'Workflow', label: 'Workflow', path: '/fsp/workflow' },
-      { id: 'History', label: 'History', path: '/fsp/history' },
-    ],
   },
   {
     id: 'Data Submission',

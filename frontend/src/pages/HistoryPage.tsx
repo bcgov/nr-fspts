@@ -38,7 +38,7 @@ export default function HistoryPage() {
   const [sortOrder, setSortOrder] = useState<string>('EVENT');
 
   return (
-    <PageLayout screenId="FSP800" title="History">
+    <PageLayout title="History">
       <FspTombstone fspId="10001" amendNo="1" status="Draft" />
       <FspTabStrip />
 

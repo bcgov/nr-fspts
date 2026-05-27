@@ -3,33 +3,13 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 /**
  * SearchPage end-to-end coverage.
  *
- * The page sits behind auth, so each test seeds a fake session into
- * sessionStorage via addInitScript (runs before the SPA boots) and
- * mocks all backend endpoints via page.route. This keeps the suite
- * runnable against a static dev server with no real Cognito flow and
- * no real backend — and crucially, deterministic. Real-auth coverage
- * lives upstream in the reusable-tests.yml CI workflow once the
- * E2E_IDIR_USER credentials are wired up.
+ * Mocks the backend endpoints the page touches (/code-lists/*,
+ * /fsp/search, /clients/search). Auth state is supplied by the Cognito
+ * cookie storageState produced by e2e/auth.setup.ts (run
+ * `npm run e2e:login` first locally; CI runs it programmatically via
+ * E2E_IDIR_USER / E2E_IDIR_PASSWORD secrets). Routes are intercepted
+ * BEFORE they reach the network so no real backend is needed.
  */
-
-// Matches the shape src/auth/auth.ts persists under sessionStorage
-// key 'auth.session'. expiresAt is set 1 hour out so getAccessToken()
-// short-circuits without triggering a refresh round-trip.
-const FAKE_SESSION = {
-  idToken: 'fake-id-token',
-  accessToken: 'fake-access-token',
-  refreshToken: null,
-  expiresAt: Date.now() + 60 * 60 * 1000,
-  user: {
-    name: 'Test User',
-    firstName: 'Test',
-    lastName: 'User',
-    email: 'test.user@gov.bc.ca',
-    username: 'tuser',
-    roles: ['FSPTS_ADMINISTRATOR'],
-    claims: {},
-  },
-};
 
 // Sample code lists. The shape matches backend CodeOption.
 const ORG_UNITS = [
@@ -112,18 +92,12 @@ const CLIENT_HITS = [
 ];
 
 /**
- * Sets up `page.route` mocks and seeds the fake session. Returns a
- * `searchCalls` array the test can inspect to assert which page
- * fetches happened.
+ * Sets up `page.route` mocks for all the backend endpoints this suite
+ * touches. Returns a `searchCalls` array the test can inspect to
+ * assert which page fetches happened.
  */
 async function seedFspApp(page: Page) {
   const searchCalls: URLSearchParams[] = [];
-
-  // session seed — must run before the SPA's main.tsx, so addInitScript
-  // is the right hook (page.evaluate would race the React boot).
-  await page.addInitScript((session) => {
-    window.sessionStorage.setItem('auth.session', JSON.stringify(session));
-  }, FAKE_SESSION);
 
   await page.route('**/api/v1/fsp/code-lists/org-units', (route: Route) =>
     route.fulfill({
