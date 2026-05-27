@@ -174,4 +174,5 @@ jobs:
             -p VITE_API_BASE_URL="${{ vars.VITE_API_BASE_URL || '/api' }}"
             -p VITE_APP_NAME="${{ vars.VITE_APP_NAME }}"
             -p VITE_ZONE="${{ vars.VITE_ZONE }}"
+            -p VITE_MAP_VIEWER_URL="${{ vars.VITE_MAP_VIEWER_URL }}"
           triggers: ${{ inputs.triggers }}

@@ -12,6 +12,10 @@ interface ImportMetaEnv {
   // Display / theming
   readonly VITE_APP_NAME: string;
   readonly VITE_ZONE: string;
+  // External Map Viewer base URL — read by src/pages/InboxPage.tsx. The
+  // click handler appends &extent=… &catalogLayers=… at runtime. Empty
+  // suppresses the Map View column.
+  readonly VITE_MAP_VIEWER_URL: string;
 }
 
 interface ImportMeta {

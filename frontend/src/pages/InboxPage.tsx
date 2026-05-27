@@ -24,6 +24,7 @@ import { Search as SearchIcon } from '@carbon/icons-react';
 import { useCallback, useEffect, useState, type FC, type FormEvent } from 'react';
 
 import ClientSearchModal from '@/components/ClientSearchModal';
+import { env } from '@/env';
 import {
   getFspExtent,
   getOrgUnits,
@@ -69,8 +70,12 @@ interface InboxRow {
 // fed this to a JS function that appended `&extent=...&catalogLayers=...`;
 // we do the same here, but only after the user clicks (the extent
 // comes from a per-row backend fetch). Falls back to empty so the
-// trigger is suppressed when the env isn't configured.
-const MAP_VIEWER_URL = (import.meta.env.VITE_MAP_VIEWER_URL as string | undefined) ?? '';
+// trigger is suppressed when the env isn't configured. Read via
+// env() (NOT import.meta.env) so runtime values from window.config
+// (injected by docker-entrypoint.sh) win over build-time values —
+// without this, deployed containers always see "" because the CI
+// build never has .env.local set.
+const MAP_VIEWER_URL = env.VITE_MAP_VIEWER_URL ?? '';
 
 // Catalog-layer IDs the legacy fsp200Inbox.jsp appended to the inbox
 // map URL. Per nr-fsp/.../javascript/navigation.js openMapView():
