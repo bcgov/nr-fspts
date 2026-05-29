@@ -24,7 +24,7 @@ const verificationMethods: 'code' | 'token' = 'code';
 // Cognito user pool's app client has pre-registered as a Callback URL.
 // Amplify.configure() detects ?code=&state= in the URL and exchanges the
 // code for tokens before AuthProvider mounts; App.tsx then routes
-// authenticated users from /auth/callback to /welcome.
+// authenticated users from /auth/callback to /search (post-login landing).
 const amplifyconfig = {
   Auth: {
     Cognito: {

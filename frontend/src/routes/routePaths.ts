@@ -45,14 +45,8 @@ const NAV: MenuItem[] = [
   {
     id: 'Search',
     label: 'Search',
+    path: '/search',
     icon: Search,
-    children: [
-      { id: 'Search', label: 'Search', path: '/search' },
-      { id: 'FTA', label: 'FTA', path: '/links/fta' },
-      { id: 'RESULTS', label: 'RESULTS', path: '/links/results' },
-      { id: 'MapView', label: 'MapView', path: '/links/mapview' },
-      { id: 'CIMS', label: 'CIMS', path: '/links/cims' },
-    ],
   },
   {
     id: 'Inbox',
@@ -69,21 +63,17 @@ const NAV: MenuItem[] = [
     ],
   },
   {
-    id: 'Admin',
-    label: 'Admin',
+    id: 'District Notification',
+    label: 'District Notification',
+    path: '/admin/district-notification',
     icon: UserAdmin,
     roles: ['FSPTS_ADMINISTRATOR'],
-    children: [
-      { id: 'District Notification', label: 'District Notification', path: '/admin/district-notification' },
-    ],
   },
   {
     id: 'Reports',
     label: 'Reports',
+    path: '/reports/jcrs',
     icon: Report,
-    children: [
-      { id: 'JCRS Reports', label: 'JCRS Reports', path: '/reports/jcrs' },
-    ],
   },
   // Kept commented so the icon import doesn't tree-shake — wire in if we
   // ever add a dashboard route. Removing for now keeps the SideNav focused.

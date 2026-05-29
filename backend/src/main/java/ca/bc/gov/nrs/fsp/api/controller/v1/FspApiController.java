@@ -25,11 +25,15 @@ public class FspApiController implements FspApiEndpoint {
     private final HistoryService historyService;
     private final CodeListsService codeListsService;
     private final FspExtentService fspExtentService;
+    private final DistrictNotificationService districtNotificationService;
+    private final UserDirectoryService userDirectoryService;
 
     public FspApiController(FspService fspService, WorkflowService workflowService,
                             StandardsService standardsService, AttachmentsService attachmentsService,
                             InboxService inboxService, HistoryService historyService,
-                            CodeListsService codeListsService, FspExtentService fspExtentService) {
+                            CodeListsService codeListsService, FspExtentService fspExtentService,
+                            DistrictNotificationService districtNotificationService,
+                            UserDirectoryService userDirectoryService) {
         this.fspService = fspService;
         this.workflowService = workflowService;
         this.standardsService = standardsService;
@@ -38,6 +42,8 @@ public class FspApiController implements FspApiEndpoint {
         this.historyService = historyService;
         this.codeListsService = codeListsService;
         this.fspExtentService = fspExtentService;
+        this.districtNotificationService = districtNotificationService;
+        this.userDirectoryService = userDirectoryService;
     }
 
     // --- Code Lists (dropdown options) ---
@@ -148,5 +154,34 @@ public class FspApiController implements FspApiEndpoint {
         int fsp = Integer.parseInt(fspId);
         int amend = Integer.parseInt(amendmentNumber);
         return ResponseEntity.ok(fspExtentService.getExtent(fsp, amend));
+    }
+
+    // --- District Auto-Notification (Admin) ---
+
+    @Override
+    public ResponseEntity<List<NotificationDesignate>> getDistrictDesignates(String orgUnitNo) {
+        return ResponseEntity.ok(districtNotificationService.getDesignates(orgUnitNo));
+    }
+
+    @Override
+    public ResponseEntity<Void> addDistrictDesignate(NotificationDesignate body) {
+        districtNotificationService.addDesignate(
+                body.getOrgUnitNo(),
+                body.getDesignateIdir());
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> removeDistrictDesignate(String designateId) {
+        districtNotificationService.removeDesignate(designateId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // --- FAM IDIR directory lookup ---
+
+    @Override
+    public ResponseEntity<UserSearchResponse> searchUsers(
+            String userId, String firstName, String lastName, int size) {
+        return ResponseEntity.ok(userDirectoryService.searchUsers(userId, firstName, lastName, size));
     }
 }

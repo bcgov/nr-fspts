@@ -122,4 +122,29 @@ public interface FspApiEndpoint {
     @Operation(summary = "Compute Map View MBR (minX,minY,maxX,maxY) over fdu_geometry_gets polygons")
     ResponseEntity<FspExtentResponse> getExtent(
             @PathVariable String fspId, @PathVariable String amendmentNumber);
+
+    // --- District Auto-Notification (Admin) ---
+
+    @GetMapping(URL.DISTRICT_DESIGNATES)
+    @Operation(summary = "List IDIR designates CC'd on FSP-200 notifications for an org unit")
+    ResponseEntity<List<NotificationDesignate>> getDistrictDesignates(
+            @RequestParam(name = "orgUnitNo") String orgUnitNo);
+
+    @PostMapping(URL.DISTRICT_DESIGNATES)
+    @Operation(summary = "Add an IDIR designate to an org unit's notification list")
+    ResponseEntity<Void> addDistrictDesignate(@Valid @RequestBody NotificationDesignate body);
+
+    @DeleteMapping(URL.DISTRICT_DESIGNATE_BY_ID)
+    @Operation(summary = "Remove a district notification designate by id")
+    ResponseEntity<Void> removeDistrictDesignate(@PathVariable String designateId);
+
+    // --- FAM IDIR directory lookup ---
+
+    @GetMapping(URL.USER_SEARCH)
+    @Operation(summary = "Search IDIR users via the FAM identity-lookup API")
+    ResponseEntity<UserSearchResponse> searchUsers(
+            @RequestParam(name = "userId", required = false) String userId,
+            @RequestParam(name = "firstName", required = false) String firstName,
+            @RequestParam(name = "lastName", required = false) String lastName,
+            @RequestParam(name = "size", required = false, defaultValue = "0") int size);
 }

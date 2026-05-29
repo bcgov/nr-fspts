@@ -200,6 +200,22 @@
       <artifactId>guava</artifactId>
       <version>${guava.version}</version>
     </dependency>
+    <!--
+      JasperReports core. Powers FspReportService — compile JRXML on
+      first request, fill against the live JdbcTemplate datasource,
+      export PDF. Matches the engine + version nr-rept uses, so report
+      portability between the two apps is straightforward.
+
+      JR 6.x bundles the Eclipse JDT expression compiler (ecj) and PDF
+      exporter into the core jar, so no jasperreports-jdt /
+      jasperreports-pdf sub-artifacts are needed (those exist only in
+      7.x).
+    -->
+    <dependency>
+      <groupId>net.sf.jasperreports</groupId>
+      <artifactId>jasperreports</artifactId>
+      <version>6.21.5</version>
+    </dependency>
   </dependencies>
 
   <build>

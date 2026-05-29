@@ -44,9 +44,10 @@ setup('authenticate via IDIR', async ({ page }) => {
   }
 
   // Whether interactive or programmatic, we wait for the redirect back to
-  // /welcome (FSP's post-login landing — REPT used /dashboard).
-  // Interactive flow gets 5 min for human; programmatic gets 2.
-  await page.waitForURL((url) => url.pathname.startsWith('/welcome'), {
+  // /search (FSP's post-login landing — REPT used /dashboard, FSP used
+  // /welcome until that page was dropped). Interactive flow gets 5 min
+  // for human; programmatic gets 2.
+  await page.waitForURL((url) => url.pathname.startsWith('/search'), {
     timeout: programmatic ? 2 * 60_000 : 5 * 60_000,
   });
 

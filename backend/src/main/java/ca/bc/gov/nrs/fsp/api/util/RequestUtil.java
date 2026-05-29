@@ -12,6 +12,11 @@ public class RequestUtil {
 
 
 
+  // Legacy audit columns (e.g. FSP_NOTIFICATION_DESIGNATE.ENTRY_USERID)
+  // are VARCHAR2(30); BCGov FAM Cognito subjects are 46+ chars, so anything
+  // we hand to those columns must be capped.
+  private static final int LEGACY_AUDIT_USERID_MAX = 30;
+
   /**
    * Add to existing RequestUtil class.
    * Gets the current authenticated user's username from the Cognito JWT.
@@ -24,6 +29,33 @@ public class RequestUtil {
       username = jwt.getClaimAsString("cognito:username");
     }
     return username != null ? username : jwt.getSubject();
+  }
+
+  /**
+   * Resolves the short IDIR ("MAVILLEN"-style) for legacy audit columns.
+   * Prefers the {@code custom:idp_username} claim BCGov FAM sets on
+   * federated IDIR identities; falls back to {@link #getCurrentUserName()}
+   * (truncated) for non-IDIR identities or unit-test contexts without a
+   * full claim set.
+   */
+  public static String getCurrentIdir() {
+    try {
+      Jwt jwt = getCurrentJwt();
+      String idir = jwt.getClaimAsString("custom:idp_username");
+      if (idir != null && !idir.isBlank()) {
+        return truncate(idir.trim());
+      }
+      return truncate(getCurrentUserName());
+    } catch (RuntimeException ex) {
+      return "";
+    }
+  }
+
+  private static String truncate(String value) {
+    if (value == null) return "";
+    return value.length() <= LEGACY_AUDIT_USERID_MAX
+        ? value
+        : value.substring(0, LEGACY_AUDIT_USERID_MAX);
   }
 
   public static Jwt getCurrentJwt() {

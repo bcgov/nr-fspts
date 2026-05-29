@@ -1,0 +1,17 @@
+.destructive-modal {
+  &__message {
+    margin: 0;
+    padding: 0.5rem 0;
+    color: var(--cds-text-primary, #161616);
+    font-size: var(--cds-body-long-01-font-size, 0.875rem);
+    line-height: var(--cds-body-long-01-line-height, 1.42857);
+    letter-spacing: var(--cds-body-long-01-letter-spacing, 0.16px);
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 0 0;
+  }
+}
