@@ -3,11 +3,13 @@ package ca.bc.gov.nrs.fsp.api.controller.v1;
 import ca.bc.gov.nrs.fsp.api.service.v1.AttachmentsService;
 import ca.bc.gov.nrs.fsp.api.service.v1.ClientSearchService;
 import ca.bc.gov.nrs.fsp.api.service.v1.CodeListsService;
+import ca.bc.gov.nrs.fsp.api.service.v1.DistrictNotificationService;
 import ca.bc.gov.nrs.fsp.api.service.v1.FspExtentService;
 import ca.bc.gov.nrs.fsp.api.service.v1.FspService;
 import ca.bc.gov.nrs.fsp.api.service.v1.HistoryService;
 import ca.bc.gov.nrs.fsp.api.service.v1.InboxService;
 import ca.bc.gov.nrs.fsp.api.service.v1.StandardsService;
+import ca.bc.gov.nrs.fsp.api.service.v1.UserDirectoryService;
 import ca.bc.gov.nrs.fsp.api.service.v1.WorkflowService;
 import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentResponse;
 import ca.bc.gov.nrs.fsp.api.struct.v1.ClientSearchRequest;
@@ -17,6 +19,7 @@ import ca.bc.gov.nrs.fsp.api.struct.v1.FspExtentResponse;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspSearchRequest;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspSearchResult;
 import ca.bc.gov.nrs.fsp.api.struct.v1.InboxRequest;
+import ca.bc.gov.nrs.fsp.api.struct.v1.NotificationDesignate;
 import ca.bc.gov.nrs.fsp.api.struct.v1.PageableResponse;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -64,6 +67,8 @@ class FspApiControllerTest {
   @MockitoBean CodeListsService codeListsService;
   @MockitoBean ClientSearchService clientSearchService;
   @MockitoBean FspExtentService fspExtentService;
+  @MockitoBean DistrictNotificationService districtNotificationService;
+  @MockitoBean UserDirectoryService userDirectoryService;
 
   @Test
   void searchFsp_returnsRows() throws Exception {
@@ -234,5 +239,21 @@ class FspApiControllerTest {
     mvc.perform(get("/api/v1/fsp/42/amendments/0/extent").with(jwt()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.extent").doesNotExist());
+  }
+
+  @Test
+  void getDistrictDesignates_returnsRowsForOrgUnit() throws Exception {
+    when(districtNotificationService.getDesignates("1894")).thenReturn(List.of(
+        NotificationDesignate.builder()
+            .designateId("101").designateIdir("IDIR\\JSMITH").build(),
+        NotificationDesignate.builder()
+            .designateId("102").designateIdir("IDIR\\MBROWN").build()));
+
+    mvc.perform(get("/api/v1/fsp/admin/district-notifications")
+            .param("orgUnitNo", "1894").with(jwt()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].designateId").value("101"))
+        .andExpect(jsonPath("$[0].designateIdir").value("IDIR\\JSMITH"))
+        .andExpect(jsonPath("$[1].designateId").value("102"));
   }
 }

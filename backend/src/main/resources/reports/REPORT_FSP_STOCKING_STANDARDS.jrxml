@@ -1,0 +1,1028 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RDD009-RESULTS FDP and FSP Stocking Standards Report CSV" pageWidth="5600" pageHeight="600" orientation="Landscape" columnWidth="5560" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="1250fe70-f932-42e7-b1a4-f3866180f275">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.print.keep.full.text" value="true"/>
+	<property name="ireport.jasperserver.reportUnit" value="/JCRS/RESULTS/Reports/RDD009-CSV"/>
+	<property name="ireport.jasperserver.url" value="http://d-yyj0132.vic.cgi.com:8080/jasperserver/services/repository"/>
+	<!--
+	  Legacy JRS-only param dropped: $P{LoggedInUser} resolved to a
+	  com.jaspersoft.jasperserver.api.metadata.user.domain.User which
+	  only exists inside JRS. Embedded JR has no such class on the
+	  classpath. p_user_id is now a plain String — FspReportService
+	  fills it from the current JWT before passing the param map in.
+	-->
+	<parameter name="p_user_id" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="oracle_ref_cursor" class="java.sql.ResultSet" isForPrompting="false"/>
+	<parameter name="p_report_id" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["RDD009-CSV"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="p_report_category" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="p_report_name" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["RESULTS FDP and FSP Stocking Standards Report CSV"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="p_org_unit_no" class="java.lang.String"/>
+	<parameter name="p_client_number" class="java.lang.String"/>
+	<parameter name="p_fsp_id" class="java.lang.String"/>
+	<parameter name="p_fsp_amendment_number" class="java.lang.String"/>
+	<parameter name="p_regime_status" class="java.lang.String"/>
+	<parameter name="p_zone" class="java.lang.String"/>
+	<parameter name="p_subzone" class="java.lang.String"/>
+	<parameter name="p_comments_ind" class="java.lang.String"/>
+	<parameter name="p_default_district_standards_ind" class="java.lang.String"/>
+	<parameter name="p_RDD009_order_by_data" class="java.lang.String"/>
+	<queryString language="plsql">
+		<![CDATA[{call rsltrpt_rdd009_jr(
+$P{oracle_ref_cursor},
+$P{p_org_unit_no},
+$P{p_client_number},
+$P{p_fsp_id},
+$P{p_fsp_amendment_number},
+$P{p_regime_status},
+$P{p_zone},
+$P{p_subzone},
+$P{p_comments_ind},
+$P{p_default_district_standards_ind},
+$P{p_user_id},
+$P{p_RDD009_order_by_data}
+)}]]>
+	</queryString>
+	<field name="db_name" class="java.lang.String"/>
+	<field name="logon_userid" class="java.lang.String"/>
+	<field name="org_code" class="java.lang.String"/>
+	<field name="region_code" class="java.lang.String"/>
+	<field name="fsp_plan_name" class="java.lang.String"/>
+	<field name="rollup_dist_code" class="java.lang.String"/>
+	<field name="rollup_region_code" class="java.lang.String"/>
+	<field name="org_unit_name" class="java.lang.String"/>
+	<field name="client_name" class="java.lang.String"/>
+	<field name="client_number" class="java.lang.String"/>
+	<field name="standards_regime_id" class="java.lang.String"/>
+	<field name="mof_default_standard_ind" class="java.lang.String"/>
+	<field name="standards_regime_status_code" class="java.lang.String"/>
+	<field name="standards_regime_name" class="java.lang.String"/>
+	<field name="geographic_description" class="java.lang.String"/>
+	<field name="effective_date" class="java.util.Date"/>
+	<field name="expiry_date" class="java.util.Date"/>
+	<field name="bec_region_code" class="java.lang.String"/>
+	<field name="bgc_zone_code" class="java.lang.String"/>
+	<field name="bgc_subzone_code" class="java.lang.String"/>
+	<field name="bgc_variant" class="java.lang.String"/>
+	<field name="bgc_phase" class="java.lang.String"/>
+	<field name="bec_site_series" class="java.lang.String"/>
+	<field name="bec_site_type" class="java.lang.String"/>
+	<field name="bec_seral" class="java.lang.String"/>
+	<field name="regen_obligation_ind" class="java.lang.String"/>
+	<field name="no_regen_early_offset_yrs" class="java.lang.String"/>
+	<field name="no_regen_late_offset_yrs" class="java.lang.String"/>
+	<field name="regen_delay_offset_yrs" class="java.lang.String"/>
+	<field name="free_growing_early_offset_yrs" class="java.lang.String"/>
+	<field name="free_growing_late_offset_yrs" class="java.lang.String"/>
+	<field name="standards_objective" class="java.lang.String"/>
+	<field name="approved_by_userid" class="java.lang.String"/>
+	<field name="submitted_by_userid" class="java.lang.String"/>
+	<field name="standards_regime_layer_id" class="java.lang.String"/>
+	<field name="stocking_layer_code" class="java.lang.String"/>
+	<field name="tree_size_unit_code" class="java.lang.String"/>
+	<field name="target_stocking" class="java.lang.String"/>
+	<field name="min_stocking_standard" class="java.lang.String"/>
+	<field name="min_pref_stocking_standard" class="java.lang.String"/>
+	<field name="min_horizontal_distance" class="java.lang.String"/>
+	<field name="residual_basal_area" class="java.lang.String"/>
+	<field name="min_post_spacing" class="java.lang.String"/>
+	<field name="max_post_spacing" class="java.lang.String"/>
+	<field name="max_conifer" class="java.lang.String"/>
+	<field name="hght_relative_to_comp" class="java.lang.String"/>
+	<field name="hght_relative_to_comp_unit" class="java.lang.String"/>
+	<field name="preferred_species" class="java.lang.String"/>
+	<field name="acceptable_species" class="java.lang.String"/>
+	<field name="additional_standards" class="java.lang.String"/>
+	<field name="reject_note" class="java.lang.String"/>
+	<field name="silv_statute_code" class="java.lang.String"/>
+	<field name="approved_date" class="java.util.Date"/>
+	<field name="submitted_date" class="java.lang.String"/>
+	<field name="attachment_count" class="java.lang.String"/>
+	<field name="fsp_id" class="java.lang.String"/>
+	<field name="fsp_amendment_number" class="java.lang.String"/>
+	<field name="fsp_status_code" class="java.lang.String"/>
+	<field name="fsp_status_desc" class="java.lang.String"/>
+	<field name="plan_name" class="java.lang.String"/>
+	<field name="plan_term_years" class="java.lang.String"/>
+	<field name="plan_start_date" class="java.util.Date"/>
+	<field name="plan_end_date" class="java.util.Date"/>
+	<field name="plan_submission_date" class="java.util.Date"/>
+	<field name="plan_approval_date" class="java.util.Date"/>
+	<field name="entry_userid" class="java.lang.String"/>
+	<field name="entry_timestamp" class="java.util.Date"/>
+	<field name="update_userid" class="java.lang.String"/>
+	<field name="update_timestamp" class="java.util.Date"/>
+	<field name="revision_count" class="java.lang.String"/>
+	<field name="group_by_id_1" class="java.lang.String"/>
+	<field name="group_by_desc_1" class="java.lang.String"/>
+	<field name="group_by_title_1" class="java.lang.String"/>
+	<field name="group_by_id_2" class="java.lang.String"/>
+	<field name="group_by_desc_2" class="java.lang.String"/>
+	<field name="group_by_title_2" class="java.lang.String"/>
+	<field name="group_by_id_3" class="java.lang.String"/>
+	<field name="group_by_desc_3" class="java.lang.String"/>
+	<field name="group_by_title_3" class="java.lang.String"/>
+	<title>
+		<band height="20">
+			<staticText>
+				<reportElement uuid="9c2a6b46-bec8-48c0-b013-7c4e25afc123" x="0" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[DB_NAME]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="2481d72e-9658-449a-b603-ecd49874b1cd" x="62" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[LOGON_USER_ID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="f4ef3d41-d450-45a0-b6de-bced4d0b199b" x="124" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[ORG_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="cca98c0e-ab92-4f76-8887-c149f8444362" x="186" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[REGION_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="93ad6542-fbd8-45dc-bffc-7769e15c478f" x="248" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[FSP_PLAN_NAME]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="045ef639-3806-4eda-92a6-f4d3e1bb0a83" x="310" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[ROLLUP_DIST_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="d62216fe-fadf-4ddb-a8ab-d47a5e2d4a9b" x="372" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[ROLLUP_REGION_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="995509c8-344b-4620-b035-cb2bea65cff8" x="434" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[ORG_UNIT_NAME]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="10b013f1-9afb-4aea-b293-4d94c7aed270" x="496" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[CLIENT_NAME]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="c919c8f8-835b-47ba-a6ee-c2e0f5d0bcff" x="558" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[CLIENT_NUMBER]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="805d5e41-d710-430b-a4d5-9231a2e98e3a" x="620" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[STANDARDS_REGIME_ID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="5fe31e51-5d3d-478c-9456-b984ff127cb0" x="682" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[MOF_DEFAULT_STANDARD_IND]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="10a06360-7a78-494e-9b26-873ec3fc4cc9" x="744" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[STANDARDS_REGIME_STATUS_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="32c1274b-4809-48cf-b0ec-d7f4485c6da9" x="806" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[STANDARDS_REGIME_NAME]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="3f77e46e-f9ab-4c56-9817-86cddb619209" x="868" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[GEOGRAPHIC_DESCRIPTION]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="a6b7f402-7fb4-4545-9831-54be3481c049" x="930" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[EFFECTIVE_DATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="810f6a6a-8c13-47b0-b7f1-898f156ef2e7" x="992" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[EXPIRY_DATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="b27486a9-ff11-4a6b-97f2-f1d546c44120" x="1054" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[BEC_REGION_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="b0079bf1-6527-4418-be1a-5cf5bd96025c" x="1116" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[BGC_ZONE_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="2896e79f-e3a1-427a-9137-5b83fc9684ff" x="1178" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[BGC_SUBZONE_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="7e3aef19-144d-4413-85a4-1350e68d9528" x="1240" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[BGC_VARIANT]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="dca8d90c-498d-4329-a4a1-098313a8a6b0" x="1302" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[BGC_PHASE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="621a6565-aca0-4aff-8193-2418e8cf5eae" x="1364" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[BEC_SITE_SERIES]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="d48cd924-ee21-4adf-8379-c5047802127b" x="1426" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[BEC_SITE_TYPE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="66c4193a-9b40-4aee-9c38-d9982362fe2c" x="1488" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[BEC_SERAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="8b9303e2-ff41-45b6-b30a-1a1c1e6c4eeb" x="1550" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[REGEN_OBLIGATION_IND]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="602b609e-b151-4c78-a1cf-17be3961f067" x="1612" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[NO_REGEN_EARLY_OFFSET_YRS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="22e1a6f5-5f2c-4d92-b01e-fbd0223acc93" x="1674" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[NO_REGEN_LATE_OFFSET_YRS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="b98efe3d-f342-4efe-baa8-21520bfdbbaa" x="1736" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[REGEN_DELAY_OFFSET_YRS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="a68bf947-5678-46f9-ac25-56edf068dfdc" x="1798" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[FREE_GROWING_EARLY_OFFSET_YRS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="92430b1c-d27f-4278-aa14-69513d7dc0e5" x="1860" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[FREE_GROWING_LATE_OFFSET_YRS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="780f0d51-064f-4b31-ac16-465da8d55d90" x="1922" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[STANDARDS_OBJECTIVE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="4d5ef89e-0459-4f32-be34-8afcb41d821d" x="1984" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[APPROVED_BY_USERID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="6b9a9700-ad8a-4113-af82-1265e148f8a5" x="2046" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[SUBMITTED_BY_USERID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="f0bfc32f-a5c0-435b-a2bd-af92968599b1" x="2108" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[STANDARDS_REGIME_LAYER_ID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="7ebad6c0-a8b1-4c33-824a-c2d37b32d3a7" x="2170" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[STOCKING_LAYER_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="0f1bb6a1-4ecb-4e24-9e86-fbc2f0c10fa0" x="2232" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[TREE_SIZE_UNIT_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="8b0101c3-43f3-48f3-8a8e-2c94d2933a6f" x="2294" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[TARGET_STOCKING]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="7e1b9b25-4155-4283-bf90-9d545782a740" x="2356" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[MIN_STOCKING_STANDARD]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="df70d00f-9352-4867-af8f-3db3d19563a9" x="2418" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[MIN_PREF_STOCKING_STANDARD]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="bd8898a6-ebd3-48ff-a684-1f7fa0466b64" x="2480" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[MIN_HORIZONTAL_DISTANCE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="b9d2699a-12c1-4868-bf05-8a8616b5914a" x="2542" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[RESIDUAL_BASAL_AREA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="af047119-e467-409f-89da-863c1472bfd2" x="2604" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[MIN_POST_SPACING]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="3cc21b5b-9513-4821-8be8-05b2dafbd87a" x="2666" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[MAX_POST_SPACING]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="c650c669-31eb-4170-b1ab-3e76d6a81da7" x="2728" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[MAX_CONIFER]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="65e129a8-9471-41cc-b6a6-afb57c6d0578" x="2790" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[HGHT_RELATIVE_TO_COMP]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="f5123204-385d-4c94-9b2e-b3ccf6d23f1d" x="2852" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[HGHT_RELATIVE_TO_COMP_UNIT]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="150a3258-4b06-4569-8dc3-8c1c83f0d10b" x="2914" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[PREFERRED_SPECIES]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="1fb945ab-69c9-4c8c-8ba4-c2750544f61f" x="2976" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[ACCEPTABLE_SPECIES]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="8e6349de-e9f5-4c85-a30a-9a214b6f64c4" x="3038" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[ADDITIONAL_STANDARDS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="a102a757-0cf2-49ae-b432-40eb2b66a362" x="3100" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[REJECT_NOTE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="92bac895-dda4-40a3-ba1b-6c1b96d9ac2b" x="3162" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[SILV_STATUTE_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="73c85366-b3c0-4956-aa7b-f81718ecd613" x="3224" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[APPROVED_DATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="1cd23c39-fe2e-4b7b-812a-234c83ac4552" x="3286" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[SUBMITTED_DATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="5eaa98df-ef40-4fb7-84d0-a7af5d6ad2b8" x="3348" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[ATTACHMENT_COUNT]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="209ab1ab-8f29-419b-81c1-466d291783fc" x="3410" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[FSP_ID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="71dbc737-ee7e-4a9b-89f1-fe2c41a19615" x="3472" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[FSP_AMENDMENT_NUMBER]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="9f28eefe-4e1c-498a-be99-6e80932ee793" x="3534" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[FSP_STATUS_CODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="8b10adf0-e838-4456-b217-f0c020461614" x="3596" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[FSP_STATUS_DESC]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="061a7d05-52cc-44ba-8831-a9fd04875c8e" x="3658" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[PLAN_NAME]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="117d873d-ad0f-4bfe-8f76-b392402038e4" x="3720" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[PLAN_TERM_YEARS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="f21febf1-8c46-487e-a7bc-da9a44cb0c78" x="3782" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[PLAN_START_DATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="7ac49b4e-ba6a-48e9-91b3-88b47b3628a5" x="3844" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[PLAN_END_DATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="4b255b33-8833-4b87-9a48-cf4d6a564ce6" x="3906" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[PLAN_SUBMISSION_DATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="887b5d5e-057c-4b05-a1e4-f0b40c4c4f69" x="3968" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[PLAN_APPROVAL_DATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="68dc0d92-f229-49ac-9ea3-2231e9432ebf" x="4030" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[ENTRY_USERID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="e8bacf6b-afec-4b0f-8b71-060fbcd32ba9" x="4092" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[ENTRY_TIMESTAMP]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="4351b25f-8cbc-46bb-9e63-692547a7dc91" x="4154" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[UPDATE_USERID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="dfeacee8-4369-4830-a829-90c3fc8c46da" x="4216" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[UPDATE_TIMESTAMP]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="dc01be77-f89b-41dc-bd12-80c080b13c51" x="4278" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[REVISION_COUNT]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="7625f361-fbef-45fe-80d7-05653c62c90c" x="4340" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[GROUP_BY_ID_1]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="0572d9bf-e138-4cc6-ad8d-4e76333631ab" x="4402" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[GROUP_BY_DESC_1]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="d00f52c6-f1ce-4003-9781-4f2e9d881af2" x="4464" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[GROUP_BY_TITLE_1]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="ece0c39c-5375-4269-b564-74cbd34eab7d" x="4526" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[GROUP_BY_ID_2]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="dd3e38b8-9050-41e7-86b6-d8e1f6aa9988" x="4588" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[GROUP_BY_DESC_2]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="cc0fe63d-5c5a-44f7-b52e-ddee4499931c" x="4650" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[GROUP_BY_TITLE_2]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="70ff8a90-9a70-458f-bcd8-54e4aae60442" x="4712" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[GROUP_BY_ID_3]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="682e46ca-0dc2-4514-9ba8-c300a38a1428" x="4774" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[GROUP_BY_DESC_3]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="a6cd3811-36ac-4cb8-9236-6562233ffca1" x="4836" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[GROUP_BY_TITLE_3]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="36264d40-d56d-4933-8b4d-78d64b08b9ad" x="4898" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[P_ORG_UNIT_NO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="7659abe1-087b-4c33-97d2-7fac631fd22e" x="4960" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[P_CLIENT_NUMBER]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="1292c2ac-491b-4aa4-8040-3b6c7bc2027c" x="5022" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[P_FSP_ID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="4faca211-1a52-4d69-ad6a-b3cc6716fe7a" x="5084" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[P_FSP_AMENDMENT_NUMBER]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="c2d89eef-1515-4bea-9bcb-2318d0d2bbaf" x="5146" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[P_REGIME_STATUS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="c3297044-7d1b-422c-88f0-56af4b134fd1" x="5208" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[P_ZONE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="7614a400-e87c-41a5-a347-c57ef4be13cf" x="5270" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[P_SUBZONE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="84605af6-cf62-4a52-a9c8-cbfc27f11cb4" x="5332" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[P_INCLUDE_ADDITIONAL_STANDARDS_IND]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="2f89d36d-e448-40f7-98d4-2ff5e255d51d" x="5394" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[P_DEFAULT_DISTRICT_STANDARDS_IND]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="74826219-1a52-452e-9f9e-1daec4d3ac85" x="5456" y="0" width="62" height="20"/>
+				<textElement/>
+				<text><![CDATA[ORDER_BY_DATA]]></text>
+			</staticText>
+		</band>
+	</title>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="7b2bad1e-5920-4c23-9e6f-fc798f8149c0" x="0" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{db_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="7696af56-b3fa-4609-ae8a-8e70fe723bae" x="62" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{logon_userid}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="1b52bbdc-80cd-4f1a-a0d7-c5e68c3ce3c0" x="124" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{org_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="89484532-11eb-4632-9ccd-0f34ba8195c4" x="186" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{region_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="a4c48e49-e141-4d0d-aabc-cd755ec1d25a" x="248" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{fsp_plan_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="243ee60b-ca6c-4722-a92d-a1db6403b8fc" x="310" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{rollup_dist_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="96ea6b7c-c9bc-4700-b8d1-54ca4e3dc6f7" x="372" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{rollup_region_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="db72f794-bdca-40cb-a8dc-2cdf8e4a9f2e" x="434" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{org_unit_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="9ebfb137-9aa0-4f0a-b805-019569ba03a0" x="496" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{client_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="3811d8aa-3273-49af-be52-0a2b954e54d3" x="558" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{client_number}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="e05a72ba-ff03-41d9-ac00-e9f9f432ce73" x="620" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{standards_regime_id}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="b4901331-5507-4643-ac7b-21c4f6090916" x="682" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{mof_default_standard_ind}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="48b302e1-5286-4d8e-aac8-71c6c3ca0464" x="744" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{standards_regime_status_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="0ffc91ef-7aa0-4581-ab0a-5027247b8023" x="806" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{standards_regime_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="8aca5f0e-608a-4842-920b-c3b0b0246874" x="868" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{geographic_description}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="06cc8771-2b02-4b2b-9cb4-f3b416f45493" x="930" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{effective_date}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="88b21270-0ea7-4765-9ee3-9be2d342f476" x="992" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{expiry_date}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="6f85e421-bbc5-4818-9f48-64eb8080c93e" x="1054" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{bec_region_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="0a96f4e7-6568-441f-82af-5f769633d06b" x="1116" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{bgc_zone_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="8437ae9b-3251-4a0b-bf17-cfd5b57698ca" x="1178" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{bgc_subzone_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="684dfaf1-141d-46ec-a4d4-1f9799bb3e7e" x="1240" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{bgc_variant}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="501f278f-6dbb-4f19-b606-85262f43b371" x="1302" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{bgc_phase}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="8035ab22-b0b8-4ce0-a9ad-6f8d58f4863c" x="1364" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{bec_site_series}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="ef287b12-4d8b-4e55-9d78-89088f3edf25" x="1426" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{bec_site_type}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="abf6db3f-31c0-4e50-9eef-8fd536a61ba9" x="1488" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{bec_seral}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="0ff968e4-9543-45e4-b44f-80e0fe944700" x="1550" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{regen_obligation_ind}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="598856c8-4ddf-4023-a458-1e7f5cfd8064" x="1612" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{no_regen_early_offset_yrs}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="41618a44-8b37-454b-9e43-a5ebfaa274af" x="1674" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{no_regen_late_offset_yrs}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="2aec8393-7e9d-4cba-b690-bc2749a4cde5" x="1736" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{regen_delay_offset_yrs}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="38531cc5-2216-4f00-b1d4-7579f1051e15" x="1798" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{free_growing_early_offset_yrs}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="9c54462f-ecdb-4077-bf43-5e2f63d380cb" x="1860" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{free_growing_late_offset_yrs}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="9fc9726f-09a3-4bf5-8fbf-0b3e7c7daabe" x="1922" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{standards_objective}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="fa9f1ce8-d7f2-4001-8e15-f74a02112221" x="1984" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{approved_by_userid}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="6935816e-9788-4875-a094-4805809f0117" x="2046" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{submitted_by_userid}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="df70e38f-b42e-494a-819a-434893275228" x="2108" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{standards_regime_layer_id}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="27ea4bf3-b115-43f4-ac35-8ec494bf846c" x="2170" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{stocking_layer_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="f6a5c8dc-bc91-4cbf-be43-c0a9ac437700" x="2232" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{tree_size_unit_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="56f74459-9776-4865-87d2-200b6dbb3ca0" x="2294" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{target_stocking}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="2484e45b-b99b-4789-a32c-6c85a6b59b2a" x="2356" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{min_stocking_standard}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="8fdc64b3-392d-445f-9ce2-3954fe18bc01" x="2418" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{min_pref_stocking_standard}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="96774f39-cbd6-4f18-aebb-3cb6a397af06" x="2480" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{min_horizontal_distance}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="ab9a332a-68d7-496e-94ec-7cf75402a7dd" x="2542" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{residual_basal_area}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="8ef32910-f8b5-4372-b559-efd609a602d6" x="2604" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{min_post_spacing}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="c83f569c-86cf-4d7c-8caf-f90a372d6b02" x="2666" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{max_post_spacing}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="94cb5313-0347-491b-ba2a-9d62c5d7418d" x="2728" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{max_conifer}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="92956274-44c7-44d6-85d8-7103345d322b" x="2790" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{hght_relative_to_comp}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="6f448a05-fd58-498f-8d43-7cc2da015ba8" x="2852" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{hght_relative_to_comp_unit}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="7bd95e10-f02e-43a1-bcef-1fab1ea7e656" x="2914" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{preferred_species}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="278bae2e-9b9b-4eaf-b7e3-e8a148b1592c" x="2976" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{acceptable_species}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="4d763be8-e813-4a9b-aaef-3e06c226ddc3" x="3038" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{additional_standards}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="a1f63879-e10b-4036-9118-31af0b755d7d" x="3100" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{reject_note}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="16586cbb-f08b-42be-95ef-fe9905f85a5a" x="3162" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{silv_statute_code}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="5ed85bad-fd7b-44a9-ac0e-bc4d454ce796" x="3224" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{approved_date}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="574c7967-d96d-4363-9039-7fb95327d6b6" x="3286" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{submitted_date}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="c1518a5f-276e-4d14-b1c9-eccb6b0b090a" x="3348" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{attachment_count}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="af66b799-9be7-4da3-af4b-7b03c7e13f06" x="3410" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{fsp_id}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="c14bdd5b-d36d-4cba-9ef2-b6f20a6ae007" x="3472" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{fsp_amendment_number}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="7963595a-1db0-4e59-8fd2-cc60b90312a9" x="3534" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{fsp_status_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="6b6cafa3-347e-4a57-8c7e-05031c11031a" x="3596" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{fsp_status_desc}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="5378d8b5-27d4-48ef-8935-9cbb465cf06c" x="3658" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{plan_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="343d22bf-cdc0-46eb-b8ed-d34987d3b4cb" x="3720" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{plan_term_years}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="a56c7a34-65a0-44ee-b645-28d19458cf0d" x="3782" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{plan_start_date}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="75707b27-61ce-4a33-9299-9c6c04bafe31" x="3844" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{plan_end_date}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="ed85200f-25af-4ed4-9e0a-db20a2150841" x="3906" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{plan_submission_date}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="d1367d62-f755-4ef4-9a85-729973b4d6a1" x="3968" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{plan_approval_date}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="5a8d81a5-26a0-42c5-bf3f-db78f870ae87" x="4030" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{entry_userid}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="e1519991-d43b-436f-90f3-b4bcc4103036" x="4092" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{entry_timestamp}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="423a72a2-beaf-4407-8ed3-553675e3d77d" x="4154" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{update_userid}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="d45b7af4-4c38-4ce5-bd0c-683d5d0f1be8" x="4216" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{update_timestamp}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="6a483ea5-d3e1-40d3-8bb9-1f507731e52d" x="4278" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{revision_count}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="d51ff3d2-d983-4bef-8897-cf7ec35eca20" x="4340" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{group_by_id_1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="1044cd48-1cab-457d-9678-2ef71cecde89" x="4402" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{group_by_desc_1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="232bc81d-3253-400e-b999-2d396a6c0aa5" x="4464" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{group_by_title_1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="a006c748-a224-4e7a-b432-0afd0c4e82be" x="4526" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{group_by_id_2}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="9856db13-049e-45e4-907f-997588385d2f" x="4588" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{group_by_desc_2}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="57af9250-2254-4157-b565-ffcfada7ccc0" x="4650" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{group_by_title_2}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="9b8baee4-d8bf-4704-8d7d-da94426f94bd" x="4712" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{group_by_id_3}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="57a5d6db-f1ee-4503-9ba8-a46b7be84b05" x="4774" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{group_by_desc_3}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="73e8ff76-8c57-4a8a-a2b0-5f5f9cc2fa9b" x="4836" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{group_by_title_3}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="b1b1238d-a70c-4c4b-9bad-b70277794757" x="4898" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$P{p_org_unit_no}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="cbec2a79-3da9-46d7-97f7-0c5692f022c1" x="4960" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$P{p_client_number}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="48a9a143-175d-4c90-ba06-8587e52c1cdf" x="5022" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$P{p_fsp_id}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="ed4fb308-5314-4249-9519-75c12cdbefa8" x="5084" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$P{p_fsp_amendment_number}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="48adfcf7-10f7-4c08-9ea0-d509abd6ca5c" x="5146" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$P{p_regime_status}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="8d4060b1-8be7-4abe-b53d-1c78820c5bae" x="5208" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$P{p_zone}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="361861d0-6c84-4ba4-a83f-aacfc5e0c110" x="5270" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$P{p_subzone}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="2551f0f4-1e34-4db2-a91e-4912062bc896" x="5332" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$P{p_comments_ind}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="442cc05c-f49c-4cc7-bc35-5bb94c6a3658" x="5394" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$P{p_default_district_standards_ind}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="03bdd86d-221a-4793-be0e-dcec9c0ae95a" x="5456" y="0" width="62" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$P{p_RDD009_order_by_data}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

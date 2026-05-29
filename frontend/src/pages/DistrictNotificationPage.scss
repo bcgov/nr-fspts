@@ -1,0 +1,93 @@
+// Mirrors src/pages/InboxPage.scss almost verbatim — only the BEM
+// prefix differs (fsp-district__* vs fsp-inbox__*). Keeping them
+// parallel rather than sharing a module makes per-page tweaks
+// easier without one-page changes leaking into another.
+
+.fsp-district-grid {
+  row-gap: 2rem;
+}
+
+.fsp-district__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.fsp-district__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  // Bump the field surface to layer-02 (white) so input widgets stand
+  // out against the Tile's default gray — same trick InboxPage uses.
+  --cds-field: var(--cds-field-02);
+  --cds-field-hover: var(--cds-field-hover-02);
+}
+
+.fsp-district__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+// Constrain the district dropdown so it doesn't stretch to the full
+// Tile width.
+.fsp-district__form-col {
+  display: flex;
+  flex-direction: column;
+  max-inline-size: 28rem;
+}
+
+// Right-align the Add user… trigger so it sits at the far edge of the
+// results-pane Tile.
+.fsp-district__add-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.fsp-district__add-trigger.cds--btn {
+  flex: 0 0 auto;
+}
+
+.fsp-district__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: calc(100vh - 3rem);
+}
+
+.fsp-district__table-container {
+  position: relative;
+}
+
+.fsp-district__table--loading {
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+.fsp-district__table-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.35);
+  z-index: 1;
+}
+
+.fsp-district__delete-btn.cds--btn {
+  // Compact icon button so the trailing actions column doesn't bloat
+  // row height. Same idea as the Map View link in inbox.
+  block-size: auto;
+  min-block-size: 0;
+  padding-block: 0.25rem;
+}

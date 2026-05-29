@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.19.0.final using JasperReports Library version 6.4.3  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="SubReportAtt01_FSP" pageWidth="700" pageHeight="512" orientation="Landscape" columnWidth="700" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="01249872-811e-4148-9724-35787c962261">
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="JCRS_FSP"/>
+	<property name="ireport.jasperserver.url" value="https://d1apps.cgi-dev.ca/int/nrsrs/"/>
+	<property name="ireport.jasperserver.user" value="jasperadmin"/>
+	<property name="ireport.jasperserver.report.resource" value="/JCRS/FSP/Reports/RDD001_1_files/SubReportAtt01_FSP"/>
+	<property name="ireport.jasperserver.reportUnit" value="/JCRS/FSP/Reports/RDD001_1"/>
+	<property name="com.jaspersoft.studio.report.unit.description" value="To report on FSPs by Status, District, Client and Licence in summary form.  "/>
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<property name="com.jaspersoft.studio.unit." value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.pageHeight" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.pageWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.topMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.bottomMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.leftMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.rightMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnSpacing" value="pixel"/>
+	<parameter name="pFSP" class="java.math.BigDecimal"/>
+	<queryString>
+		<![CDATA[select fax.fsp_amendment_number, fa.consolidated_ind, fa.attachment_description, fa.attachment_name, fa.attachment_size
+from fsp_attachment fa join fsp_attachment_xref fax on fax.fsp_attachment_id=fa.fsp_attachment_id
+where 
+fa.fsp_attachment_type_code='FSP'
+and fax.FSP_ID= $P{pFSP}
+Order by fax.fsp_amendment_number desc]]>
+	</queryString>
+	<field name="FSP_AMENDMENT_NUMBER" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.name" value="FSP_AMENDMENT_NUMBER"/>
+		<property name="com.jaspersoft.studio.field.label" value="FSP_AMENDMENT_NUMBER"/>
+	</field>
+	<field name="CONSOLIDATED_IND" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="CONSOLIDATED_IND"/>
+		<property name="com.jaspersoft.studio.field.label" value="CONSOLIDATED_IND"/>
+	</field>
+	<field name="ATTACHMENT_DESCRIPTION" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="ATTACHMENT_DESCRIPTION"/>
+		<property name="com.jaspersoft.studio.field.label" value="ATTACHMENT_DESCRIPTION"/>
+	</field>
+	<field name="ATTACHMENT_NAME" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="ATTACHMENT_NAME"/>
+		<property name="com.jaspersoft.studio.field.label" value="ATTACHMENT_NAME"/>
+	</field>
+	<field name="ATTACHMENT_SIZE" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.name" value="ATTACHMENT_SIZE"/>
+		<property name="com.jaspersoft.studio.field.label" value="ATTACHMENT_SIZE"/>
+	</field>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<columnHeader>
+		<band height="37" splitType="Stretch">
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<staticText>
+				<reportElement x="10" y="25" width="40" height="12" uuid="b8b46919-c36e-467f-b8b2-e4c2069349b1">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="6b023b3a-4e02-4e2a-8fe4-316b2adc5da1"/>
+					<property name="com.jaspersoft.studio.unit.leftIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font size="8" isBold="true"/>
+					<paragraph leftIndent="5"/>
+				</textElement>
+				<text><![CDATA[Source]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="50" y="25" width="40" height="12" uuid="a4cb31cb-854f-454d-8b01-451dca0e794c">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="2127039c-ea06-40f5-a640-9a8589d8758e"/>
+					<property name="com.jaspersoft.studio.unit.leftIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font size="8" isBold="true"/>
+					<paragraph leftIndent="5"/>
+				</textElement>
+				<text><![CDATA[Cons]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="350" y="25" width="242" height="12" uuid="5c71392b-787a-4978-8d15-71b8774047f8">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="9dc3c01d-3525-4165-9711-f93982a52b4e"/>
+					<property name="com.jaspersoft.studio.unit.leftIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font size="8" isBold="true"/>
+					<paragraph leftIndent="5"/>
+				</textElement>
+				<text><![CDATA[File name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1" y="0" width="189" height="20" uuid="5cb58825-0584-4589-b0f5-b34e46fb83a6">
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[FSP Legal Documents]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="90" y="25" width="260" height="12" uuid="8eb5af12-34be-417b-8fed-51fc166616b5">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="9dc3c01d-3525-4165-9711-f93982a52b4e"/>
+					<property name="com.jaspersoft.studio.unit.leftIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font size="8" isBold="true"/>
+					<paragraph leftIndent="5"/>
+				</textElement>
+				<text><![CDATA[Description]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="12" splitType="Stretch">
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<textField isBlankWhenNull="true">
+				<reportElement x="10" y="0" width="40" height="12" uuid="4659e545-d9cb-48de-b737-c9602a7e3b5b">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="6b023b3a-4e02-4e2a-8fe4-316b2adc5da1"/>
+					<property name="com.jaspersoft.studio.unit.leftIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<box>
+					<pen lineColor="#8C8888"/>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+					<paragraph leftIndent="5"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{FSP_AMENDMENT_NUMBER}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="50" y="0" width="40" height="12" uuid="5da65028-f8a8-4dd3-a979-ee0182f6b36f">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="2127039c-ea06-40f5-a640-9a8589d8758e"/>
+					<property name="com.jaspersoft.studio.unit.leftIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<box>
+					<pen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+					<paragraph leftIndent="5"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{CONSOLIDATED_IND}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="350" y="0" width="242" height="12" uuid="5bb50e8c-035d-4a30-95e6-df0f22708788">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="9dc3c01d-3525-4165-9711-f93982a52b4e"/>
+					<property name="com.jaspersoft.studio.unit.leftIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<box>
+					<pen lineColor="#8C8888"/>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+					<paragraph leftIndent="5"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{ATTACHMENT_NAME}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="90" y="0" width="260" height="12" uuid="2a05c719-6a5a-4c51-a5f9-73ca803cd660">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="9dc3c01d-3525-4165-9711-f93982a52b4e"/>
+					<property name="com.jaspersoft.studio.unit.leftIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<box>
+					<pen lineColor="#8C8888"/>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#8C8888"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+					<paragraph leftIndent="5"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{ATTACHMENT_DESCRIPTION}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

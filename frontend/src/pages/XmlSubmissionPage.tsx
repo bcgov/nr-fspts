@@ -1,12 +1,22 @@
 import { useState } from 'react';
-import { FileUploader, TextInput, Button, InlineNotification } from '@carbon/react';
+import { FileUploader, TextInput, Button } from '@carbon/react';
 import { Upload } from '@carbon/react/icons';
 import PageLayout from './PageLayout';
+import { useNotification } from '@/context/notification/useNotification';
 import './PageLayout.css';
 
 export default function XmlSubmissionPage() {
   const [fspId,    setFspId]    = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const { display } = useNotification();
+
+  const handleSubmit = () => {
+    display({
+      kind: 'success',
+      title: 'Submission received.',
+      subtitle: 'Your XML file has been queued for processing.',
+      timeout: 5000,
+    });
+  };
 
   return (
     <PageLayout title="XML Submission">
@@ -39,18 +49,9 @@ export default function XmlSubmissionPage() {
         />
       </div>
 
-      {submitted && (
-        <InlineNotification
-          kind="success"
-          title="Submission received."
-          subtitle="Your XML file has been queued for processing."
-          style={{ marginBottom: '1rem' }}
-        />
-      )}
-
       <div className="form-actions">
-        <Button kind="primary" renderIcon={Upload} onClick={() => setSubmitted(true)}>Submit</Button>
-        <Button kind="secondary" onClick={() => setSubmitted(false)}>Clear</Button>
+        <Button kind="primary" renderIcon={Upload} onClick={handleSubmit}>Submit</Button>
+        <Button kind="secondary" onClick={() => setFspId('')}>Clear</Button>
       </div>
     </PageLayout>
   );

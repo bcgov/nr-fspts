@@ -6,7 +6,6 @@ import { useAuth } from './context/auth/useAuth';
 
 // Pages
 import LandingPage              from './pages/LandingPage';
-import WelcomePage              from './pages/WelcomePage';
 import SearchPage               from './pages/SearchPage';
 import InboxPage                from './pages/InboxPage';
 import FspInformationPage       from './pages/FspInformationPage';
@@ -22,7 +21,7 @@ import WorkflowPage             from './pages/WorkflowPage';
 import HistoryPage              from './pages/HistoryPage';
 import DistrictNotificationPage from './pages/DistrictNotificationPage';
 import XmlSubmissionPage        from './pages/XmlSubmissionPage';
-import JcrsReportsPage          from './pages/JcrsReportsPage';
+import JcrsReportsPage          from './pages/JcrsReports';
 
 import './App.css';
 
@@ -32,11 +31,7 @@ const withLayout = (node: ReactNode) => <Layout>{node}</Layout>;
 
 // ── App ────────────────────────────────────────────────────
 export default function App() {
-  const { user, isLoggedIn, isLoading } = useAuth();
-  const userName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
-    || user?.displayName
-    || user?.userName
-    || '';
+  const { isLoggedIn, isLoading } = useAuth();
 
   // Show a minimal placeholder during the initial auth bootstrap so a
   // page reload mid-session doesn't briefly render the LandingPage
@@ -51,18 +46,15 @@ export default function App() {
     <BrowserRouter>
       {isLoggedIn ? (
         <Routes>
-          {/* Stale callback URL while already signed in: just go home. */}
-          <Route path="/auth/callback"          element={<Navigate to="/welcome" replace />} />
-
-          <Route path="/"                       element={<Navigate to="/welcome" replace />} />
-          <Route path="/welcome"                element={withLayout(<WelcomePage userName={userName} />)} />
+          {/* Login flow lands here after Amplify exchanges ?code=&state=;
+              the LandingPage's IDIR/BCeID buttons go through Cognito and
+              return here. Forward straight to Search — Welcome page was
+              dropped. */}
+          <Route path="/auth/callback"          element={<Navigate to="/search" replace />} />
+          <Route path="/"                       element={<Navigate to="/search" replace />} />
 
           {/* Search */}
           <Route path="/search"                 element={withLayout(<SearchPage />)} />
-          <Route path="/links/fta"              element={withLayout(<WelcomePage userName={userName} />)} />
-          <Route path="/links/results"          element={withLayout(<WelcomePage userName={userName} />)} />
-          <Route path="/links/mapview"          element={withLayout(<WelcomePage userName={userName} />)} />
-          <Route path="/links/cims"             element={withLayout(<WelcomePage userName={userName} />)} />
 
           {/* Inbox */}
           <Route path="/inbox"                  element={withLayout(<InboxPage />)} />
@@ -90,7 +82,7 @@ export default function App() {
           <Route path="/reports/jcrs"           element={withLayout(<JcrsReportsPage />)} />
 
           {/* Catch-all */}
-          <Route path="*"                       element={<Navigate to="/welcome" replace />} />
+          <Route path="*"                       element={<Navigate to="/search" replace />} />
         </Routes>
       ) : (
         <Routes>

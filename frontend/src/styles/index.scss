@@ -48,3 +48,45 @@
     background: transparent;
   }
 }
+
+// Toast Notification — positions the snackbar at the top-right corner
+// and animates it in / out. Used by src/context/notification/
+// NotificationProvider.tsx. Matches nr-rept's pattern byte-for-byte so
+// timing + offsets stay consistent between the two apps.
+.#{variables.$bcgov-prefix}--toast-notification {
+  z-index: 12000 !important;
+  position: fixed !important;
+  top: 1rem !important;
+  right: 1rem !important;
+  transform: translateX(100%);
+  opacity: 0;
+
+  &.slide-in {
+    animation: slide-in-right 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  &.slide-out {
+    animation: slide-out-right 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}

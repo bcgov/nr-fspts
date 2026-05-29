@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import amplifyconfig from './config/fam/config';
 import { AuthProvider } from './context/auth/AuthProvider';
+import { NotificationProvider } from './context/notification/NotificationProvider';
 import ThemeProvider from './context/theme/ThemeProvider';
 
 import './index.scss';
@@ -40,7 +41,9 @@ createRoot(container).render(
   <React.StrictMode>
     <AuthProvider>
       <ThemeProvider>
-        <App />
+        <NotificationProvider>
+          <App />
+        </NotificationProvider>
       </ThemeProvider>
     </AuthProvider>
   </React.StrictMode>,

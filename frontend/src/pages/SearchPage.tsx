@@ -5,7 +5,6 @@ import {
   DatePickerInput,
   DataTable,
   Grid,
-  InlineNotification,
   Loading,
   Pagination,
   Select,
@@ -26,6 +25,7 @@ import { Search as SearchIcon } from '@carbon/icons-react';
 import { useCallback, useEffect, useState, type FC, type FormEvent } from 'react';
 
 import ClientSearchModal from '@/components/ClientSearchModal';
+import { useNotification } from '@/context/notification/useNotification';
 import {
   getFspStatusCodes,
   getOrgUnits,
@@ -213,6 +213,18 @@ const SearchPage: FC = () => {
   // Client-search modal open/close. The modal owns its own search state;
   // we only care here whether it's visible and what client gets picked.
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
+
+  // Errors render as a slide-in toast (top-right corner), not an
+  // inline notification in the results area. The `error` state still
+  // gates render conditions below ("no results" empty state should
+  // not show when the search itself failed). Fires on any transition
+  // to a non-null value; falsy → no-op.
+  const { display } = useNotification();
+  useEffect(() => {
+    if (error) {
+      display({ kind: 'error', title: 'Search failed', subtitle: error, timeout: 5000 });
+    }
+  }, [error, display]);
 
   // Code-list state. Both lists load once on mount via the dedicated
   // GET endpoints. We keep them in component state (rather than a global
@@ -586,20 +598,10 @@ const SearchPage: FC = () => {
         </Tile>
       </Column>
 
-      {(error || results !== null) && (
+      {results !== null && (
         <Column sm={4} md={8} lg={16}>
           <Tile className="fsp-search__tile">
             <Stack gap={4}>
-              {error && (
-                <InlineNotification
-                  kind="error"
-                  title="Search failed"
-                  subtitle={error}
-                  lowContrast
-                  hideCloseButton
-                />
-              )}
-
               {hasResults && (
                 <>
                   {/* Position-relative wrapper so the loading overlay

@@ -1,7 +1,6 @@
 import {
   Button,
   DataTable,
-  InlineNotification,
   Loading,
   Modal,
   Pagination,
@@ -15,8 +14,9 @@ import {
   TextInput,
 } from '@carbon/react';
 import { Search as SearchIcon } from '@carbon/icons-react';
-import { useCallback, useState, type FC, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FC, type FormEvent } from 'react';
 
+import { useNotification } from '@/context/notification/useNotification';
 import { searchClients, type ClientSearchResult } from '@/services/clientSearch';
 import './ClientSearchModal.scss';
 
@@ -93,6 +93,15 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
   const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Errors render as a slide-in toast; `error` state stays so the
+  // "no matches" empty-state gate below doesn't fire on failure.
+  const { display } = useNotification();
+  useEffect(() => {
+    if (error) {
+      display({ kind: 'error', title: 'Client search failed', subtitle: error, timeout: 5000 });
+    }
+  }, [error, display]);
 
   const set = <K extends keyof CriteriaState>(key: K, value: CriteriaState[K]) =>
     setCriteria((prev) => ({ ...prev, [key]: value }));
@@ -235,16 +244,6 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
           </Button>
         </div>
       </form>
-
-      {error && (
-        <InlineNotification
-          kind="error"
-          title="Client search failed"
-          subtitle={error}
-          lowContrast
-          hideCloseButton
-        />
-      )}
 
       {hasResults && (
         <div className="client-search__results">

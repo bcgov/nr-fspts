@@ -1,0 +1,166 @@
+// Mirrors nr-rept's src/pages/Reports/reports.scss. Same accordion-
+// table chrome, zebra striping, and field-grid layout — only the
+// containing-grid class differs.
+
+.fsp-reports-grid {
+  row-gap: 1.5rem;
+}
+
+.fsp-reports__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.reports-accordion-table {
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.25rem;
+  background: var(--cds-layer-01);
+  color: var(--cds-text-primary);
+  overflow: hidden;
+
+  .cds--accordion {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .cds--accordion__item {
+    border-top: 1px solid var(--cds-border-subtle-01);
+    border-bottom: none;
+    background: var(--cds-layer-01);
+    color: var(--cds-text-primary);
+  }
+
+  // Zebra striping on closed rows; the open item drops the stripe so
+  // the form panel reads as a single block rather than fighting the
+  // row band color.
+  .cds--accordion__item:nth-of-type(even):not(.cds--accordion__item--active) {
+    background: var(--cds-layer-accent-01);
+  }
+
+  .cds--accordion__heading {
+    width: 100%;
+    padding-block: 0.5rem;
+    align-items: center;
+    background: transparent;
+    color: inherit;
+  }
+
+  .cds--accordion__title {
+    width: 100%;
+    margin: 0;
+    padding-inline-end: 0.5rem;
+  }
+
+  .cds--accordion__content {
+    padding-block: 1rem 1.5rem;
+    padding-inline: 1rem 2rem;
+    // Layer-02 so the open form sits on the natural "next layer up"
+    // surface — white in light theme, lighter dark gray in dark theme.
+    background: var(--cds-layer-02);
+    color: var(--cds-text-primary);
+  }
+
+  .cds--accordion__item--active {
+    background: var(--cds-layer-02);
+  }
+}
+
+.reports-row {
+  display: grid;
+  grid-template-columns: 1.4fr 3fr;
+  gap: 1rem;
+  align-items: center;
+  width: 100%;
+  font-size: 0.875rem;
+  color: var(--cds-text-primary);
+}
+
+.reports-row--header {
+  // Align with the accordion title content: chevron sits 1rem from the
+  // row edge, the title has padding-inline-start of 1rem, the heading
+  // button itself has padding-inline-end of 1rem.
+  padding: 0.75rem 2rem 0.75rem 3rem;
+  background: var(--cds-layer-accent-02);
+  font-weight: 700;
+  text-transform: none;
+  font-size: 0.875rem;
+  color: var(--cds-text-primary);
+}
+
+.reports-row__cell {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.reports-row__cell--description {
+  color: var(--cds-text-secondary);
+}
+
+.report-form {
+  margin-top: 0.5rem;
+}
+
+.report-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.report-form__generating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.report-form__field-group {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  // Force every grid child (DatePicker, Select, etc.) to honour the
+  // 1fr cell. `min-width: 0` overrides grid's default `min-width: auto`
+  // which would otherwise let intrinsic-content widths blow out the
+  // column — Carbon's DatePicker is the main offender.
+  > * {
+    min-width: 0;
+  }
+
+  // Carbon hardcodes `.cds--date-picker__input` (single mode) to 18rem
+  // via `inline-size`. Override so the input fills its 1fr grid cell.
+  .cds--date-picker.cds--date-picker--single .cds--date-picker__input {
+    inline-size: 100%;
+    width: 100%;
+  }
+
+  .cds--date-picker,
+  .cds--date-picker-container,
+  .cds--date-picker-input__wrapper {
+    width: 100%;
+    min-width: 0;
+  }
+
+  // Carbon wraps the <input> in a <span> inside the input wrapper. The
+  // span is inline by default, so it sizes to the input's intrinsic
+  // 288px regardless of the wrapper width. Force it to fill the
+  // wrapper so the inner `inline-size: 100%` expands to the grid cell.
+  .cds--date-picker-input__wrapper > span {
+    display: block;
+    width: 100%;
+  }
+}
+
+.fsp-reports__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: calc(100vh - 3rem);
+}

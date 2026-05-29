@@ -3,7 +3,6 @@ import {
   Column,
   DataTable,
   Grid,
-  InlineNotification,
   Loading,
   Pagination,
   Select,
@@ -24,6 +23,7 @@ import { Search as SearchIcon } from '@carbon/icons-react';
 import { useCallback, useEffect, useState, type FC, type FormEvent } from 'react';
 
 import ClientSearchModal from '@/components/ClientSearchModal';
+import { useNotification } from '@/context/notification/useNotification';
 import { env } from '@/env';
 import {
   getFspExtent,
@@ -185,6 +185,16 @@ const InboxPage: FC = () => {
   const [pageSize, setPageSize] = useState<number>(persisted?.pageSize ?? DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Errors render as a slide-in toast (top-right corner); the `error`
+  // state still gates the "no results" empty-state below so we don't
+  // show that message when the call itself failed.
+  const { display } = useNotification();
+  useEffect(() => {
+    if (error) {
+      display({ kind: 'error', title: 'Inbox load failed', subtitle: error, timeout: 5000 });
+    }
+  }, [error, display]);
 
   // Only the org-units code list is needed here — status is hardcoded
   // (see STATUS_OPTIONS comment). No separate status fetch on mount.
@@ -477,20 +487,10 @@ const InboxPage: FC = () => {
         </Tile>
       </Column>
 
-      {(error || results !== null) && (
+      {results !== null && (
         <Column sm={4} md={8} lg={16}>
           <Tile className="fsp-inbox__tile">
             <Stack gap={4}>
-              {error && (
-                <InlineNotification
-                  kind="error"
-                  title="Inbox load failed"
-                  subtitle={error}
-                  lowContrast
-                  hideCloseButton
-                />
-              )}
-
               {hasResults && (
                 <>
                   <div className="fsp-inbox__table-container">

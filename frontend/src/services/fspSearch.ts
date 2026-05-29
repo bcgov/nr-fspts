@@ -204,3 +204,104 @@ export async function getFspExtent(
   }
   return res.json() as Promise<FspExtentResponse>;
 }
+
+// ── District Auto-Notification (Admin) ────────────────────────────
+
+export interface NotificationDesignate {
+  designateId: string | null;
+  designateIdir: string;
+  orgUnitNo?: string | null;
+  displayName?: string | null;
+  emailAddress?: string | null;
+}
+
+// ── FAM IDIR directory lookup ─────────────────────────────────────
+
+export interface UserSummary {
+  userId: string;
+  displayName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  idirGuid?: string | null;
+  idirUserGuid?: string | null;
+}
+
+export interface UserSearchResponse {
+  results: UserSummary[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export interface UserSearchParams {
+  userId?: string;
+  firstName?: string;
+  lastName?: string;
+  size?: number;
+}
+
+/** GET /api/v1/fsp/users/search — passes through to the FAM identity-lookup API. */
+export async function searchUsers(params: UserSearchParams): Promise<UserSearchResponse> {
+  const qs = new URLSearchParams();
+  if (params.userId) qs.set('userId', params.userId);
+  if (params.firstName) qs.set('firstName', params.firstName);
+  if (params.lastName) qs.set('lastName', params.lastName);
+  if (params.size && params.size > 0) qs.set('size', String(params.size));
+  const path = `/v1/fsp/users/search${qs.toString() ? `?${qs}` : ''}`;
+  const res = await apiFetch(path);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail ? `User search failed (${res.status}): ${detail}` : `User search failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<UserSearchResponse>;
+}
+
+/** GET /api/v1/fsp/admin/district-notifications?orgUnitNo=… */
+export async function getDistrictDesignates(orgUnitNo: string): Promise<NotificationDesignate[]> {
+  const path = `/v1/fsp/admin/district-notifications?orgUnitNo=${encodeURIComponent(orgUnitNo)}`;
+  const res = await apiFetch(path);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail ? `Designate load failed (${res.status}): ${detail}` : `Designate load failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<NotificationDesignate[]>;
+}
+
+/** POST /api/v1/fsp/admin/district-notifications */
+export async function addDistrictDesignate(
+  orgUnitNo: string,
+  designateIdir: string,
+): Promise<void> {
+  const res = await apiFetch('/v1/fsp/admin/district-notifications', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orgUnitNo, designateIdir }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail ? `Add designate failed (${res.status}): ${detail}` : `Add designate failed (${res.status})`,
+    );
+  }
+}
+
+/** DELETE /api/v1/fsp/admin/district-notifications/{designateId} */
+export async function removeDistrictDesignate(designateId: string): Promise<void> {
+  const res = await apiFetch(
+    `/v1/fsp/admin/district-notifications/${encodeURIComponent(designateId)}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Remove designate failed (${res.status}): ${detail}`
+        : `Remove designate failed (${res.status})`,
+    );
+  }
+}

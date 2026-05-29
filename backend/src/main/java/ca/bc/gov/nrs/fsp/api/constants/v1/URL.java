@@ -29,4 +29,15 @@ public final class URL {
   // amendment. Fetched lazily by the front-end inbox/results pages so
   // the spatial query only runs when the user actually clicks Map View.
   public static final String EXTENT = "/{fspId}/amendments/{amendmentNumber}/extent";
+
+  // District auto-notification designates — admin-only list of IDIR
+  // usernames CC'd on FSP-200 notification emails for an org unit.
+  // Backed by FSP_900_NOTIFICATION_DESIGNATE (GET/SAVE/REMOVE).
+  public static final String DISTRICT_DESIGNATES = "/admin/district-notifications";
+  public static final String DISTRICT_DESIGNATE_BY_ID = "/admin/district-notifications/{designateId}";
+
+  // IDIR directory lookup via FAM identity-lookup API. Used by the
+  // UserSearchModal popup and to enrich designate rows with displayName
+  // + email server-side.
+  public static final String USER_SEARCH = "/users/search";
 }
