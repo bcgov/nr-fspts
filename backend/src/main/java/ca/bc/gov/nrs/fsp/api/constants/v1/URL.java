@@ -19,11 +19,16 @@ public final class URL {
   public static final String WORKFLOW_ACTION = "/{fspId}/workflow/action";
   public static final String STANDARDS = "/{fspId}/standards";
   public static final String STANDARD_BY_ID = "/{fspId}/standards/{standardId}";
+  public static final String STANDARD_DETAIL = "/{fspId}/standards/{regimeId}/detail";
+  public static final String STANDARD_LAYER_DETAIL =
+      "/{fspId}/standards/{regimeId}/layers/{layerCode}";
   public static final String ATTACHMENTS = "/{fspId}/attachments";
   public static final String ATTACHMENT_BY_ID = "/{fspId}/attachments/{attachmentId}";
   public static final String ATTACHMENT_DOWNLOAD = "/{fspId}/attachments/{attachmentId}/download";
   public static final String INBOX = "/inbox";
   public static final String HISTORY = "/{fspId}/history";
+  public static final String EXTENSIONS = "/{fspId}/extensions";
+  public static final String FDU_LIST = "/{fspId}/fdu-list";
 
   // Map View extent — bounding box of all FDU polygons for this FSP +
   // amendment. Fetched lazily by the front-end inbox/results pages so

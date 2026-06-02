@@ -47,7 +47,9 @@ public interface FspApiEndpoint {
 
     @GetMapping(URL.FSP_BY_ID)
     @Operation(summary = "Get FSP by ID via fsp_300_information.MAINLINE")
-    ResponseEntity<FspRequest> getFspById(@PathVariable String fspId);
+    ResponseEntity<FspRequest> getFspById(
+            @PathVariable String fspId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
     @PutMapping(URL.FSP_BY_ID)
     @Operation(summary = "Update FSP via fsp_300_information.MAINLINE")
@@ -115,6 +117,35 @@ public interface FspApiEndpoint {
     @GetMapping(URL.HISTORY)
     @Operation(summary = "Get audit history via FSP_800_HISTORY.MAINLINE")
     ResponseEntity<List<WorkflowResponse>> getHistory(@PathVariable String fspId);
+
+    // --- Extension Summary ---
+
+    @GetMapping(URL.EXTENSIONS)
+    @Operation(summary = "Get extension summary via FSP_303_EXTENSION_SUMMARY.GET_LIST")
+    ResponseEntity<ExtensionSummary> getExtensions(@PathVariable String fspId);
+
+    // --- FDU list (Map tab) ---
+
+    @GetMapping(URL.FDU_LIST)
+    @Operation(summary = "Get the per-FDU list via FSP_600_MAP.GET")
+    ResponseEntity<FduList> getFduList(@PathVariable String fspId);
+
+    // --- Stocking Standards detail (FSP250 view-only) ---
+
+    @GetMapping(URL.STANDARD_DETAIL)
+    @Operation(summary = "Get standards regime detail via FSP_550_STDS_PROPOSAL.GET")
+    ResponseEntity<StandardRegimeDetail> getStandardRegimeDetail(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
+
+    @GetMapping(URL.STANDARD_LAYER_DETAIL)
+    @Operation(summary = "Get per-layer detail (FSP_550_SUB_LAYERS + FSP_550_SUB_SPECIES)")
+    ResponseEntity<StandardRegimeLayerDetail> getStandardRegimeLayerDetail(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @PathVariable String layerCode,
+            @RequestParam(name = "layerId") String layerId);
 
     // --- Map View extent ---
 

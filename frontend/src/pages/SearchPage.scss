@@ -159,6 +159,19 @@
   user-select: none;
 }
 
+// Search-result rows act as a navigation control — clicking opens the
+// FSP information page. Surface that affordance with a pointer cursor
+// and a subtle hover wash that doesn't fight Carbon's zebra striping.
+.fsp-search__row--selectable {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    background-color: var(--cds-layer-hover-01);
+  }
+}
+
 .fsp-search__table-overlay {
   position: absolute;
   inset: 0;

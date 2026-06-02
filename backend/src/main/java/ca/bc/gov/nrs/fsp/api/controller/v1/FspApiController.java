@@ -23,6 +23,9 @@ public class FspApiController implements FspApiEndpoint {
     private final AttachmentsService attachmentsService;
     private final InboxService inboxService;
     private final HistoryService historyService;
+    private final ExtensionService extensionService;
+    private final FduService fduService;
+    private final StandardRegimeService standardRegimeService;
     private final CodeListsService codeListsService;
     private final FspExtentService fspExtentService;
     private final DistrictNotificationService districtNotificationService;
@@ -31,6 +34,9 @@ public class FspApiController implements FspApiEndpoint {
     public FspApiController(FspService fspService, WorkflowService workflowService,
                             StandardsService standardsService, AttachmentsService attachmentsService,
                             InboxService inboxService, HistoryService historyService,
+                            ExtensionService extensionService,
+                            FduService fduService,
+                            StandardRegimeService standardRegimeService,
                             CodeListsService codeListsService, FspExtentService fspExtentService,
                             DistrictNotificationService districtNotificationService,
                             UserDirectoryService userDirectoryService) {
@@ -40,6 +46,9 @@ public class FspApiController implements FspApiEndpoint {
         this.attachmentsService = attachmentsService;
         this.inboxService = inboxService;
         this.historyService = historyService;
+        this.extensionService = extensionService;
+        this.fduService = fduService;
+        this.standardRegimeService = standardRegimeService;
         this.codeListsService = codeListsService;
         this.fspExtentService = fspExtentService;
         this.districtNotificationService = districtNotificationService;
@@ -66,8 +75,8 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
-    public ResponseEntity<FspRequest> getFspById(String fspId) {
-        return ResponseEntity.ok(fspService.getById(fspId));
+    public ResponseEntity<FspRequest> getFspById(String fspId, String amendmentNumber) {
+        return ResponseEntity.ok(fspService.getById(fspId, amendmentNumber));
     }
 
     @Override
@@ -145,6 +154,30 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<List<WorkflowResponse>> getHistory(String fspId) {
         return ResponseEntity.ok(historyService.getHistory(fspId));
+    }
+
+    @Override
+    public ResponseEntity<ExtensionSummary> getExtensions(String fspId) {
+        return ResponseEntity.ok(extensionService.getSummary(fspId));
+    }
+
+    @Override
+    public ResponseEntity<FduList> getFduList(String fspId) {
+        return ResponseEntity.ok(fduService.getFdus(fspId));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeDetail> getStandardRegimeDetail(
+            String fspId, String regimeId, String amendmentNumber) {
+        return ResponseEntity.ok(
+                standardRegimeService.getDetail(fspId, amendmentNumber, regimeId));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeLayerDetail> getStandardRegimeLayerDetail(
+            String fspId, String regimeId, String layerCode, String layerId) {
+        return ResponseEntity.ok(
+                standardRegimeService.getLayerDetail(regimeId, layerCode, layerId));
     }
 
     // --- Map View extent ---

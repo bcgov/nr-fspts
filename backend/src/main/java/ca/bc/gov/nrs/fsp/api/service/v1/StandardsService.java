@@ -20,13 +20,16 @@ import java.util.List;
 @Slf4j
 public class StandardsService {
 
-  private static final String ACTION_FETCH = "FETCH";
+  // The legacy proc dispatches on P_ACTION = 'GET' for reads (not 'FETCH'
+  // — that string returns the noRecordsFound branch). Same convention as
+  // FSP_100_SEARCH / FSP_300_INFORMATION / FSP_400_ATTACHMENTS.
+  private static final String ACTION_GET = "GET";
   private static final String ACTION_DELETE = "DELETE";
 
   private final Fsp500StockingStandardsDao stockingStandardsDao;
 
   public List<StandardRequest> getByFspId(String fspId) {
-    Fsp500StockingStandardsDao.Result result = call(ACTION_FETCH, fspId);
+    Fsp500StockingStandardsDao.Result result = call(ACTION_GET, fspId);
     return result.rows().stream().map(StandardsService::toDto).toList();
   }
 
@@ -44,16 +47,21 @@ public class StandardsService {
   }
 
   private Fsp500StockingStandardsDao.Result call(String action, String fspId) {
+    // Bind for fsp_tombstone.get's "find latest accessible amendment"
+    // branch (the FSP_500 proc body delegates to it for the access
+    // gate): FSP id flows in via P_NEW_FSP_ID, P_FSP_ID stays blank;
+    // both amendment slots blank so the proc resolves the most recent
+    // amendment the user can see. Audit-user context comes from the JWT.
     return stockingStandardsDao.mainline(
         action,
-        fspId,
-        "",   // P_NEW_FSP_ID
+        "",                                     // P_FSP_ID
+        fspId,                                  // P_NEW_FSP_ID
         "",   // P_FSP_PLAN_NAME
         null, // P_FSP_ORG_UNITS
         "", "",   // status code/desc
         "", "",   // amendment number / new amendment number
-        RequestUtil.getCurrentUserName(),  // P_USER_CLIENT_NUMBER (proxy)
-        "",   // P_USER_ROLE
+        RequestUtil.getCurrentClientNumber(),   // P_USER_CLIENT_NUMBER
+        RequestUtil.getCurrentLegacyRoles(),    // P_USER_ROLE
         "",   // P_SUBMISSION_ID
         "",   // P_FSP_EXPIRY_DATE
         "",   // P_AMENDMENT_NAME

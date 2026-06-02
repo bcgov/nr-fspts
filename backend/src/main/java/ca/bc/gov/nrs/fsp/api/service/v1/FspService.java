@@ -68,7 +68,7 @@ public class FspService {
     // to scope visible rows (admin/decision-maker see everything,
     // view-only gates to APP, etc.). Map our canonical FSPTS_* roles
     // onto the legacy FSP_* names the proc expects.
-    String userRoles = currentUserLegacyRoles();
+    String userRoles = RequestUtil.getCurrentLegacyRoles();
 
     // Drain the full cursor with maxRows=0 (unbounded). Matches InboxService:
     // pagination + sort happen in-memory after the read so Carbon's
@@ -88,8 +88,12 @@ public class FspService {
         nz(request.getOrgUnitNo()),
         nz(request.getAhClientNumber()),
         nz(request.getFspAmendmentName()),
-        "",   // P_ENTRY_USER_CLIENT_NUMBER — only set for BCeID submitters
-        nz(RequestUtil.getCurrentUserName()),
+        // P_ENTRY_USER_CLIENT_NUMBER — pulled from the FAM role suffix
+        // (e.g. FSPTS_ADMINISTRATOR_00012797 → "00012797"). Legacy
+        // SilUser populated the same value via setUser_client() from
+        // WebADE. Empty for users in unqualified roles.
+        RequestUtil.getCurrentClientNumber(),
+        RequestUtil.getCurrentIdir(),
         userRoles,
         nz(request.getFspDateStart()),
         nz(request.getFspDateEnd()),
@@ -137,62 +141,95 @@ public class FspService {
     }
   }
 
-  /**
-   * Map the canonical FSPTS_* roles in the current JWT's cognito:groups
-   * claim onto the legacy FSP_* role names FSP_100_SEARCH.MAINLINE
-   * expects (FSP_ADMINISTRATOR, FSP_DECISION_MAKER, FSP_REVIEWER,
-   * FSP_SUBMITTER, FSP_VIEW_ONLY). Returns a space-separated list so
-   * the proc's role-presence checks (StringUtils.contains style) keep
-   * working. Org-suffixed groups (FSPTS_ADMINISTRATOR_DPG) are stripped
-   * to the canonical root before rewriting FSPTS_ → FSP_.
-   */
-  private static String currentUserLegacyRoles() {
-    var jwt = RequestUtil.getCurrentJwt();
-    var groups = jwt.getClaimAsStringList("cognito:groups");
-    if (groups == null || groups.isEmpty()) return "";
-    String[] canonical = {
-        "FSPTS_ADMINISTRATOR", "FSPTS_DECISION_MAKER", "FSPTS_REVIEWER",
-        "FSPTS_VIEW_ALL", "FSPTS_SUBMITTER", "FSPTS_VIEW_ONLY",
-    };
-    return groups.stream()
-        .map(g -> {
-          for (String role : canonical) {
-            if (g.equals(role) || g.startsWith(role + "_")) {
-              return role.replaceFirst("^FSPTS_", "FSP_");
-            }
-          }
-          return null;
-        })
-        .filter(java.util.Objects::nonNull)
-        .distinct()
-        .collect(java.util.stream.Collectors.joining(" "));
-  }
+  // Legacy-role mapping / client-number extraction moved to
+  // RequestUtil.getCurrentLegacyRoles + RequestUtil.getCurrentClientNumber
+  // so other services (e.g. ExtensionService) can reuse the same
+  // FAM-cognito → legacy-proc translation.
 
   public FspRequest getById(String fspId) {
-    Fsp300InformationDao.Result r = callInformation(ACTION_FETCH, fspId, null);
+    return getById(fspId, null);
+  }
+
+  /**
+   * Reads the FSP information record via FSP_300_INFORMATION.MAINLINE
+   * with P_ACTION=GET. {@code amendmentNumber} is optional — the proc
+   * returns the latest amendment when blank, otherwise the matching one.
+   */
+  public FspRequest getById(String fspId, String amendmentNumber) {
+    Fsp300InformationDao.Result r = callInformation(ACTION_GET, fspId, amendmentNumber, null);
     return toFspDto(r);
   }
 
   @Transactional
   public FspRequest update(String fspId, FspRequest request) {
-    Fsp300InformationDao.Result r = callInformation(ACTION_UPDATE, fspId, request);
+    Fsp300InformationDao.Result r = callInformation(ACTION_UPDATE, fspId, null, request);
     return toFspDto(r);
   }
 
-  private Fsp300InformationDao.Result callInformation(String action, String fspId, FspRequest request) {
-    String userId = RequestUtil.getCurrentUserName();
+  private Fsp300InformationDao.Result callInformation(
+      String action, String fspId, String amendmentNumber, FspRequest request) {
+    // FSP_300_INFORMATION.MAINLINE branches on the audit user context
+    // when scoping editable fields; the read path needs userId + the
+    // mapped legacy role string just as much as update does. When the
+    // caller didn't supply them in the request body, fall back to the
+    // current JWT.
+    //
+    // Use the short IDIR (MAVILLEN-style), NOT the composite Cognito
+    // username — the proc joins the value into a users table (the
+    // legacy Fsp300InformationAction passes formBean.getUser().getName()
+    // which is the short form). With the 46-char Cognito composite the
+    // proc finds no matching row and falls through to no_access_right
+    // even when the user has FSP_ADMINISTRATOR.
+    String userId = RequestUtil.getCurrentIdir();
+    String userRoles = request != null && request.getUserRole() != null
+        ? request.getUserRole()
+        : RequestUtil.getCurrentLegacyRoles();
+    String userClientNumber = request != null && request.getUserClientNumber() != null
+        ? request.getUserClientNumber()
+        : RequestUtil.getCurrentClientNumber();
+    String resolvedAmendmentNumber = amendmentNumber != null
+        ? amendmentNumber
+        : (request == null ? "" : nz(request.getFspAmendmentNumber()));
+    // The legacy Fsp300InformationAction routes the requested FSP id +
+    // amendment number through the P_NEW_* positions on GET (the proc
+    // reads from P_NEW_FSP_ID / P_NEW_FSP_AMENDMENT_NUMBER and writes
+    // the resolved values back into P_FSP_ID / P_FSP_AMENDMENT_NUMBER).
+    // P_FSP_ID stays blank on GET; otherwise the proc treats the call
+    // as "look up an existing record by primary key" and returns
+    // noRecordsFound for unsaved/draft amendments. UPDATE keeps the
+    // post-fetch convention with the id in P_FSP_ID.
+    boolean isGet = ACTION_GET.equals(action);
+    String inFspId = isGet ? "" : fspId;
+    String inNewFspId = isGet ? fspId : "";
+    // On GET, send the amendment number as blank so fsp_tombstone.get
+    // enters its "find latest accessible amendment" branch — the proc
+    // body OR-condition is `(p_fsp_id <> p_new_fsp_id) OR
+    // (p_new_fsp_amendment_number IS NULL)`. Sending a concrete value
+    // (even '0') drops us into the strict-key path which returns
+    // no_access_right when that exact (fsp, amendment) row doesn't
+    // exist — even if the user has FSP_ADMINISTRATOR. The legacy form
+    // bean defaults this field to "" which Oracle treats as NULL,
+    // hitting the "find latest" branch every time.
+    String inAmendment = isGet ? "" : resolvedAmendmentNumber;
+    String inNewAmendment = isGet ? "" : resolvedAmendmentNumber;
     return informationDao.mainline(
         action,
-        fspId,
-        "",   // P_NEW_FSP_ID
+        inFspId,
+        inNewFspId,
         request == null ? "" : nz(request.getFspPlanName()),
-        null, // P_FSP_ORG_UNITS — IN-only when not provided by client
+        // Legacy Fsp300InformationBean initialises the three VARRAY
+        // fields as empty (`new FspOrgUnitVArray()`), not null. Oracle
+        // PL/SQL treats NULL collections differently from empty ones —
+        // some IS NULL checks in the proc trip and short-circuit to
+        // no_access_right. Bind empty lists so the wire shape matches
+        // legacy byte-for-byte.
+        List.of(),  // P_FSP_ORG_UNITS
         request == null ? "" : nz(request.getFspStatusCode()),
         request == null ? "" : nz(request.getFspStatusDesc()),
-        request == null ? "" : nz(request.getFspAmendmentNumber()),
-        "",   // P_NEW_FSP_AMENDMENT_NUMBER
-        request == null ? "" : nz(request.getUserClientNumber()),
-        request == null ? "" : nz(request.getUserRole()),
+        inAmendment,
+        inNewAmendment,
+        userClientNumber,
+        userRoles,
         request == null ? "" : nz(request.getSubmissionId()),
         request == null ? "" : nz(request.getFspExpiryDate()),
         request == null ? "" : nz(request.getAmendmentName()),
@@ -214,10 +251,18 @@ public class FspService {
         request == null ? "" : nz(request.getTransitionInd()),
         request == null ? "" : nz(request.getFrpa197electionInd()),
         request == null ? "" : nz(request.getAmendmentAuthority()),
-        null, // P_FSP_LICENSES
-        null, // P_ORG_UNITS
+        List.of(), // P_FSP_LICENSES — see above: empty != NULL for the proc
+        List.of(), // P_ORG_UNITS
         "",   // P_FSP_STATUS
-        userId,
+        // P_ENTRY_USERID — legacy Fsp300InformationAction.handleGet
+        // does NOT set this; the form bean's default of "" carries
+        // through. The proc treats it as "the user who created the row"
+        // and (when populated) joins it against the FSP's audit row
+        // looking for a match. Sending the current user's IDIR makes
+        // that join fail for any FSP not entered by them and the proc
+        // returns no_access_right. Only P_UPDATE_USERID is the current
+        // actor on the read path.
+        "",
         request == null ? "" : nz(request.getAmendmentReason()),
         request == null ? "" : nz(request.getFspRejectedByEsfInd()),
         request == null ? "" : nz(request.getFspUnapprovedAmendsInd()),
@@ -282,6 +327,16 @@ public class FspService {
         .fspAmendmentCode(r.pFspAmendmentCode())
         .fspAmendmentDesc(r.pFspAmendmentDesc())
         .revisionCount(r.pRevisionCount())
+        .agreementHolders(r.pFspLicenses() == null ? List.of()
+            : r.pFspLicenses().stream()
+                .map(l -> new FspRequest.AgreementHolder(
+                    l.clientNumber(), l.clientName(), l.agreementDescription()))
+                .toList())
+        .districts(r.pOrgUnits() == null ? List.of()
+            : r.pOrgUnits().stream()
+                .map(o -> new FspRequest.District(
+                    o.orgUnitNo(), o.orgUnitCode(), o.orgUnitName()))
+                .toList())
         .build();
   }
 

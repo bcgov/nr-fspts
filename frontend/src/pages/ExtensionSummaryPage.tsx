@@ -1,85 +1,232 @@
-import { useState } from 'react';
-import { TextInput, Button, DataTable, TableContainer, Table, TableHead, TableRow, TableHeader, TableBody, TableCell, Tag } from '@carbon/react';
-import PageLayout from './PageLayout';
-import { FspTombstone } from './FspShared';
-import './PageLayout.css';
+import {
+  Column,
+  DataTable,
+  Grid,
+  Loading,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tag,
+} from '@carbon/react';
+import {ArrowLeft} from '@carbon/icons-react';
+import {type FC, useEffect, useState} from 'react';
+import {useNavigate, useSearchParams} from 'react-router-dom';
 
-interface ExtensionRow {
-  id: string;
-  extNo: string;
-  requestDate: string;
-  status: string;
-  decisionDate: string;
-  term: string;
-  expiryDate: string;
-  effectiveDate: string;
-  amendNo: string;
-}
+import {useNotification} from '@/context/notification/useNotification';
+import {type FspExtensionSummary, getFspExtensions,} from '@/services/fspSearch';
 
-const MOCK_EXTENSIONS: ExtensionRow[] = [
-  { id: '1', extNo: '1', requestDate: '2024-01-10', status: 'APP', decisionDate: '2024-02-01', term: '2 yr 0 mo', expiryDate: '2030-03-31', effectiveDate: '2024-02-15', amendNo: '0' },
-  { id: '2', extNo: '2', requestDate: '2025-03-05', status: 'SUB', decisionDate: '—',           term: '1 yr 6 mo', expiryDate: '—',          effectiveDate: '—',          amendNo: '1' },
-];
+import './FspInformation/fsp-info.scss';
+
+const dash = (value: string | null | undefined): string =>
+  value && value.trim() !== '' ? value : '—';
+
+// Carbon Tag colour by extension status code. Codes mirror the FSP
+// status code list (APP/INE/SUB/REJ etc.). Unknown values fall back
+// to gray via the lookup default.
+const STATUS_TAG: Record<string, 'green' | 'blue' | 'gray' | 'red' | 'warm-gray'> = {
+  APP: 'green',
+  INE: 'green',
+  SUB: 'blue',
+  DFT: 'gray',
+  REJ: 'red',
+  RET: 'warm-gray',
+};
 
 const HEADERS = [
-  { key: 'extNo',         header: 'Extension #' },
-  { key: 'requestDate',   header: 'Request Date' },
-  { key: 'status',        header: 'Status' },
-  { key: 'decisionDate',  header: 'Decision Date' },
-  { key: 'term',          header: 'Term' },
-  { key: 'expiryDate',    header: 'Expiry Date' },
-  { key: 'effectiveDate', header: 'Effective Date' },
-  { key: 'amendNo',       header: 'Amnd # in Effect' },
+  { key: 'extensionNumber', header: 'Ext #' },
+  { key: 'submissionDate', header: 'Request Date' },
+  { key: 'status', header: 'Status' },
+  { key: 'decisionDate', header: 'Decision Date' },
+  { key: 'term', header: 'Term' },
+  { key: 'planEndDate', header: 'Expiry Date' },
+  { key: 'planStartDate', header: 'Effective Date' },
+  { key: 'fspAmendmentNumber', header: 'Amnd # in Effect' },
 ];
 
-export default function ExtensionSummaryPage() {
-  const [fspId, setFspId] = useState('10001');
-  const [results, setResults] = useState<ExtensionRow[] | null>(MOCK_EXTENSIONS);
+const ExtensionSummaryPage: FC = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { display } = useNotification();
+  const fspId = searchParams.get('fspId') ?? '';
+
+  const [summary, setSummary] = useState<FspExtensionSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!fspId) return;
+    let cancelled = false;
+    setLoading(true);
+    getFspExtensions(fspId)
+      .then((data) => {
+        if (!cancelled) setSummary(data);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        display({
+          kind: 'error',
+          title: 'Unable to load extensions',
+          subtitle: e instanceof Error ? e.message : 'Unknown error',
+          timeout: 7000,
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fspId, display]);
+
+  const backToFsp = () => {
+    if (fspId) {
+      navigate(`/fsp/information?fspId=${encodeURIComponent(fspId)}`);
+    } else {
+      navigate('/search');
+    }
+  };
+
+  const tombstone: { label: string; value: string }[] = summary
+    ? [
+        { label: 'FSP Name', value: dash(summary.fspPlanName) },
+        { label: 'Effective Date', value: dash(summary.originalEffectiveDate) },
+        {
+          label: 'Original Expiry Date',
+          value: dash(summary.originalExpiryDate),
+        },
+        {
+          label: 'Current Term',
+          value: `${dash(summary.currentPlanTermYears)} yr ${dash(
+            summary.currentPlanTermMonths,
+          )} mo`,
+        },
+        {
+          label: 'Current Expiry Date',
+          value: dash(summary.currentExpiryDate),
+        },
+      ]
+    : [];
+
+  const tableRows =
+    summary?.extensions.map((e, i) => ({
+      id: e.extensionId ?? `row-${i}`,
+      extensionNumber: dash(e.extensionNumber),
+      submissionDate: dash(e.submissionDate),
+      status: dash(e.statusCode),
+      decisionDate: dash(e.decisionDate),
+      term: `${dash(e.planTermYears)} yr ${dash(e.planTermMonths)} mo`,
+      planEndDate: dash(e.planEndDate),
+      planStartDate: dash(e.planStartDate),
+      fspAmendmentNumber: dash(e.fspAmendmentNumber),
+    })) ?? [];
 
   return (
-    <PageLayout title="Extension Summary">
-      <div className="form-section">
-        <div className="search-grid" style={{ maxWidth: 480 }}>
-          <TextInput id="fspId" labelText="FSP ID" value={fspId} onChange={e => setFspId(e.target.value)} maxLength={10} />
-          <TextInput id="planName" labelText="FSP Plan Name" value="Okanagan FSP 2023" readOnly />
-          <TextInput id="origStart" labelText="FSP Effective Date" value="2023-04-01" readOnly />
-          <TextInput id="origEnd"   labelText="Original FSP Expiry Date" value="2028-03-31" readOnly />
-          <TextInput id="currTerm"  labelText="Current Term" value="5 yr 0 mo" readOnly />
-          <TextInput id="currEnd"   labelText="Current FSP Expiry Date" value="2028-03-31" readOnly />
-        </div>
-        <div className="form-actions">
-          <Button kind="primary" onClick={() => setResults(MOCK_EXTENSIONS)}>Go</Button>
-        </div>
-      </div>
+    <Grid fullWidth className="default-grid fsp-info-grid">
+      <Column sm={4} md={8} lg={16}>
+        <button type="button" className="fsp-info__back" onClick={backToFsp}>
+          <ArrowLeft size={16} /> Back to FSP {fspId}
+        </button>
+      </Column>
 
-      {results && (
-        <>
-          <p className="results-count"><strong>{results.length}</strong> rows returned</p>
-          <DataTable rows={results} headers={HEADERS}>
-            {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
-              <TableContainer>
-                <Table {...getTableProps()} size="sm">
-                  <TableHead><TableRow>{headers.map(h => <TableHeader {...getHeaderProps({ header: h })} key={h.key}>{h.header}</TableHeader>)}</TableRow></TableHead>
-                  <TableBody>
-                    {rows.map(row => (
-                      <TableRow {...getRowProps({ row })} key={row.id}>
-                        {row.cells.map(cell => (
-                          <TableCell key={cell.id}>
-                            {cell.info.header === 'status'
-                              ? <Tag type={cell.value === 'APP' ? 'green' : 'blue'} size="sm">{cell.value}</Tag>
-                              : cell.value}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </DataTable>
-        </>
-      )}
-      <style>{`.search-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem 1.5rem; }`}</style>
-    </PageLayout>
+      <Column sm={4} md={8} lg={16}>
+        <header className="fsp-info__header">
+          <div className="fsp-info__header-title">
+            <h1>Extension Summary — FSP {fspId || '—'}</h1>
+          </div>
+        </header>
+      </Column>
+
+      <Column sm={4} md={8} lg={16}>
+        {!fspId ? (
+          <p className="fsp-info__placeholder">No FSP selected.</p>
+        ) : loading && !summary ? (
+          <div className="fsp-info__loading" role="status" aria-live="polite">
+            <Loading description="Loading extensions…" withOverlay={false} />
+          </div>
+        ) : !summary ? (
+          <p className="fsp-info__placeholder">
+            FSP not found or you do not have access to it.
+          </p>
+        ) : (
+          <div className="fsp-info__tiles-grid">
+            <section className="fsp-info__tile fsp-info__tile--full">
+              <header className="fsp-info__tile-header">
+                <h2 className="fsp-info__section-title">FSP Tombstone</h2>
+              </header>
+              <dl className="fsp-info__field-list">
+                {tombstone.map((f) => (
+                  <div key={f.label} className="fsp-info__field">
+                    <dt>{f.label}</dt>
+                    <dd>{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            <section className="fsp-info__tile fsp-info__tile--full">
+              <header className="fsp-info__tile-header">
+                <h2 className="fsp-info__section-title">
+                  Extensions ({summary.extensions.length})
+                </h2>
+              </header>
+              {summary.extensions.length === 0 ? (
+                <p>No extension requests recorded for this FSP.</p>
+              ) : (
+                <div className="bordered-table">
+                  <DataTable rows={tableRows} headers={HEADERS}>
+                    {({ rows: r, headers, getTableProps, getHeaderProps, getRowProps }) => (
+                      <TableContainer>
+                        <Table {...getTableProps()} size="md" useZebraStyles>
+                          <TableHead>
+                            <TableRow>
+                              {headers.map((h) => (
+                                <TableHeader
+                                  {...getHeaderProps({ header: h })}
+                                  key={h.key}
+                                >
+                                  {h.header}
+                                </TableHeader>
+                              ))}
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {r.map((row) => (
+                              <TableRow {...getRowProps({ row })} key={row.id}>
+                                {row.cells.map((cell) => {
+                                  if (cell.info.header === 'status' && cell.value) {
+                                    const code = cell.value as string;
+                                    return (
+                                      <TableCell key={cell.id}>
+                                        <Tag type={STATUS_TAG[code] ?? 'gray'} size="sm">
+                                          {code}
+                                        </Tag>
+                                      </TableCell>
+                                    );
+                                  }
+                                  return (
+                                    <TableCell key={cell.id}>
+                                      {cell.value as string}
+                                    </TableCell>
+                                  );
+                                })}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </DataTable>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </Column>
+    </Grid>
   );
-}
+};
+
+export default ExtensionSummaryPage;
