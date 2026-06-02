@@ -31,24 +31,38 @@ public class AttachmentsService {
   private final Fsp400AttachmentsDao attachmentsDao;
 
   public List<AttachmentResponse> getByFspId(String fspId) {
+    // Bind for fsp_tombstone.get's "find latest accessible amendment"
+    // branch the same way FspService does:
+    //   - FSP id flows in via P_NEW_FSP_ID; P_FSP_ID stays blank so the
+    //     OR check (p_fsp_id <> p_new_fsp_id) trips to UNKNOWN, then
+    //     the IS NULL on p_new_fsp_amendment_number takes us into the
+    //     latest-amendment branch.
+    //   - Send blank for both amendment-number slots so the proc
+    //     resolves to the most recent amendment the user can access.
+    //   - Audit-user context (client + role) must come from the JWT,
+    //     not be hard-coded empty, or user_may_access returns 'N' and
+    //     the cursor lists come back empty.
     Fsp400AttachmentsDao.GetResult get = attachmentsDao.get(
-        fspId,
-        "",                           // p_new_fsp_id
-        DEFAULT_AMENDMENT_NUMBER,
-        "",                           // p_new_fsp_amendment_number
-        "",                           // p_user_client_number
-        "",                           // p_user_role
+        "",                                       // p_fsp_id
+        fspId,                                    // p_new_fsp_id
+        "",                                       // p_fsp_amendment_number
+        "",                                       // p_new_fsp_amendment_number
+        RequestUtil.getCurrentClientNumber(),     // p_user_client_number
+        RequestUtil.getCurrentLegacyRoles(),      // p_user_role
         ALL_ATTACHES_IND);
+    // Category labels mirror the section headings on the legacy
+    // attachments page (FSP_400). Order preserved so the flat list
+    // groups naturally when the front-end renders by category.
     List<AttachmentResponse> all = new ArrayList<>();
-    appendAll(all, get.legalDocs());
-    appendAll(all, get.amendDesc());
-    appendAll(all, get.stockStandards());
-    appendAll(all, get.fduMap());
-    appendAll(all, get.identAreas1961());
-    appendAll(all, get.identAreas1962());
-    appendAll(all, get.declaredAreas());
-    appendAll(all, get.supportingDocs());
-    appendAll(all, get.ddmDecision());
+    appendAll(all, get.legalDocs(),       "FSP Legal Documents");
+    appendAll(all, get.amendDesc(),       "Amendment Description");
+    appendAll(all, get.stockStandards(),  "Stocking Standards");
+    appendAll(all, get.fduMap(),          "FDU Map");
+    appendAll(all, get.identAreas1961(),  "Identified Areas – FRPA s.196(1)");
+    appendAll(all, get.identAreas1962(),  "Identified Areas – FRPA s.196(2)");
+    appendAll(all, get.declaredAreas(),   "Declared Areas – FPPR s.14(4)");
+    appendAll(all, get.supportingDocs(),  "Supporting Documents");
+    appendAll(all, get.ddmDecision(),     "DDM Decision");
     return all;
   }
 
@@ -60,7 +74,10 @@ public class AttachmentsService {
   @Transactional
   public AttachmentResponse upload(String fspId, MultipartFile file, String typeCode)
       throws IOException {
-    String userId = RequestUtil.getCurrentUserName();
+    // Audit columns are VARCHAR2(30); the long Cognito composite
+    // would blow the column. getCurrentIdir returns the short FAM
+    // IDIR ("MAVILLEN"-style) with a 30-char safety cap.
+    String userId = RequestUtil.getCurrentIdir();
     Fsp400AttachmentsDao.CreateAttachmentResult created = attachmentsDao.createAttachment(
         Long.valueOf(fspId),
         DEFAULT_AMENDMENT_NUMBER,
@@ -85,7 +102,10 @@ public class AttachmentsService {
     attachmentsDao.removeAttachment(Long.valueOf(fspId), DEFAULT_AMENDMENT_NUMBER, attachmentId);
   }
 
-  private static void appendAll(List<AttachmentResponse> sink, List<Fsp400AttachmentsDao.AttachmentRow> rows) {
+  private static void appendAll(
+      List<AttachmentResponse> sink,
+      List<Fsp400AttachmentsDao.AttachmentRow> rows,
+      String category) {
     for (Fsp400AttachmentsDao.AttachmentRow row : rows) {
       sink.add(AttachmentResponse.builder()
           .fspAttachmentId(row.fspAttachmentId())
@@ -94,6 +114,7 @@ public class AttachmentsService {
           .attachmentDescription(row.attachmentDescription())
           .attachmentSize(row.attachmentSize())
           .consolidatedInd(row.consolidatedInd())
+          .category(category)
           .build());
     }
   }

@@ -1,9 +1,9 @@
 import {
   Button,
   Column,
+  DataTable,
   DatePicker,
   DatePickerInput,
-  DataTable,
   Grid,
   Loading,
   Pagination,
@@ -21,18 +21,13 @@ import {
   TextInput,
   Tile,
 } from '@carbon/react';
-import { Search as SearchIcon } from '@carbon/icons-react';
-import { useCallback, useEffect, useState, type FC, type FormEvent } from 'react';
+import {Search as SearchIcon} from '@carbon/icons-react';
+import {type FC, type FormEvent, useCallback, useEffect, useState} from 'react';
+import {useNavigate} from 'react-router-dom';
 
 import ClientSearchModal from '@/components/ClientSearchModal';
-import { useNotification } from '@/context/notification/useNotification';
-import {
-  getFspStatusCodes,
-  getOrgUnits,
-  searchFsp,
-  type CodeOption,
-  type FspSearchResult,
-} from '@/services/fspSearch';
+import {useNotification} from '@/context/notification/useNotification';
+import {type CodeOption, type FspSearchResult, getFspStatusCodes, getOrgUnits, searchFsp,} from '@/services/fspSearch';
 import './SearchPage.scss';
 
 // Renders Carbon's small inline spinner sized to fit inside a Button's
@@ -194,6 +189,8 @@ const formatCellText = (value: string | null | undefined) =>
   value && value.trim().length > 0 ? value.trim() : '—';
 
 const SearchPage: FC = () => {
+  const navigate = useNavigate();
+
   // Hydrate everything from the persisted snapshot in one go so initial
   // state values are consistent (calling loadPersistedState() per
   // useState would re-read sessionStorage three times).
@@ -628,8 +625,39 @@ const SearchPage: FC = () => {
                                   </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                  {rows.map((row) => (
-                                    <TableRow {...getRowProps({ row })} key={row.id}>
+                                  {rows.map((row) => {
+                                    // `row.id` is built as "${fspId}-${index}";
+                                    // strip the trailing index to recover the
+                                    // bare FSP ID for navigation. Amendment
+                                    // number comes from its own column cell.
+                                    const fspIdRaw = String(row.id).replace(/-\d+$/, '');
+                                    const amendmentNumber =
+                                      (row.cells.find(
+                                        (c) => c.info.header === 'amendNo',
+                                      )?.value as string | undefined) ?? '';
+                                    const goToFsp = () => {
+                                      const params = new URLSearchParams({
+                                        fspId: fspIdRaw,
+                                      });
+                                      if (amendmentNumber)
+                                        params.set('amendmentNumber', amendmentNumber);
+                                      navigate(`/fsp/information?${params.toString()}`);
+                                    };
+                                    return (
+                                    <TableRow
+                                      {...getRowProps({ row })}
+                                      key={row.id}
+                                      className="fsp-search__row--selectable"
+                                      onClick={goToFsp}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          goToFsp();
+                                        }
+                                      }}
+                                      tabIndex={0}
+                                      role="link"
+                                    >
                                       {row.cells.map((cell) => {
                                         const value = cell.value as string | null | undefined;
                                         if (cell.info.header === 'status' && value) {
@@ -649,7 +677,8 @@ const SearchPage: FC = () => {
                                         );
                                       })}
                                     </TableRow>
-                                  ))}
+                                    );
+                                  })}
                                 </TableBody>
                               </Table>
                             </TableContainer>

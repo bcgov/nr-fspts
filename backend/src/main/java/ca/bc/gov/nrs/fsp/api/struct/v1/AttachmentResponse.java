@@ -22,4 +22,10 @@ public class AttachmentResponse {
   private String attachmentDescription;
   private String attachmentSize;
   private String consolidatedInd;
+  // Which of the nine FSP_400_ATTACHMENTS cursors the row came from
+  // ("FSP Legal Documents", "DDM Decision", etc.). The proc returns
+  // them as separate cursors keyed off the type code passed to
+  // get_fsp_attachments_by_type — we stamp the human label onto each
+  // row so a single flat list still preserves the category.
+  private String category;
 }

@@ -6,6 +6,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+import java.util.List;
+
 /**
  * FSP detail (subset of fsp_300_information.MAINLINE INOUT params). Field names
  * mirror the P_* parameters of the legacy package (lowercased). All values are
@@ -53,4 +55,31 @@ public class FspRequest extends BaseRequest {
   private String fspAmendmentCode;
   private String fspAmendmentDesc;
   private String revisionCount;
+
+  // Populated on the read path from the FSP_300_INFORMATION.MAINLINE
+  // VARRAY out-params (P_FSP_LICENSES, P_ORG_UNITS). Left null on
+  // request bodies the client posts back — the proc reads them as
+  // null and treats the existing rows as unchanged.
+  private List<AgreementHolder> agreementHolders;
+  private List<District> districts;
+
+  /** One row of the licensees VARRAY (THE.FSP_300_LICENSEE_OBJECT). */
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class AgreementHolder {
+    private String clientNumber;
+    private String clientName;
+    private String agreementDescription;
+  }
+
+  /** One row of the org-units VARRAY (THE.FSP_ORG_UNIT_OBJECT). */
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class District {
+    private String orgUnitNo;
+    private String orgUnitCode;
+    private String orgUnitName;
+  }
 }

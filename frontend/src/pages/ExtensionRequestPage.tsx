@@ -1,64 +1,71 @@
-import { useState } from 'react';
-import { TextInput, NumberInput, DatePicker, DatePickerInput, TextArea, Button, FileUploader } from '@carbon/react';
-import { Save } from '@carbon/react/icons';
-import PageLayout from './PageLayout';
-import { FspTombstone, FspTabStrip } from './FspShared';
-import './PageLayout.css';
+import {Column, Grid} from '@carbon/react';
+import {ArrowLeft} from '@carbon/icons-react';
+import {type FC} from 'react';
+import {useNavigate, useSearchParams} from 'react-router-dom';
 
-interface ExtensionForm {
-  termYears: string | number;
-  termMonths: string | number;
-  newExpiryDate: string;
-  comments: string;
-}
+import './FspInformation/fsp-info.scss';
 
-export default function ExtensionRequestPage() {
-  const [form, setForm] = useState<ExtensionForm>({
-    termYears: '', termMonths: '', newExpiryDate: '', comments: '',
-  });
-  const set = <K extends keyof ExtensionForm>(k: K, v: ExtensionForm[K]) => setForm(f => ({ ...f, [k]: v }));
+/**
+ * Read-only placeholder for the "Extension Request" page. The legacy
+ * page captured a proposed new term + expiry + supporting docs and
+ * submitted via FSP_302_EXTENSION_REQUEST. View-only mode renders the
+ * tile below describing the flow; the route remains so deep links
+ * from the legacy app land somewhere intelligible.
+ */
+const ExtensionRequestPage: FC = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fspId = searchParams.get('fspId') ?? '';
+
+  const backToFsp = () => {
+    if (fspId) {
+      navigate(`/fsp/information?fspId=${encodeURIComponent(fspId)}`);
+    } else {
+      navigate('/search');
+    }
+  };
 
   return (
-    <PageLayout title="Extension Request">
-      <FspTombstone fspId="10001" amendNo="0" status="Approved" expiryDate="2028-03-31" />
-      <FspTabStrip />
+    <Grid fullWidth className="default-grid fsp-info-grid">
+      <Column sm={4} md={8} lg={16}>
+        <button type="button" className="fsp-info__back" onClick={backToFsp}>
+          <ArrowLeft size={16} /> Back to FSP {fspId || 'search'}
+        </button>
+      </Column>
 
-      <div className="form-section">
-        <div className="form-section__title">Current Details (Read Only)</div>
-        <div className="search-grid">
-          <TextInput id="origStart" labelText="FSP Effective Date"       value="2023-04-01" readOnly />
-          <TextInput id="origEnd"   labelText="Original FSP Expiry Date" value="2028-03-31" readOnly />
-          <TextInput id="currTerm"  labelText="Current Term"             value="5 yr 0 mo"  readOnly />
-          <TextInput id="currEnd"   labelText="Current FSP Expiry Date"  value="2028-03-31" readOnly />
-        </div>
-      </div>
+      <Column sm={4} md={8} lg={16}>
+        <header className="fsp-info__header">
+          <div className="fsp-info__header-title">
+            <h1>Extension Request — FSP {fspId || '—'}</h1>
+          </div>
+        </header>
+      </Column>
 
-      <div className="form-section">
-        <div className="form-section__title">New Extension</div>
-        <div className="search-grid">
-          <NumberInput id="termYears"  label="New Term (Years)"  value={form.termYears as number}  onChange={(_e, { value }) => set('termYears', value)}  min={0} max={99} />
-          <NumberInput id="termMonths" label="New Term (Months)" value={form.termMonths as number} onChange={(_e, { value }) => set('termMonths', value)} min={0} max={11} />
-          <DatePicker datePickerType="single" dateFormat="Y-m-d">
-            <DatePickerInput id="newExpiryDate" labelText="New FSP Expiry Date (YYYY-MM-DD)" placeholder="YYYY-MM-DD" />
-          </DatePicker>
-        </div>
-      </div>
-
-      <div className="form-section">
-        <div className="form-section__title">Comments</div>
-        <TextArea id="comments" labelText="Comments" value={form.comments} onChange={e => set('comments', e.target.value)} rows={8} />
-      </div>
-
-      <div className="form-section">
-        <div className="form-section__title">Attachments</div>
-        <FileUploader labelTitle="Upload supporting documents" labelDescription="Max file size: 10MB. Accepted file types: PDF, DOC, DOCX." buttonLabel="Add file" accept={['.pdf', '.doc', '.docx']} multiple filenameStatus="edit" />
-      </div>
-
-      <div className="form-actions">
-        <Button kind="primary" renderIcon={Save}>Save</Button>
-        <Button kind="secondary">Clear</Button>
-      </div>
-      <style>{`.search-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem 1.5rem; }`}</style>
-    </PageLayout>
+      <Column sm={4} md={8} lg={16}>
+        <section className="fsp-info__tile fsp-info__tile--full">
+          <header className="fsp-info__tile-header">
+            <h2 className="fsp-info__section-title">Request a New Extension</h2>
+          </header>
+          <p>
+            This page submits a new term + expiry extension for FSP{' '}
+            <strong>{fspId || '—'}</strong>. The form collects new term in
+            years/months, the proposed expiry date, supporting comments, and
+            attachments; it submits through FSP_302_EXTENSION_REQUEST.
+          </p>
+          <p>
+            <em>Write-mode is not enabled in this view-only build.</em> To see
+            existing extensions on this FSP, open the{' '}
+            <a
+              href={`/fsp/extension-summary?fspId=${encodeURIComponent(fspId)}`}
+            >
+              Extension Summary
+            </a>{' '}
+            page.
+          </p>
+        </section>
+      </Column>
+    </Grid>
   );
-}
+};
+
+export default ExtensionRequestPage;

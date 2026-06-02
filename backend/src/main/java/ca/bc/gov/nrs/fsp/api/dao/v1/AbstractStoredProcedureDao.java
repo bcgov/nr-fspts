@@ -11,13 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
 
-import java.sql.Array;
-import java.sql.CallableStatement;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Struct;
-import java.sql.Types;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -111,11 +105,38 @@ public abstract class AbstractStoredProcedureDao {
     return sql;
   }
 
-  /** Throw if Oracle returned an error message. */
+  /**
+   * Raise on fatal proc errors; let warnings/info pass.
+   *
+   * <p>The legacy FSP/SIL packages encode severity in the error_message
+   * trailer: {@code <code>:~E} for errors, {@code :~W} for warnings,
+   * {@code :~I} for info. The web-tier's parseToErrorsWarnings() splits
+   * on that suffix and only halts processing for {@code :~E} segments
+   * — e.g. {@code FSP_400_ATTACHMENTS.GET} returns
+   * {@code fsp.web.warning.fsp.noRecordsFound:~W} for an FSP with zero
+   * rows, which the proc treats as a successful "empty result" not a
+   * failure.</p>
+   *
+   * <p>Rules:
+   * <ul>
+   *   <li>blank or null → no-op</li>
+   *   <li>contains {@code :~E} → fatal, throw</li>
+   *   <li>contains only {@code :~W} / {@code :~I} → log + return</li>
+   *   <li>no {@code :~} marker at all → assume legacy emitted a raw
+   *       error string (some older procs do); throw for safety</li>
+   * </ul>
+   */
   protected void throwIfError(String packageName, String procedureName, @Nullable String pErrorMessage) {
-    if (StringUtils.hasText(pErrorMessage)) {
+    if (!StringUtils.hasText(pErrorMessage)) return;
+    if (pErrorMessage.contains(":~E")) {
       throw new StoredProcedureException(packageName, procedureName, pErrorMessage);
     }
+    if (pErrorMessage.contains(":~W") || pErrorMessage.contains(":~I")) {
+      log.debug("Proc {}.{} returned non-fatal advisory: {}",
+          packageName, procedureName, pErrorMessage);
+      return;
+    }
+    throw new StoredProcedureException(packageName, procedureName, pErrorMessage);
   }
 
   /** Set an INOUT VARCHAR by index. */

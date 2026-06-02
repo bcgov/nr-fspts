@@ -1,0 +1,211 @@
+// FSP information page styling. Ported from nr-rept's
+// pages/Project/project.scss — same Tile-based section layout, same
+// responsive field grid, same back-link / header / tab patterns. Block
+// names are renamed project-* → fsp-info-* so a grep stays unambiguous
+// between the two apps.
+
+.fsp-info-grid {
+  row-gap: 2rem;
+}
+
+.fsp-info__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: 0;
+  padding: 0.25rem 0;
+  font: inherit;
+  color: var(--cds-link-primary);
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.fsp-info__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.fsp-info__header-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.fsp-info__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+}
+
+.fsp-info__meta-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+
+  strong {
+    font-weight: 600;
+  }
+}
+
+// Tab-panel body — each Carbon TabPanel renders its content inside this
+// wrapper so the gap between section tiles + form-actions is consistent.
+.fsp-info__tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding-block-start: 1rem;
+}
+
+// Tile grid. Two columns on desktop, one column below.
+.fsp-info__tiles-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+
+  @media (min-width: 1056px) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.fsp-info__tile {
+  background-color: var(--cds-layer-01);
+  padding: 1.5rem;
+  min-height: 100%;
+
+  @media (min-width: 672px) {
+    padding: 2rem;
+  }
+}
+
+.fsp-info__tile--full {
+  grid-column: 1 / -1;
+}
+
+.fsp-info__tile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-end: 1rem;
+}
+
+.fsp-info__section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+}
+
+// Key/value pairs inside a tile. Responsive grid like REPT's FieldList.
+.fsp-info__field-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem 1.5rem;
+
+  @media (min-width: 672px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (min-width: 1312px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.fsp-info__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+
+  dt {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--cds-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--cds-text-primary);
+    word-break: break-word;
+  }
+}
+
+.fsp-info__placeholder {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--cds-text-secondary);
+  background-color: var(--cds-layer-01);
+}
+
+.fsp-info__loading {
+  display: flex;
+  justify-content: center;
+  padding: 4rem 1rem;
+}
+
+.fsp-info__error {
+  padding: 1rem 1.5rem;
+  color: var(--cds-text-error);
+}
+
+// REPT-style selectable row (Properties tab pattern). Wraps a Carbon
+// TableRow that contains a TableSelectRow radio. Pointer cursor on
+// the whole row; subtle layer-selected wash + bold text when picked.
+.fsp-info__row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    background-color: var(--cds-layer-hover-01);
+  }
+}
+
+.fsp-info__row--selected {
+  background-color: var(--cds-layer-selected-01);
+
+  td {
+    font-weight: 600;
+  }
+}
+
+// REPT-style "inner tabs" — direct port of nr-rept's
+// `.property-tabs` token override (styles/_overrides.scss). Carbon's
+// contained Tabs render the active tab pill + the TabPanel surface
+// from `--cds-layer`; bumping that to `--cds-layer-02` flips both to
+// white. Inside the panel we revert form-field tokens to layer-01
+// (gray) so inputs still stand out against the white panel.
+.fsp-info__inner-tabs {
+  width: 100%;
+  --cds-layer: var(--cds-layer-02);
+
+  .cds--tab-content {
+    --cds-field: var(--cds-field-01);
+    --cds-field-hover: var(--cds-field-hover-01);
+    --cds-border-subtle: var(--cds-border-subtle-01);
+    --cds-border-subtle-selected: var(--cds-border-subtle-selected-01);
+  }
+}
+
+// Detail tile sits directly under the standards table — pull it up
+// to remove the standard 2rem gap the tab-panel wrapper introduces
+// between sibling tiles. Matches REPT's `.property-details-tile`
+// negative margin trick.
+.fsp-info__tile--detail {
+  margin-top: -1rem;
+}

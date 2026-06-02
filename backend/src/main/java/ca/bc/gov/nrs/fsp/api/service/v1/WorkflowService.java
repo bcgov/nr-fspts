@@ -23,15 +23,24 @@ import java.util.List;
 @Slf4j
 public class WorkflowService {
 
-  private static final String ACTION_FETCH = "FETCH";
+  // FSP_800_HISTORY.MAINLINE dispatches on P_ACTION='GET'; the legacy
+  // 'FETCH' string drops into the noRecordsFound branch. Same convention
+  // as every other FSP_* package — see FspService for the full story.
+  private static final String ACTION_GET = "GET";
 
   private final Fsp700WorkflowDao workflowDao;
   private final Fsp800HistoryDao historyDao;
 
   public List<WorkflowResponse> getWorkflow(String fspId) {
+    // FSP id flows in via P_NEW_FSP_ID; P_FSP_ID + both amendment slots
+    // stay blank so fsp_tombstone.get hits its "find latest accessible
+    // amendment" branch. Audit-user context from the JWT.
     Fsp800HistoryDao.Result result = historyDao.mainline(
-        ACTION_FETCH, fspId, "", "", null,
-        "", "", "", "", "", "", "", "", "", "", "");
+        ACTION_GET, "", fspId, "", null,
+        "", "", "", "",
+        RequestUtil.getCurrentClientNumber(),
+        RequestUtil.getCurrentLegacyRoles(),
+        "", "", "", "", "");
     return result.rows().stream().map(row -> WorkflowResponse.builder()
         .amendmentNumber(row.amendmentNumber())
         .extensionNumber(row.extensionNumber())
@@ -46,7 +55,9 @@ public class WorkflowService {
 
   @Transactional
   public void submitAction(String fspId, WorkflowRequest request) {
-    String userId = RequestUtil.getCurrentUserName();
+    // Legacy audit columns are VARCHAR2(30); use the short FAM IDIR
+    // (truncated) rather than the 46-char Cognito composite.
+    String userId = RequestUtil.getCurrentIdir();
     workflowDao.mainline(
         request.getAction(),     // P_ACTION
         "",                       // P_NEW_FSP_ID

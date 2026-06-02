@@ -1,67 +1,66 @@
-import { useState } from 'react';
-import { RadioButton, RadioButtonGroup, Button, TextArea } from '@carbon/react';
-import { Save, Reset } from '@carbon/react/icons';
-import PageLayout from './PageLayout';
-import { FspTombstone, FspTabStrip } from './FspShared';
-import './PageLayout.css';
+import {Column, Grid} from '@carbon/react';
+import {ArrowLeft} from '@carbon/icons-react';
+import {type FC} from 'react';
+import {useNavigate, useSearchParams} from 'react-router-dom';
 
-interface AmendForm {
-  fduUpdate: string;
-  areasUpdate: string;
-  stockingUpdate: string;
-  approvalRequired: string;
-  summaryOfChanges: string;
-}
+import './FspInformation/fsp-info.scss';
 
-export default function AmendInformationPage() {
-  const [form, setForm] = useState<AmendForm>({
-    fduUpdate: 'N', areasUpdate: 'N', stockingUpdate: 'N',
-    approvalRequired: 'N', summaryOfChanges: '',
-  });
-  const set = <K extends keyof AmendForm>(k: K, v: AmendForm[K]) => setForm(f => ({ ...f, [k]: v }));
+/**
+ * Read-only placeholder for the legacy "Amend Information" page. The
+ * underlying flow is a write operation (initiate an amendment on this
+ * FSP), so a view-only mode doesn't render meaningful data yet. The
+ * tile here describes what the action will do once write/edit support
+ * lands; the route still resolves so existing deep links don't 404.
+ */
+const AmendInformationPage: FC = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fspId = searchParams.get('fspId') ?? '';
+
+  const backToFsp = () => {
+    if (fspId) {
+      navigate(`/fsp/information?fspId=${encodeURIComponent(fspId)}`);
+    } else {
+      navigate('/search');
+    }
+  };
 
   return (
-    <PageLayout title="Amendment Information">
-      <FspTombstone fspId="10001" amendNo="1" status="Draft" />
-      <FspTabStrip />
+    <Grid fullWidth className="default-grid fsp-info-grid">
+      <Column sm={4} md={8} lg={16}>
+        <button type="button" className="fsp-info__back" onClick={backToFsp}>
+          <ArrowLeft size={16} /> Back to FSP {fspId || 'search'}
+        </button>
+      </Column>
 
-      <div className="form-section">
-        <div className="form-section__title">Does this amendment change any of the following?</div>
-        <div className="radio-stack">
-          <RadioButtonGroup legendText="FDU Changes" name="fduUpdate" valueSelected={form.fduUpdate} onChange={v => set('fduUpdate', v as string)} orientation="horizontal">
-            <RadioButton labelText="Yes" value="Y" id="fduY" />
-            <RadioButton labelText="No"  value="N" id="fduN" />
-          </RadioButtonGroup>
-          <RadioButtonGroup legendText="Identified/Declared Area Changes" name="areasUpdate" valueSelected={form.areasUpdate} onChange={v => set('areasUpdate', v as string)} orientation="horizontal">
-            <RadioButton labelText="Yes" value="Y" id="areasY" />
-            <RadioButton labelText="No"  value="N" id="areasN" />
-          </RadioButtonGroup>
-          <RadioButtonGroup legendText="Stocking Standard Changes" name="stockingUpdate" valueSelected={form.stockingUpdate} onChange={v => set('stockingUpdate', v as string)} orientation="horizontal">
-            <RadioButton labelText="Yes" value="Y" id="stockY" />
-            <RadioButton labelText="No"  value="N" id="stockN" />
-          </RadioButtonGroup>
-        </div>
-      </div>
+      <Column sm={4} md={8} lg={16}>
+        <header className="fsp-info__header">
+          <div className="fsp-info__header-title">
+            <h1>Amend Information — FSP {fspId || '—'}</h1>
+          </div>
+        </header>
+      </Column>
 
-      <div className="form-section">
-        <div className="form-section__title">Does this amendment require approval?</div>
-        <RadioButtonGroup legendText="Approval Required" name="approvalRequired" valueSelected={form.approvalRequired} onChange={v => set('approvalRequired', v as string)} orientation="horizontal">
-          <RadioButton labelText="Yes" value="Y" id="appY" />
-          <RadioButton labelText="No"  value="N" id="appN" />
-        </RadioButtonGroup>
-      </div>
-
-      <div className="form-section">
-        <div className="form-section__title">Summary of Changes</div>
-        <TextArea id="summaryOfChanges" labelText="Summary" value={form.summaryOfChanges} onChange={e => set('summaryOfChanges', e.target.value)} rows={10} />
-      </div>
-
-      <div className="form-actions">
-        <Button kind="primary" renderIcon={Save}>Save</Button>
-        <Button kind="secondary" renderIcon={Reset}>Clear</Button>
-      </div>
-
-      <style>{`.radio-stack { display: flex; flex-direction: column; gap: 1.25rem; }`}</style>
-    </PageLayout>
+      <Column sm={4} md={8} lg={16}>
+        <section className="fsp-info__tile fsp-info__tile--full">
+          <header className="fsp-info__tile-header">
+            <h2 className="fsp-info__section-title">Amendment Workflow</h2>
+          </header>
+          <p>
+            This page initiates an amendment to FSP <strong>{fspId || '—'}</strong>.
+            The amendment workflow captures which sections (FDU, identified areas,
+            stocking standards) change, whether DDM approval is required, and a
+            summary of the proposed changes.
+          </p>
+          <p>
+            <em>Write-mode is not enabled in this view-only build.</em> Once
+            edit-mode lands, the form will appear here and submit through
+            FSP_300_INFORMATION (action <code>AMEND</code>).
+          </p>
+        </section>
+      </Column>
+    </Grid>
   );
-}
+};
+
+export default AmendInformationPage;
