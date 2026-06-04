@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Deliberately broken: unclosed root element. SchemaValidator should
+     surface this as an XML parse error (not an XSD-content error) -->
+<fspSubmission xmlns="http://www.for.gov.bc.ca/schema/fsp"
+>
+  <fspSubmissionMetadata>

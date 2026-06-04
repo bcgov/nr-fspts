@@ -56,7 +56,11 @@ const APPROVAL_OPTIONS = [
 ];
 
 interface SearchResult {
+  /** Unique React key for Carbon DataTable. `${fspId}-${index}` to
+   *  disambiguate the same FSP appearing across paginated slices. */
   id: string;
+  /** Bare FSP ID used as the displayed value + navigation target. */
+  fspId: string;
   amendNo: string;
   name: string;
   amendName: string;
@@ -69,7 +73,7 @@ interface SearchResult {
 }
 
 const HEADERS = [
-  { key: 'id', header: 'FSP ID' },
+  { key: 'fspId', header: 'FSP ID' },
   { key: 'amendNo', header: 'Amendment #' },
   { key: 'name', header: 'FSP Name' },
   { key: 'amendName', header: 'Amendment Name' },
@@ -105,8 +109,11 @@ const mapToSearchResult = (r: FspSearchResult, index: number): SearchResult => (
   // DataTable requires a unique id per row. Within one page of results
   // fspId is unique, but if the user pages backward and forward we
   // could collide across pages — disambiguate with the absolute row
-  // index inside the current page.
+  // index inside the current page. The bare fspId lives in its own
+  // field so the FSP ID column displays cleanly and the row-click
+  // handler doesn't need to strip the suffix.
   id: r.fspId?.trim() ? `${r.fspId.trim()}-${index}` : `row-${index}`,
+  fspId: r.fspId?.trim() ?? '',
   amendNo: r.fspAmendmentNumber ?? '',
   name: r.planName ?? '',
   amendName: r.fspAmendmentName ?? '',
@@ -150,7 +157,10 @@ const EMPTY_FORM: SearchForm = {
 // position. Sort key/direction aren't user-toggleable yet (always
 // fspId desc) so they're not persisted; if column-header sorting lands
 // later, add them here.
-const STORAGE_KEY = 'fsp.search.state';
+// Versioned key — bump the suffix whenever SearchResult's shape changes
+// so a stale persistence from before the schema change is discarded
+// instead of silently rendering with missing fields.
+const STORAGE_KEY = 'fsp.search.state.v2';
 
 type PersistedSearchState = {
   form: SearchForm;
@@ -171,9 +181,18 @@ const loadPersistedState = (): PersistedSearchState | null => {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PersistedSearchState>;
     if (!parsed || typeof parsed !== 'object' || !parsed.form) return null;
+    // Defensive shape patch: rows persisted before the schema split
+    // didn't carry the `fspId` field — derive it from the suffixed id
+    // so the column doesn't render blank on first paint after upgrade.
+    const results = parsed.results
+      ? parsed.results.map((r) => ({
+          ...r,
+          fspId: r.fspId ?? String(r.id ?? '').replace(/-\d+$/, ''),
+        }))
+      : null;
     return {
       form: { ...EMPTY_FORM, ...parsed.form },
-      results: parsed.results ?? null,
+      results,
       totalElements: typeof parsed.totalElements === 'number' ? parsed.totalElements : 0,
       page: typeof parsed.page === 'number' ? parsed.page : 0,
       pageSize: typeof parsed.pageSize === 'number' ? parsed.pageSize : DEFAULT_PAGE_SIZE,
@@ -626,11 +645,15 @@ const SearchPage: FC = () => {
                                 </TableHead>
                                 <TableBody>
                                   {rows.map((row) => {
-                                    // `row.id` is built as "${fspId}-${index}";
-                                    // strip the trailing index to recover the
-                                    // bare FSP ID for navigation. Amendment
-                                    // number comes from its own column cell.
-                                    const fspIdRaw = String(row.id).replace(/-\d+$/, '');
+                                    // Pull the bare FSP ID and amendment number
+                                    // from their dedicated cells. `row.id` is the
+                                    // React key (`${fspId}-${index}`) and is not
+                                    // safe to use for navigation if the user has
+                                    // an FSP id that happens to contain a dash.
+                                    const fspIdRaw =
+                                      (row.cells.find(
+                                        (c) => c.info.header === 'fspId',
+                                      )?.value as string | undefined) ?? '';
                                     const amendmentNumber =
                                       (row.cells.find(
                                         (c) => c.info.header === 'amendNo',

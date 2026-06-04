@@ -1,6 +1,10 @@
 import {
+  Button,
   DataTable,
+  DatePicker,
+  DatePickerInput,
   Loading,
+  NumberInput,
   Tab,
   Table,
   TableBody,
@@ -13,13 +17,109 @@ import {
   TabPanel,
   TabPanels,
   Tabs,
+  TextArea,
+  TextInput,
+  Toggle,
 } from '@carbon/react';
+import {Download, Edit} from '@carbon/icons-react';
 import {type FC, useEffect, useState} from 'react';
 
 import {useNotification} from '@/context/notification/useNotification';
-import {getStandardRegimeDetail, type StandardRegimeDetail,} from '@/services/fspSearch';
+import {
+  downloadStandardRegimeAttachment,
+  getStandardRegimeDetail,
+  type StandardRegimeDetail,
+  type StandardRegimeOverviewUpdate,
+  updateStandardRegimeOverview,
+} from '@/services/fspSearch';
 
 import StandardRegimeLayersPanel from './StandardRegimeLayersPanel';
+
+// ─── Overview-tab edit form ─────────────────────────────────────────
+
+interface OverviewFormState {
+  standardsRegimeName: string;
+  standardsObjective: string;
+  geographicDescription: string;
+  additionalStandards: string;
+  effectiveDate: string;
+  expiryDate: string;
+  regenObligation: boolean;
+  regenDelayOffsetYrs: string;
+  freeGrowingEarlyOffsetYrs: string;
+  freeGrowingLateOffsetYrs: string;
+}
+
+const createOverviewForm = (d: StandardRegimeDetail): OverviewFormState => ({
+  standardsRegimeName: d.standardsRegimeName ?? '',
+  standardsObjective: d.standardsObjective ?? '',
+  geographicDescription: d.geographicDescription ?? '',
+  additionalStandards: d.additionalStandards ?? '',
+  effectiveDate: d.effectiveDate ?? '',
+  expiryDate: d.expiryDate ?? '',
+  regenObligation: d.regenObligationInd === 'Y',
+  regenDelayOffsetYrs: d.regenDelayOffsetYrs ?? '',
+  freeGrowingEarlyOffsetYrs: d.freeGrowingEarlyOffsetYrs ?? '',
+  freeGrowingLateOffsetYrs: d.freeGrowingLateOffsetYrs ?? '',
+});
+
+const OVERVIEW_MAX = {
+  standardsRegimeName: 120,
+  standardsObjective: 2000,
+  geographicDescription: 2000,
+  additionalStandards: 4000,
+} as const;
+
+type OverviewErrors = Partial<Record<keyof OverviewFormState, string>>;
+
+const validateOverview = (form: OverviewFormState): OverviewErrors => {
+  const errs: OverviewErrors = {};
+  if (!form.standardsRegimeName.trim()) {
+    errs.standardsRegimeName = 'Name is required.';
+  } else if (form.standardsRegimeName.length > OVERVIEW_MAX.standardsRegimeName) {
+    errs.standardsRegimeName = `Max ${OVERVIEW_MAX.standardsRegimeName} characters.`;
+  }
+  if (form.standardsObjective.length > OVERVIEW_MAX.standardsObjective) {
+    errs.standardsObjective = `Max ${OVERVIEW_MAX.standardsObjective} characters.`;
+  }
+  if (form.geographicDescription.length > OVERVIEW_MAX.geographicDescription) {
+    errs.geographicDescription = `Max ${OVERVIEW_MAX.geographicDescription} characters.`;
+  }
+  if (form.additionalStandards.length > OVERVIEW_MAX.additionalStandards) {
+    errs.additionalStandards = `Max ${OVERVIEW_MAX.additionalStandards} characters.`;
+  }
+  const nonNeg = (s: string) => /^\d+$/.test(s);
+  if (form.regenDelayOffsetYrs && !nonNeg(form.regenDelayOffsetYrs)) {
+    errs.regenDelayOffsetYrs = 'Whole number ≥ 0.';
+  }
+  if (form.freeGrowingEarlyOffsetYrs && !nonNeg(form.freeGrowingEarlyOffsetYrs)) {
+    errs.freeGrowingEarlyOffsetYrs = 'Whole number ≥ 0.';
+  }
+  if (form.freeGrowingLateOffsetYrs && !nonNeg(form.freeGrowingLateOffsetYrs)) {
+    errs.freeGrowingLateOffsetYrs = 'Whole number ≥ 0.';
+  }
+  return errs;
+};
+
+const toOverviewPayload = (form: OverviewFormState): StandardRegimeOverviewUpdate => ({
+  standardsRegimeName: form.standardsRegimeName.trim(),
+  standardsObjective: form.standardsObjective.trim() || null,
+  geographicDescription: form.geographicDescription.trim() || null,
+  additionalStandards: form.additionalStandards.trim() || null,
+  effectiveDate: form.effectiveDate || null,
+  expiryDate: form.expiryDate || null,
+  regenObligationInd: form.regenObligation ? 'Y' : 'N',
+  regenDelayOffsetYrs: form.regenDelayOffsetYrs.trim() || null,
+  freeGrowingEarlyOffsetYrs: form.freeGrowingEarlyOffsetYrs.trim() || null,
+  freeGrowingLateOffsetYrs: form.freeGrowingLateOffsetYrs.trim() || null,
+});
+
+function toIsoDate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 interface Props {
   fspId: string;
@@ -46,6 +146,37 @@ const yesNo = (value: string | null | undefined): string => {
 const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId }) => {
   const [detail, setDetail] = useState<StandardRegimeDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  // Overview-tab edit state. Each inner tab gets its own toggle so a
+  // save on Overview doesn't blow away the read-only context the user
+  // had open on, say, Layers. Form state is null until the user clicks
+  // Edit — at that point we snapshot the current detail.
+  const [editingOverview, setEditingOverview] = useState(false);
+  const [overviewForm, setOverviewForm] = useState<OverviewFormState | null>(null);
+  const [overviewErrors, setOverviewErrors] = useState<OverviewErrors>({});
+  const [savingOverview, setSavingOverview] = useState(false);
+
+  const handleDownload = async (attachmentId: string, fallbackName: string) => {
+    if (downloadingId) return;
+    setDownloadingId(attachmentId);
+    try {
+      await downloadStandardRegimeAttachment(
+        fspId,
+        regimeId,
+        attachmentId,
+        fallbackName,
+      );
+    } catch (e) {
+      display({
+        kind: 'error',
+        title: 'Download failed',
+        subtitle: e instanceof Error ? e.message : 'Unknown error',
+        timeout: 7000,
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
   const { display } = useNotification();
 
   useEffect(() => {
@@ -53,6 +184,12 @@ const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId
     let cancelled = false;
     setLoading(true);
     setDetail(null);
+    // Exit any in-flight edit when the regime/amendment changes — the
+    // form snapshot would be stale and could quietly write the wrong
+    // regime's values into the SAVE payload.
+    setEditingOverview(false);
+    setOverviewForm(null);
+    setOverviewErrors({});
     getStandardRegimeDetail(fspId, regimeId, amendmentNumber || undefined)
       .then((data) => {
         if (!cancelled) setDetail(data);
@@ -73,6 +210,77 @@ const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId
       cancelled = true;
     };
   }, [fspId, amendmentNumber, regimeId, display]);
+
+  // Keep the form synced with the detail when not actively editing
+  // (post-save refresh, regime switch). When editing, never overwrite
+  // — the user's in-flight typing would vanish.
+  useEffect(() => {
+    if (!editingOverview && detail) {
+      setOverviewForm(createOverviewForm(detail));
+      setOverviewErrors({});
+    }
+  }, [detail, editingOverview]);
+
+  const handleOverviewEdit = () => {
+    if (!detail) return;
+    setOverviewForm(createOverviewForm(detail));
+    setOverviewErrors({});
+    setEditingOverview(true);
+  };
+
+  const handleOverviewCancel = () => {
+    if (detail) setOverviewForm(createOverviewForm(detail));
+    setOverviewErrors({});
+    setEditingOverview(false);
+  };
+
+  const handleOverviewSave = async () => {
+    if (!overviewForm) return;
+    const found = validateOverview(overviewForm);
+    if (Object.keys(found).length > 0) {
+      setOverviewErrors(found);
+      return;
+    }
+    setSavingOverview(true);
+    try {
+      const updated = await updateStandardRegimeOverview(
+        fspId,
+        regimeId,
+        amendmentNumber || undefined,
+        toOverviewPayload(overviewForm),
+      );
+      setDetail(updated);
+      setEditingOverview(false);
+      display({
+        kind: 'success',
+        title: 'Standards overview updated.',
+        timeout: 7000,
+      });
+    } catch (e) {
+      display({
+        kind: 'error',
+        title: 'Failed to save standards overview',
+        subtitle: e instanceof Error ? e.message : 'Unknown error',
+        timeout: 9000,
+      });
+    } finally {
+      setSavingOverview(false);
+    }
+  };
+
+  const setOverviewField = <K extends keyof OverviewFormState>(
+    key: K,
+    value: OverviewFormState[K],
+  ) => {
+    setOverviewForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+    if (overviewErrors[key]) {
+      setOverviewErrors((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+  };
 
   if (loading && !detail) {
     return (
@@ -142,31 +350,235 @@ const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId
         <TabPanels>
           <TabPanel>
             <div className="fsp-info__tab-panel">
-              <dl className="fsp-info__field-list">
-                {overview.map((f) => (
-                  <div key={f.label} className="fsp-info__field">
-                    <dt>{f.label}</dt>
-                    <dd>{f.value}</dd>
+              {!editingOverview && (
+                <div className="fsp-info__tab-actions">
+                  <Button
+                    kind="primary"
+                    size="sm"
+                    renderIcon={Edit}
+                    onClick={handleOverviewEdit}
+                  >
+                    Edit
+                  </Button>
+                </div>
+              )}
+
+              {editingOverview && overviewForm ? (
+                <>
+                  <div className="fsp-info__edit-grid">
+                    <TextInput
+                      id="edit-ssRegimeName"
+                      labelText="Standards Name"
+                      value={overviewForm.standardsRegimeName}
+                      maxLength={OVERVIEW_MAX.standardsRegimeName}
+                      invalid={!!overviewErrors.standardsRegimeName}
+                      invalidText={overviewErrors.standardsRegimeName}
+                      disabled={savingOverview}
+                      onChange={(e) =>
+                        setOverviewField('standardsRegimeName', e.target.value)
+                      }
+                    />
+                    <DatePicker
+                      datePickerType="single"
+                      dateFormat="Y-m-d"
+                      value={overviewForm.effectiveDate || undefined}
+                      onChange={(dates: Date[]) =>
+                        setOverviewField(
+                          'effectiveDate',
+                          dates[0] ? toIsoDate(dates[0]) : '',
+                        )
+                      }
+                    >
+                      <DatePickerInput
+                        id="edit-ssEffectiveDate"
+                        placeholder="YYYY-MM-DD"
+                        labelText="Effective Date"
+                        disabled={savingOverview}
+                      />
+                    </DatePicker>
+                    <DatePicker
+                      datePickerType="single"
+                      dateFormat="Y-m-d"
+                      value={overviewForm.expiryDate || undefined}
+                      onChange={(dates: Date[]) =>
+                        setOverviewField(
+                          'expiryDate',
+                          dates[0] ? toIsoDate(dates[0]) : '',
+                        )
+                      }
+                    >
+                      <DatePickerInput
+                        id="edit-ssExpiryDate"
+                        placeholder="YYYY-MM-DD"
+                        labelText="Expiry Date"
+                        disabled={savingOverview}
+                      />
+                    </DatePicker>
+                    <Toggle
+                      id="edit-ssRegenObligation"
+                      labelText="Regen Obligation"
+                      labelA="No"
+                      labelB="Yes"
+                      toggled={overviewForm.regenObligation}
+                      disabled={savingOverview}
+                      onToggle={(v) => setOverviewField('regenObligation', v)}
+                    />
+                    <NumberInput
+                      id="edit-ssRegenDelayYrs"
+                      label="Regen Delay (yrs)"
+                      min={0}
+                      max={99}
+                      allowEmpty
+                      hideSteppers
+                      value={
+                        overviewForm.regenDelayOffsetYrs === ''
+                          ? ''
+                          : Number(overviewForm.regenDelayOffsetYrs)
+                      }
+                      invalid={!!overviewErrors.regenDelayOffsetYrs}
+                      invalidText={overviewErrors.regenDelayOffsetYrs}
+                      disabled={savingOverview}
+                      onChange={(_e, { value }) =>
+                        setOverviewField(
+                          'regenDelayOffsetYrs',
+                          value === '' ? '' : String(value),
+                        )
+                      }
+                    />
+                    <NumberInput
+                      id="edit-ssFgEarlyYrs"
+                      label="Free Growing Early (yrs)"
+                      min={0}
+                      max={99}
+                      allowEmpty
+                      hideSteppers
+                      value={
+                        overviewForm.freeGrowingEarlyOffsetYrs === ''
+                          ? ''
+                          : Number(overviewForm.freeGrowingEarlyOffsetYrs)
+                      }
+                      invalid={!!overviewErrors.freeGrowingEarlyOffsetYrs}
+                      invalidText={overviewErrors.freeGrowingEarlyOffsetYrs}
+                      disabled={savingOverview}
+                      onChange={(_e, { value }) =>
+                        setOverviewField(
+                          'freeGrowingEarlyOffsetYrs',
+                          value === '' ? '' : String(value),
+                        )
+                      }
+                    />
+                    <NumberInput
+                      id="edit-ssFgLateYrs"
+                      label="Free Growing Late (yrs)"
+                      min={0}
+                      max={99}
+                      allowEmpty
+                      hideSteppers
+                      value={
+                        overviewForm.freeGrowingLateOffsetYrs === ''
+                          ? ''
+                          : Number(overviewForm.freeGrowingLateOffsetYrs)
+                      }
+                      invalid={!!overviewErrors.freeGrowingLateOffsetYrs}
+                      invalidText={overviewErrors.freeGrowingLateOffsetYrs}
+                      disabled={savingOverview}
+                      onChange={(_e, { value }) =>
+                        setOverviewField(
+                          'freeGrowingLateOffsetYrs',
+                          value === '' ? '' : String(value),
+                        )
+                      }
+                    />
                   </div>
-                ))}
-              </dl>
-              {detail.standardsObjective && (
-                <div>
-                  <h3 className="fsp-info__section-title">Objective</h3>
-                  <p>{detail.standardsObjective}</p>
-                </div>
-              )}
-              {detail.geographicDescription && (
-                <div>
-                  <h3 className="fsp-info__section-title">Geographic Description</h3>
-                  <p>{detail.geographicDescription}</p>
-                </div>
-              )}
-              {detail.additionalStandards && (
-                <div>
-                  <h3 className="fsp-info__section-title">Additional Standards</h3>
-                  <p>{detail.additionalStandards}</p>
-                </div>
+
+                  <TextArea
+                    id="edit-ssObjective"
+                    labelText="Objective"
+                    value={overviewForm.standardsObjective}
+                    maxLength={OVERVIEW_MAX.standardsObjective}
+                    rows={3}
+                    invalid={!!overviewErrors.standardsObjective}
+                    invalidText={overviewErrors.standardsObjective}
+                    disabled={savingOverview}
+                    onChange={(e) =>
+                      setOverviewField('standardsObjective', e.target.value)
+                    }
+                  />
+                  <TextArea
+                    id="edit-ssGeoDesc"
+                    labelText="Geographic Description"
+                    value={overviewForm.geographicDescription}
+                    maxLength={OVERVIEW_MAX.geographicDescription}
+                    rows={3}
+                    invalid={!!overviewErrors.geographicDescription}
+                    invalidText={overviewErrors.geographicDescription}
+                    disabled={savingOverview}
+                    onChange={(e) =>
+                      setOverviewField('geographicDescription', e.target.value)
+                    }
+                  />
+                  <TextArea
+                    id="edit-ssAdditional"
+                    labelText="Additional Standards"
+                    value={overviewForm.additionalStandards}
+                    maxLength={OVERVIEW_MAX.additionalStandards}
+                    rows={4}
+                    invalid={!!overviewErrors.additionalStandards}
+                    invalidText={overviewErrors.additionalStandards}
+                    disabled={savingOverview}
+                    onChange={(e) =>
+                      setOverviewField('additionalStandards', e.target.value)
+                    }
+                  />
+
+                  <div className="fsp-info__form-actions">
+                    <Button
+                      kind="secondary"
+                      size="sm"
+                      disabled={savingOverview}
+                      onClick={handleOverviewCancel}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      kind="primary"
+                      size="sm"
+                      disabled={savingOverview}
+                      onClick={handleOverviewSave}
+                    >
+                      {savingOverview ? 'Saving…' : 'Save'}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <dl className="fsp-info__field-list">
+                    {overview.map((f) => (
+                      <div key={f.label} className="fsp-info__field">
+                        <dt>{f.label}</dt>
+                        <dd>{f.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {detail.standardsObjective && (
+                    <div>
+                      <h3 className="fsp-info__section-title">Objective</h3>
+                      <p>{detail.standardsObjective}</p>
+                    </div>
+                  )}
+                  {detail.geographicDescription && (
+                    <div>
+                      <h3 className="fsp-info__section-title">Geographic Description</h3>
+                      <p>{detail.geographicDescription}</p>
+                    </div>
+                  )}
+                  {detail.additionalStandards && (
+                    <div>
+                      <h3 className="fsp-info__section-title">Additional Standards</h3>
+                      <p>{detail.additionalStandards}</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </TabPanel>
@@ -290,12 +702,16 @@ const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId
                       name: dash(a.attachmentName),
                       mime: dash(a.mimeTypeCode),
                       size: dash(a.fileSize),
+                      actions: '',
+                      __attachmentId: a.attachmentId,
+                      __fileName: a.attachmentName,
                     }))}
                     headers={[
                       { key: 'description', header: 'Description' },
                       { key: 'name', header: 'File Name' },
                       { key: 'mime', header: 'Type' },
                       { key: 'size', header: 'Size (KB)' },
+                      { key: 'actions', header: '' },
                     ]}
                   >
                     {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
@@ -311,13 +727,44 @@ const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {rows.map((row) => (
-                              <TableRow {...getRowProps({ row })} key={row.id}>
-                                {row.cells.map((cell) => (
-                                  <TableCell key={cell.id}>{cell.value as string}</TableCell>
-                                ))}
-                              </TableRow>
-                            ))}
+                            {rows.map((row) => {
+                              const source = detail.attachments.find(
+                                (a, i) => (a.attachmentId ?? `row-${i}`) === row.id,
+                              );
+                              const attachmentId = source?.attachmentId ?? null;
+                              const fileName = source?.attachmentName ?? row.id;
+                              const isDownloading = downloadingId === attachmentId;
+                              return (
+                                <TableRow {...getRowProps({ row })} key={row.id}>
+                                  {row.cells.map((cell) => {
+                                    if (cell.info.header === 'actions') {
+                                      return (
+                                        <TableCell key={cell.id}>
+                                          {attachmentId ? (
+                                            <Button
+                                              kind="ghost"
+                                              size="sm"
+                                              renderIcon={Download}
+                                              iconDescription={
+                                                isDownloading ? 'Downloading…' : 'Download'
+                                              }
+                                              hasIconOnly
+                                              disabled={isDownloading}
+                                              onClick={() =>
+                                                void handleDownload(attachmentId, fileName)
+                                              }
+                                            />
+                                          ) : null}
+                                        </TableCell>
+                                      );
+                                    }
+                                    return (
+                                      <TableCell key={cell.id}>{cell.value as string}</TableCell>
+                                    );
+                                  })}
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </TableContainer>

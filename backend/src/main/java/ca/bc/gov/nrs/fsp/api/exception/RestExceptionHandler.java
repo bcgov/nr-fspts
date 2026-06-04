@@ -158,4 +158,13 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
     return buildResponseEntity(ex.getError());
   }
 
+  // MaxUploadSizeExceededException, MultipartException, MissingServletRequest{Part,Parameter}Exception
+  // are all already handled by the parent ResponseEntityExceptionHandler in
+  // Spring 6+ — declaring local @ExceptionHandlers causes
+  // "Ambiguous @ExceptionHandler method mapped" boot-time bean-init failures.
+  // The parent returns ProblemDetail/ErrorResponse JSON bodies which are
+  // sufficient for surfacing the cause to the client; if we ever need richer
+  // payloads, override the protected handle*() methods on the parent rather
+  // than re-declaring @ExceptionHandler annotations.
+
 }

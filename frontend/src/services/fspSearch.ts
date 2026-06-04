@@ -35,6 +35,30 @@ export function getFspStatusCodes(): Promise<CodeOption[]> {
   return getJson<CodeOption[]>('/v1/fsp/code-lists/fsp-status', 'FSP status codes lookup');
 }
 
+/**
+ * GET /api/v1/fsp/code-lists/fsp-amendment-numbers?fspId=… — lists every
+ * amendment number defined on this FSP (proc maps 0 → "Original"). Used by
+ * the FSP information page's amendment-picker dropdown.
+ */
+export function getFspAmendmentNumbers(fspId: string): Promise<CodeOption[]> {
+  return getJson<CodeOption[]>(
+    `/v1/fsp/code-lists/fsp-amendment-numbers?fspId=${encodeURIComponent(fspId)}`,
+    'FSP amendment numbers lookup',
+  );
+}
+
+/**
+ * SILV_TREE_SPECIES_CODE list — backs the Standards View → Layers
+ * Preferred/Acceptable species dropdowns. Bounded list (a few dozen
+ * species), so callers cache it in component state for the session.
+ */
+export function getSilvTreeSpeciesCodes(): Promise<CodeOption[]> {
+  return getJson<CodeOption[]>(
+    `/v1/fsp/code-lists/species`,
+    'Tree species codes lookup',
+  );
+}
+
 // Mirrors backend ca.bc.gov.nrs.fsp.api.struct.v1.FspSearchRequest.
 // All fields are optional; only non-empty ones are serialized into the
 // query string by buildSearchQuery().
@@ -151,6 +175,34 @@ export async function getFspById(
   return getJson<FspInformation>(`/v1/fsp/${encodeURIComponent(fspId)}${qs}`, 'FSP load');
 }
 
+/**
+ * PUT /api/v1/fsp/{fspId} — updates FSP-300 header fields via the
+ * backend's FspService.update() → MAINLINE(SAVE) path. Returns the
+ * proc-echoed values so callers can refresh their local state without
+ * a follow-up GET (any field the proc derived/canonicalised — status
+ * code, revision count, etc. — comes back populated).
+ *
+ * Only the fields present on the request body are persisted by the
+ * proc — null/empty stays null/empty so leaving a field out is safe.
+ */
+export async function updateFsp(
+  fspId: string,
+  payload: Partial<FspInformation>,
+): Promise<FspInformation> {
+  const res = await apiFetch(`/v1/fsp/${encodeURIComponent(fspId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail ? `FSP save failed (${res.status}): ${detail}` : `FSP save failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<FspInformation>;
+}
+
 // ── FSP sub-resources (tabs on the FSP information page) ───────────
 
 // Mirrors backend WorkflowResponse — single row from /workflow.
@@ -181,6 +233,70 @@ export function getFspHistory(fspId: string): Promise<FspWorkflowEvent[]> {
   return getJson<FspWorkflowEvent[]>(
     `/v1/fsp/${encodeURIComponent(fspId)}/history`,
     'History load',
+  );
+}
+
+// ── FSP workflow state (Workflow tab) ──────────────────────────────
+//
+// Mirrors backend WorkflowState — the FSP_700_WORKFLOW.MAINLINE GET
+// projection. Every field is nullable; the proc returns blank/null for
+// the half of the form a particular FSP/amendment doesn't have data for.
+
+export interface FspReviewItem {
+  code: string;
+  label: string;
+  completedInd: string | null;
+  entryUserId: string | null;
+  entryTimestamp: string | null;
+  comment: string | null;
+}
+
+export interface FspOtbh {
+  offeredDate: string | null;
+  offeredComment: string | null;
+  heardDate: string | null;
+  heardComment: string | null;
+}
+
+export interface FspDdmDecision {
+  statusCode: string | null;
+  name: string | null;
+  submissionDate: string | null;
+  decisionDate: string | null;
+  effectiveDate: string | null;
+  comment: string | null;
+}
+
+export interface FspExtensionDecision {
+  statusCode: string | null;
+  extensionId: string | null;
+  name: string | null;
+  submissionDate: string | null;
+  decisionDate: string | null;
+  effectiveDate: string | null;
+  comment: string | null;
+}
+
+export interface FspWorkflowState {
+  fspId: string | null;
+  fspAmendmentNumber: string | null;
+  fspStatusCode: string | null;
+  fspStatusDesc: string | null;
+  reviewItems: FspReviewItem[];
+  otbh: FspOtbh;
+  ddmDecision: FspDdmDecision;
+  extensionDecision: FspExtensionDecision;
+  extensionIds: string | null;
+}
+
+/**
+ * GET /api/v1/fsp/{fspId}/workflow-state — read-only projection of
+ * FSP_700_WORKFLOW.MAINLINE (P_ACTION='GET'). Powers the Workflow tab.
+ */
+export function getFspWorkflowState(fspId: string): Promise<FspWorkflowState> {
+  return getJson<FspWorkflowState>(
+    `/v1/fsp/${encodeURIComponent(fspId)}/workflow-state`,
+    'Workflow state load',
   );
 }
 
@@ -238,6 +354,28 @@ export function getFspFduList(fspId: string): Promise<FspFduList> {
   return getJson<FspFduList>(
     `/v1/fsp/${encodeURIComponent(fspId)}/fdu-list`,
     'FDU list load',
+  );
+}
+
+// Identified Areas / Map — combined list across all three legislation
+// types (FRPA s.196(1), FRPA s.196(2), FPPR s.14(4)). Backend issues
+// the three FSP_650_IDENTIFIED_AREAS_MAP.GET calls and tags each row
+// with its source.
+export interface FspIdentifiedArea {
+  identifiedAreaId: string | null;
+  identifiedAreaName: string | null;
+  legislationType: string | null;
+  legislationLabel: string | null;
+}
+
+export interface FspIdentifiedAreaList {
+  areas: FspIdentifiedArea[];
+}
+
+export function getFspIdentifiedAreas(fspId: string): Promise<FspIdentifiedAreaList> {
+  return getJson<FspIdentifiedAreaList>(
+    `/v1/fsp/${encodeURIComponent(fspId)}/identified-areas`,
+    'Identified areas load',
   );
 }
 
@@ -316,15 +454,66 @@ export interface StandardRegimeDetail {
   regenDelayOffsetYrs: string | null;
   freeGrowingEarlyOffsetYrs: string | null;
   freeGrowingLateOffsetYrs: string | null;
+  // Round-tripped through Overview SAVE; not editable in the UI yet.
+  noRegenEarlyOffsetYrs: string | null;
+  noRegenLateOffsetYrs: string | null;
   additionalStandards: string | null;
   submittedByUserid: string | null;
   mofDefaultStandardInd: string | null;
   standardsAmendNumber: string | null;
+  // Optimistic-lock token surfaced by FSP_550_STDS_PROPOSAL.GET.
+  revisionCount: string | null;
   layers: StandardRegimeLayer[];
   districts: StandardRegimeDistrict[];
   agreementHolders: StandardRegimeAgreementHolder[];
   attachments: StandardRegimeAttachment[];
   bgcZones: StandardRegimeBgcZone[];
+}
+
+/**
+ * Editable subset of {@link StandardRegimeDetail} for the Standards
+ * View → Overview tab SAVE endpoint. Each field is optional — leaving
+ * one out (or sending null) means "no change"; empty string clears.
+ */
+export interface StandardRegimeOverviewUpdate {
+  standardsRegimeName?: string | null;
+  standardsObjective?: string | null;
+  geographicDescription?: string | null;
+  additionalStandards?: string | null;
+  effectiveDate?: string | null;
+  expiryDate?: string | null;
+  regenObligationInd?: string | null;
+  regenDelayOffsetYrs?: string | null;
+  freeGrowingEarlyOffsetYrs?: string | null;
+  freeGrowingLateOffsetYrs?: string | null;
+}
+
+export async function updateStandardRegimeOverview(
+  fspId: string,
+  regimeId: string,
+  amendmentNumber: string | undefined,
+  payload: StandardRegimeOverviewUpdate,
+): Promise<StandardRegimeDetail> {
+  const qs = amendmentNumber
+    ? `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
+    : '';
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/overview${qs}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Standards overview save failed (${res.status}): ${detail}`
+        : `Standards overview save failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<StandardRegimeDetail>;
 }
 
 export function getStandardRegimeDetail(
@@ -347,6 +536,9 @@ export interface StandardRegimeSpecies {
   code: string | null;
   description: string | null;
   minHeight: string | null;
+  // Per-row revision_count from FSP_550_SUB_SPECIES — needed when
+  // deleting (the proc's optimistic-lock check fails on a mismatch).
+  revisionCount: string | null;
 }
 
 export interface StandardRegimeLayerDetail {
@@ -362,6 +554,8 @@ export interface StandardRegimeLayerDetail {
   maxPostSpacing: string | null;
   maxConifer: string | null;
   heightRelativeToComp: string | null;
+  // Layer-row revision_count — used for the SAVE optimistic-lock check.
+  revisionCount: string | null;
   preferredSpecies: StandardRegimeSpecies[];
   acceptableSpecies: StandardRegimeSpecies[];
 }
@@ -376,6 +570,145 @@ export function getStandardRegimeLayerDetail(
     `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/layers/${encodeURIComponent(layerCode)}?layerId=${encodeURIComponent(layerId)}`,
     'Standards layer detail load',
   );
+}
+
+/**
+ * Editable subset of {@link StandardRegimeLayerDetail} for the Layers
+ * SAVE endpoint. Each field optional — null means "no change", empty
+ * string clears. Species rows are managed separately by their own proc
+ * and aren't included here.
+ */
+export interface StandardRegimeLayerUpdate {
+  treeSizeUnitCode?: string | null;
+  targetStocking?: string | null;
+  minHorizontalDistance?: string | null;
+  minPrefStockingStandard?: string | null;
+  minStockingStandard?: string | null;
+  residualBasalArea?: string | null;
+  minPostSpacing?: string | null;
+  maxPostSpacing?: string | null;
+  maxConifer?: string | null;
+  heightRelativeToComp?: string | null;
+}
+
+export async function updateStandardRegimeLayer(
+  fspId: string,
+  regimeId: string,
+  layerCode: string,
+  layerId: string,
+  payload: StandardRegimeLayerUpdate,
+): Promise<StandardRegimeLayerDetail> {
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/layers/${encodeURIComponent(layerCode)}?layerId=${encodeURIComponent(layerId)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Layer save failed (${res.status}): ${detail}`
+        : `Layer save failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<StandardRegimeLayerDetail>;
+}
+
+/** Add a species row to a layer (preferred or acceptable). */
+export async function addLayerSpecies(
+  fspId: string,
+  regimeId: string,
+  layerCode: string,
+  layerId: string,
+  payload: { speciesCode: string; minHeight: string | null; preferred: boolean },
+): Promise<StandardRegimeLayerDetail> {
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/layers/${encodeURIComponent(layerCode)}/species?layerId=${encodeURIComponent(layerId)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Add species failed (${res.status}): ${detail}`
+        : `Add species failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<StandardRegimeLayerDetail>;
+}
+
+/** Delete a species row from a layer. Requires the row's revisionCount. */
+export async function deleteLayerSpecies(
+  fspId: string,
+  regimeId: string,
+  layerCode: string,
+  layerId: string,
+  speciesCode: string,
+  preferred: boolean,
+  revisionCount: string,
+): Promise<StandardRegimeLayerDetail> {
+  const qs = new URLSearchParams({
+    layerId,
+    preferred: preferred ? 'Y' : 'N',
+    revisionCount,
+  });
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/layers/${encodeURIComponent(layerCode)}/species/${encodeURIComponent(speciesCode)}?${qs.toString()}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Delete species failed (${res.status}): ${detail}`
+        : `Delete species failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<StandardRegimeLayerDetail>;
+}
+
+/**
+ * Triggers a browser download for a single standards-regime attachment.
+ * Mirrors downloadFspAttachment — backend streams the BLOB with a
+ * Content-Disposition header; we parse it for the filename and fall
+ * back to the caller-supplied label.
+ */
+export async function downloadStandardRegimeAttachment(
+  fspId: string,
+  regimeId: string,
+  attachmentId: string,
+  fallbackName: string,
+): Promise<void> {
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/attachments/${encodeURIComponent(attachmentId)}/download`,
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Attachment download failed (${res.status}): ${detail}`
+        : `Attachment download failed (${res.status})`,
+    );
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+  const filename = match ? decodeURIComponent(match[1]) : fallbackName;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 // Mirrors backend AttachmentResponse — single row from /attachments.

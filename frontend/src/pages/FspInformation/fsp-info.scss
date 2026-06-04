@@ -44,7 +44,10 @@
 .fsp-info__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem 1.5rem;
+  // Centre items vertically so the taller Carbon Select sits on the
+  // same baseline as the static-text meta items.
+  align-items: center;
+  gap: 0.5rem 1.5rem;
   color: var(--cds-text-secondary);
   font-size: 0.875rem;
 }
@@ -56,6 +59,55 @@
 
   strong {
     font-weight: 600;
+  }
+
+  // When the value slot is a Select, drop the inline-baseline
+  // alignment so the dropdown chrome doesn't bleed above/below the
+  // line. Constrain the inner Carbon wrapper so the size="sm" select
+  // hugs its widest option (rather than stretching to fill). The
+  // label is hidden in JSX (hideLabel) but Carbon still reserves
+  // label margin; the negative margin pulls the control back up to
+  // the baseline of the surrounding meta-item text.
+  &--select {
+    align-items: center;
+
+    .cds--form-item,
+    .cds--select,
+    .cds--select-input__wrapper {
+      inline-size: auto;
+      margin: 0;
+    }
+
+    .cds--label {
+      display: none;
+    }
+
+    // Let the dropdown shrink/grow to fit its currently-selected
+    // option. Carbon ships a hard min-width on the input + wrappers;
+    // unset those, and use `field-sizing: content` on the <select>
+    // for the modern auto-hug behaviour. Older browsers (and Safari
+    // <18) get the inline `style={{ width }}` fallback on the
+    // wrapper applied from the JSX.
+    .cds--form-item,
+    .cds--select,
+    .cds--select__field-wrapper,
+    .cds--select-input__wrapper,
+    .cds--select-input,
+    select.cds--select-input {
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      inline-size: auto !important;
+      min-inline-size: 0 !important;
+      max-inline-size: none !important;
+    }
+
+    select.cds--select-input {
+      field-sizing: content;
+      // Reserve room on the right so the chevron doesn't overlap the
+      // option text when field-sizing hugs the content tightly.
+      padding-inline-end: 2.5rem;
+    }
   }
 }
 
@@ -79,13 +131,97 @@
   }
 }
 
+// Edit button strip above the tile grid. Right-aligned, matches
+// nr-rept's `.tab-actions` (read-mode only — when editing, the
+// Save/Cancel pair lives at the bottom in `.fsp-info__form-actions`).
+.fsp-info__tab-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-block-end: 0.5rem;
+  flex-wrap: wrap;
+}
+
+// Save/Cancel pair at the bottom of an edit form. Direct port of
+// nr-rept's `.form-actions` — right-aligned, 0.5rem gap, 1.5rem top
+// spacing so it sits clearly off the last tile.
+.fsp-info__form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-block-start: 1.5rem;
+  flex-wrap: wrap;
+}
+
+// Preferred/Acceptable species block. Title and Add-button sit on one
+// flex row above the table — extra row-margin under the heading so
+// the table doesn't crowd it.
+.fsp-info__species-section {
+  .fsp-info__section-title {
+    margin: 0;
+  }
+}
+
+.fsp-info__species-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+  flex-wrap: wrap;
+}
+
+// Add-species modal — passive (no built-in primary/secondary bar),
+// custom footer with right-aligned Cancel + Save. Mirrors nr-rept's
+// add-contact-modal pattern.
+.fsp-species-modal {
+  .fsp-species-modal__form {
+    padding-block-end: 1rem;
+  }
+}
+
+.fsp-species-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-block-start: 1.5rem;
+  margin-block-end: 0.5rem;
+  flex-wrap: wrap;
+}
+
+// In-tile form layout used while editing. Same responsive shape as
+// the read-only .fsp-info__field-list (1 → 2 → 3 cols) so toggling
+// between view and edit doesn't reflow the tile.
+.fsp-info__edit-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem 1.5rem;
+
+  @media (min-width: 672px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+// Toggles are intrinsically narrow — stacking them in a 2-col grid
+// looks awkward. Force a single-column layout for the flags tile.
+.fsp-info__edit-grid--toggles {
+  grid-template-columns: 1fr;
+
+  @media (min-width: 672px) {
+    grid-template-columns: 1fr;
+  }
+}
+
 .fsp-info__tile {
   background-color: var(--cds-layer-01);
-  padding: 1.5rem;
+  // Tightened block padding (top/bottom) so the section heading
+  // doesn't sit in a huge wash of whitespace; left/right stay
+  // generous for the field-list / table content.
+  padding: 0.75rem 1.5rem 1.25rem;
   min-height: 100%;
 
   @media (min-width: 672px) {
-    padding: 2rem;
+    padding: 1rem 2rem 1.5rem;
   }
 }
 
@@ -99,7 +235,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-block-end: 1rem;
+  margin-block-end: 0.5rem;
 }
 
 .fsp-info__section-title {
@@ -152,6 +288,19 @@
   background-color: var(--cds-layer-01);
 }
 
+// Right-align numeric column headers + cells so values track the
+// column heading rather than dangling beneath a left-aligned label.
+.fsp-info__cell--numeric {
+  text-align: right;
+
+  // Carbon's TableHeader injects a sort-button-style flex inner
+  // wrapper; nudge it to right-align too.
+  .cds--table-header-label,
+  .cds--table-sort {
+    justify-content: flex-end;
+  }
+}
+
 .fsp-info__loading {
   display: flex;
   justify-content: center;
@@ -161,6 +310,29 @@
 .fsp-info__error {
   padding: 1rem 1.5rem;
   color: var(--cds-text-error);
+}
+
+// Refresh-in-flight indicator — wraps the existing content area so
+// the user sees the spinner without losing the page they were on
+// (e.g. switching amendments). Same pattern Search/Inbox use.
+.fsp-info__content {
+  position: relative;
+}
+
+.fsp-info__content--loading {
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+.fsp-info__content-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.35);
+  z-index: 1;
 }
 
 // REPT-style selectable row (Properties tab pattern). Wraps a Carbon
@@ -199,6 +371,22 @@
     --cds-field-hover: var(--cds-field-hover-01);
     --cds-border-subtle: var(--cds-border-subtle-01);
     --cds-border-subtle-selected: var(--cds-border-subtle-selected-01);
+  }
+}
+
+// Sub-tabs nested INSIDE the inner-tabs (e.g. layers under Standards
+// View) want the inverse: gray tab pills + gray panel surface so they
+// don't blend visually with the white parent tabs. Re-revert
+// `--cds-layer` back to layer-01 and bump form fields up to layer-02
+// (white) inside the panel for input contrast.
+.fsp-info__inner-tabs--gray {
+  --cds-layer: var(--cds-layer-01);
+
+  .cds--tab-content {
+    --cds-field: var(--cds-field-02);
+    --cds-field-hover: var(--cds-field-hover-02);
+    --cds-border-subtle: var(--cds-border-subtle-02);
+    --cds-border-subtle-selected: var(--cds-border-subtle-selected-02);
   }
 }
 

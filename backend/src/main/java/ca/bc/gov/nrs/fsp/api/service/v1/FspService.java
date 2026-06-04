@@ -2,6 +2,8 @@ package ca.bc.gov.nrs.fsp.api.service.v1;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp100SearchDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp300InformationDao;
+import ca.bc.gov.nrs.fsp.api.dao.v1.bean.LicenseeArrayElement;
+import ca.bc.gov.nrs.fsp.api.dao.v1.bean.OrgUnitArrayElement;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspRequest;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspSearchRequest;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspSearchResult;
@@ -33,7 +35,18 @@ public class FspService {
   // "0 results" symptom regardless of the search criteria.
   private static final String ACTION_GET = "GET";
   private static final String ACTION_FETCH = "FETCH";
-  private static final String ACTION_UPDATE = "UPDATE";
+  // FSP_300_INFORMATION.MAINLINE only recognises GET/SAVE/REMOVE/AMEND/
+  // CHANGE_AMEND/REPLACE/CHANGE_REPLACE/VIEW_*/SUBMIT — any other action
+  // raises e_invalid_function_request. SAVE handles both insert (when
+  // p_fsp_id IS NULL the proc calls fsp_common_db.fsp_create_new which
+  // pulls from FSP_SEQ) and update (non-null fsp_id → in-place change).
+  private static final String ACTION_SAVE = "SAVE";
+  // AMEND creates a new draft amendment row for an existing FSP. The
+  // proc auto-assigns the next amendment_number when we pass blank,
+  // and copies forward licensee/org-unit/etc. from the prior amendment.
+  // After AMEND, the body still needs a SAVE call to populate the new
+  // amendment's plan-level fields with the submitted values.
+  private static final String ACTION_AMEND = "AMEND";
 
   private final Fsp100SearchDao searchDao;
   private final Fsp300InformationDao informationDao;
@@ -129,6 +142,31 @@ public class FspService {
     return "asc".equalsIgnoreCase(sortDir) ? asc : asc.reversed();
   }
 
+  /**
+   * Build the SAVE-path P_FSP_LICENSES VARRAY input from the DTO's
+   * agreementHolders list. Empty list is returned (not null) — the
+   * proc's IS NULL guards short-circuit to no_access_right.
+   */
+  private static List<LicenseeArrayElement> toLicenseeVarray(FspRequest request) {
+    if (request == null || request.getAgreementHolders() == null) {
+      return List.of();
+    }
+    return request.getAgreementHolders().stream()
+        .map(h -> new LicenseeArrayElement(
+            h.getClientNumber(), h.getClientName(), h.getAgreementDescription()))
+        .toList();
+  }
+
+  /** Build the SAVE-path P_ORG_UNITS VARRAY input from the DTO's districts list. */
+  private static List<OrgUnitArrayElement> toOrgUnitVarray(FspRequest request) {
+    if (request == null || request.getDistricts() == null) {
+      return List.of();
+    }
+    return request.getDistricts().stream()
+        .map(d -> new OrgUnitArrayElement(d.getOrgUnitNo(), d.getOrgUnitCode(), d.getOrgUnitName()))
+        .toList();
+  }
+
   /** Lenient String → Long; non-numeric or blank → null (sort tail). */
   private static Long toLong(String s) {
     if (s == null) return null;
@@ -162,7 +200,116 @@ public class FspService {
 
   @Transactional
   public FspRequest update(String fspId, FspRequest request) {
-    Fsp300InformationDao.Result r = callInformation(ACTION_UPDATE, fspId, null, request);
+    // FSP_300_INFORMATION.MAINLINE with P_ACTION=SAVE expects the FULL
+    // record on the wire (amendment_number, revision_count, status code,
+    // agreement holders, org units, amendment code, plus every plan
+    // field). When the client posts only a sparse "what changed" subset
+    // the proc trips ORA-01403 inside its internal lookups — the legacy
+    // app worked because its form bean cached the full GET result and
+    // round-tripped every field on save. Replicate that here: read the
+    // current row, overlay the editable fields from the request, then
+    // call SAVE with the merged DTO.
+    String amendmentNumber = request == null ? null : request.getFspAmendmentNumber();
+    FspRequest merged = getById(fspId, amendmentNumber);
+    applyEdits(merged, request);
+    Fsp300InformationDao.Result r = callInformation(ACTION_SAVE, fspId, null, merged);
+    return toFspDto(r);
+  }
+
+  /**
+   * Overlay caller-supplied changes onto a freshly-read FSP record.
+   * Null fields in {@code edits} are treated as "no change" — only
+   * non-null values replace the corresponding field on {@code target}.
+   * Limited to the subset of fields the UI exposes for editing on the
+   * Information tab; status / IDs / amendment metadata / VARRAYs stay
+   * with whatever came back from GET.
+   */
+  private static void applyEdits(FspRequest target, FspRequest edits) {
+    if (edits == null) return;
+    if (edits.getFspPlanName() != null) target.setFspPlanName(edits.getFspPlanName());
+    if (edits.getFspContactName() != null) target.setFspContactName(edits.getFspContactName());
+    if (edits.getFspTelephoneNumber() != null) target.setFspTelephoneNumber(edits.getFspTelephoneNumber());
+    if (edits.getFspEmailAddress() != null) target.setFspEmailAddress(edits.getFspEmailAddress());
+    if (edits.getFspPlanStartDate() != null) target.setFspPlanStartDate(edits.getFspPlanStartDate());
+    if (edits.getFspPlanEndDate() != null) target.setFspPlanEndDate(edits.getFspPlanEndDate());
+    if (edits.getFspExpiryDate() != null) target.setFspExpiryDate(edits.getFspExpiryDate());
+    if (edits.getFspPlanTermYears() != null) target.setFspPlanTermYears(edits.getFspPlanTermYears());
+    if (edits.getFspPlanTermMonths() != null) target.setFspPlanTermMonths(edits.getFspPlanTermMonths());
+    if (edits.getAmendmentName() != null) target.setAmendmentName(edits.getAmendmentName());
+    if (edits.getAmendmentAuthority() != null) target.setAmendmentAuthority(edits.getAmendmentAuthority());
+    if (edits.getAmendmentReason() != null) target.setAmendmentReason(edits.getAmendmentReason());
+    if (edits.getTransitionInd() != null) target.setTransitionInd(edits.getTransitionInd());
+    if (edits.getFrpa197electionInd() != null) target.setFrpa197electionInd(edits.getFrpa197electionInd());
+  }
+
+  /**
+   * Create a brand-new FSP — corresponds to the legacy "actionCode=I"
+   * (Initial) submission. Calls the same FSP_300_INFORMATION.MAINLINE
+   * SAVE proc with {@code p_fsp_id} blank so the proc routes to
+   * fsp_common_db.fsp_create_new and assigns an id from FSP_SEQ. The
+   * assigned id comes back via INOUT and is surfaced on the returned
+   * DTO.
+   *
+   * <p>The proc validates that the request carries at least one
+   * agreement holder (otherwise {@code FSP.NO.AGREEMENT.HOLDER}); the
+   * caller must populate {@code request.agreementHolders} before
+   * invoking this.
+   */
+  @Transactional
+  public FspRequest create(FspRequest request) {
+    Fsp300InformationDao.Result r = callInformation(ACTION_SAVE, null, null, request);
+    FspRequest saved = toFspDto(r);
+    // fsp_common_db.fsp_create_new inserts plan_start_date = NULL on
+    // the original amendment, but the GET path's get_original_start_date()
+    // helper trips ORA-01403 when that column is null — meaning a
+    // freshly-created FSP couldn't be opened in the UI. Backfill it
+    // here so the create path leaves a readable row. No-op if already set.
+    if (saved.getFspId() != null && !saved.getFspId().isBlank()) {
+      try {
+        long fspIdLong = Long.parseLong(saved.getFspId());
+        long amendmentLong = parseLongOrZero(saved.getFspAmendmentNumber());
+        int updated = informationDao.setPlanStartDateIfNull(fspIdLong, amendmentLong);
+        if (updated > 0) {
+          log.info("Backfilled plan_start_date on new fsp_id={} amendment={}",
+              fspIdLong, amendmentLong);
+        }
+      } catch (NumberFormatException e) {
+        log.warn("Skipped plan_start_date backfill — non-numeric fspId/amendment returned by SAVE: {} / {}",
+            saved.getFspId(), saved.getFspAmendmentNumber());
+      }
+    }
+    return saved;
+  }
+
+  private static long parseLongOrZero(String s) {
+    if (s == null || s.isBlank()) {
+      return 0L;
+    }
+    try {
+      return Long.parseLong(s);
+    } catch (NumberFormatException e) {
+      return 0L;
+    }
+  }
+
+  /**
+   * Create a new amendment row on an existing FSP. Corresponds to the
+   * legacy {@code actionCode="A"} (Amendment) submission. The proc
+   * routes through {@code fsp_common_db.fsp_create_amendment} which
+   * auto-assigns the next amendment_number, seeds the row with
+   * {@code FSP_STAT_DFT} status, and copies licensee/org-unit data
+   * forward from the prior amendment.
+   *
+   * <p>The returned DTO carries the proc-assigned
+   * {@code fspAmendmentNumber} — callers must use it for the
+   * follow-up {@code update()} call that populates the body fields.
+   *
+   * <p>The submitted {@code request.fspAmendmentNumber} is ignored
+   * here — the proc owns the assignment.
+   */
+  @Transactional
+  public FspRequest amend(String fspId, FspRequest request) {
+    Fsp300InformationDao.Result r = callInformation(ACTION_AMEND, fspId, "", request);
     return toFspDto(r);
   }
 
@@ -201,17 +348,15 @@ public class FspService {
     boolean isGet = ACTION_GET.equals(action);
     String inFspId = isGet ? "" : fspId;
     String inNewFspId = isGet ? fspId : "";
-    // On GET, send the amendment number as blank so fsp_tombstone.get
-    // enters its "find latest accessible amendment" branch — the proc
-    // body OR-condition is `(p_fsp_id <> p_new_fsp_id) OR
-    // (p_new_fsp_amendment_number IS NULL)`. Sending a concrete value
-    // (even '0') drops us into the strict-key path which returns
-    // no_access_right when that exact (fsp, amendment) row doesn't
-    // exist — even if the user has FSP_ADMINISTRATOR. The legacy form
-    // bean defaults this field to "" which Oracle treats as NULL,
-    // hitting the "find latest" branch every time.
+    // On GET, P_FSP_AMENDMENT_NUMBER stays blank (the proc echoes the
+    // resolved value back to it). P_NEW_FSP_AMENDMENT_NUMBER is what
+    // the proc reads:
+    //   - blank → fsp_tombstone.get's "find latest accessible
+    //     amendment" branch (the OR condition's IS NULL trips TRUE)
+    //   - non-blank → strict (fsp_id, amendment_number) lookup, which
+    //     the user-picked amendment dropdown needs to honour.
     String inAmendment = isGet ? "" : resolvedAmendmentNumber;
-    String inNewAmendment = isGet ? "" : resolvedAmendmentNumber;
+    String inNewAmendment = resolvedAmendmentNumber;
     return informationDao.mainline(
         action,
         inFspId,
@@ -234,8 +379,14 @@ public class FspService {
         request == null ? "" : nz(request.getFspExpiryDate()),
         request == null ? "" : nz(request.getAmendmentName()),
         request == null ? "" : nz(request.getAmendmentEfftvDate()),
-        "",   // P_NEW_FSP_PLAN_NAME
-        "",   // P_NEW_AMENDMENT_NAME
+        // P_NEW_FSP_PLAN_NAME + P_NEW_AMENDMENT_NAME are the *input*
+        // slots the proc reads on SAVE/AMEND/CHANGE_AMEND. Positions
+        // 4 + 14 (P_FSP_PLAN_NAME / P_AMENDMENT_NAME) are the
+        // *output* slots the proc writes back on GET. Sending the
+        // request values here so the SAVE branch doesn't trip
+        // 'FSP.NO.NAME' even when position 4 carries the same value.
+        request == null ? "" : nz(request.getFspPlanName()),     // P_NEW_FSP_PLAN_NAME
+        request == null ? "" : nz(request.getAmendmentName()),   // P_NEW_AMENDMENT_NAME
         request == null ? "" : nz(request.getFspPlanStartDate()),
         request == null ? "" : nz(request.getFspPlanTermYears()),
         request == null ? "" : nz(request.getFspPlanTermMonths()),
@@ -251,8 +402,13 @@ public class FspService {
         request == null ? "" : nz(request.getTransitionInd()),
         request == null ? "" : nz(request.getFrpa197electionInd()),
         request == null ? "" : nz(request.getAmendmentAuthority()),
-        List.of(), // P_FSP_LICENSES — see above: empty != NULL for the proc
-        List.of(), // P_ORG_UNITS
+        // P_FSP_LICENSES + P_ORG_UNITS are the SAVE-path inputs the
+        // proc validates ('FSP.NO.AGREEMENT.HOLDER' fires if licenses
+        // is empty). On GET they remain empty and the proc populates
+        // them via OUT-mode INOUT semantics. The earlier always-empty
+        // bind worked for GET but silently broke SAVE.
+        toLicenseeVarray(request),  // P_FSP_LICENSES
+        toOrgUnitVarray(request),   // P_ORG_UNITS
         "",   // P_FSP_STATUS
         // P_ENTRY_USERID — legacy Fsp300InformationAction.handleGet
         // does NOT set this; the form bean's default of "" carries

@@ -112,4 +112,25 @@ public interface Fsp300InformationDao {
       String pRevisionCount,
       String pUpdateUserid
   );
+
+  /**
+   * Backfill {@code plan_start_date} on a freshly-created amendment row.
+   *
+   * <p>{@code fsp_common_db.fsp_create_new} inserts the new
+   * {@code forest_stewardship_plan} row with {@code plan_start_date = NULL}
+   * (line 250 of FSP_COMMON_DB) — the legacy UI was expected to fill the
+   * date in on submit/approve, not at creation time. But the
+   * {@code MAINLINE GET} path's {@code get_original_start_date()}
+   * helper raises {@code ORA-01403} when that column is null, which
+   * means a freshly-created FSP can't be opened in our information
+   * page until the date is populated.
+   *
+   * <p>Direct-XML submissions don't go through the legacy SUB/APP
+   * workflow, so we backfill {@code plan_start_date = SYSDATE} on the
+   * new row as part of the create flow. No-op when the column is
+   * already set (avoids clobbering manually-set values).
+   *
+   * @return the number of rows updated (1 on success, 0 if no matching row or already set)
+   */
+  int setPlanStartDateIfNull(long fspId, long amendmentNumber);
 }

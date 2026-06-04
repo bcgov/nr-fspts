@@ -24,10 +24,15 @@ public record StandardRegimeDetail(
     String regenDelayOffsetYrs,
     String freeGrowingEarlyOffsetYrs,
     String freeGrowingLateOffsetYrs,
+    /** Round-tripped on Overview SAVE; not currently editable in the UI. */
+    String noRegenEarlyOffsetYrs,
+    String noRegenLateOffsetYrs,
     String additionalStandards,
     String submittedByUserid,
     String mofDefaultStandardInd,
     String standardsAmendNumber,
+    /** Optimistic-lock token; surfaced so the SAVE proc gets a non-null value. */
+    String revisionCount,
     /** Layer presence — one entry per existing layer (single/1/2/3/4). */
     List<LayerSummary> layers,
     List<District> districts,

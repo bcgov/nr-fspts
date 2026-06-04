@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  External JAXB bindings for the vendored MOF + GML-2.12 schemas.
+
+  The GML 2.12 feature.xsd declares both `_geometryProperty` (abstract head of
+  the substitution group) and `geometryProperty` (concrete). xjc strips the
+  leading underscore when naming ObjectFactory factory methods, which
+  produces two `createGeometryProperty()` declarations and fails code
+  generation. Renaming the abstract one's factory method resolves the
+  collision without touching the schema itself.
+-->
+<jaxb:bindings xmlns:jaxb="https://jakarta.ee/xml/ns/jaxb"
+               xmlns:xs="http://www.w3.org/2001/XMLSchema"
+               version="3.0">
+
+  <jaxb:bindings schemaLocation="GML-2.12/feature.xsd" node="/xs:schema">
+    <jaxb:bindings node="//xs:element[@name='_geometryProperty']">
+      <jaxb:factoryMethod name="AbstractGeometryProperty"/>
+    </jaxb:bindings>
+  </jaxb:bindings>
+
+</jaxb:bindings>

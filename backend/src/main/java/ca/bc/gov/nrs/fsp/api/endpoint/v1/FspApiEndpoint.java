@@ -35,6 +35,15 @@ public interface FspApiEndpoint {
     @Operation(summary = "List FSP status codes via FSP_CODE_LISTS.get_fsp_status_code")
     ResponseEntity<List<CodeOption>> getFspStatusCodes();
 
+    @GetMapping(URL.CODE_LISTS_FSP_AMENDMENT_NUMBERS)
+    @Operation(summary = "List amendment numbers for an FSP via FSP_CODE_LISTS.get_fsp_amendment_numbers")
+    ResponseEntity<List<CodeOption>> getFspAmendmentNumbers(
+            @RequestParam("fspId") String fspId);
+
+    @GetMapping(URL.CODE_LISTS_SPECIES)
+    @Operation(summary = "List silv tree species codes via FSP_CODE_LISTS.get_silv_tree_sp_cd")
+    ResponseEntity<List<CodeOption>> getSilvTreeSpeciesCodes();
+
     // --- FSP ---
 
     @GetMapping(URL.FSP_SEARCH)
@@ -61,6 +70,10 @@ public interface FspApiEndpoint {
     @GetMapping(URL.WORKFLOW)
     @Operation(summary = "Get workflow audit cursor for an FSP")
     ResponseEntity<List<WorkflowResponse>> getWorkflow(@PathVariable String fspId);
+
+    @GetMapping(URL.WORKFLOW_STATE)
+    @Operation(summary = "Get the workflow milestone/decision projection via FSP_700_WORKFLOW.MAINLINE (GET)")
+    ResponseEntity<WorkflowState> getWorkflowState(@PathVariable String fspId);
 
     @PostMapping(URL.WORKFLOW_ACTION)
     @Operation(summary = "Submit a workflow action via FSP_700_WORKFLOW.MAINLINE")
@@ -130,6 +143,10 @@ public interface FspApiEndpoint {
     @Operation(summary = "Get the per-FDU list via FSP_600_MAP.GET")
     ResponseEntity<FduList> getFduList(@PathVariable String fspId);
 
+    @GetMapping(URL.IDENTIFIED_AREAS)
+    @Operation(summary = "Get identified areas (all FRPA/FPPR sections combined) via FSP_650_IDENTIFIED_AREAS_MAP.GET")
+    ResponseEntity<IdentifiedAreaList> getIdentifiedAreas(@PathVariable String fspId);
+
     // --- Stocking Standards detail (FSP250 view-only) ---
 
     @GetMapping(URL.STANDARD_DETAIL)
@@ -139,6 +156,14 @@ public interface FspApiEndpoint {
             @PathVariable String regimeId,
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
+    @PutMapping(URL.STANDARD_OVERVIEW)
+    @Operation(summary = "Save standards regime Overview-tab edits via FSP_550_STDS_PROPOSAL.SAVE")
+    ResponseEntity<StandardRegimeDetail> updateStandardRegimeOverview(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
+            @Valid @RequestBody StandardRegimeOverviewUpdate body);
+
     @GetMapping(URL.STANDARD_LAYER_DETAIL)
     @Operation(summary = "Get per-layer detail (FSP_550_SUB_LAYERS + FSP_550_SUB_SPECIES)")
     ResponseEntity<StandardRegimeLayerDetail> getStandardRegimeLayerDetail(
@@ -146,6 +171,42 @@ public interface FspApiEndpoint {
             @PathVariable String regimeId,
             @PathVariable String layerCode,
             @RequestParam(name = "layerId") String layerId);
+
+    @PutMapping(URL.STANDARD_LAYER_DETAIL)
+    @Operation(summary = "Save layer scalar fields via FSP_550_SUB_LAYERS.MAINLINE(SAVE)")
+    ResponseEntity<StandardRegimeLayerDetail> updateStandardRegimeLayer(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @PathVariable String layerCode,
+            @RequestParam(name = "layerId") String layerId,
+            @Valid @RequestBody StandardRegimeLayerUpdate body);
+
+    @PostMapping(URL.STANDARD_LAYER_SPECIES)
+    @Operation(summary = "Add a species row to a layer (preferred or acceptable) via FSP_550_SUB_SPECIES.MAINLINE(SAVE)")
+    ResponseEntity<StandardRegimeLayerDetail> addStandardRegimeLayerSpecies(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @PathVariable String layerCode,
+            @RequestParam(name = "layerId") String layerId,
+            @Valid @RequestBody StandardRegimeLayerSpeciesAdd body);
+
+    @DeleteMapping(URL.STANDARD_LAYER_SPECIES_BY_CODE)
+    @Operation(summary = "Delete a species row from a layer via FSP_550_SUB_SPECIES.MAINLINE(DELETE)")
+    ResponseEntity<StandardRegimeLayerDetail> deleteStandardRegimeLayerSpecies(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @PathVariable String layerCode,
+            @PathVariable String speciesCode,
+            @RequestParam(name = "layerId") String layerId,
+            @RequestParam(name = "preferred") String preferred,
+            @RequestParam(name = "revisionCount") String revisionCount);
+
+    @GetMapping(URL.STANDARD_ATTACHMENT_DOWNLOAD)
+    @Operation(summary = "Download a standards-regime attachment BLOB via FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB")
+    ResponseEntity<byte[]> downloadStandardRegimeAttachment(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @PathVariable String attachmentId);
 
     // --- Map View extent ---
 

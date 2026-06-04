@@ -27,6 +27,7 @@ const HEADERS = [
   { key: 'userId', header: 'User' },
   { key: 'amendmentNumber', header: 'Amendment' },
   { key: 'extensionNumber', header: 'Extension' },
+  { key: 'submissionId', header: 'Submission ID' },
 ];
 
 const WorkflowTab: FC<Props> = ({ fspId }) => {
@@ -74,12 +75,13 @@ const WorkflowTab: FC<Props> = ({ fspId }) => {
     userId: dash(r.userId),
     amendmentNumber: dash(r.amendmentNumber),
     extensionNumber: dash(r.extensionNumber),
+    submissionId: dash(r.submissionId),
   }));
 
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
-        <h2 className="fsp-info__section-title">Workflow ({rows.length})</h2>
+        <h2 className="fsp-info__section-title">History</h2>
       </header>
       <div className="bordered-table">
         <DataTable rows={tableRows} headers={HEADERS}>

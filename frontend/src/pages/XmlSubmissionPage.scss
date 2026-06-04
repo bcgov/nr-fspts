@@ -1,0 +1,81 @@
+// Mirrors src/pages/SearchPage.scss / InboxPage.scss — Grid + Tile
+// frame with internal field grid + form actions row, so the XML
+// submission page reads as another page-of-the-suite.
+
+.fsp-submit-grid {
+  row-gap: 2rem;
+}
+
+.fsp-submit__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.fsp-submit__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  // Same field-surface bump as the Search/Inbox tiles so input widgets
+  // read as elevated fields against the tile's gray (layer-01) instead
+  // of blending in.
+  --cds-field: var(--cds-field-02);
+  --cds-field-hover: var(--cds-field-hover-02);
+}
+
+.fsp-submit__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.fsp-submit__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fsp-submit__section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.fsp-submit__section-help {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--cds-text-secondary);
+
+  code {
+    font-size: 0.8125rem;
+    background: var(--cds-layer);
+    padding: 0 0.25rem;
+    border-radius: 2px;
+  }
+}
+
+.fsp-submit__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.fsp-submit__busy,
+.fsp-submit__result {
+  margin-top: 0.5rem;
+}
+
+.fsp-submit__detail-link {
+  font-size: 0.875rem;
+}
+
+.fsp-submit__error-row code {
+  font-size: 0.8125rem;
+}

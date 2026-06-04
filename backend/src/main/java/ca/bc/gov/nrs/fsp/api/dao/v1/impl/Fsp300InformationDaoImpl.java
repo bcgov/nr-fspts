@@ -112,4 +112,15 @@ public class Fsp300InformationDaoImpl extends AbstractStoredProcedureDao impleme
           return r;
         });
   }
+
+  @Override
+  public int setPlanStartDateIfNull(long fspId, long amendmentNumber) {
+    return jdbcTemplate.update(
+        "UPDATE forest_stewardship_plan "
+            + "   SET plan_start_date = SYSDATE "
+            + " WHERE fsp_id = ? "
+            + "   AND fsp_amendment_number = ? "
+            + "   AND plan_start_date IS NULL",
+        fspId, amendmentNumber);
+  }
 }

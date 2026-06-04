@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Simple types that may be imported by other schemas.-->
+<schema targetNamespace="http://www.for.gov.bc.ca/schema/base" xmlns="http://www.w3.org/2001/XMLSchema"
+        elementFormDefault="qualified" version="0.5">
+	<annotation>
+		<documentation>BC MOF Simple Types for ESF Submission schemas.  Copyright (c) 2002 BC Ministry of Forests,  All Rights Reserved.</documentation>
+	</annotation>
+	<!-- =========================Type Definitions================================== -->
+	<simpleType name="AlphaNumeric1">
+		<restriction base="string">
+			<maxLength value="1"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric2">
+		<restriction base="string">
+			<maxLength value="2"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric3">
+		<restriction base="string">
+			<maxLength value="3"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric4">
+		<restriction base="string">
+			<maxLength value="4"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric5">
+		<restriction base="string">
+			<maxLength value="5"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric6">
+		<restriction base="string">
+			<maxLength value="6"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric7">
+		<restriction base="string">
+			<maxLength value="7"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric8">
+		<restriction base="string">
+			<maxLength value="8"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric10">
+		<restriction base="string">
+			<maxLength value="10"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric13">
+		<restriction base="string">
+			<maxLength value="13"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric15">
+		<restriction base="string">
+			<maxLength value="15"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric25">
+		<restriction base="string">
+			<maxLength value="25"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric20">
+		<restriction base="string">
+			<maxLength value="20"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric30">
+		<restriction base="string">
+			<maxLength value="30"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric50">
+		<restriction base="string">
+			<maxLength value="50"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric62">
+		<restriction base="string">
+			<maxLength value="62"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric100">
+		<restriction base="string">
+			<maxLength value="100"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric120">
+		<restriction base="string">
+			<maxLength value="120"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric250">
+		<restriction base="string">
+			<maxLength value="250"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric255">
+		<restriction base="string">
+			<maxLength value="255"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="AlphaNumeric2000">
+		<restriction base="string">
+			<maxLength value="2000"/>
+		</restriction>
+	</simpleType>
+	<!-- Added for mof-fsp.xsd: standardsObjective + additionalStandards
+	     declare type="mof:AlphaNumeric4000" but the v10 FTA simpleTypes
+	     bundle (which we vendored as the import base) stops at 2000.
+	     Same pattern as the other AlphaNumeric* entries. -->
+	<simpleType name="AlphaNumeric4000">
+		<restriction base="string">
+			<maxLength value="4000"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="Alpha1">
+		<restriction base="string">
+			<pattern value="\D"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="Alpha7">
+		<restriction base="string">
+			<pattern value="\D{0,7}"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="NonNegativeInteger1D">
+		<restriction base="nonNegativeInteger">
+			<maxInclusive value="9"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="NonNegativeInteger2D">
+		<restriction base="nonNegativeInteger">
+			<maxInclusive value="99"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="NonNegativeInteger3D">
+		<restriction base="nonNegativeInteger">
+			<maxInclusive value="999"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="NonNegativeInteger4D">
+		<restriction base="nonNegativeInteger">
+			<maxInclusive value="9999"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="NonNegativeInteger5D">
+		<restriction base="nonNegativeInteger">
+			<maxInclusive value="99999"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="NonNegativeInteger6D">
+		<restriction base="nonNegativeInteger">
+			<maxInclusive value="999999"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="NonNegativeInteger7D">
+		<restriction base="nonNegativeInteger">
+			<maxInclusive value="9999999"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="NonNegativeInteger9D">
+		<restriction base="nonNegativeInteger">
+			<maxInclusive value="999999999"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="NonNegativeInteger10D">
+		<restriction base="nonNegativeInteger">
+			<maxInclusive value="9999999999"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="Integer10D">
+		<restriction base="integer">
+			<totalDigits value="10"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="Decimal3D1d">
+		<restriction base="decimal">
+			<totalDigits value="3"/>
+			<fractionDigits value="1"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="Decimal4D1d">
+		<restriction base="decimal">
+			<totalDigits value="4"/>
+			<fractionDigits value="1"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="Decimal5D1d">
+		<restriction base="decimal">
+			<totalDigits value="5"/>
+			<fractionDigits value="1"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="Decimal6D1d">
+		<restriction base="decimal">
+			<totalDigits value="6"/>
+			<fractionDigits value="1"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="Decimal11D4d">
+		<restriction base="decimal">
+			<totalDigits value="11"/>
+			<fractionDigits value="4"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="Decimal13D2d">
+		<restriction base="decimal">
+			<totalDigits value="13"/>
+			<fractionDigits value="2"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="TelephoneNumberType">
+		<annotation>
+			<documentation>A valid telephone number must be 10 digits, starting with the area code.  For example: '6045542233'.</documentation>
+		</annotation>
+		<restriction base="string">
+			<pattern value="[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="DataSourceCodeType">
+		<annotation>
+			<documentation>Approved data source codes for BC government data.</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="AirPhoto"/>
+			<enumeration value="AP"/>
+			<enumeration value="CDMS"/>
+			<enumeration value="ForestCoverMaps"/>
+			<enumeration value="FC1"/>
+			<enumeration value="TRIM"/>
+			<enumeration value="Satellite"/>
+			<enumeration value="SAT"/>
+			<enumeration value="Survey"/>
+			<enumeration value="SUR"/>
+			<enumeration value="Unknown"/>
+			<enumeration value="UNK"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="CaptureMethodCodeType">
+		<annotation>
+			<documentation>Approved data accuracy codes for BC government data.  Codes represent meter values.</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="CoordinateGeometryWithControl"/>
+			<enumeration value="coordinateGeometryWithControl"/>
+			<enumeration value="DifferentialGPS"/>
+			<enumeration value="differentialGPS"/>
+			<enumeration value="MonoRestitution"/>
+			<enumeration value="monoRestitution"/>
+			<enumeration value="NondifferentialGPS"/>
+			<enumeration value="nondifferentialGPS"/>
+			<enumeration value="OrthoPhotography"/>
+			<enumeration value="orthoPhotography"/>
+			<enumeration value="Photogrammetric"/>
+			<enumeration value="RubberSheeting"/>
+			<enumeration value="rubberSheeting"/>
+			<enumeration value="SatelliteImagery"/>
+			<enumeration value="satelliteImagery"/>
+			<enumeration value="Scanning"/>
+			<enumeration value="scanning"/>
+			<enumeration value="SketchMap"/>
+			<enumeration value="sketchMap"/>
+			<enumeration value="TabletDigitizing"/>
+			<enumeration value="tabletDigitizing"/>
+			<enumeration value="Unknown"/>
+			<enumeration value="unknown"/>
+		</restriction>
+	</simpleType>
+</schema>
