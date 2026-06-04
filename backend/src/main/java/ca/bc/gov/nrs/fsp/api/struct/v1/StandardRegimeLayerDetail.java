@@ -20,9 +20,16 @@ public record StandardRegimeLayerDetail(
     String maxPostSpacing,
     String maxConifer,
     String heightRelativeToComp,
+    /** Layer-row revision_count — needed for the SAVE optimistic-lock check. */
+    String revisionCount,
     List<Species> preferredSpecies,
     List<Species> acceptableSpecies
 ) {
 
-  public record Species(String code, String description, String minHeight) {}
+  public record Species(
+      String code,
+      String description,
+      String minHeight,
+      /** Per-row revision_count — needed for the DELETE optimistic-lock. */
+      String revisionCount) {}
 }

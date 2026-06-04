@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- target namespace is a URL by popular convention.  It is an idenfitier only, such that no pysical resource is required at this URL. -->
+<schema targetNamespace="http://www.for.gov.bc.ca/schema/base" xmlns="http://www.w3.org/2001/XMLSchema"
+        xmlns:gml="http://www.opengis.net/gml"
+        xmlns:mof="http://www.for.gov.bc.ca/schema/base" elementFormDefault="qualified" version="0.6">
+	<annotation>
+		<documentation>BC MOF Base GML Types schema.  Copyright (c) 2002 BC Ministry of Forests,  All Rights Reserved.</documentation>
+	</annotation>
+	<!-- include MOF SimpleTypes -->
+	<include schemaLocation="mof-simpleTypes.xsd"/>
+	<!-- import constructs from the GML Feature and Geometry schemas -->
+	<import namespace="http://www.opengis.net/gml" schemaLocation="../GML-2.12/feature.xsd"/>
+	<import namespace="http://www.w3.org/1999/xlink"/>
+	<!-- ========================= Custom Feature Type ========================== -->
+	<complexType name="AbstractMOFFeatureType" abstract="true">
+		<annotation>
+			<documentation>Base type for MOF Features that provides any common MOF feature properties.  Spatial Metadata is the primary example of a common property.</documentation>
+		</annotation>
+		<complexContent>
+			<extension base="gml:AbstractFeatureType">
+				<sequence>
+					<element ref="mof:spatialMetaData" minOccurs="0"/>
+					<!-- ... any other common Feature properties -->
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<!-- ========================= Custom Geometry Property Type ========================== -->
+	<complexType name="SingleOrMultiplePolygonPropertyType">
+		<annotation>
+			<documentation>Encloses a choice of either a Polygon or MultiPolygon geometry.</documentation>
+		</annotation>
+		<complexContent>
+			<restriction base="gml:GeometryPropertyType">
+				<choice>
+					<element ref="gml:Polygon"/>
+					<element ref="gml:MultiPolygon"/>
+				</choice>
+			</restriction>
+		</complexContent>
+	</complexType>
+	<complexType name="SingleOrMultipleLineStringPropertyType">
+		<annotation>
+			<documentation>Encloses a choice of either a LineString or MultiLineString geometry.</documentation>
+		</annotation>
+		<complexContent>
+			<restriction base="gml:GeometryPropertyType">
+				<choice>
+					<element ref="gml:LineString"/>
+					<element ref="gml:MultiLineString"/>
+				</choice>
+			</restriction>
+		</complexContent>
+	</complexType>
+<!-- ========================= MetaDataTypes ========================== -->
+	<element name="spatialMetaData" type="mof:SpatialMetaDataType" />
+	<complexType name="SpatialMetaDataType">
+		<annotation>
+			<documentation>Type for spatial metadata properties.  Metadata fields are optional, since they are often unknown or not present</documentation>
+		</annotation>
+		<sequence>
+			<element ref="mof:dataSourceCode" minOccurs="0"/>
+			<element ref="mof:captureMethodCode" minOccurs="0"/>
+			<element ref="mof:observationDate" minOccurs="0"/>
+			<element ref="mof:dataQualityComment" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<element name="dataSourceCode" type="mof:DataSourceCodeType"/>
+	<element name="captureMethodCode" type="mof:CaptureMethodCodeType"/>
+	<element name="observationDate" type="date"/>
+	<element name="dataQualityComment" type="mof:AlphaNumeric2000"/>
+</schema>

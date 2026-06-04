@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Well-formed XML rooted at fspSubmission, but missing every required
+  child. SchemaValidator should report one or more XSD errors for the
+  absent fspSubmissionMetadata + submissionItem.
+-->
+<fspSubmission xmlns="http://www.for.gov.bc.ca/schema/fsp"
+>
+</fspSubmission>

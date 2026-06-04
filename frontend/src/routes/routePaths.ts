@@ -1,12 +1,5 @@
-import {
-  Catalog,
-  ChartLineData,
-  Notification,
-  Report,
-  Search,
-  UserAdmin,
-} from '@carbon/icons-react';
-import type { ComponentType } from 'react';
+import {Catalog, ChartLineData, Notification, Report, Search, UserAdmin,} from '@carbon/icons-react';
+import type {ComponentType} from 'react';
 
 // Each menu entry is either a leaf (renders as <SideNavLink>) or a parent
 // with children (renders as <SideNavMenu> + <SideNavMenuItem>s). Top-level
@@ -55,12 +48,14 @@ const NAV: MenuItem[] = [
     icon: Notification,
   },
   {
+    // Single-entry submenu was visually awkward in the SideNav and
+    // there's only one data-submission route today. Promoted to a
+    // top-level leaf; re-introduce the parent if a second submission
+    // type (GeoJSON, batch upload, etc.) lands later.
     id: 'Data Submission',
     label: 'Data Submission',
+    path: '/data-submission/xml',
     icon: Catalog,
-    children: [
-      { id: 'XML Submission', label: 'XML Submission', path: '/data-submission/xml' },
-    ],
   },
   {
     id: 'District Notification',

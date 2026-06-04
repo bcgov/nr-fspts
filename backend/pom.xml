@@ -216,6 +216,29 @@
       <artifactId>jasperreports</artifactId>
       <version>6.21.5</version>
     </dependency>
+
+    <!-- ESF submission XML processing.
+         jakarta.xml.bind-api: annotation set referenced by the xjc-
+                               generated JAXB classes for mof-fsp.xsd
+         jaxb-runtime:         GlassFish JAXB implementation that
+                               JAXBContext discovers at runtime
+         jts-core:             JTS Topology Suite for GML 2.x geometry
+                               validation (isValid + ring/topology checks) -->
+    <dependency>
+      <groupId>jakarta.xml.bind</groupId>
+      <artifactId>jakarta.xml.bind-api</artifactId>
+      <version>4.0.2</version>
+    </dependency>
+    <dependency>
+      <groupId>org.glassfish.jaxb</groupId>
+      <artifactId>jaxb-runtime</artifactId>
+      <version>4.0.5</version>
+    </dependency>
+    <dependency>
+      <groupId>org.locationtech.jts</groupId>
+      <artifactId>jts-core</artifactId>
+      <version>1.20.0</version>
+    </dependency>
   </dependencies>
 
   <build>
@@ -256,7 +279,51 @@
       </plugins>
     </pluginManagement>
     <plugins>
-
+      <!-- Generate JAXB bindings from the vendored FSP XSD bundle.
+           Output lands under target/generated-sources/jaxb in the
+           package below; the maven-compiler-plugin picks it up
+           automatically. To force a regen: mvn clean compile. -->
+      <plugin>
+        <groupId>org.jvnet.jaxb</groupId>
+        <artifactId>jaxb-maven-plugin</artifactId>
+        <version>4.0.8</version>
+        <executions>
+          <execution>
+            <id>generate-fsp-submission</id>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <configuration>
+              <schemaDirectory>${project.basedir}/src/main/resources/schemas/fsp</schemaDirectory>
+              <schemaIncludes>
+                <include>MOF/mof-fsp.xsd</include>
+              </schemaIncludes>
+              <bindingDirectory>${project.basedir}/src/main/resources/schemas/fsp</bindingDirectory>
+              <bindingIncludes>
+                <include>bindings.xjb</include>
+              </bindingIncludes>
+              <generatePackage>ca.bc.gov.nrs.fsp.api.submission.parser.generated</generatePackage>
+              <generateDirectory>${project.build.directory}/generated-sources/jaxb</generateDirectory>
+              <!-- Pin to JAXB 4 / Jakarta namespace to match the
+                   jakarta.xml.bind-api + glassfish jaxb-runtime
+                   declared above. -->
+              <extension>true</extension>
+              <!-- The legacy MOF + GML-2.12 schemas violate XSD 1.0's
+                   cos-particle-restrict / derivation-ok-restriction
+                   rules (MultiPointType, MultiPolygonType,
+                   SingleOrMultiplePolygonPropertyType, FDUAssociation-
+                   Type, etc.). Xerces' fullSchemaChecking refuses to
+                   compile them. Disabling strict mode + passing -nv to
+                   xjc skips that pre-compile check; runtime schema
+                   validation in SchemaValidator still works fine. -->
+              <strict>false</strict>
+              <args>
+                <arg>-nv</arg>
+              </args>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
   <repositories>

@@ -64,6 +64,31 @@ public class CodeListsService {
         .toList();
   }
 
+  /**
+   * Amendment numbers available for a given FSP. The cursor's
+   * {@code description} column already maps {@code 0 → "Original"};
+   * other numbers come back as their integer string. Used by the
+   * FSP information page to power the amendment-picker dropdown.
+   */
+  public List<CodeOption> getFspAmendmentNumbers(String fspId) {
+    return fspCodeListsDao.getFspAmendmentNumbers(fspId).stream()
+        .map(CodeListsService::toCodeOption)
+        .filter(o -> o.getCode() != null)
+        .toList();
+  }
+
+  /**
+   * Silviculture tree species codes (SILV_TREE_SPECIES_CODE table).
+   * Backs the Standards View → Layers species dropdown (preferred +
+   * acceptable lists). Cursor exposes code + description columns.
+   */
+  public List<CodeOption> getSilvTreeSpeciesCodes() {
+    return fspCodeListsDao.getSilvTreeSpCd().stream()
+        .map(CodeListsService::toCodeOption)
+        .filter(o -> o.getCode() != null)
+        .toList();
+  }
+
   private static CodeOption toCodeOption(Map<String, Object> row) {
     // First try named lookup (works when the cursor SQL explicitly
     // aliases columns). Fall back to positional: the legacy webADE

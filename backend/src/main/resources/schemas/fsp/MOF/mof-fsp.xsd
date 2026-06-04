@@ -1,0 +1,513 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSPY v5 rel. 2 U (http://www.xmlspy.com) by Eric Wright (Vivid Solutions Inc) -->
+<schema targetNamespace="http://www.for.gov.bc.ca/schema/fsp" xmlns:fsp="http://www.for.gov.bc.ca/schema/fsp"
+        xmlns:mof="http://www.for.gov.bc.ca/schema/base"
+        xmlns:gml="http://www.opengis.net/gml" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified"
+        attributeFormDefault="unqualified" blockDefault="restriction" finalDefault="restriction">
+	<annotation>
+		<documentation>
+			BC MOF FSP Submission schema for use in the Electronic
+			Submission Framework. Copyright (c) 2006 BC Ministry of
+			Forests, All Rights Reserved.
+		</documentation>
+	</annotation>
+	<!-- import MOF Base constructs -->
+	<import namespace="http://www.for.gov.bc.ca/schema/base" schemaLocation="mof-base.xsd"/>
+	<!-- import constructs from the GML Feature and Geometry schemas -->
+	<import namespace="http://www.opengis.net/gml"/>
+	<import namespace="http://www.w3.org/1999/xlink"/>
+	<complexType name="AbstractFSPFeatureCollectionBaseType" abstract="true">
+		<annotation>
+			<documentation>Mandatory: Incorporates GML bounding data for GML FeatureCollection type. May be set to null	</documentation>
+		</annotation>
+		<complexContent>
+			<restriction base="gml:AbstractFeatureCollectionType">
+				<sequence>
+					<element ref="gml:description" minOccurs="0"/>
+					<element ref="gml:name" minOccurs="0"/>
+					<element ref="gml:boundedBy"/>
+				</sequence>
+			</restriction>
+		</complexContent>
+	</complexType>
+	<element name="fspSubmission" type="fsp:FSPSubmissionType" substitutionGroup="gml:_FeatureCollection">
+		<annotation>
+			<documentation>Mandatory: metadata and content of an FSP submission.</documentation>
+		</annotation>
+	</element>
+	<complexType name="FSPSubmissionType">
+		<annotation>
+			<documentation>Top level specification of FSP submission via ESF</documentation>
+		</annotation>
+		<complexContent>
+			<extension base="fsp:AbstractFSPFeatureCollectionBaseType">
+				<sequence>
+					<element name="fspSubmissionMetadata" type="fsp:FSPSubmissionMetadataType"/>
+					<element name="submissionItem" type="fsp:FSPSubmissionItemAssociationType"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="FSPSubmissionMetadataAssociationType">
+		<sequence/>
+	</complexType>
+	<complexType name="FSPSubmissionMetadataType">
+		<sequence>
+			<element name="licenseeContact" type="mof:AlphaNumeric50" minOccurs="0">
+				<annotation>
+					<documentation>Conditional: contact name for submitting licensee.  Must always be present except for partial submission</documentation>
+				</annotation>
+			</element>
+			<element name="telephoneNumber" type="mof:TelephoneNumberType" minOccurs="0">
+				<annotation>
+					<documentation>Conditional: phone number of submitting licensee contact. Must always be present except for partial submission</documentation>
+				</annotation>
+			</element>
+			<element name="emailAddress" type="anyURI" minOccurs="0">
+				<annotation>
+					<documentation>Conditional: email address of submitting licensee contact. Must always be present except for partial submission</documentation>
+				</annotation>
+			</element>
+			<element name="attachmentCount" type="mof:NonNegativeInteger2D">
+				<annotation>
+					<documentation>Mandatory: indicates the number of ESF attachments to be considered as part of this submission.  Initial submission must attach a legal FSP document.  Value may be 0 or more.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- Local patch (2026-06): dropped substitutionGroup="gml:featureMember"
+	     because JAXB otherwise folds <fsp:submissionItem> into the inherited
+	     featureMember list on AbstractFeatureCollectionType (the parent of
+	     FSPSubmissionType), leaving the typed `submissionItem` field on
+	     FSPSubmissionType null at unmarshal time. Wire format is unaffected. -->
+	<element name="submissionItem" type="fsp:FSPSubmissionItemAssociationType"/>
+	<!-- Local patch (2026-06): same restriction-particle issue as
+	     FDUAssociationType / IdentifiedAreaAssociationType. Flat sequence,
+	     no FeatureAssociationType inheritance, so xjc generates the typed
+	     getForestStewardshipPlan() accessor and unmarshal binds correctly. -->
+	<complexType name="FSPSubmissionItemAssociationType">
+		<annotation>
+			<documentation>Mandatory: Instance of the submission item--a single Forest Stewardship Plan</documentation>
+		</annotation>
+		<sequence>
+			<element ref="fsp:forestStewardshipPlan"/>
+		</sequence>
+	</complexType>
+	<!-- ========================= FSP Types ==================================== -->
+	<complexType name="AbstractFSPBaseType" abstract="true">
+		<annotation>
+			<documentation>Removes generic gml:featureMember property.</documentation>
+		</annotation>
+		<complexContent>
+			<restriction base="gml:AbstractFeatureCollectionType">
+				<sequence>
+					<element ref="gml:description" minOccurs="0"/>
+					<element ref="gml:name" minOccurs="0"/>
+					<element ref="gml:boundedBy"/>
+				</sequence>
+			</restriction>
+		</complexContent>
+	</complexType>
+	<complexType name="ForestStewardshipPlanType">
+		<annotation>
+			<documentation>Specifies the data for a FSP</documentation>
+		</annotation>
+		<complexContent>
+			<extension base="fsp:AbstractFSPBaseType">
+				<sequence>
+					<element name="fspID" type="mof:NonNegativeInteger10D" minOccurs="0">
+						<annotation>
+							<documentation>Conditional:  must be present in amendment submissions</documentation>
+						</annotation>
+					</element>
+					<element name="amendmentID" type="mof:NonNegativeInteger10D" minOccurs="0">
+						<annotation>
+							<documentation>Conditional:  must be present when updating an amendment submission</documentation>
+						</annotation>
+					</element>
+					<element name="planName" type="mof:AlphaNumeric120" nillable="false" minOccurs="0">
+						<annotation>
+							<documentation>Conditional:  must be present in original submission</documentation>
+						</annotation>
+					</element>
+					<element name="licenseeAmendmentName" type="mof:AlphaNumeric30" nillable="true" minOccurs="0">
+						<annotation>
+							<documentation>Optional: name supplied by licensee for an amendment</documentation>
+						</annotation>
+					</element>
+					<element name="actionCode" type="fsp:actionCodeType">
+						<annotation>
+							<documentation>Mandatory: set to "I" (Input) for first-time submission; set to "U" if updating FSP in Draft mode; set to "R" for Amendment submission.</documentation>
+						</annotation>
+					</element>
+					<element name="planHolderList" type="fsp:PlanHolderAssociationType" minOccurs="0">
+						<annotation>
+							<documentation>Conditional: FSP may involve one or more licensees. Must supply for original submission or if license holders in FSP change</documentation>
+						</annotation>
+					</element>
+					<element name="planTermYears" type="mof:NonNegativeInteger2D" default="5" minOccurs="0">
+						<annotation>
+							<documentation>Optional: Length of plan in years. Defaults to 5 years, but Licensee may specify</documentation>
+						</annotation>
+					</element>
+					<element name="planTermMonths" type="mof:NonNegativeInteger2D" minOccurs="0">
+						<annotation>
+							<documentation>Optional: Additional months in plan duration beyond planTermYears.  Must not occur if planTermYears is not present. Cannot occur if planTermExpiry is present</documentation>
+						</annotation>
+					</element>
+					<element name="planTermExpiry" type="date" minOccurs="0">
+						<annotation>
+							<documentation>Optional: date on which the FSP should expire.  If planTermYears is present, cannot submit planTermExpiry</documentation>
+						</annotation>
+					</element>
+					<element name="districtCodeList" type="fsp:DistrictCodeAssociationType" minOccurs="0">
+						<annotation>
+							<documentation>Conditional: One or more MoFR districts responsible for administration of this FSP.  Must always be present except for partial submission</documentation>
+						</annotation>
+					</element>
+					<element name="amendmentInd" type="boolean">
+						<annotation>
+							<documentation>Mandatory: 'false' for original FSP submission; 'true' if this submission is an FSP amendment</documentation>
+						</annotation>
+					</element>
+					<element name="amendmentComment" type="mof:AlphaNumeric120" minOccurs="0">
+						<annotation>
+							<documentation>Optional:Comment describing what is being amended for this submission.</documentation>
+						</annotation>
+					</element>
+					<element name="amendmentApprovalRequiredInd" type="boolean" nillable="true" minOccurs="0">
+						<annotation>
+							<documentation>Conditional: Must supply if submission is an FSP amendment; 'true' if his amendment requires ministry approval; 'false' if approval not required</documentation>
+						</annotation>
+					</element>
+					<element name="legalDocConsolidatedInd" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Optional: Set true if attached legal document is consolidated (includes all previous amendment information)</documentation>
+						</annotation>
+					</element>
+					<element name="fduUpdateInd" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Optional: set true if this amendment modifies the existing FDU spatial data.</documentation>
+						</annotation>
+					</element>
+					<element name="identifiedAreasUpdateInd" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Optional: set true if this amendment modifies the existing identified area spatial data.</documentation>
+						</annotation>
+					</element>
+					<element name="stockingStandardUpdateInd" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Optional: set true if this amendment modifies the existing stocking standards.</documentation>
+						</annotation>
+					</element>
+					<!-- Local patch (2026-06): production v4 schema added this
+					     ahead of transitionalInd. Real submissions (e.g. the
+					     Mackenzie #96 amend-6 sample fixture) carry it; the
+					     v3-era XSD we vendored from desktop omits it. -->
+					<element name="frpa197Ind" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Optional: set true if this FSP is under FRPA section 197 (legacy transition).</documentation>
+						</annotation>
+					</element>
+					<element name="transitionalInd" type="boolean">
+						<annotation>
+							<documentation>Mandatory: set to true if this is a transitional FSP; else set to false</documentation>
+						</annotation>
+					</element>
+					<element name="fduList" type="fsp:FDUAssociationType" minOccurs="0">
+						<annotation>
+							<documentation>Conditional: 1 or more Forest Development Unit elements must be submitted before plan can be approved</documentation>
+						</annotation>
+					</element>
+					<element name="stockingStandards" type="fsp:StandardsAssociationType" minOccurs="0">
+						<annotation>
+							<documentation>Conditional: original submission must contain 1 or more Stocking Standard elements</documentation>
+						</annotation>
+					</element>
+					<element name="identifiedAreasList" type="fsp:IdentifiedAreaAssociationType" minOccurs="0">
+						<annotation>
+							<documentation>Optional: 1 or more identified areas may be submitted as part of an FSP or amendment.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<!-- Local patch (2026-06): dropped substitutionGroup="gml:_FeatureCollection"
+	     for the same reason as submissionItem above — keeps the typed
+	     `forestStewardshipPlan` accessor on FSPSubmissionItemAssociationType
+	     populated at unmarshal time. -->
+	<element name="forestStewardshipPlan" type="fsp:ForestStewardshipPlanType"/>
+	<!-- ========================= PlanHolder Defs ==================================== -->
+	<complexType name="PlanHolderAssociationType">
+		<annotation>
+			<documentation>Composition association to a Plan Holder data object.</documentation>
+		</annotation>
+		<sequence>
+			<element name="clientCode" type="mof:AlphaNumeric8" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Mandatory: licensee MoFR client Code</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ========================= District Code Defs ==================================== -->
+	<complexType name="DistrictCodeAssociationType">
+		<annotation>
+			<documentation>Composition association to a District Code data object.</documentation>
+		</annotation>
+		<sequence>
+			<element name="districtCode" type="mof:AlphaNumeric3" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Mandatory: MoFR code for Org Unit containing FSP</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ========================= FDU Defs ==================================== -->
+	<!-- Local patch (2026-06): original schema declared this as a
+	     <restriction base="gml:FeatureAssociationType"> with a sequence
+	     of <fdu/> elements. That restriction is invalid per XSD 1.0
+	     cos-particle-restrict so xjc dropped the typed accessor entirely,
+	     leaving the inherited (singular) `feature` field — under which
+	     multiple <fdu/> elements at the wire level collapse to one and
+	     silently lose data. fduList is not a featureMember substitute,
+	     so dropping the restriction is wire-safe; PlanHolderAssociation
+	     and DistrictCodeAssociation in this same file use the same
+	     plain-sequence pattern. -->
+	<complexType name="FDUAssociationType">
+		<annotation>
+			<documentation>Association to an FDU Feature.</documentation>
+		</annotation>
+		<sequence>
+			<element ref="fsp:fdu" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<element name="fdu" type="fsp:FDUType" substitutionGroup="gml:_Feature">
+		<annotation>
+			<documentation>Specification of a Foreset Development Unit</documentation>
+		</annotation>
+	</element>
+	<complexType name="FDUType">
+		<annotation>
+			<documentation>Specifies Forest Development Unit type</documentation>
+		</annotation>
+		<complexContent>
+			<extension base="mof:AbstractMOFFeatureType">
+				<sequence>
+					<element name="fduName" type="mof:AlphaNumeric120">
+						<annotation>
+							<documentation>Mandatory: an FDU must have a name</documentation>
+						</annotation>
+					</element>
+					<element name="licenceList" type="fsp:LicenceAssociationType" minOccurs="0">
+						<annotation>
+							<documentation>Conditional: list of forest licences with obligations within this FDU; must be provided except for BCTS</documentation>
+						</annotation>
+					</element>
+					<element name="extentOf" type="mof:SingleOrMultiplePolygonPropertyType">
+						<annotation>
+							<documentation>Mandatory: specifies the spatial boundary of the FDU</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<!-- ========================= License Defs ==================================== -->
+	<complexType name="LicenceAssociationType">
+		<annotation>
+			<documentation>Composition association to a License data object.</documentation>
+		</annotation>
+		<sequence>
+			<element name="licenceNumber" type="mof:AlphaNumeric10" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Forest license number of obligation holders within this FDU</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ========================= Standards Defs ==================================== -->
+	<complexType name="StandardsAssociationType">
+		<annotation>
+			<documentation>Composition association to a Standards data object.</documentation>
+		</annotation>
+		<sequence>
+			<element name="existingStandardsList" minOccurs="0">
+				<annotation>
+					<documentation>Conditional: a list of pre-existing Stocking Standard IDs</documentation>
+				</annotation>
+				<complexType>
+					<sequence>
+						<element name="StockingStandardID" type="mof:NonNegativeInteger10D" maxOccurs="unbounded">
+							<annotation>
+								<documentation>May submit SSID of  stocking standards already in RESULTS database</documentation>
+							</annotation>
+						</element>
+					</sequence>
+				</complexType>
+			</element>
+			<element name="newFSPStandardsList" minOccurs="0">
+				<annotation>
+					<documentation>Conditional: a list of Stocking Standards proposed specifically for this FSP</documentation>
+				</annotation>
+				<complexType>
+					<sequence>
+						<element name="FSPStandard" type="fsp:FSPStandardsType" maxOccurs="unbounded"/>
+					</sequence>
+				</complexType>
+			</element>
+		</sequence>
+	</complexType>
+	<element name="standards" type="fsp:FSPStandardsType">
+		<annotation>
+			<documentation>New standards, specific to FSP</documentation>
+		</annotation>
+	</element>
+	<complexType name="FSPStandardsType">
+		<annotation>
+			<documentation>Specifies the data for a proposed stocking standard</documentation>
+		</annotation>
+		<sequence>
+			<element name="licenseeStandardsRegimeID" type="mof:NonNegativeInteger10D" minOccurs="0">
+				<annotation>
+					<documentation>An ID number provided by the licensee</documentation>
+				</annotation>
+			</element>
+			<element name="standardsRegimeName" type="mof:AlphaNumeric50" minOccurs="0"/>
+			<element name="standardsObjective" type="mof:AlphaNumeric4000" minOccurs="0"/>
+			<element ref="fsp:regenObjectives"/>
+			<element name="geographicDescription" type="mof:AlphaNumeric50" minOccurs="0"/>
+			<element name="additionalStandards" type="mof:AlphaNumeric4000" minOccurs="0"/>
+			<element name="bgcList" type="fsp:BGCAssociationListType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="standardLayerList" type="fsp:standardLayerListAssociationType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- ========================= Identified Areas Defs ==================================== -->
+	<!-- Local patch (2026-06): same fix as FDUAssociationType above —
+	     the restriction was invalid XSD 1.0, dropping the typed
+	     accessor and silently losing all but one <identifiedArea/>. -->
+	<complexType name="IdentifiedAreaAssociationType">
+		<annotation>
+			<documentation>Association to an identified area list.</documentation>
+		</annotation>
+		<sequence>
+			<element ref="fsp:identifiedArea" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<element name="identifiedArea" type="fsp:IdentifiedAreaType" substitutionGroup="gml:_Feature">
+		<annotation>
+			<documentation>Specification of an Identified Area/documentation</documentation>
+		</annotation>
+	</element>
+	<complexType name="IdentifiedAreaType">
+		<annotation>
+			<documentation>Specifies Identified Area type</documentation>
+		</annotation>
+		<complexContent>
+			<extension base="mof:AbstractMOFFeatureType">
+				<sequence>
+					<element name="identifiedAreaName" type="mof:AlphaNumeric30">
+						<annotation>
+							<documentation>Mandatory: an Identified Area must have a name</documentation>
+						</annotation>
+					</element>
+					<element name="legislationTypeCode" type="mof:AlphaNumeric10" minOccurs="0">
+						<annotation>
+							<documentation>Identifies legislation under which Identified Area is submitted: one of: FRPA196(1), FRPA196(2), FPPR14(4)</documentation>
+						</annotation>
+					</element>
+					<element name="extentOf" type="mof:SingleOrMultiplePolygonPropertyType" minOccurs="0">
+						<annotation>
+							<documentation>Optional: specification of an Identified Area</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<!-- =========================Regen Objectives Defs ==================================== -->
+	<element name="regenObjectives" type="fsp:RegenObjectivesType"/>
+	<complexType name="RegenObjectivesType">
+		<sequence>
+			<element name="regenObligationInd" type="boolean"/>
+			<element name="regenOffset" type="mof:NonNegativeInteger2D" minOccurs="0"/>
+			<element name="earlyOffset" type="mof:NonNegativeInteger2D" minOccurs="0"/>
+			<element name="lateOffset" type="mof:NonNegativeInteger2D"/>
+		</sequence>
+	</complexType>
+	<!-- ========================= BGC Defs ==================================== -->
+	<complexType name="BGCAssociationListType">
+		<annotation>
+			<documentation>Composition association to a BGC data object.</documentation>
+		</annotation>
+		<sequence>
+			<element ref="fsp:bgc" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<element name="bgc" type="fsp:BGCType"/>
+	<complexType name="BGCType">
+		<sequence>
+			<element name="bgcZone" type="mof:AlphaNumeric4" minOccurs="0"/>
+			<element name="bgcSubzone" type="mof:AlphaNumeric3" minOccurs="0"/>
+			<element name="bgcVariant" type="mof:AlphaNumeric1" minOccurs="0"/>
+			<element name="bgcPhase" type="mof:AlphaNumeric1" minOccurs="0"/>
+			<element name="bgcSiteSeries" type="mof:AlphaNumeric4" minOccurs="0"/>
+			<element name="bgcSiteType" type="mof:AlphaNumeric2" minOccurs="0"/>
+			<element name="bgcSeral" type="mof:AlphaNumeric4" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!-- ========================= Standards Layer Defs ==================================== -->
+	<complexType name="standardLayerListAssociationType">
+		<annotation>
+			<documentation>Composition association to a standards layer data object.</documentation>
+		</annotation>
+		<sequence>
+			<element ref="fsp:standardLayer" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<element name="standardLayer" type="fsp:StandardLayerType"/>
+	<complexType name="StandardLayerType">
+		<annotation>
+			<documentation>Specifies one layer of a stocking standard</documentation>
+		</annotation>
+		<sequence>
+			<element name="stockingLayerCode" type="mof:AlphaNumeric2" minOccurs="0"/>
+			<element name="wellSpaced" type="mof:NonNegativeInteger5D" minOccurs="0"/>
+			<element name="minPrefWellSpaced" type="mof:NonNegativeInteger5D" minOccurs="0"/>
+			<element name="residualBasalArea" type="mof:NonNegativeInteger5D" minOccurs="0"/>
+			<element name="minHorizontalDistance" type="mof:Decimal3D1d" minOccurs="0"/>
+			<element name="minPostSpacing" type="mof:NonNegativeInteger10D" minOccurs="0"/>
+			<element name="maxPostSpacing" type="mof:NonNegativeInteger10D" minOccurs="0"/>
+			<element name="minStockingStandard" type="mof:NonNegativeInteger5D" minOccurs="0"/>
+			<element name="maxConifer" type="mof:NonNegativeInteger10D" minOccurs="0"/>
+			<element name="heightRelativeToComp" type="mof:NonNegativeInteger5D" minOccurs="0"/>
+			<element name="heightRelativeToCompCode" type="mof:AlphaNumeric3" minOccurs="0"/>
+			<element name="standardLayerSpeciesList" type="fsp:standardLayerSpeciesListAssociationType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- =========================Standards Layer Species Defs ==================================== -->
+	<complexType name="standardLayerSpeciesListAssociationType">
+		<sequence>
+			<element ref="fsp:standardLayerSpecies" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<element name="standardLayerSpecies" type="fsp:StandardLayerSpeciesType"/>
+	<complexType name="StandardLayerSpeciesType">
+		<sequence>
+			<element name="speciesCode" type="mof:AlphaNumeric8" minOccurs="0"/>
+			<element name="minHeight" type="mof:Decimal3D1d" minOccurs="0"/>
+			<element name="preferredSpeciesInd" type="boolean" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<simpleType name="actionCodeType" final="#all">
+		<annotation>
+			<documentation>Describes submission as (I)nsert or (U)pdate or (A)mendment</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="I"/>
+			<enumeration value="U"/>
+			<enumeration value="A"/>
+		</restriction>
+	</simpleType>
+</schema>

@@ -2,6 +2,7 @@ package ca.bc.gov.nrs.fsp.api.dao.v1.impl;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.AbstractStoredProcedureDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550StdsProposalDao;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -63,14 +64,15 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
               rs.getString(13),  // regen_delay_offset_yrs
               rs.getString(14),  // free_growing_early_offset_yrs
               rs.getString(15),  // free_growing_late_offset_yrs
-              // skip no_regen_early_offset_yrs (16) and
-              // no_regen_late_offset_yrs (17) — not surfaced yet
+              rs.getString(16),  // no_regen_early_offset_yrs
+              rs.getString(17),  // no_regen_late_offset_yrs
               rs.getString(18),  // additional_standards
               // skip reject_note (19)
               rs.getString(20),  // submitted_by_userid
               // skip standards_used_by_ssu_ind (21)
               rs.getString(36),  // mof_default_standard_ind  (note: mapping below)
               rs.getString(37),  // standards_amend_number    (note: mapping below)
+              rs.getString(35),  // revision_count — needed for SAVE optimistic-lock
               // Layer flag/id pairs (22-31): Y/N indicator + the
               // standards_regime_layer_id for each layer the proc
               // would otherwise return as a separate sub-cursor.
@@ -85,7 +87,7 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
               rs.getString(30),  // layer_4
               rs.getString(31)   // layer_4_id
               // skip stocking_layer_code (32), standards_regime_layer_id (33),
-              // update_userid (34), revision_count (35) — not surfaced yet
+              // update_userid (34) — not surfaced yet
           ));
           List<OrgUnitRow> districts = readCursor(cs, 6, rs -> new OrgUnitRow(
               rs.getString(2),   // org_unit_no
@@ -118,6 +120,114 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
           String error = cs.getString(4);
           Result r = new Result(header, districts, clients, attachments, bgcZones, error);
           throwIfError(PACKAGE_NAME, PROCEDURE_NAME, error);
+          return r;
+        });
+  }
+
+  @Override
+  public String getRevisionCount(String regimeId) {
+    try {
+      Long n = jdbcTemplate.queryForObject(
+          "SELECT revision_count FROM standards_regime WHERE standards_regime_id = ?",
+          Long.class, Long.parseLong(regimeId));
+      return n == null ? null : n.toString();
+    } catch (EmptyResultDataAccessException e) {
+      return null;
+    } catch (NumberFormatException e) {
+      return null;
+    }
+  }
+
+  @Override
+  public AttachmentBlob getAttachmentBlob(String regimeAttachId) {
+    String call = "{call " + PACKAGE_NAME + ".GET_ATTACHMENT_BLOB(?,?,?,?)}";
+    return executeCall(call,
+        cs -> {
+          // 1 INOUT regime_attach_id, 2 OUT attachment_name,
+          // 3 INOUT BLOB attachment_data, 4 OUT error_message
+          setInOutString(cs, 1, regimeAttachId);
+          cs.registerOutParameter(2, Types.VARCHAR);
+          cs.setNull(3, Types.BLOB);
+          cs.registerOutParameter(3, Types.BLOB);
+          cs.registerOutParameter(4, Types.VARCHAR);
+        },
+        cs -> {
+          String name = cs.getString(2);
+          java.sql.Blob blob = cs.getBlob(3);
+          byte[] bytes = blob == null
+              ? new byte[0]
+              : blob.getBytes(1L, (int) blob.length());
+          throwIfError(PACKAGE_NAME, "GET_ATTACHMENT_BLOB", cs.getString(4));
+          return new AttachmentBlob(name, bytes);
+        });
+  }
+
+  // -----------------------------------------------------------------
+  // Write paths — added for the XML-submission Phase 2 persistence work.
+  // The legacy ESF agent wired these procs through pkgdefinitions; we
+  // mirror that param order. INOUT params (regime id, revision count)
+  // come back populated by the proc on insert.
+  // -----------------------------------------------------------------
+
+  private static final int SAVE_PARAM_COUNT = 20;
+  private static final String SAVE_CALL = callSql(PACKAGE_NAME, PROCEDURE_SAVE, SAVE_PARAM_COUNT);
+  private static final int SAVE_BGC_PARAM_COUNT = 13;
+  private static final String SAVE_BGC_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_SAVE_BGC_ITEM, SAVE_BGC_PARAM_COUNT);
+
+  @Override
+  public SaveResult save(SaveRequest req) {
+    return executeCall(SAVE_CALL,
+        cs -> {
+          setInOutString(cs, 1, req.standardsRegimeId());        // INOUT
+          cs.setString(2, req.fspId());                           // IN
+          cs.setString(3, req.fspAmendmentNumber());              // IN
+          cs.setString(4, req.standardsRegimeName());             // IN
+          cs.setString(5, req.standardsObjective());              // IN
+          cs.setString(6, req.regulationCode());                  // IN
+          cs.setString(7, req.geographicDescription());           // IN
+          cs.setString(8, req.standardsRegimeStatusCode());       // IN
+          cs.setString(9, req.effectiveDate());                   // IN
+          cs.setString(10, req.expiryDate());                     // IN
+          cs.setString(11, req.regenObligationInd());             // IN
+          cs.setString(12, req.regenDelayOffsetYrs());            // IN
+          cs.setString(13, req.freeGrowingEarlyOffsetYrs());      // IN
+          cs.setString(14, req.freeGrowingLateOffsetYrs());       // IN
+          cs.setString(15, req.noRegenEarlyOffsetYrs());          // IN
+          cs.setString(16, req.noRegenLateOffsetYrs());           // IN
+          cs.setString(17, req.additionalStandards());            // IN
+          cs.setString(18, req.updateUserid());                   // IN
+          setInOutString(cs, 19, req.revisionCount());            // INOUT
+          setInOutString(cs, 20, "");                             // INOUT p_error_message
+        },
+        cs -> {
+          SaveResult r = new SaveResult(cs.getString(1), cs.getString(19), cs.getString(20));
+          throwIfError(PACKAGE_NAME, PROCEDURE_SAVE, r.errorMessage());
+          return r;
+        });
+  }
+
+  @Override
+  public SaveBgcResult saveBgcItem(SaveBgcRequest req) {
+    return executeCall(SAVE_BGC_CALL,
+        cs -> {
+          setInOutString(cs, 1, req.stdsRegimeSiteSeriesId());    // INOUT
+          cs.setString(2, req.standardsRegimeId());               // IN
+          setInOutString(cs, 3, req.bgcZoneCode());               // INOUT
+          setInOutString(cs, 4, req.bgcSubzoneCode());            // INOUT
+          setInOutString(cs, 5, req.bgcVariant());                // INOUT
+          setInOutString(cs, 6, req.bgcPhase());                  // INOUT
+          setInOutString(cs, 7, req.becSiteSeriesCd());           // INOUT
+          setInOutString(cs, 8, req.becSiteSeriesPhaseCd());      // INOUT
+          setInOutString(cs, 9, req.becSeral());                  // INOUT
+          cs.setString(10, req.updateUserid());                   // IN
+          cs.setString(11, req.revisionCount());                  // IN
+          cs.setString(12, req.standardsRevisionCount());         // IN
+          setInOutString(cs, 13, "");                             // INOUT p_error_message
+        },
+        cs -> {
+          SaveBgcResult r = new SaveBgcResult(cs.getString(1), cs.getString(13));
+          throwIfError(PACKAGE_NAME, PROCEDURE_SAVE_BGC_ITEM, r.errorMessage());
           return r;
         });
   }

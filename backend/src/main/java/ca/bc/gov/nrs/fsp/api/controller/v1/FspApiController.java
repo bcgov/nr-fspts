@@ -25,6 +25,7 @@ public class FspApiController implements FspApiEndpoint {
     private final HistoryService historyService;
     private final ExtensionService extensionService;
     private final FduService fduService;
+    private final IdentifiedAreasService identifiedAreasService;
     private final StandardRegimeService standardRegimeService;
     private final CodeListsService codeListsService;
     private final FspExtentService fspExtentService;
@@ -36,6 +37,7 @@ public class FspApiController implements FspApiEndpoint {
                             InboxService inboxService, HistoryService historyService,
                             ExtensionService extensionService,
                             FduService fduService,
+                            IdentifiedAreasService identifiedAreasService,
                             StandardRegimeService standardRegimeService,
                             CodeListsService codeListsService, FspExtentService fspExtentService,
                             DistrictNotificationService districtNotificationService,
@@ -48,6 +50,7 @@ public class FspApiController implements FspApiEndpoint {
         this.historyService = historyService;
         this.extensionService = extensionService;
         this.fduService = fduService;
+        this.identifiedAreasService = identifiedAreasService;
         this.standardRegimeService = standardRegimeService;
         this.codeListsService = codeListsService;
         this.fspExtentService = fspExtentService;
@@ -65,6 +68,16 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<List<CodeOption>> getFspStatusCodes() {
         return ResponseEntity.ok(codeListsService.getFspStatusCodes());
+    }
+
+    @Override
+    public ResponseEntity<List<CodeOption>> getFspAmendmentNumbers(String fspId) {
+        return ResponseEntity.ok(codeListsService.getFspAmendmentNumbers(fspId));
+    }
+
+    @Override
+    public ResponseEntity<List<CodeOption>> getSilvTreeSpeciesCodes() {
+        return ResponseEntity.ok(codeListsService.getSilvTreeSpeciesCodes());
     }
 
     // --- FSP ---
@@ -89,6 +102,11 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<List<WorkflowResponse>> getWorkflow(String fspId) {
         return ResponseEntity.ok(workflowService.getWorkflow(fspId));
+    }
+
+    @Override
+    public ResponseEntity<WorkflowState> getWorkflowState(String fspId) {
+        return ResponseEntity.ok(workflowService.getWorkflowState(fspId));
     }
 
     @Override
@@ -167,6 +185,11 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
+    public ResponseEntity<IdentifiedAreaList> getIdentifiedAreas(String fspId) {
+        return ResponseEntity.ok(identifiedAreasService.getAreas(fspId));
+    }
+
+    @Override
     public ResponseEntity<StandardRegimeDetail> getStandardRegimeDetail(
             String fspId, String regimeId, String amendmentNumber) {
         return ResponseEntity.ok(
@@ -174,10 +197,58 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
+    public ResponseEntity<StandardRegimeDetail> updateStandardRegimeOverview(
+            String fspId, String regimeId, String amendmentNumber,
+            StandardRegimeOverviewUpdate body) {
+        return ResponseEntity.ok(
+                standardRegimeService.saveOverview(fspId, regimeId, amendmentNumber, body));
+    }
+
+    @Override
     public ResponseEntity<StandardRegimeLayerDetail> getStandardRegimeLayerDetail(
             String fspId, String regimeId, String layerCode, String layerId) {
         return ResponseEntity.ok(
                 standardRegimeService.getLayerDetail(regimeId, layerCode, layerId));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeLayerDetail> updateStandardRegimeLayer(
+            String fspId, String regimeId, String layerCode, String layerId,
+            StandardRegimeLayerUpdate body) {
+        return ResponseEntity.ok(
+                standardRegimeService.saveLayer(fspId, regimeId, layerCode, layerId, body));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeLayerDetail> addStandardRegimeLayerSpecies(
+            String fspId, String regimeId, String layerCode, String layerId,
+            StandardRegimeLayerSpeciesAdd body) {
+        return ResponseEntity.ok(standardRegimeService.addLayerSpecies(
+                fspId, regimeId, layerCode, layerId,
+                body.getSpeciesCode(), body.getMinHeight(), body.isPreferred()));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeLayerDetail> deleteStandardRegimeLayerSpecies(
+            String fspId, String regimeId, String layerCode, String speciesCode,
+            String layerId, String preferred, String revisionCount) {
+        return ResponseEntity.ok(standardRegimeService.deleteLayerSpecies(
+                fspId, regimeId, layerCode, layerId,
+                speciesCode, "Y".equalsIgnoreCase(preferred), revisionCount));
+    }
+
+    @Override
+    public ResponseEntity<byte[]> downloadStandardRegimeAttachment(
+            String fspId, String regimeId, String attachmentId) {
+        var blob = standardRegimeService.getAttachmentBlob(attachmentId);
+        String filename = blob.attachmentName() != null
+                ? blob.attachmentName()
+                : "attachment-" + attachmentId;
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(blob.content());
     }
 
     // --- Map View extent ---
