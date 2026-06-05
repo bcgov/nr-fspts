@@ -36,7 +36,12 @@ class SubmissionValidationServiceTest {
     service = new SubmissionValidationService(
         new SubmissionEnvelopeStripper(),
         parser,
-        new GeometryValidator(new GmlGeometryConverter()));
+        new ca.bc.gov.nrs.fsp.api.submission.geojson.SubmissionGeoJsonParser(
+            new com.fasterxml.jackson.databind.ObjectMapper()),
+        new GeometryValidator(new GmlGeometryConverter()),
+        new SubmissionPreviewMapper(
+            org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
+            org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.Sil21ClientSearchDao.class)));
   }
 
   @Test

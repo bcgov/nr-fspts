@@ -76,7 +76,19 @@
 
       .single-row {
         flex-direction: row;
+        flex-wrap: wrap;
         gap: 1rem;
+
+        // Don't stretch the buttons to fill the row — keep them at
+        // their intrinsic content width plus a tight max-width, so
+        // they read as two compact CTAs rather than a wide ribbon.
+        .login-btn {
+          flex: 0 0 auto;
+          width: auto;
+          min-width: 18rem;
+          max-width: 24rem;
+          justify-content: space-between;
+        }
       }
 
       .two-rows {

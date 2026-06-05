@@ -29,7 +29,7 @@ const LandingPage: FC = () => {
               Forest Stewardship Plan Tracking System
             </h2>
 
-            <div className="buttons-container two-rows">
+            <div className="buttons-container single-row">
               <Button
                 type="button"
                 onClick={() => login('idir')}

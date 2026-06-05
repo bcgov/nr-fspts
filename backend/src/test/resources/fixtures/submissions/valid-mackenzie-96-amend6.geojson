@@ -1,0 +1,75 @@
+{
+  "type": "FeatureCollection",
+  "crs": { "type": "name", "properties": { "name": "EPSG:3005" } },
+  "fsp": {
+    "fspId": "96",
+    "planName": "Sample Mackenzie TSA FSP",
+    "actionCode": "A",
+    "amendmentName": "ARA#6",
+    "amendmentComment": "Expanding the North FDU and Adding the South FDU",
+    "amendmentApprovalRequired": true,
+    "submissionMetadata": {
+      "contactName": "Test Contact",
+      "telephoneNumber": "2505550000",
+      "emailAddress": "test.contact@example.com",
+      "attachmentCount": 0
+    },
+    "planHolders": ["00001271", "00161366"],
+    "districts": ["DMK"],
+    "planTermYears": 5,
+    "planTermMonths": 0,
+    "frpa197": true,
+    "transitional": false,
+    "legalDocConsolidated": false,
+    "fduUpdate": true,
+    "identifiedAreasUpdate": false,
+    "stockingStandardsUpdate": false
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [1474614.592, 555392.241],
+            [1474537.863, 555275.825],
+            [1474588.134, 555146.178],
+            [1474723.072, 555080.033],
+            [1474818.322, 555138.241],
+            [1474902.989, 555220.262],
+            [1474818.322, 555334.033],
+            [1474701.905, 555437.221],
+            [1474614.592, 555392.241]
+          ]
+        ]
+      },
+      "properties": {
+        "fspEntityType": "FDU",
+        "name": "Sample North FDU",
+        "licenceNumbers": ["A15384"]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [1474782.182, 555366.066],
+            [1474701.905, 555437.221],
+            [1474651.142, 555411.070],
+            [1474667.509, 555386.950],
+            [1474760.114, 555331.387],
+            [1474782.182, 555366.066]
+          ]
+        ]
+      },
+      "properties": {
+        "fspEntityType": "IDENTIFIED_AREA",
+        "name": "Caribou Habitat Sample",
+        "legislationTypeCode": "FRPA196(1)"
+      }
+    }
+  ]
+}

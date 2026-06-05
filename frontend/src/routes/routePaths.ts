@@ -34,27 +34,15 @@ export function isMenuParent(item: MenuItem): item is MenuParent {
 // NavBar.tsx; the deeply-nested "Search > Links > FTA" branch was flattened
 // to a single level because Carbon's SideNav supports only one level of
 // nesting.
+// Sorted alphabetically by label. New entries should slot in by name to
+// keep the SideNav scannable — don't append to the end.
 const NAV: MenuItem[] = [
   {
-    id: 'Search',
-    label: 'Search',
-    path: '/search',
-    icon: Search,
-  },
-  {
-    id: 'Inbox',
-    label: 'Inbox',
-    path: '/inbox',
-    icon: Notification,
-  },
-  {
-    // Single-entry submenu was visually awkward in the SideNav and
-    // there's only one data-submission route today. Promoted to a
-    // top-level leaf; re-introduce the parent if a second submission
-    // type (GeoJSON, batch upload, etc.) lands later.
+    // Single-entry top-level leaf; if more submission flows land
+    // later, re-introduce a parent submenu.
     id: 'Data Submission',
     label: 'Data Submission',
-    path: '/data-submission/xml',
+    path: '/data-submission',
     icon: Catalog,
   },
   {
@@ -65,10 +53,30 @@ const NAV: MenuItem[] = [
     roles: ['FSPTS_ADMINISTRATOR'],
   },
   {
+    id: 'FSP Search',
+    label: 'FSP Search',
+    path: '/search',
+    icon: Search,
+  },
+  {
+    id: 'Inbox',
+    label: 'Inbox',
+    path: '/inbox',
+    icon: Notification,
+  },
+  {
     id: 'Reports',
     label: 'Reports',
     path: '/reports/jcrs',
     icon: Report,
+  },
+  {
+    // FSP501 — Stocking Standards Search. Separate from FSP Search
+    // because the criteria + result columns are entirely different.
+    id: 'Standards Search',
+    label: 'Standards Search',
+    path: '/standards-search',
+    icon: Search,
   },
   // Kept commented so the icon import doesn't tree-shake — wire in if we
   // ever add a dashboard route. Removing for now keeps the SideNav focused.

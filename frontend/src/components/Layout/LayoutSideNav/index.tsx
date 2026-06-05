@@ -1,5 +1,5 @@
 import { SideNav, SideNavItems, SideNavLink, SideNavMenu, SideNavMenuItem } from '@carbon/react';
-import { useEffect, type FC } from 'react';
+import { type FC } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/auth/useAuth';
 import { useLayout } from '@/context/layout/useLayout';
@@ -7,22 +7,14 @@ import { getMenuEntries, isMenuParent, type MenuItem, type MenuLeaf } from '@/ro
 import './LayoutSideNav.css';
 
 export const LayoutSideNav: FC = () => {
-  const { isSideNavExpanded, closeSideNav } = useLayout();
+  const { isSideNavExpanded } = useLayout();
   const location = useLocation();
   const { user } = useAuth();
   const roles = user?.roles ?? [];
 
-  useEffect(() => {
-    if (!isSideNavExpanded) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Element | null;
-      if (!target) return;
-      if (target.closest('.side-nav-drawer, .cds--header__menu-toggle')) return;
-      closeSideNav();
-    };
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [isSideNavExpanded, closeSideNav]);
+  // Note: the drawer no longer auto-closes on link click or outside
+  // pointer-down. The only way to dismiss it is the header X button,
+  // which is the behaviour the team wanted ("stay popped out").
 
   const renderLeaf = (route: MenuLeaf) => (
     <SideNavLink
@@ -32,7 +24,6 @@ export const LayoutSideNav: FC = () => {
       to={route.path}
       isActive={route.path === location.pathname}
       renderIcon={route.icon}
-      onClick={closeSideNav}
     >
       {route.label}
     </SideNavLink>
@@ -57,7 +48,6 @@ export const LayoutSideNav: FC = () => {
             as={Link}
             to={child.path}
             isActive={child.path === location.pathname}
-            onClick={closeSideNav}
           >
             {child.label}
           </SideNavMenuItem>

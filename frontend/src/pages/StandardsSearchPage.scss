@@ -1,0 +1,35 @@
+// Page-local tweaks layered on top of SearchPage.scss (reused for the
+// shared form-grid + action-row pattern).
+
+// Wider gap between Clear and Search than the FspSearchPage default
+// (0.75rem) so the destructive and primary buttons feel distinctly
+// separated.
+.standards-search__actions.fsp-search__actions {
+  gap: 1.5rem;
+}
+
+// FSP250 detail dialog. Carbon's lg modal caps content at ~64rem; the
+// embedded StandardRegimeDetailPanel ships with a `fsp-info__tile`
+// background that doubles up the modal's own panel chrome. Strip the
+// panel's outer chrome inside the modal so the user sees a single
+// container instead of a tile-in-tile look.
+.standards-search__detail-modal {
+  .cds--modal-content {
+    // Let the inner content take the full available width — Carbon's
+    // default body padding still applies around the panel.
+    padding-inline: 1rem;
+    padding-block-end: 2rem;
+  }
+
+  // Drop the tile background / border so the panel renders flat
+  // inside the dialog.
+  .fsp-info__tile {
+    background: transparent;
+    padding: 0;
+    min-height: 0;
+  }
+
+  .fsp-info__tile--detail {
+    margin-top: 0;
+  }
+}
