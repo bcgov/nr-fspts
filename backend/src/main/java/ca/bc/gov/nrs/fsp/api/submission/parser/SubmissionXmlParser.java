@@ -62,8 +62,12 @@ public class SubmissionXmlParser {
         return true; // continue collecting
       });
 
-      XMLStreamReader reader =
-          XMLInputFactory.newDefaultFactory().createXMLStreamReader(new ByteArrayInputStream(xml));
+      // XXE hardening — submissions are user-uploaded XML, so disable
+      // DTDs and external entities on the StAX reader feeding JAXB.
+      XMLInputFactory factory = XMLInputFactory.newDefaultFactory();
+      factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+      factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+      XMLStreamReader reader = factory.createXMLStreamReader(new ByteArrayInputStream(xml));
       Object root = unmarshaller.unmarshal(reader);
       FSPSubmissionType submission = extractSubmission(root);
       return new ParseOutcome(submission, errors);
