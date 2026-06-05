@@ -7,6 +7,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -16,6 +17,7 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
@@ -68,9 +70,44 @@ public class SubmissionEnvelopeStripper {
     };
   }
 
-  private RootKind detectRoot(byte[] raw) throws XMLStreamException {
+  // ── XXE-hardened factory helpers ─────────────────────────────────────
+  // Submissions are arbitrary user-uploaded XML, so every parser we
+  // instantiate against them must explicitly disable DTDs, external
+  // entities, XInclude, and external DTD/stylesheet resolution.
+  // CodeQL's "Resolving XML external entity in user-controlled data"
+  // rule flags any unguarded factory in this code path.
+
+  private static XMLInputFactory newSecureXmlInputFactory() {
     XMLInputFactory factory = XMLInputFactory.newDefaultFactory();
     factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+    factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+    return factory;
+  }
+
+  private static DocumentBuilderFactory newSecureDocumentBuilderFactory()
+      throws ParserConfigurationException {
+    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+    factory.setNamespaceAware(true);
+    factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+    factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+    factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+    factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+    factory.setXIncludeAware(false);
+    factory.setExpandEntityReferences(false);
+    return factory;
+  }
+
+  private static TransformerFactory newSecureTransformerFactory()
+      throws TransformerConfigurationException {
+    TransformerFactory factory = TransformerFactory.newInstance();
+    factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+    factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+    factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+    return factory;
+  }
+
+  private RootKind detectRoot(byte[] raw) throws XMLStreamException {
+    XMLInputFactory factory = newSecureXmlInputFactory();
     XMLStreamReader reader = factory.createXMLStreamReader(new ByteArrayInputStream(raw));
     try {
       while (reader.hasNext()) {
@@ -94,13 +131,7 @@ public class SubmissionEnvelopeStripper {
 
   private byte[] extractInner(byte[] raw) throws SubmissionEnvelopeException {
     try {
-      DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-      dbf.setNamespaceAware(true);
-      // hardening — we don't expect or accept external entities in submissions
-      dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-      dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
-      dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-      DocumentBuilder db = dbf.newDocumentBuilder();
+      DocumentBuilder db = newSecureDocumentBuilderFactory().newDocumentBuilder();
       Document doc = db.parse(new ByteArrayInputStream(raw));
 
       NodeList contents = doc.getElementsByTagNameNS(ESF_NAMESPACE, ESF_CONTENT);
@@ -126,7 +157,7 @@ public class SubmissionEnvelopeStripper {
       }
 
       ByteArrayOutputStream out = new ByteArrayOutputStream();
-      Transformer transformer = TransformerFactory.newInstance().newTransformer();
+      Transformer transformer = newSecureTransformerFactory().newTransformer();
       transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
       transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
       transformer.transform(new DOMSource(fsp), new StreamResult(out));
