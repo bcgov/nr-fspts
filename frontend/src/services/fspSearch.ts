@@ -521,6 +521,16 @@ export function getStandardRegimeDetail(
   regimeId: string,
   amendmentNumber?: string,
 ): Promise<StandardRegimeDetail> {
+  // Blank fspId → use the regime-only endpoint (org-unit + client
+  // cursors come back regime-scoped instead of FSP-scoped). Lets
+  // surfaces like the standards-search modal open a regime without
+  // having to pick a specific FSP context first.
+  if (!fspId || !fspId.trim()) {
+    return getJson<StandardRegimeDetail>(
+      `/v1/fsp/standards/${encodeURIComponent(regimeId)}/detail`,
+      'Standards regime detail load',
+    );
+  }
   const qs = amendmentNumber
     ? `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
     : '';
@@ -566,8 +576,14 @@ export function getStandardRegimeLayerDetail(
   layerCode: string,
   layerId: string,
 ): Promise<StandardRegimeLayerDetail> {
+  // Blank fspId → use the regime-only endpoint. Same payload shape;
+  // just skips the FSP path segment so an empty fspId can't produce
+  // a // double-slash 404.
+  const basePath = fspId && fspId.trim()
+    ? `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/layers/${encodeURIComponent(layerCode)}`
+    : `/v1/fsp/standards/${encodeURIComponent(regimeId)}/layers/${encodeURIComponent(layerCode)}`;
   return getJson<StandardRegimeLayerDetail>(
-    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/layers/${encodeURIComponent(layerCode)}?layerId=${encodeURIComponent(layerId)}`,
+    `${basePath}?layerId=${encodeURIComponent(layerId)}`,
     'Standards layer detail load',
   );
 }

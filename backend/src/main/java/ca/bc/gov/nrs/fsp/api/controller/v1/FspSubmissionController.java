@@ -65,7 +65,8 @@ public class FspSubmissionController {
               "UPLOAD_MISSING",
               "file part missing or empty: name="
                   + (file == null ? "<null>" : file.getOriginalFilename())
-                  + " size=" + (file == null ? "<null>" : file.getSize()))));
+                  + " size=" + (file == null ? "<null>" : file.getSize()))),
+          null);
       return ResponseEntity.badRequest().body(missing);
     }
     byte[] xml = file.getBytes();
@@ -104,7 +105,7 @@ public class FspSubmissionController {
     if (file == null || file.isEmpty()) {
       return ResponseEntity.badRequest().body(
           SubmissionValidationResult.failed(List.of(SubmissionValidationError.of(
-              "UPLOAD_MISSING", "no file part named 'file' was provided"))));
+              "UPLOAD_MISSING", "no file part named 'file' was provided")), null));
     }
     SubmissionValidationService.ValidationOutcome outcome =
         validationService.validateAndParse(file.getBytes());

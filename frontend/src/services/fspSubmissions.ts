@@ -19,6 +19,81 @@ export interface SubmissionValidationError {
 export interface SubmissionValidationResult {
   valid: boolean;
   errors: SubmissionValidationError[];
+  /** Populated whenever the XML parses far enough to extract a tree. */
+  preview: SubmissionPreview | null;
+}
+
+// ── Submission preview (mirrors backend SubmissionPreview) ──────────
+
+export interface SubmissionPreviewMetadata {
+  contactName: string | null;
+  telephoneNumber: string | null;
+  emailAddress: string | null;
+  attachmentCount: number | null;
+}
+
+export interface SubmissionPreviewPlanHeader {
+  fspId: string | null;
+  planName: string | null;
+  amendmentName: string | null;
+  actionCode: string | null;
+  actionDescription: string | null;
+  approvalRequired: boolean | null;
+  fduUpdate: boolean | null;
+  identifiedAreasUpdate: boolean | null;
+  stockingStandardUpdate: boolean | null;
+  frpa197: boolean | null;
+  transitional: boolean | null;
+  legalDocConsolidated: boolean | null;
+}
+
+export interface SubmissionPreviewTermAndDates {
+  planStartDate: string | null;
+  planTermYears: number | null;
+  planTermMonths: number | null;
+  planExpiryDate: string | null;
+  amendmentComment: string | null;
+}
+
+export interface SubmissionPreviewFdu {
+  name: string | null;
+  licenceCount: number;
+  polygonCount: number;
+  srsName: string | null;
+}
+
+export interface SubmissionPreviewIdentifiedArea {
+  name: string | null;
+  legislationType: string | null;
+  polygonCount: number;
+  srsName: string | null;
+}
+
+export interface SubmissionPreviewStockingStandard {
+  name: string | null;
+  layerCount: number;
+}
+
+export interface SubmissionPreviewAgreementHolder {
+  clientNumber: string;
+  clientName: string | null;
+}
+
+export interface SubmissionPreviewDistrict {
+  orgUnitCode: string;
+  orgUnitNo: string | null;
+  orgUnitName: string | null;
+}
+
+export interface SubmissionPreview {
+  metadata: SubmissionPreviewMetadata | null;
+  plan: SubmissionPreviewPlanHeader | null;
+  termAndDates: SubmissionPreviewTermAndDates | null;
+  agreementHolders: SubmissionPreviewAgreementHolder[];
+  districts: SubmissionPreviewDistrict[];
+  fdus: SubmissionPreviewFdu[];
+  identifiedAreas: SubmissionPreviewIdentifiedArea[];
+  stockingStandards: SubmissionPreviewStockingStandard[];
 }
 
 /**

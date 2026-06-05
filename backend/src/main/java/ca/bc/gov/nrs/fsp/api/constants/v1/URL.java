@@ -17,6 +17,8 @@ public final class URL {
 
   // FSP
   public static final String FSP_SEARCH = "/search";
+  // FSP501 — Standards Search (independent of an FSP context).
+  public static final String STANDARDS_SEARCH = "/standards/search";
   public static final String FSP_BY_ID = "/{fspId}";
 
   // Sub-resources (used relative to BASE_URL + FSP_BY_ID)
@@ -30,6 +32,9 @@ public final class URL {
   public static final String STANDARDS = "/{fspId}/standards";
   public static final String STANDARD_BY_ID = "/{fspId}/standards/{standardId}";
   public static final String STANDARD_DETAIL = "/{fspId}/standards/{regimeId}/detail";
+  // Regime-only GET (no FSP context). Used by the standards-search
+  // modal where the user lands on a regime without picking an FSP.
+  public static final String STANDARD_REGIME_DETAIL = "/standards/{regimeId}/detail";
   // PUT-only endpoint for the Standards View Overview-tab edits.
   // Distinct from STANDARD_DETAIL so the GET method signature stays
   // narrow (no @RequestBody). Targets FSP_550_STDS_PROPOSAL.SAVE.
@@ -37,6 +42,10 @@ public final class URL {
       "/{fspId}/standards/{regimeId}/overview";
   public static final String STANDARD_LAYER_DETAIL =
       "/{fspId}/standards/{regimeId}/layers/{layerCode}";
+  // Regime-only layer detail GET. Same payload as STANDARD_LAYER_DETAIL
+  // but no FSP context — used by the standards-search dialog.
+  public static final String STANDARD_REGIME_LAYER_DETAIL =
+      "/standards/{regimeId}/layers/{layerCode}";
   // Per-layer species CRUD — POST adds, DELETE removes a row from the
   // preferred or acceptable list (?preferred=Y|N&revisionCount=… for
   // DELETE). Always returns the refreshed layer detail.

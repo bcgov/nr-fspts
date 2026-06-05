@@ -54,6 +54,11 @@ public interface FspApiEndpoint {
     })
     ResponseEntity<PageableResponse<FspSearchResult>> searchFsp(@Valid FspSearchRequest request);
 
+    @GetMapping(URL.STANDARDS_SEARCH)
+    @Operation(summary = "Search Stocking Standards (FSP501) via FSP_501_STDS_SRCH.MAINLINE")
+    ResponseEntity<PageableResponse<StandardsSearchResult>> searchStandards(
+            @Valid StandardsSearchRequest request);
+
     @GetMapping(URL.FSP_BY_ID)
     @Operation(summary = "Get FSP by ID via fsp_300_information.MAINLINE")
     ResponseEntity<FspRequest> getFspById(
@@ -156,6 +161,11 @@ public interface FspApiEndpoint {
             @PathVariable String regimeId,
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
+    @GetMapping(URL.STANDARD_REGIME_DETAIL)
+    @Operation(summary = "Get standards regime detail with regime-scoped org/clients (no FSP context)")
+    ResponseEntity<StandardRegimeDetail> getStandardRegimeDetailByRegime(
+            @PathVariable String regimeId);
+
     @PutMapping(URL.STANDARD_OVERVIEW)
     @Operation(summary = "Save standards regime Overview-tab edits via FSP_550_STDS_PROPOSAL.SAVE")
     ResponseEntity<StandardRegimeDetail> updateStandardRegimeOverview(
@@ -168,6 +178,13 @@ public interface FspApiEndpoint {
     @Operation(summary = "Get per-layer detail (FSP_550_SUB_LAYERS + FSP_550_SUB_SPECIES)")
     ResponseEntity<StandardRegimeLayerDetail> getStandardRegimeLayerDetail(
             @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @PathVariable String layerCode,
+            @RequestParam(name = "layerId") String layerId);
+
+    @GetMapping(URL.STANDARD_REGIME_LAYER_DETAIL)
+    @Operation(summary = "Get per-layer detail (no FSP context — used by standards-search dialog)")
+    ResponseEntity<StandardRegimeLayerDetail> getStandardRegimeLayerDetailByRegime(
             @PathVariable String regimeId,
             @PathVariable String layerCode,
             @RequestParam(name = "layerId") String layerId);

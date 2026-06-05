@@ -1,6 +1,6 @@
-// Mirrors src/pages/SearchPage.scss / InboxPage.scss — Grid + Tile
-// frame with internal field grid + form actions row, so the XML
-// submission page reads as another page-of-the-suite.
+// XmlSubmissionPage — vertical section layout. Mirrors the screenshot
+// reference: each entity block renders as its own tile with a gray
+// header bar above a 2-column field grid. Empty fields show "—".
 
 .fsp-submit-grid {
   row-gap: 2rem;
@@ -8,68 +8,119 @@
 
 .fsp-submit__header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.25rem;
 
   h1 {
     margin: 0;
   }
-}
 
-.fsp-submit__tile {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-
-  // Same field-surface bump as the Search/Inbox tiles so input widgets
-  // read as elevated fields against the tile's gray (layer-01) instead
-  // of blending in.
-  --cds-field: var(--cds-field-02);
-  --cds-field-hover: var(--cds-field-hover-02);
-}
-
-.fsp-submit__form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.fsp-submit__section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.fsp-submit__section-title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0;
-}
-
-.fsp-submit__section-help {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.875rem;
-  color: var(--cds-text-secondary);
-
-  code {
-    font-size: 0.8125rem;
-    background: var(--cds-layer);
-    padding: 0 0.25rem;
-    border-radius: 2px;
+  p {
+    margin: 0;
+    color: var(--cds-text-secondary);
   }
+}
+
+// Outer section "tile" — single bordered container with a gray header
+// strip and a white-ish body. Body padding chosen so the field grid
+// has consistent left/right margin matching the header text.
+.fsp-submit__panel {
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
+  display: flex;
+  flex-direction: column;
+}
+
+.fsp-submit__panel-header {
+  background: var(--cds-layer-accent-01);
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+
+  h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+}
+
+.fsp-submit__panel-body {
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+// 2-column responsive field grid inside a panel body. Collapses to
+// single column on narrow viewports.
+.fsp-submit__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem 2rem;
+
+  @media (min-width: 672px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.fsp-submit__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+
+  dt {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--cds-text-secondary);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--cds-text-primary);
+    word-break: break-word;
+  }
+}
+
+.fsp-submit__field--wide {
+  grid-column: 1 / -1;
+}
+
+// Inline list (chip-style) used for plain string lists like
+// agreement-holder codes and district codes.
+.fsp-submit__chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  li {
+    background: var(--cds-layer-accent-01);
+    padding: 0.125rem 0.625rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-family: var(--cds-code-01-font-family, monospace);
+  }
+}
+
+.fsp-submit__empty {
+  margin: 0;
+  color: var(--cds-text-secondary);
+  font-style: italic;
 }
 
 .fsp-submit__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+  justify-content: flex-end;
 }
 
-.fsp-submit__busy,
-.fsp-submit__result {
-  margin-top: 0.5rem;
+.fsp-submit__busy {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .fsp-submit__detail-link {
@@ -78,4 +129,12 @@
 
 .fsp-submit__error-row code {
   font-size: 0.8125rem;
+}
+
+// Carbon's ActionableNotification ships with a max-width that keeps
+// it narrower than its container — override so the success banner
+// spans the full page width like the other panels.
+.fsp-submit__success-banner {
+  max-width: none;
+  width: 100%;
 }

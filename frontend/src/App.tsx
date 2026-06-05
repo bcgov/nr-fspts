@@ -6,7 +6,9 @@ import {useAuth} from './context/auth/useAuth';
 
 // Pages
 import LandingPage from './pages/LandingPage';
+import UnauthorizedPage from './pages/UnauthorizedPage';
 import SearchPage from './pages/SearchPage';
+import StandardsSearchPage from './pages/StandardsSearchPage';
 import InboxPage from './pages/InboxPage';
 import FspInformationPage from './pages/FspInformation';
 import AmendInformationPage from './pages/AmendInformationPage';
@@ -26,7 +28,7 @@ const withLayout = (node: ReactNode) => <Layout>{node}</Layout>;
 
 // ── App ────────────────────────────────────────────────────
 export default function App() {
-  const { isLoggedIn, isLoading } = useAuth();
+  const { isLoggedIn, isLoading, user } = useAuth();
 
   // Show a minimal placeholder during the initial auth bootstrap so a
   // page reload mid-session doesn't briefly render the LandingPage
@@ -37,9 +39,20 @@ export default function App() {
     return <div aria-busy="true" />;
   }
 
+  // Authenticated-but-unauthorized: token decoded fine but carries no
+  // recognised FSPTS_* role. AuthProvider keeps these users in state on
+  // purpose (see its `refreshUserState` comment) so we can render a
+  // friendly "no access" landing instead of looping them back through
+  // Cognito. Every URL collapses to /unauthorized in this branch.
+  const hasFsptsRole = isLoggedIn && (user?.roles?.length ?? 0) > 0;
+
   return (
     <BrowserRouter>
-      {isLoggedIn ? (
+      {isLoggedIn && !hasFsptsRole ? (
+        <Routes>
+          <Route path="*" element={<UnauthorizedPage />} />
+        </Routes>
+      ) : isLoggedIn ? (
         <Routes>
           {/* Login flow lands here after Amplify exchanges ?code=&state=;
               the LandingPage's IDIR/BCeID buttons go through Cognito and
@@ -50,6 +63,9 @@ export default function App() {
 
           {/* Search */}
           <Route path="/search"                 element={withLayout(<SearchPage />)} />
+
+          {/* Stocking Standards Search (FSP501) */}
+          <Route path="/standards-search"       element={withLayout(<StandardsSearchPage />)} />
 
           {/* Inbox */}
           <Route path="/inbox"                  element={withLayout(<InboxPage />)} />
@@ -67,8 +83,11 @@ export default function App() {
           <Route path="/fsp/replace-information" element={withLayout(<ReplaceInformationPage />)} />
           <Route path="/fsp/history"            element={withLayout(<HistoryPage />)} />
 
-          {/* Data Submission */}
-          <Route path="/data-submission/xml"    element={withLayout(<XmlSubmissionPage />)} />
+          {/* Data Submission — accepts both XML and GeoJSON. URL kept
+              generic so it survives format additions. */}
+          <Route path="/data-submission"        element={withLayout(<XmlSubmissionPage />)} />
+          {/* Backwards-compat redirect for any stored /data-submission/xml link */}
+          <Route path="/data-submission/xml"    element={<Navigate to="/data-submission" replace />} />
 
           {/* Admin */}
           <Route path="/admin/district-notification" element={withLayout(<DistrictNotificationPage />)} />

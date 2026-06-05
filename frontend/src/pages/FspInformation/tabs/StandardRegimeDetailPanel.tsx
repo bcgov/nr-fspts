@@ -125,6 +125,12 @@ interface Props {
   fspId: string;
   amendmentNumber: string;
   regimeId: string;
+  /**
+   * When true, all editing affordances (Overview Edit button,
+   * Layer Edit button, species add/delete) are hidden. Defaults
+   * to false so existing call sites stay editable.
+   */
+  readOnly?: boolean;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -143,7 +149,12 @@ const yesNo = (value: string | null | undefined): string => {
  * holders, BGC zones). Mirrors the REPT PropertyDetailTabs layout
  * pattern: nested Carbon Tabs inside a tile.
  */
-const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId }) => {
+const StandardRegimeDetailPanel: FC<Props> = ({
+  fspId,
+  amendmentNumber,
+  regimeId,
+  readOnly = false,
+}) => {
   const [detail, setDetail] = useState<StandardRegimeDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -180,7 +191,10 @@ const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId
   const { display } = useNotification();
 
   useEffect(() => {
-    if (!fspId || !regimeId) return;
+    // fspId is optional — when blank, getStandardRegimeDetail routes
+    // through the regime-only endpoint (used by the standards-search
+    // modal). regimeId is the only hard requirement.
+    if (!regimeId) return;
     let cancelled = false;
     setLoading(true);
     setDetail(null);
@@ -331,12 +345,6 @@ const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId
 
   return (
     <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--detail">
-      <header className="fsp-info__tile-header">
-        <h2 className="fsp-info__section-title">
-          Standards View — {dash(detail.standardsRegimeName)} (SS{' '}
-          {dash(detail.standardsRegimeId)})
-        </h2>
-      </header>
       <div className="fsp-info__inner-tabs">
       <Tabs>
         <TabList aria-label="Standards regime sections" contained>
@@ -350,7 +358,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId
         <TabPanels>
           <TabPanel>
             <div className="fsp-info__tab-panel">
-              {!editingOverview && (
+              {!editingOverview && !readOnly && (
                 <div className="fsp-info__tab-actions">
                   <Button
                     kind="primary"
@@ -589,6 +597,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({ fspId, amendmentNumber, regimeId
                 fspId={fspId}
                 regimeId={regimeId}
                 layers={detail.layers}
+                readOnly={readOnly}
               />
             </div>
           </TabPanel>

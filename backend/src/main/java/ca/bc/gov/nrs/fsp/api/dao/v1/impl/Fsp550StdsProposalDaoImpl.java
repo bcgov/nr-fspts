@@ -26,7 +26,8 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
   }
 
   @Override
-  public Result get(String regimeId, String fspId, String amendmentNumber) {
+  public Result get(String regimeId, String fspId, String amendmentNumber,
+                    String displayFspOrgClients) {
     return executeCall(CALL,
         cs -> {
           cs.setString(1, regimeId);                  // p_standards_regime_id IN
@@ -41,7 +42,7 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
           cs.setString(10, fspId);                    // p_fsp_id IN
           cs.setString(11, amendmentNumber);          // p_fsp_amendment_number IN
           setInOutString(cs, 12, "");                 // p_fsp_status_code INOUT
-          cs.setString(13, "Y");                      // p_display_fsp_org_clients IN
+          cs.setString(13, displayFspOrgClients);     // p_display_fsp_org_clients IN
         },
         cs -> {
           // Header cursor is single-row; map by position 1..N matching

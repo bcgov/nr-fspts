@@ -16,7 +16,14 @@ public interface Fsp550StdsProposalDao {
   String PROCEDURE_SAVE = "SAVE";
   String PROCEDURE_SAVE_BGC_ITEM = "SAVE_BGC_ITEM";
 
-  Result get(String regimeId, String fspId, String amendmentNumber);
+  /**
+   * @param displayFspOrgClients {@code "Y"} scopes the org-unit + client
+   *     cursors to the FSP (requires a valid {@code fspId} +
+   *     {@code amendmentNumber}); {@code "N"} returns the regime's own
+   *     org-units + clients independent of any FSP context.
+   */
+  Result get(String regimeId, String fspId, String amendmentNumber,
+             String displayFspOrgClients);
 
   /**
    * Lightweight lookup of just the standards_regime row's

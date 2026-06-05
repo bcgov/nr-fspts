@@ -18,6 +18,7 @@ import java.util.List;
 public class FspApiController implements FspApiEndpoint {
 
     private final FspService fspService;
+    private final StandardsSearchService standardsSearchService;
     private final WorkflowService workflowService;
     private final StandardsService standardsService;
     private final AttachmentsService attachmentsService;
@@ -32,7 +33,9 @@ public class FspApiController implements FspApiEndpoint {
     private final DistrictNotificationService districtNotificationService;
     private final UserDirectoryService userDirectoryService;
 
-    public FspApiController(FspService fspService, WorkflowService workflowService,
+    public FspApiController(FspService fspService,
+                            StandardsSearchService standardsSearchService,
+                            WorkflowService workflowService,
                             StandardsService standardsService, AttachmentsService attachmentsService,
                             InboxService inboxService, HistoryService historyService,
                             ExtensionService extensionService,
@@ -43,6 +46,7 @@ public class FspApiController implements FspApiEndpoint {
                             DistrictNotificationService districtNotificationService,
                             UserDirectoryService userDirectoryService) {
         this.fspService = fspService;
+        this.standardsSearchService = standardsSearchService;
         this.workflowService = workflowService;
         this.standardsService = standardsService;
         this.attachmentsService = attachmentsService;
@@ -85,6 +89,12 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<PageableResponse<FspSearchResult>> searchFsp(FspSearchRequest request) {
         return ResponseEntity.ok(fspService.search(request));
+    }
+
+    @Override
+    public ResponseEntity<PageableResponse<StandardsSearchResult>> searchStandards(
+            StandardsSearchRequest request) {
+        return ResponseEntity.ok(standardsSearchService.search(request));
     }
 
     @Override
@@ -197,6 +207,11 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
+    public ResponseEntity<StandardRegimeDetail> getStandardRegimeDetailByRegime(String regimeId) {
+        return ResponseEntity.ok(standardRegimeService.getDetailByRegime(regimeId));
+    }
+
+    @Override
     public ResponseEntity<StandardRegimeDetail> updateStandardRegimeOverview(
             String fspId, String regimeId, String amendmentNumber,
             StandardRegimeOverviewUpdate body) {
@@ -207,6 +222,13 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<StandardRegimeLayerDetail> getStandardRegimeLayerDetail(
             String fspId, String regimeId, String layerCode, String layerId) {
+        return ResponseEntity.ok(
+                standardRegimeService.getLayerDetail(regimeId, layerCode, layerId));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeLayerDetail> getStandardRegimeLayerDetailByRegime(
+            String regimeId, String layerCode, String layerId) {
         return ResponseEntity.ok(
                 standardRegimeService.getLayerDetail(regimeId, layerCode, layerId));
     }

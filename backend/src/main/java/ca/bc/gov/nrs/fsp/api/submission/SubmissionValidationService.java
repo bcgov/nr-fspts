@@ -1,5 +1,6 @@
 package ca.bc.gov.nrs.fsp.api.submission;
 
+import ca.bc.gov.nrs.fsp.api.submission.geojson.SubmissionGeoJsonParser;
 import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionEnvelopeException;
 import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionEnvelopeStripper;
 import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionXmlParser;
@@ -24,7 +25,9 @@ public class SubmissionValidationService {
 
   private final SubmissionEnvelopeStripper envelopeStripper;
   private final SubmissionXmlParser parser;
+  private final SubmissionGeoJsonParser geoJsonParser;
   private final GeometryValidator geometryValidator;
+  private final SubmissionPreviewMapper previewMapper;
 
   public SubmissionValidationResult validate(byte[] xml) {
     return validateAndParse(xml).result();
@@ -35,29 +38,84 @@ public class SubmissionValidationService {
    * (notably the persistence path) don't have to re-parse on success.
    * On failure, {@code submission} may be null.
    */
-  public ValidationOutcome validateAndParse(byte[] xml) {
+  public ValidationOutcome validateAndParse(byte[] bytes) {
     List<SubmissionValidationError> errors = new ArrayList<>();
 
-    byte[] fspBytes;
-    try {
-      fspBytes = envelopeStripper.toBareFspSubmission(xml);
-    } catch (SubmissionEnvelopeException e) {
-      errors.add(SubmissionValidationError.of(e.getCode(), e.getMessage()));
-      return new ValidationOutcome(SubmissionValidationResult.failed(errors), null);
-    }
-
-    SubmissionXmlParser.ParseOutcome outcome = parser.parse(fspBytes);
+    SubmissionXmlParser.ParseOutcome outcome = switch (detectFormat(bytes)) {
+      case XML -> parseXml(bytes, errors);
+      case GEOJSON -> geoJsonParser.parse(bytes);
+      case UNKNOWN -> {
+        errors.add(SubmissionValidationError.of(
+            "FORMAT_UNRECOGNIZED",
+            "could not detect format — expected XML (starts with '<') or"
+                + " GeoJSON (starts with '{')"));
+        yield new SubmissionXmlParser.ParseOutcome(null, List.of());
+      }
+    };
     errors.addAll(outcome.errors());
 
+    SubmissionPreview preview = null;
     if (outcome.submission() != null) {
       errors.addAll(geometryValidator.validate(outcome.submission()));
+      // Preview is built even when geometry/schema errors are present —
+      // the user still benefits from seeing what was parsed alongside
+      // the errors that need fixing.
+      preview = previewMapper.toPreview(outcome.submission());
     }
 
     SubmissionValidationResult result = errors.isEmpty()
-        ? SubmissionValidationResult.ok()
-        : SubmissionValidationResult.failed(errors);
+        ? SubmissionValidationResult.ok(preview)
+        : SubmissionValidationResult.failed(errors, preview);
     return new ValidationOutcome(result, outcome.submission());
   }
+
+  /**
+   * XML path: strip the ESF envelope if present, then JAXB-parse.
+   * Envelope failures bubble up as {@link ValidationOutcome} early
+   * exits via the dedicated error code.
+   */
+  private SubmissionXmlParser.ParseOutcome parseXml(
+      byte[] bytes, List<SubmissionValidationError> errors) {
+    byte[] fspBytes;
+    try {
+      fspBytes = envelopeStripper.toBareFspSubmission(bytes);
+    } catch (SubmissionEnvelopeException e) {
+      errors.add(SubmissionValidationError.of(e.getCode(), e.getMessage()));
+      return new SubmissionXmlParser.ParseOutcome(null, List.of());
+    }
+    return parser.parse(fspBytes);
+  }
+
+  /**
+   * Cheap leading-byte sniff so the user can drop either format on the
+   * same uploader. Skips whitespace + UTF-8 BOM; anything else falls
+   * through to {@link Format#UNKNOWN}.
+   */
+  static Format detectFormat(byte[] bytes) {
+    if (bytes == null) return Format.UNKNOWN;
+    int i = 0;
+    // Skip UTF-8 BOM.
+    if (bytes.length >= 3
+        && (bytes[0] & 0xFF) == 0xEF
+        && (bytes[1] & 0xFF) == 0xBB
+        && (bytes[2] & 0xFF) == 0xBF) {
+      i = 3;
+    }
+    while (i < bytes.length) {
+      byte b = bytes[i];
+      if (b == ' ' || b == '\t' || b == '\n' || b == '\r') {
+        i++;
+        continue;
+      }
+      if (b == '<') return Format.XML;
+      if (b == '{') return Format.GEOJSON;
+      return Format.UNKNOWN;
+    }
+    return Format.UNKNOWN;
+  }
+
+  /** Submission upload format. */
+  enum Format { XML, GEOJSON, UNKNOWN }
 
   public record ValidationOutcome(
       SubmissionValidationResult result, FSPSubmissionType submission) {}

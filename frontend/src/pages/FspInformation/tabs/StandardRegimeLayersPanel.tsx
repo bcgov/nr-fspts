@@ -108,6 +108,8 @@ interface Props {
   fspId: string;
   regimeId: string;
   layers: StandardRegimeLayer[];
+  /** When true, hides the layer Edit button + species add/delete UI. */
+  readOnly?: boolean;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -142,10 +144,16 @@ const LAYER_LABEL: Record<string, string> = {
   '4': 'Layer 4 - Regen',
 };
 
-const LayerDetailPanel: FC<{ fspId: string; regimeId: string; layer: StandardRegimeLayer }> = ({
+const LayerDetailPanel: FC<{
+  fspId: string;
+  regimeId: string;
+  layer: StandardRegimeLayer;
+  readOnly?: boolean;
+}> = ({
   fspId,
   regimeId,
   layer,
+  readOnly = false,
 }) => {
   const [detail, setDetail] = useState<StandardRegimeLayerDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -353,7 +361,7 @@ const LayerDetailPanel: FC<{ fspId: string; regimeId: string; layer: StandardReg
 
   return (
     <div className="fsp-info__tab-panel">
-      {!editing && (
+      {!editing && !readOnly && (
         <div className="fsp-info__tab-actions">
           <Button kind="primary" size="sm" renderIcon={Edit} onClick={handleEdit}>
             Edit
@@ -576,6 +584,7 @@ const LayerDetailPanel: FC<{ fspId: string; regimeId: string; layer: StandardReg
         rows={detail.preferredSpecies}
         idPrefix={`pref-${layer.layerCode}`}
         preferred
+        readOnly={readOnly}
         speciesCodes={speciesCodes}
         speciesCodesLoading={speciesCodesLoading}
         onAdd={handleSpeciesAdd}
@@ -587,6 +596,7 @@ const LayerDetailPanel: FC<{ fspId: string; regimeId: string; layer: StandardReg
         rows={detail.acceptableSpecies}
         idPrefix={`acc-${layer.layerCode}`}
         preferred={false}
+        readOnly={readOnly}
         speciesCodes={speciesCodes}
         speciesCodesLoading={speciesCodesLoading}
         onAdd={handleSpeciesAdd}
@@ -609,6 +619,7 @@ const SpeciesEditor: FC<{
   rows: StandardRegimeSpecies[];
   idPrefix: string;
   preferred: boolean;
+  readOnly?: boolean;
   speciesCodes: CodeOption[];
   speciesCodesLoading: boolean;
   onAdd: (
@@ -626,6 +637,7 @@ const SpeciesEditor: FC<{
   rows,
   idPrefix,
   preferred,
+  readOnly = false,
   speciesCodes,
   speciesCodesLoading,
   onAdd,
@@ -696,18 +708,20 @@ const SpeciesEditor: FC<{
     <section className="fsp-info__species-section">
       <header className="fsp-info__species-section-header">
         <h3 className="fsp-info__section-title">{title}</h3>
-        <Button
-          kind="tertiary"
-          size="sm"
-          renderIcon={Add}
-          disabled={speciesCodesLoading || availableCodes.length === 0}
-          onClick={() => {
-            resetComposer();
-            setModalOpen(true);
-          }}
-        >
-          {`Add ${title}`}
-        </Button>
+        {!readOnly && (
+          <Button
+            kind="tertiary"
+            size="sm"
+            renderIcon={Add}
+            disabled={speciesCodesLoading || availableCodes.length === 0}
+            onClick={() => {
+              resetComposer();
+              setModalOpen(true);
+            }}
+          >
+            {`Add ${title}`}
+          </Button>
+        )}
       </header>
 
       {rows.length === 0 ? (
@@ -725,7 +739,9 @@ const SpeciesEditor: FC<{
                   >
                     Min Height
                   </TableHeader>
-                  <TableHeader style={{ width: '4rem' }} aria-label="Actions" />
+                  {!readOnly && (
+                    <TableHeader style={{ width: '4rem' }} aria-label="Actions" />
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -740,17 +756,19 @@ const SpeciesEditor: FC<{
                       <TableCell className="fsp-info__cell--numeric">
                         {dash(row.minHeight)}
                       </TableCell>
-                      <TableCell>
-                        <Button
-                          kind="ghost"
-                          size="sm"
-                          renderIcon={TrashCan}
-                          iconDescription={busy ? 'Removing…' : 'Remove'}
-                          hasIconOnly
-                          disabled={busy || !row.code || !row.revisionCount}
-                          onClick={() => void handleDelete(row)}
-                        />
-                      </TableCell>
+                      {!readOnly && (
+                        <TableCell>
+                          <Button
+                            kind="ghost"
+                            size="sm"
+                            renderIcon={TrashCan}
+                            iconDescription={busy ? 'Removing…' : 'Remove'}
+                            hasIconOnly
+                            disabled={busy || !row.code || !row.revisionCount}
+                            onClick={() => void handleDelete(row)}
+                          />
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
@@ -830,7 +848,12 @@ const SpeciesEditor: FC<{
  * Only layers the regime has data for are rendered (`layers` filtered
  * server-side from the Y flags in FSP_550_STDS_PROPOSAL).
  */
-const StandardRegimeLayersPanel: FC<Props> = ({ fspId, regimeId, layers }) => {
+const StandardRegimeLayersPanel: FC<Props> = ({
+  fspId,
+  regimeId,
+  layers,
+  readOnly = false,
+}) => {
   const [activeIndex, setActiveIndex] = useState(0);
 
   // Reset to first tab when the regime changes (the parent already
@@ -868,7 +891,12 @@ const StandardRegimeLayersPanel: FC<Props> = ({ fspId, regimeId, layers }) => {
         <TabPanels>
           {tabs.map((l) => (
             <TabPanel key={l.layerCode}>
-              <LayerDetailPanel fspId={fspId} regimeId={regimeId} layer={l} />
+              <LayerDetailPanel
+                fspId={fspId}
+                regimeId={regimeId}
+                layer={l}
+                readOnly={readOnly}
+              />
             </TabPanel>
           ))}
         </TabPanels>

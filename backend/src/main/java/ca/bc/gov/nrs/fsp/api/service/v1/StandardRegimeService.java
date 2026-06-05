@@ -32,7 +32,28 @@ public class StandardRegimeService {
   private final Fsp550SubSpeciesDao speciesDao;
 
   public StandardRegimeDetail getDetail(String fspId, String amendmentNumber, String regimeId) {
-    Fsp550StdsProposalDao.Result r = dao.get(regimeId, fspId, amendmentNumber);
+    return getDetailInternal(fspId, amendmentNumber, regimeId, "Y");
+  }
+
+  /**
+   * Regime-only GET — used by the standards-search modal where the
+   * regime is opened without an FSP context. Calls the proc with
+   * blank fspId/amendmentNumber and {@code display_fsp_org_clients='N'}
+   * so org-unit + client cursors return the regime's own data rather
+   * than trying to scope to an FSP that may not match or be accessible.
+   */
+  public StandardRegimeDetail getDetailByRegime(String regimeId) {
+    log.info("getDetailByRegime regimeId={} (display=N, no FSP scope)", regimeId);
+    return getDetailInternal("", "", regimeId, "N");
+  }
+
+  private StandardRegimeDetail getDetailInternal(
+      String fspId, String amendmentNumber, String regimeId, String displayFspOrgClients) {
+    Fsp550StdsProposalDao.Result r =
+        dao.get(regimeId, fspId, amendmentNumber, displayFspOrgClients);
+    log.info("FSP_550_STDS_PROPOSAL.GET regimeId={} fspId={} amendment={} display={} → header={}",
+        regimeId, fspId, amendmentNumber, displayFspOrgClients,
+        r == null || r.header() == null ? "NULL" : "present");
     Fsp550StdsProposalDao.Header h = r.header();
     if (h == null) return null;
     // TEMP DIAGNOSTIC — the Layers tab is showing empty. Log the raw

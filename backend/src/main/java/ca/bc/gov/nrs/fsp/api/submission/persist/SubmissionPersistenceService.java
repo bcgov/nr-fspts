@@ -91,6 +91,10 @@ public class SubmissionPersistenceService {
     log.info(
         "Persisting FSP submission id={} amendment={} actionCode={}",
         request.getFspId(), request.getFspAmendmentNumber(), actionCode);
+    // Diagnostic dump so XML- vs GeoJSON-sourced submissions can be
+    // compared field-by-field when the proc throws an opaque ORA-01403.
+    // Lombok's @Data toString() emits every populated field.
+    log.info("Mapped FspRequest: {}", request);
 
     // Header write routes by actionCode:
     //   I → fspService.create() (proc assigns fsp_id from FSP_SEQ)

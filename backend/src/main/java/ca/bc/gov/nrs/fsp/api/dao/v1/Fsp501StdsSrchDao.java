@@ -4,13 +4,16 @@ import java.util.List;
 
 /**
  * Wraps Oracle package FSP_501_STDS_SRCH (legacy: pkgdefinitions/Fsp501StdsSrch.java).
- * Note: in the legacy descriptor P_ERROR_MESSAGE is at position 22 and P_RESULTS is at 23.
+ * Backs the FSP501 "Standards Search" screen — 21 search criteria
+ * (regime status + org unit + FSP id + client + standards meta +
+ * species + expiry range + 7 BGC fields), one REF CURSOR result.
  */
 public interface Fsp501StdsSrchDao {
 
   String PACKAGE_NAME = "FSP_501_STDS_SRCH";
   String PROCEDURE_NAME = "MAINLINE";
 
+  /** Echoed-back INOUT VARCHARs from the call (positions 1..21 + #22 error). */
   record Header(
       String pAction,
       String pDefaultStandard,
@@ -36,20 +39,24 @@ public interface Fsp501StdsSrchDao {
       String pErrorMessage
   ) {}
 
-  /** P_RESULTS REF CURSOR row, read by column name in legacy adaptor. */
+  /** P_RESULTS REF CURSOR row — 8 columns the FSP501 result table renders. */
   record Row(
       String standardsRegimeId,
       String standardsRegimeName,
       String standardsObjective,
       String bgc,
       String clientNumber,
-      String description,
+      String status,
       String expiryDate,
       String fspIdList
   ) {}
 
   record Result(Header header, List<Row> rows) {}
 
+  /**
+   * @param maxRows upper bound on cursor drain. 0 = drain everything
+   *     (matches FspSearch behaviour — paginate in memory).
+   */
   Result mainline(
       String pAction,
       String pDefaultStandard,
@@ -71,6 +78,7 @@ public interface Fsp501StdsSrchDao {
       String pBgcPhase,
       String pBecSiteSeriesCd,
       String pBecSiteSeriesPhaseCd,
-      String pBecSeral
+      String pBecSeral,
+      int maxRows
   );
 }
