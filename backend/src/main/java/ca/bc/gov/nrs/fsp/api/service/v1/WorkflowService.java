@@ -134,6 +134,7 @@ public class WorkflowService {
             : r.pFspAmendmentNumber(),
         r.pFspStatusCode(),
         r.pFspStatusDesc(),
+        r.pFspAmendmentCode(),
         reviewItems,
         new WorkflowState.Otbh(
             r.pOtbhOfferedDate(),
@@ -155,29 +156,48 @@ public class WorkflowService {
             r.pExtensionDecisionDate(),
             r.pExtensionEffectiveDate(),
             r.pExtensionComment()),
-        r.pExtensionIds()
+        r.pExtensionIds(),
+        new WorkflowState.Roles(
+            RequestUtil.isCurrentUserReviewer(),
+            RequestUtil.isCurrentUserDecisionMaker(),
+            RequestUtil.isCurrentUserAdmin())
     );
   }
 
+  /**
+   * Submit one workflow mutation through FSP_700_WORKFLOW.MAINLINE and
+   * return the refreshed projection so the Workflow tab redraws in one
+   * round-trip. Only the fields the per-action dispatch actually reads
+   * are threaded — everything else stays blank to avoid accidentally
+   * overwriting unrelated columns.
+   */
+  /**
+   * Submit one workflow mutation through FSP_700_WORKFLOW.MAINLINE and
+   * return the refreshed projection so the Workflow tab redraws in one
+   * round-trip. Only the fields the per-action dispatch actually reads
+   * are threaded — everything else stays blank to avoid accidentally
+   * overwriting unrelated columns.
+   */
   @Transactional
-  public void submitAction(String fspId, WorkflowRequest request) {
-    // Legacy audit columns are VARCHAR2(30); use the short FAM IDIR
-    // (truncated) rather than the 46-char Cognito composite.
+  public WorkflowState submitAction(String fspId, WorkflowRequest request) {
     String userId = RequestUtil.getCurrentIdir();
+    String amendment = nz(request.getFspAmendmentNumber());
     workflowDao.mainline(
         request.getAction(),     // P_ACTION
         "",                       // P_NEW_FSP_ID
         fspId,                    // P_FSP_ID
         "",                       // P_FSP_PLAN_NAME
         null,                     // P_FSP_ORG_UNITS
-        "", "",                   // status code/desc
-        "", "",                   // amendment code/desc
-        "",                       // P_NEW_FSP_AMENDMENT_NUMBER
-        "",                       // P_FSP_AMENDMENT_NUMBER
-        "", "",                   // user client number / user role
-        "",                       // P_SUBMISSION_ID
-        "",                       // P_FSP_EXPIRY_DATE
-        "", "",                   // amendment name / efftv date
+        nz(request.getFspStatusCode()),    // P_FSP_STATUS_CODE — SAVE_DDM_* branches on it
+        "",                                 // P_FSP_STATUS_DESC
+        nz(request.getFspAmendmentCode()), // P_FSP_AMENDMENT_CODE — SAVE_DDM_APP needs it
+        "",                                 // P_FSP_AMENDMENT_DESC
+        "",                                 // P_NEW_FSP_AMENDMENT_NUMBER
+        amendment,                          // P_FSP_AMENDMENT_NUMBER
+        "", "",                             // user client number / user role
+        "",                                 // P_SUBMISSION_ID
+        "",                                 // P_FSP_EXPIRY_DATE
+        "", "",                             // amendment name / efftv date
         // FNR / RS / ORS / DDM / OTHER milestone fields (5 × 5 = 25)
         "", "", "", "", "",
         "", "", "", "", "",
@@ -189,16 +209,31 @@ public class WorkflowService {
         "", "", "", "",
         // DDM_ONLY
         "", "", "", "", "", "",
-        // EXTENSION
-        "", "", "", "", "", "", "",
-        // milestone summary
-        "", "",
-        // dates
-        "", "", "", "",
-        request.getComments(),     // P_REVIEW_COMMENT
-        userId,                    // p_UPDATE_USERID
-        ""                         // P_EXTENSION_IDS
+        // EXTENSION (status, id, name, decision date, comment, submission date, effective date)
+        "", nz(request.getExtensionId()), "", "", "", "", "",
+        // P_FSP_REVIEW_MILESTONE_TYP_CD + P_COMPLETED_IND
+        nz(request.getMilestoneType()),
+        nz(request.getCompleted()),
+        // P_OTBH_DATE (SAVE_OTBH_*), then P_PLAN_START_DATE +
+        // P_SUBMISSION_DATE + P_DECISION_DATE (SAVE_DDM_* / SAVE_EXT_*).
+        nz(request.getOtbhDate()),
+        nz(request.getEffectiveDate()),    // P_PLAN_START_DATE
+        nz(request.getSubmissionDate()),
+        nz(request.getDecisionDate()),
+        nz(request.getComments()),         // P_REVIEW_COMMENT
+        userId,                             // p_UPDATE_USERID
+        ""                                  // P_EXTENSION_IDS
     );
+    log.info("Workflow action {} on fsp {} amendment {} by {} — "
+            + "milestone={} completed={} otbhDate={} "
+            + "submissionDate={} decisionDate={} effectiveDate={} "
+            + "extensionId={}",
+        request.getAction(), fspId, amendment, userId,
+        request.getMilestoneType(), request.getCompleted(),
+        request.getOtbhDate(), request.getSubmissionDate(),
+        request.getDecisionDate(), request.getEffectiveDate(),
+        request.getExtensionId());
+    return getWorkflowState(fspId);
   }
 
   private static String nz(String s) {

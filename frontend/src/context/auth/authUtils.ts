@@ -110,20 +110,47 @@ export const parseToken = (idToken: JWT | undefined): FamLoginUser | undefined =
 
 /**
  * Parses Cognito group strings into a user privilege object. Recognises
- * groups that match any AVAILABLE_ROLES root (with or without an org
- * suffix). Unrecognised groups are silently ignored.
+ * groups that match any AVAILABLE_ROLES root (with or without an org or
+ * client-number suffix). For BCeID submitters the 8-digit client-number
+ * suffix carries the scope — collected into the role's value array so
+ * the multi-org picker can list them. Org-code suffixes (e.g. `_DCC`)
+ * are still flattened to global since the backend handles org-unit
+ * filtering for IDIR roles.
  */
 export function parsePrivileges(input: string[]): USER_PRIVILEGE_TYPE {
   const result: USER_PRIVILEGE_TYPE = {};
   for (const item of input) {
     const canonical = canonicalRoleFor(item);
-    if (canonical) {
-      // null = global (non-scoped) role; org suffixes are not used to
-      // narrow scope in FSP — the backend handles org-unit filtering.
+    if (!canonical) continue;
+    const suffix = item.startsWith(`${canonical}_`)
+      ? item.slice(canonical.length + 1)
+      : '';
+    // Only 8-digit numeric suffixes are client-number scopes worth
+    // surfacing to the picker. Everything else (incl. blank for
+    // root-only roles, org codes like DCC, etc.) flattens to global.
+    const isClientNumber = /^\d{8}$/.test(suffix);
+    if (isClientNumber) {
+      const existing = result[canonical] ?? [];
+      if (!existing.includes(suffix)) existing.push(suffix);
+      result[canonical] = existing;
+    } else if (!(canonical in result)) {
       result[canonical] = null;
     }
   }
   return result;
+}
+
+/**
+ * Convenience: returns the list of forest-client numbers a BCeID user
+ * is a Submitter for, sorted ascending. Empty list = not a multi-org
+ * submitter (or not BCeID).
+ */
+export function listSubmitterClientNumbers(
+  privileges: USER_PRIVILEGE_TYPE,
+): string[] {
+  const v = privileges.FSPTS_SUBMITTER;
+  if (!Array.isArray(v)) return [];
+  return [...v].sort();
 }
 
 /**

@@ -277,16 +277,26 @@ export interface FspExtensionDecision {
   comment: string | null;
 }
 
+/** Effective FSPTS roles for the current user, projected by the backend. */
+export interface FspWorkflowRoles {
+  isReviewer: boolean;
+  isDecisionMaker: boolean;
+  isAdministrator: boolean;
+}
+
 export interface FspWorkflowState {
   fspId: string | null;
   fspAmendmentNumber: string | null;
   fspStatusCode: string | null;
   fspStatusDesc: string | null;
+  /** Echoed back on SAVE_DDM_APP so the proc can route fsp_approval correctly. */
+  fspAmendmentCode: string | null;
   reviewItems: FspReviewItem[];
   otbh: FspOtbh;
   ddmDecision: FspDdmDecision;
   extensionDecision: FspExtensionDecision;
   extensionIds: string | null;
+  roles: FspWorkflowRoles;
 }
 
 /**
@@ -298,6 +308,61 @@ export function getFspWorkflowState(fspId: string): Promise<FspWorkflowState> {
     `/v1/fsp/${encodeURIComponent(fspId)}/workflow-state`,
     'Workflow state load',
   );
+}
+
+/** Subset of FSP_700_WORKFLOW.MAINLINE inputs the per-section dialogs send. */
+export interface FspWorkflowActionRequest {
+  /** P_ACTION — e.g. "SAVE_REVIEW", "SAVE_OTBH_OFFERED", "SAVE_DDM_APP". */
+  action: string;
+  fspAmendmentNumber?: string;
+  /** Required for SAVE_REVIEW — FNR/RS/ORS/DDM/OTHER. */
+  milestoneType?: string;
+  /** "Y" / "N" — required for SAVE_REVIEW + SAVE_OTBH_* + SAVE_DDM_* (N = reverse). */
+  completed?: string;
+  /** YYYY-MM-DD. Required for SAVE_OTBH_OFFERED; optional for SAVE_OTBH_HEARD. */
+  otbhDate?: string;
+  /** Current FSP status — required by SAVE_DDM_* branches. Echo from state. */
+  fspStatusCode?: string;
+  /** Current amendment code — required by SAVE_DDM_APP. Echo from state. */
+  fspAmendmentCode?: string;
+  /** YYYY-MM-DD. SAVE_DDM_APP / SAVE_DDM_REJ require submission + decision dates. */
+  submissionDate?: string;
+  /** YYYY-MM-DD. */
+  decisionDate?: string;
+  /** YYYY-MM-DD. Required for SAVE_DDM_APP / SAVE_EXT_APP (the "Approve" branches). */
+  effectiveDate?: string;
+  /** P_EXTENSION_ID — required by SAVE_EXT_APP / SAVE_EXT_REJ. */
+  extensionId?: string;
+  comments?: string;
+}
+
+/**
+ * POST /api/v1/fsp/{fspId}/workflow/action — dispatches one
+ * FSP_700_WORKFLOW.MAINLINE mutation. Backend returns the refreshed
+ * {@link FspWorkflowState} so the Workflow tab can redraw without a
+ * separate GET round-trip.
+ */
+export async function submitFspWorkflowAction(
+  fspId: string,
+  payload: FspWorkflowActionRequest,
+): Promise<FspWorkflowState> {
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/workflow/action`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Workflow action failed (${res.status}): ${detail}`
+        : `Workflow action failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<FspWorkflowState>;
 }
 
 // Extension-summary payload mirrors backend ExtensionSummary (record + nested
@@ -429,6 +494,8 @@ export interface StandardRegimeLayer {
 }
 
 export interface StandardRegimeBgcZone {
+  /** STANDARDS_REGIME_SITE_SERIES_ID — needed to PUT/DELETE a row. */
+  stdsRegimeSiteSeriesId: string | null;
   bgcZoneCode: string | null;
   bgcSubzoneCode: string | null;
   bgcVariant: string | null;
@@ -436,6 +503,8 @@ export interface StandardRegimeBgcZone {
   becSiteSeriesCd: string | null;
   becSiteSeriesPhaseCd: string | null;
   becSeral: string | null;
+  /** Row-level optimistic-lock token. */
+  revisionCount: string | null;
 }
 
 export interface StandardRegimeDetail {
@@ -611,11 +680,15 @@ export async function updateStandardRegimeLayer(
   fspId: string,
   regimeId: string,
   layerCode: string,
-  layerId: string,
+  layerId: string | null,
   payload: StandardRegimeLayerUpdate,
 ): Promise<StandardRegimeLayerDetail> {
+  // Omit the layerId query param entirely when creating a brand-new
+  // layer — the backend's required=false annotation pairs with the
+  // proc's auto-ADD branch (P_REVISION_COUNT null → ADD).
+  const qs = layerId ? `?layerId=${encodeURIComponent(layerId)}` : '';
   const res = await apiFetch(
-    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/layers/${encodeURIComponent(layerCode)}?layerId=${encodeURIComponent(layerId)}`,
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/layers/${encodeURIComponent(layerCode)}${qs}`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -691,6 +764,169 @@ export async function deleteLayerSpecies(
 }
 
 /**
+ * Toggle a regime between single-layer ('I') and multi-layer (1-4).
+ * The proc auto-detects the current shape, so we just POST without
+ * a direction param. Returns the refreshed detail (the `layers` list
+ * shrinks/grows so the layer tab strip rebuilds).
+ */
+export async function convertStandardRegimeLayers(
+  fspId: string,
+  regimeId: string,
+  amendmentNumber: string | undefined,
+): Promise<StandardRegimeDetail> {
+  const qs = amendmentNumber
+    ? `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
+    : '';
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/convert-layers${qs}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Layer conversion failed (${res.status}): ${detail}`
+        : `Layer conversion failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<StandardRegimeDetail>;
+}
+
+/** Payload for FSP_550_STDS_PROPOSAL.SAVE_BGC_ITEM (insert or update). */
+export interface StandardRegimeBgcZoneUpsert {
+  bgcZoneCode?: string | null;
+  bgcSubzoneCode?: string | null;
+  bgcVariant?: string | null;
+  bgcPhase?: string | null;
+  becSiteSeriesCd?: string | null;
+  becSiteSeriesPhaseCd?: string | null;
+  becSeral?: string | null;
+}
+
+/**
+ * Insert a new BGC site-series row on the regime.
+ *
+ * @param amendmentNumber forwarded to the re-read after save. The
+ *   underlying {@code FSP_550_STDS_PROPOSAL.GET} proc does an unguarded
+ *   SELECT INTO on FOREST_STEWARDSHIP_PLAN by (fsp_id, amendment_number),
+ *   so omitting the amendment surfaces as a confusing 404/noRecord.
+ */
+export async function addStandardRegimeBgcZone(
+  fspId: string,
+  regimeId: string,
+  amendmentNumber: string | undefined,
+  payload: StandardRegimeBgcZoneUpsert,
+): Promise<StandardRegimeDetail> {
+  const qs = amendmentNumber
+    ? `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
+    : '';
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/bgc-zones${qs}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Add BGC zone failed (${res.status}): ${detail}`
+        : `Add BGC zone failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<StandardRegimeDetail>;
+}
+
+/** Delete a BGC site-series row. Requires the row's revisionCount for the optimistic-lock check. */
+export async function deleteStandardRegimeBgcZone(
+  fspId: string,
+  regimeId: string,
+  siteSeriesId: string,
+  revisionCount: string,
+  amendmentNumber: string | undefined,
+): Promise<StandardRegimeDetail> {
+  const qs = new URLSearchParams({ revisionCount });
+  if (amendmentNumber) qs.set('amendmentNumber', amendmentNumber);
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/bgc-zones/${encodeURIComponent(siteSeriesId)}?${qs.toString()}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Delete BGC zone failed (${res.status}): ${detail}`
+        : `Delete BGC zone failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<StandardRegimeDetail>;
+}
+
+/** Update an existing BGC site-series row. Requires the row's revisionCount. */
+export async function updateStandardRegimeBgcZone(
+  fspId: string,
+  regimeId: string,
+  siteSeriesId: string,
+  revisionCount: string,
+  amendmentNumber: string | undefined,
+  payload: StandardRegimeBgcZoneUpsert,
+): Promise<StandardRegimeDetail> {
+  const qs = new URLSearchParams({ revisionCount });
+  if (amendmentNumber) qs.set('amendmentNumber', amendmentNumber);
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/bgc-zones/${encodeURIComponent(siteSeriesId)}?${qs.toString()}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Update BGC zone failed (${res.status}): ${detail}`
+        : `Update BGC zone failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<StandardRegimeDetail>;
+}
+
+/**
+ * Upload a single attachment file to a standards regime. Returns the
+ * refreshed regime detail so the Attachments tab redraws with the new
+ * row. The amendment number is forwarded into the re-read for the same
+ * reason BGC save does — the GET proc throws noRecord without it.
+ */
+export async function addStandardRegimeAttachment(
+  fspId: string,
+  regimeId: string,
+  amendmentNumber: string | undefined,
+  file: File,
+): Promise<StandardRegimeDetail> {
+  const form = new FormData();
+  form.append('file', file);
+  const qs = amendmentNumber
+    ? `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
+    : '';
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/attachments${qs}`,
+    { method: 'POST', body: form },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Standards attachment upload failed (${res.status}): ${detail}`
+        : `Standards attachment upload failed (${res.status})`,
+    );
+  }
+  return res.json() as Promise<StandardRegimeDetail>;
+}
+
+/**
  * Triggers a browser download for a single standards-regime attachment.
  * Mirrors downloadFspAttachment — backend streams the BLOB with a
  * Content-Disposition header; we parse it for the filename and fall
@@ -746,6 +982,42 @@ export function getFspAttachments(fspId: string): Promise<FspAttachmentRow[]> {
     `/v1/fsp/${encodeURIComponent(fspId)}/attachments`,
     'Attachments load',
   );
+}
+
+/**
+ * Per-FSP attachment categories — drives the "Add Attachment" dialog
+ * dropdown. Backed by FSP_CODE_LISTS.get_attach_reference_list which
+ * filters the allowed types by FSP/amendment state.
+ */
+export function getAttachmentCategories(fspId: string): Promise<CodeOption[]> {
+  return getJson<CodeOption[]>(
+    `/v1/fsp/${encodeURIComponent(fspId)}/attachment-categories`,
+    'Attachment categories lookup',
+  );
+}
+
+/** Upload a single attachment file under the given category typeCode. */
+export async function uploadFspAttachment(
+  fspId: string,
+  typeCode: string,
+  file: File,
+): Promise<void> {
+  const form = new FormData();
+  form.append('file', file);
+  // typeCode goes in the query string (matches the backend @RequestParam),
+  // not the multipart body — fspSubmissions.ts uses the same convention.
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/attachments?typeCode=${encodeURIComponent(typeCode)}`,
+    { method: 'POST', body: form },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Attachment upload failed (${res.status}): ${detail}`
+        : `Attachment upload failed (${res.status})`,
+    );
+  }
 }
 
 /**

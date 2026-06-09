@@ -38,7 +38,7 @@ class SubmissionValidationServiceTest {
         parser,
         new ca.bc.gov.nrs.fsp.api.submission.geojson.SubmissionGeoJsonParser(
             new com.fasterxml.jackson.databind.ObjectMapper()),
-        new GeometryValidator(new GmlGeometryConverter()),
+        newGeometryValidator(),
         new SubmissionPreviewMapper(
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.Sil21ClientSearchDao.class)));
@@ -121,5 +121,23 @@ class SubmissionValidationServiceTest {
     Method m = bean.getClass().getDeclaredMethod(methodName);
     m.setAccessible(true);
     m.invoke(bean);
+  }
+
+  /** Wires the SrsValidator + initializes proj4j transforms. */
+  private static ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator
+      newGeometryValidator() {
+    ca.bc.gov.nrs.fsp.api.submission.validator.SrsValidator srs =
+        new ca.bc.gov.nrs.fsp.api.submission.validator.SrsValidator();
+    ca.bc.gov.nrs.fsp.api.submission.validator.BcBoundaryValidator bc =
+        new ca.bc.gov.nrs.fsp.api.submission.validator.BcBoundaryValidator();
+    try {
+      invokePostConstruct(srs, "initTransforms");
+      invokePostConstruct(bc, "loadBoundary");
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    return new ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator(
+        new ca.bc.gov.nrs.fsp.api.submission.parser.GmlGeometryConverter(), srs, bc,
+        new ca.bc.gov.nrs.fsp.api.submission.validator.GeometrySimplifier());
   }
 }

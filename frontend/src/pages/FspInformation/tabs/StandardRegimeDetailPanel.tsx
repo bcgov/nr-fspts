@@ -21,15 +21,26 @@ import {
   TextInput,
   Toggle,
 } from '@carbon/react';
-import {Download, Edit} from '@carbon/icons-react';
+import {Add, Download, Edit, TrashCan} from '@carbon/icons-react';
 import {type FC, useEffect, useState} from 'react';
 
+import BgcZoneEditModal from '@/components/BgcZoneEditModal';
+import BgcZoneSearchModal from '@/components/BgcZoneSearchModal';
+import ConfirmationModal from '@/components/ConfirmationModal';
+import StandardRegimeAttachmentModal from '@/components/StandardRegimeAttachmentModal';
 import {useNotification} from '@/context/notification/useNotification';
+import type {BgcSearchResult} from '@/services/bgcSearch';
 import {
+  addStandardRegimeAttachment,
+  addStandardRegimeBgcZone,
+  deleteStandardRegimeBgcZone,
   downloadStandardRegimeAttachment,
   getStandardRegimeDetail,
+  type StandardRegimeBgcZone,
+  type StandardRegimeBgcZoneUpsert,
   type StandardRegimeDetail,
   type StandardRegimeOverviewUpdate,
+  updateStandardRegimeBgcZone,
   updateStandardRegimeOverview,
 } from '@/services/fspSearch';
 
@@ -166,6 +177,22 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   const [overviewForm, setOverviewForm] = useState<OverviewFormState | null>(null);
   const [overviewErrors, setOverviewErrors] = useState<OverviewErrors>({});
   const [savingOverview, setSavingOverview] = useState(false);
+  // BGC Zones tab — Add and Edit are two separate dialogs:
+  //   Add  → BgcZoneSearchModal (SIL52A-style search picker)
+  //   Edit → BgcZoneEditModal (7 text inputs, pre-filled from the row)
+  // Two open flags so closing one mid-fade can't blow away the other's
+  // target. {@code bgcEditTarget} is always set for the edit path; the
+  // search path posts immediately on select with no in-between form.
+  const [bgcSearchOpen, setBgcSearchOpen] = useState(false);
+  const [bgcEditOpen, setBgcEditOpen] = useState(false);
+  const [bgcEditTarget, setBgcEditTarget] =
+    useState<StandardRegimeBgcZone | null>(null);
+  // Delete-confirm dialog state. Holds the row pending removal so the
+  // ConfirmationModal can render its label + the actual DELETE can
+  // resolve the right siteSeriesId + revisionCount on Confirm.
+  const [bgcDeleteTarget, setBgcDeleteTarget] =
+    useState<StandardRegimeBgcZone | null>(null);
+  const [attachmentModalOpen, setAttachmentModalOpen] = useState(false);
 
   const handleDownload = async (attachmentId: string, fallbackName: string) => {
     if (downloadingId) return;
@@ -282,6 +309,122 @@ const StandardRegimeDetailPanel: FC<Props> = ({
     }
   };
 
+  const openBgcSearch = () => {
+    setBgcSearchOpen(true);
+  };
+
+  const openBgcEdit = (row: StandardRegimeBgcZone) => {
+    setBgcEditTarget(row);
+    setBgcEditOpen(true);
+  };
+
+  /**
+   * Add path — the search modal hands back a row from SIL_52_BGC_SEARCH_V003.
+   * Each row carries the full 7-field BEC tuple, so we persist all of
+   * it; site-series / phase / seral can still be tweaked afterwards
+   * via the per-row Edit dialog if needed.
+   */
+  const handleBgcSearchSelect = async (row: BgcSearchResult) => {
+    try {
+      const updated = await addStandardRegimeBgcZone(
+        fspId,
+        regimeId,
+        amendmentNumber || undefined,
+        {
+          bgcZoneCode: row.bgcZoneCode ?? null,
+          bgcSubzoneCode: row.bgcSubzoneCode ?? null,
+          bgcVariant: row.bgcVariant ?? null,
+          bgcPhase: row.bgcPhase ?? null,
+          becSiteSeriesCd: row.becSiteSeriesCd ?? null,
+          becSiteSeriesPhaseCd: row.becSiteSeriesPhaseCd ?? null,
+          becSeral: row.becSeral ?? null,
+        },
+      );
+      setDetail(updated);
+      display({
+        kind: 'success',
+        title: 'BGC zone added.',
+        subtitle: [row.bgcZoneCode, row.bgcSubzoneCode, row.bgcVariant, row.bgcPhase]
+          .filter(Boolean)
+          .join(' - ') || undefined,
+        timeout: 6000,
+      });
+    } catch (e) {
+      display({
+        kind: 'error',
+        title: 'Failed to add BGC zone',
+        subtitle: e instanceof Error ? e.message : 'Unknown error',
+        timeout: 9000,
+      });
+      // Rethrow so BgcZoneSearchModal keeps itself open and the user
+      // can retry without re-running the search.
+      throw e;
+    }
+  };
+
+  /** Edit path — only used by the per-row Edit dialog (search→add is
+   *  immediate so it never routes through here). */
+  const handleBgcEditSubmit = async (payload: StandardRegimeBgcZoneUpsert) => {
+    if (!bgcEditTarget?.stdsRegimeSiteSeriesId) return;
+    const updated = await updateStandardRegimeBgcZone(
+      fspId,
+      regimeId,
+      bgcEditTarget.stdsRegimeSiteSeriesId,
+      // The proc's optimistic-lock check needs the row's current
+      // revision_count — empty would be read as INSERT.
+      bgcEditTarget.revisionCount ?? '',
+      amendmentNumber || undefined,
+      payload,
+    );
+    setDetail(updated);
+    display({
+      kind: 'success',
+      title: 'BGC zone updated.',
+      timeout: 6000,
+    });
+  };
+
+  const handleBgcDeleteConfirmed = async () => {
+    if (!bgcDeleteTarget?.stdsRegimeSiteSeriesId) return;
+    const updated = await deleteStandardRegimeBgcZone(
+      fspId,
+      regimeId,
+      bgcDeleteTarget.stdsRegimeSiteSeriesId,
+      bgcDeleteTarget.revisionCount ?? '',
+      amendmentNumber || undefined,
+    );
+    setDetail(updated);
+    display({
+      kind: 'success',
+      title: 'BGC zone removed.',
+      subtitle: [
+        bgcDeleteTarget.bgcZoneCode,
+        bgcDeleteTarget.bgcSubzoneCode,
+        bgcDeleteTarget.bgcVariant,
+        bgcDeleteTarget.bgcPhase,
+      ]
+        .filter(Boolean)
+        .join(' - ') || undefined,
+      timeout: 6000,
+    });
+  };
+
+  const handleAttachmentUpload = async (file: File) => {
+    const updated = await addStandardRegimeAttachment(
+      fspId,
+      regimeId,
+      amendmentNumber || undefined,
+      file,
+    );
+    setDetail(updated);
+    display({
+      kind: 'success',
+      title: 'Attachment added.',
+      subtitle: file.name,
+      timeout: 6000,
+    });
+  };
+
   const setOverviewField = <K extends keyof OverviewFormState>(
     key: K,
     value: OverviewFormState[K],
@@ -330,15 +473,15 @@ const StandardRegimeDetailPanel: FC<Props> = ({
       value: yesNo(detail.regenObligationInd),
     },
     {
-      label: 'Regen Delay (yrs)',
+      label: 'Regen Delay',
       value: dash(detail.regenDelayOffsetYrs),
     },
     {
-      label: 'Free Growing Early (yrs)',
+      label: 'Free Growing Early',
       value: dash(detail.freeGrowingEarlyOffsetYrs),
     },
     {
-      label: 'Free Growing Late (yrs)',
+      label: 'Free Growing Late',
       value: dash(detail.freeGrowingLateOffsetYrs),
     },
   ];
@@ -361,7 +504,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
               {!editingOverview && !readOnly && (
                 <div className="fsp-info__tab-actions">
                   <Button
-                    kind="primary"
+                    kind="tertiary"
                     size="sm"
                     renderIcon={Edit}
                     onClick={handleOverviewEdit}
@@ -433,7 +576,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     />
                     <NumberInput
                       id="edit-ssRegenDelayYrs"
-                      label="Regen Delay (yrs)"
+                      label="Regen Delay"
                       min={0}
                       max={99}
                       allowEmpty
@@ -455,7 +598,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     />
                     <NumberInput
                       id="edit-ssFgEarlyYrs"
-                      label="Free Growing Early (yrs)"
+                      label="Free Growing Early"
                       min={0}
                       max={99}
                       allowEmpty
@@ -477,7 +620,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     />
                     <NumberInput
                       id="edit-ssFgLateYrs"
-                      label="Free Growing Late (yrs)"
+                      label="Free Growing Late"
                       min={0}
                       max={99}
                       allowEmpty
@@ -596,8 +739,10 @@ const StandardRegimeDetailPanel: FC<Props> = ({
               <StandardRegimeLayersPanel
                 fspId={fspId}
                 regimeId={regimeId}
+                amendmentNumber={amendmentNumber}
                 layers={detail.layers}
                 readOnly={readOnly}
+                onDetailRefreshed={setDetail}
               />
             </div>
           </TabPanel>
@@ -700,6 +845,18 @@ const StandardRegimeDetailPanel: FC<Props> = ({
 
           <TabPanel>
             <div className="fsp-info__tab-panel">
+              {!readOnly && (
+                <div className="fsp-info__tab-actions">
+                  <Button
+                    kind="tertiary"
+                    size="sm"
+                    renderIcon={Add}
+                    onClick={() => setAttachmentModalOpen(true)}
+                  >
+                    Add Attachment
+                  </Button>
+                </div>
+              )}
               {detail.attachments.length === 0 ? (
                 <p>No attachments on this regime.</p>
               ) : (
@@ -719,7 +876,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                       { key: 'description', header: 'Description' },
                       { key: 'name', header: 'File Name' },
                       { key: 'mime', header: 'Type' },
-                      { key: 'size', header: 'Size (KB)' },
+                      { key: 'size', header: 'Size' },
                       { key: 'actions', header: '' },
                     ]}
                   >
@@ -786,54 +943,79 @@ const StandardRegimeDetailPanel: FC<Props> = ({
 
           <TabPanel>
             <div className="fsp-info__tab-panel">
+              {!readOnly && (
+                <div className="fsp-info__tab-actions">
+                  <Button
+                    kind="tertiary"
+                    size="sm"
+                    renderIcon={Add}
+                    onClick={openBgcSearch}
+                  >
+                    Add BGC Zone
+                  </Button>
+                </div>
+              )}
               {detail.bgcZones.length === 0 ? (
                 <p>No BGC zones linked to this regime.</p>
               ) : (
                 <div className="bordered-table">
-                  <DataTable
-                    rows={detail.bgcZones.map((b, i) => ({
-                      id: `${b.bgcZoneCode}-${b.bgcSubzoneCode}-${b.bgcVariant}-${i}`,
-                      zone: dash(b.bgcZoneCode),
-                      subzone: dash(b.bgcSubzoneCode),
-                      variant: dash(b.bgcVariant),
-                      phase: dash(b.bgcPhase),
-                      siteSeries: dash(b.becSiteSeriesCd),
-                      seral: dash(b.becSeral),
-                    }))}
-                    headers={[
-                      { key: 'zone', header: 'Zone' },
-                      { key: 'subzone', header: 'Subzone' },
-                      { key: 'variant', header: 'Variant' },
-                      { key: 'phase', header: 'Phase' },
-                      { key: 'siteSeries', header: 'Site Series' },
-                      { key: 'seral', header: 'Seral' },
-                    ]}
-                  >
-                    {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
-                      <TableContainer>
-                        <Table {...getTableProps()} size="md" useZebraStyles>
-                          <TableHead>
-                            <TableRow>
-                              {headers.map((h) => (
-                                <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
-                                  {h.header}
-                                </TableHeader>
-                              ))}
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {rows.map((row) => (
-                              <TableRow {...getRowProps({ row })} key={row.id}>
-                                {row.cells.map((cell) => (
-                                  <TableCell key={cell.id}>{cell.value as string}</TableCell>
-                                ))}
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    )}
-                  </DataTable>
+                  <TableContainer>
+                    <Table size="md" useZebraStyles>
+                      <TableHead>
+                        <TableRow>
+                          <TableHeader>Zone</TableHeader>
+                          <TableHeader>Subzone</TableHeader>
+                          <TableHeader>Variant</TableHeader>
+                          <TableHeader>Phase</TableHeader>
+                          <TableHeader>Site Series</TableHeader>
+                          <TableHeader>Site Series Phase</TableHeader>
+                          <TableHeader>Seral</TableHeader>
+                          {!readOnly && (
+                            <TableHeader style={{ width: '8rem' }} aria-label="Actions" />
+                          )}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {detail.bgcZones.map((b, i) => (
+                          <TableRow
+                            key={`${b.stdsRegimeSiteSeriesId ?? i}`}
+                          >
+                            <TableCell>{dash(b.bgcZoneCode)}</TableCell>
+                            <TableCell>{dash(b.bgcSubzoneCode)}</TableCell>
+                            <TableCell>{dash(b.bgcVariant)}</TableCell>
+                            <TableCell>{dash(b.bgcPhase)}</TableCell>
+                            <TableCell>{dash(b.becSiteSeriesCd)}</TableCell>
+                            <TableCell>{dash(b.becSiteSeriesPhaseCd)}</TableCell>
+                            <TableCell>{dash(b.becSeral)}</TableCell>
+                            {!readOnly && (
+                              <TableCell>
+                                <Button
+                                  kind="ghost"
+                                  size="sm"
+                                  renderIcon={Edit}
+                                  iconDescription="Edit"
+                                  hasIconOnly
+                                  disabled={!b.stdsRegimeSiteSeriesId}
+                                  onClick={() => openBgcEdit(b)}
+                                />
+                                <Button
+                                  kind="ghost"
+                                  size="sm"
+                                  renderIcon={TrashCan}
+                                  iconDescription="Delete"
+                                  hasIconOnly
+                                  disabled={
+                                    !b.stdsRegimeSiteSeriesId || !b.revisionCount
+                                  }
+                                  onClick={() => setBgcDeleteTarget(b)}
+                                />
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 </div>
               )}
             </div>
@@ -841,6 +1023,46 @@ const StandardRegimeDetailPanel: FC<Props> = ({
         </TabPanels>
       </Tabs>
       </div>
+      <BgcZoneSearchModal
+        open={bgcSearchOpen}
+        onClose={() => setBgcSearchOpen(false)}
+        onSelect={handleBgcSearchSelect}
+      />
+      <BgcZoneEditModal
+        open={bgcEditOpen}
+        value={bgcEditTarget}
+        onClose={() => setBgcEditOpen(false)}
+        onSubmit={handleBgcEditSubmit}
+      />
+      <StandardRegimeAttachmentModal
+        open={attachmentModalOpen}
+        onClose={() => setAttachmentModalOpen(false)}
+        onSubmit={handleAttachmentUpload}
+      />
+      <ConfirmationModal
+        open={bgcDeleteTarget != null}
+        onClose={() => setBgcDeleteTarget(null)}
+        heading="Delete BGC Zone"
+        confirmLabel="Delete"
+        danger
+        errorTitle="Failed to remove BGC zone"
+        onConfirm={handleBgcDeleteConfirmed}
+      >
+        <p>
+          Remove BGC zone{' '}
+          <strong>
+            {[
+              bgcDeleteTarget?.bgcZoneCode,
+              bgcDeleteTarget?.bgcSubzoneCode,
+              bgcDeleteTarget?.bgcVariant,
+              bgcDeleteTarget?.bgcPhase,
+            ]
+              .filter(Boolean)
+              .join(' - ') || '(unnamed)'}
+          </strong>{' '}
+          from this regime? This cannot be undone.
+        </p>
+      </ConfirmationModal>
     </section>
   );
 };

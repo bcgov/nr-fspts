@@ -240,6 +240,16 @@ public class FspService {
     if (edits.getAmendmentReason() != null) target.setAmendmentReason(edits.getAmendmentReason());
     if (edits.getTransitionInd() != null) target.setTransitionInd(edits.getTransitionInd());
     if (edits.getFrpa197electionInd() != null) target.setFrpa197electionInd(edits.getFrpa197electionInd());
+    // VARRAY-style collections — when caller supplies a list, replace
+    // the GET-resolved one. Drives the Add Agreement Holder / Add
+    // District dialogs: frontend sends the full list (existing + new)
+    // and the proc rewrites the licensees / org-units relations.
+    if (edits.getAgreementHolders() != null) {
+      target.setAgreementHolders(edits.getAgreementHolders());
+    }
+    if (edits.getDistricts() != null) {
+      target.setDistricts(edits.getDistricts());
+    }
   }
 
   /**
@@ -331,9 +341,24 @@ public class FspService {
     String userRoles = request != null && request.getUserRole() != null
         ? request.getUserRole()
         : RequestUtil.getCurrentLegacyRoles();
-    String userClientNumber = request != null && request.getUserClientNumber() != null
-        ? request.getUserClientNumber()
-        : RequestUtil.getCurrentClientNumber();
+    // Admin bypass for the FSP.INVALID.AGREEMENT.HOLDER check.
+    // FSP_300_INFORMATION's holder-modification guard is:
+    //     IF (v_count = 0) AND (p_user_client_number IS NOT NULL)
+    //       THEN raise FSP.INVALID.AGREEMENT.HOLDER
+    // — a NULL/empty client number is treated as "internal admin
+    // acting on behalf of the system" and skips the membership check
+    // entirely. So when the current JWT carries FSPTS_ADMINISTRATOR,
+    // pass empty to let admins manage holders on FSPs they're not
+    // listed on. Explicit request.userClientNumber still wins so
+    // tests and the persistence pipeline can override.
+    String userClientNumber;
+    if (request != null && request.getUserClientNumber() != null) {
+      userClientNumber = request.getUserClientNumber();
+    } else if (RequestUtil.isCurrentUserAdmin()) {
+      userClientNumber = "";
+    } else {
+      userClientNumber = RequestUtil.getCurrentClientNumber();
+    }
     String resolvedAmendmentNumber = amendmentNumber != null
         ? amendmentNumber
         : (request == null ? "" : nz(request.getFspAmendmentNumber()));

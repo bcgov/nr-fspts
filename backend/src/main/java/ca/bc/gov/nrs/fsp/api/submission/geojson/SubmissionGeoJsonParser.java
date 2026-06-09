@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Parses an FSP GeoJSON submission (single FeatureCollection mixing
@@ -91,9 +92,119 @@ public class SubmissionGeoJsonParser {
       return new SubmissionXmlParser.ParseOutcome(null, errors);
     }
 
+    // Shape validation pass — mirrors what the XSD does on the XML
+    // side (required fields, enum values, per-feature required props).
+    // Continues on first-class violations so the user sees the full
+    // list rather than one at a time.
+    validateShape(doc, errors);
+
     String srsName = doc.crs() == null ? null : doc.crs().srsName();
     FSPSubmissionType submission = buildSubmission(doc, srsName, errors);
     return new SubmissionXmlParser.ParseOutcome(submission, errors);
+  }
+
+  // ── Schema-style shape validation ───────────────────────────────
+
+  private static final Set<String> VALID_ACTION_CODES = Set.of("I", "U", "A");
+  private static final Set<String> VALID_ENTITY_TYPES =
+      Set.of(ENTITY_FDU, ENTITY_IDENTIFIED_AREA);
+
+  /**
+   * Hand-rolled equivalent of an XSD pass for the FSP GeoJSON shape.
+   * Closes the asymmetry vs the XML path, where JAXB + the MOF XSD
+   * enforces required fields, enum values, and per-feature props.
+   */
+  private static void validateShape(
+      FspGeoJson.FspGeoJsonSubmission doc, List<SubmissionValidationError> errors) {
+    FspGeoJson.Header h = doc.fsp();
+
+    if (h.planName() == null || h.planName().isBlank()) {
+      errors.add(SubmissionValidationError.of(
+          "fsp.planName", "GEOJSON_SCHEMA", "planName is required"));
+    }
+    if (h.actionCode() == null || h.actionCode().isBlank()) {
+      errors.add(SubmissionValidationError.of(
+          "fsp.actionCode", "GEOJSON_SCHEMA",
+          "actionCode is required (I = initial, U = update, A = amendment)"));
+    } else if (!VALID_ACTION_CODES.contains(h.actionCode())) {
+      errors.add(SubmissionValidationError.of(
+          "fsp.actionCode", "GEOJSON_SCHEMA",
+          "actionCode must be one of " + VALID_ACTION_CODES
+              + " (got \"" + h.actionCode() + "\")"));
+    }
+    if (h.planHolders() == null || h.planHolders().isEmpty()) {
+      errors.add(SubmissionValidationError.of(
+          "fsp.planHolders", "GEOJSON_SCHEMA",
+          "at least one planHolder client number is required"));
+    }
+    if (h.districts() == null || h.districts().isEmpty()) {
+      errors.add(SubmissionValidationError.of(
+          "fsp.districts", "GEOJSON_SCHEMA",
+          "at least one district code is required"));
+    }
+    if (h.submissionMetadata() != null) {
+      FspGeoJson.Metadata m = h.submissionMetadata();
+      if (m.contactName() == null || m.contactName().isBlank()) {
+        errors.add(SubmissionValidationError.of(
+            "fsp.submissionMetadata.contactName", "GEOJSON_SCHEMA",
+            "contactName is required when submissionMetadata is present"));
+      }
+      if (m.emailAddress() == null || m.emailAddress().isBlank()) {
+        errors.add(SubmissionValidationError.of(
+            "fsp.submissionMetadata.emailAddress", "GEOJSON_SCHEMA",
+            "emailAddress is required when submissionMetadata is present"));
+      }
+    }
+
+    List<FspGeoJson.Feature> features = doc.features() == null ? List.of() : doc.features();
+    for (int i = 0; i < features.size(); i++) {
+      FspGeoJson.Feature f = features.get(i);
+      String path = "features[" + i + "]";
+      if (f == null) {
+        errors.add(SubmissionValidationError.of(
+            path, "GEOJSON_SCHEMA", "feature is null"));
+        continue;
+      }
+      String entityType = readPropString(f, "fspEntityType");
+      if (entityType == null) {
+        errors.add(SubmissionValidationError.of(
+            path + ".properties.fspEntityType", "GEOJSON_SCHEMA",
+            "fspEntityType is required (FDU or IDENTIFIED_AREA)"));
+        continue;
+      }
+      if (!VALID_ENTITY_TYPES.contains(entityType)) {
+        errors.add(SubmissionValidationError.of(
+            path + ".properties.fspEntityType", "GEOJSON_SCHEMA",
+            "fspEntityType must be one of " + VALID_ENTITY_TYPES
+                + " (got \"" + entityType + "\")"));
+        continue;
+      }
+      String name = readPropString(f, "name");
+      if (name == null) {
+        errors.add(SubmissionValidationError.of(
+            path + ".properties.name", "GEOJSON_SCHEMA",
+            entityType + " feature requires a non-blank name"));
+      }
+      if (ENTITY_IDENTIFIED_AREA.equals(entityType)
+          && readPropString(f, "legislationTypeCode") == null) {
+        errors.add(SubmissionValidationError.of(
+            path + ".properties.legislationTypeCode", "GEOJSON_SCHEMA",
+            "IDENTIFIED_AREA feature requires a legislationTypeCode"));
+      }
+      if (f.geometry() == null || f.geometry().type() == null) {
+        errors.add(SubmissionValidationError.of(
+            path + ".geometry", "GEOJSON_SCHEMA",
+            "feature must carry a geometry"));
+      }
+    }
+  }
+
+  private static String readPropString(FspGeoJson.Feature f, String key) {
+    if (f.properties() == null) return null;
+    Object v = f.properties().get(key);
+    if (v == null) return null;
+    String s = v.toString().trim();
+    return s.isEmpty() ? null : s;
   }
 
   // ── Top-level build ──────────────────────────────────────────────

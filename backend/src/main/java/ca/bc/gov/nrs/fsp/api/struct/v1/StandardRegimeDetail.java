@@ -62,12 +62,16 @@ public record StandardRegimeDetail(
   ) {}
 
   public record BgcZone(
+      /** STANDARD_REGIME_SITE_SERIES_ID — addresses the row for SAVE/REMOVE. */
+      String stdsRegimeSiteSeriesId,
       String bgcZoneCode,
       String bgcSubzoneCode,
       String bgcVariant,
       String bgcPhase,
       String becSiteSeriesCd,
       String becSiteSeriesPhaseCd,
-      String becSeral
+      String becSeral,
+      /** Row-level optimistic-lock token; required by SAVE_BGC_ITEM on update. */
+      String revisionCount
   ) {}
 }

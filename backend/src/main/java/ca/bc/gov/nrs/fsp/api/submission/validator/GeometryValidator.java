@@ -30,6 +30,9 @@ import java.util.List;
 public class GeometryValidator {
 
   private final GmlGeometryConverter converter;
+  private final SrsValidator srsValidator;
+  private final BcBoundaryValidator bcBoundary;
+  private final GeometrySimplifier simplifier;
 
   public List<SubmissionValidationError> validate(FSPSubmissionType submission) {
     List<SubmissionValidationError> errors = new ArrayList<>();
@@ -85,12 +88,50 @@ public class GeometryValidator {
       return;
     }
     try {
+      // 1. SRS check — reject any code not on the allowlist BEFORE
+      //    converting coords. Catches mistyped srsName up front.
+      int rawSrid = converter.sridFromExtent(extent);
+      int resolvedSrid;
+      try {
+        resolvedSrid = srsValidator.resolve(rawSrid);
+      } catch (SrsValidator.UnsupportedSrsException ue) {
+        errors.add(SubmissionValidationError.of(path, "SRS_UNSUPPORTED", ue.getMessage()));
+        return;
+      }
+      // 2. GML → JTS (still in input coordinates).
       Geometry jts = converter.toJts(extent);
+      // 3. Reproject to 3005 if needed so all downstream code (bounds,
+      //    simplify, persist) runs in BC Albers metres.
+      jts = srsValidator.reproject(jts, resolvedSrid);
+      // 4. JTS topology check.
       IsValidOp op = new IsValidOp(jts);
       TopologyValidationError topoErr = op.getValidationError();
       if (topoErr != null) {
         errors.add(SubmissionValidationError.of(
             path, "GEOMETRY_INVALID", topoErr.getMessage()));
+        return;
+      }
+      // 5. BC containment — check the (now-reprojected, topology-valid)
+      //    geometry sits inside the BC outline. Skip when prior steps
+      //    failed since a malformed polygon could throw under covers().
+      if (!bcBoundary.isInsideBc(jts)) {
+        errors.add(SubmissionValidationError.of(
+            path, "GEOMETRY_OUTSIDE_BC",
+            "geometry is not inside the BC provincial boundary"));
+        return;
+      }
+      // 6. Simplify (Douglas-Peucker 2.5m) + snap to 0.001m precision
+      //    grid + re-validate. Falls back to TopologyPreservingSimplifier
+      //    if the DP output trips IsValidOp. Write the result back to
+      //    the JAXB tree so persistence picks up the storage-ready
+      //    coordinates without any extra plumbing.
+      try {
+        org.locationtech.jts.geom.Geometry simplified =
+            simplifier.simplifyAndSnap(jts);
+        converter.writeJtsToExtent(simplified, extent, "EPSG:" + SrsValidator.TARGET_SRID);
+      } catch (GeometrySimplifier.SimplificationException sx) {
+        errors.add(SubmissionValidationError.of(
+            path, "SIMPLIFY_INVALID", sx.getMessage()));
       }
     } catch (GmlConversionException e) {
       errors.add(SubmissionValidationError.of(path, "GEOMETRY_PARSE_ERROR", e.getMessage()));

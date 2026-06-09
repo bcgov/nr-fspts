@@ -15,6 +15,8 @@ public interface Fsp550StdsProposalDao {
   String PROCEDURE_NAME = "GET";
   String PROCEDURE_SAVE = "SAVE";
   String PROCEDURE_SAVE_BGC_ITEM = "SAVE_BGC_ITEM";
+  String PROCEDURE_REMOVE_BGC_ITEM = "REMOVE_BGC_ITEM";
+  String PROCEDURE_GET_ATTACHMENT_BLOB_FOR_UPDATE = "GET_ATTACHMENT_BLOB_FOR_UPDATE";
 
   /**
    * @param displayFspOrgClients {@code "Y"} scopes the org-unit + client
@@ -90,6 +92,49 @@ public interface Fsp550StdsProposalDao {
   ) {}
 
   record SaveBgcResult(String stdsRegimeSiteSeriesId, String errorMessage) {}
+
+  /**
+   * Wraps {@code FSP_550_STDS_PROPOSAL.REMOVE_BGC_ITEM}. Deletes one
+   * row of STANDARDS_REGIME_SITE_SERIES by id; the row's
+   * revision_count is required for the proc's optimistic-lock check,
+   * and the parent regime's revision_count is bumped by
+   * update_audit_info on success.
+   */
+  void removeBgcItem(RemoveBgcRequest req);
+
+  record RemoveBgcRequest(
+      String stdsRegimeSiteSeriesId,
+      String standardsRegimeId,
+      String updateUserid,
+      String revisionCount,           // row-level optimistic-lock token
+      String standardsRevisionCount   // parent regime revision, bumped on success
+  ) {}
+
+  /**
+   * Wraps {@code FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB_FOR_UPDATE}
+   * with {@code p_standards_regime_attach_id = NULL}: the proc inserts
+   * a new STANDARDS_REGIME_ATTACHMENT + STANDARDS_REGIME_ATTACH_FILE
+   * pair (with EMPTY_BLOB) and returns the new id alongside a BLOB
+   * locator FOR UPDATE. We write the supplied bytes into that locator
+   * inside the same transaction so the data lands without needing
+   * any direct DML on the (un-granted) STANDARDS_REGIME_ATTACHMENT.
+   *
+   * <p>Direct INSERT is not an option — FSP roles only have UPDATE on
+   * STANDARDS_REGIME_ATTACH_FILE; the procs run with definer rights.
+   */
+  AddAttachmentResult addAttachment(AddAttachmentRequest req);
+
+  record AddAttachmentRequest(
+      String standardsRegimeId,
+      String attachmentName,
+      String attachmentDescription,
+      /** Browser-reported content type — proc looks up the matching MIME_TYPE_CODE row. */
+      String mimeType,
+      byte[] content,
+      String updateUserid
+  ) {}
+
+  record AddAttachmentResult(String standardsRegimeAttachId, String revisionCount) {}
 
   /**
    * Fetches the BLOB content + display name for a single standards-regime
@@ -176,12 +221,16 @@ public interface Fsp550StdsProposalDao {
   ) {}
 
   record BgcZoneRow(
+      // STANDARD_REGIME_SITE_SERIES_ID (PK) — needed for SAVE/REMOVE.
+      String stdsRegimeSiteSeriesId,
       String bgcZoneCode,
       String bgcSubzoneCode,
       String bgcVariant,
       String bgcPhase,
       String becSiteSeriesCd,
       String becSiteSeriesPhaseCd,
-      String becSeral
+      String becSeral,
+      // Row-level optimistic-lock token for SAVE/REMOVE.
+      String revisionCount
   ) {}
 }

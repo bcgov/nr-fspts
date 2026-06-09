@@ -491,8 +491,8 @@ function PreviewSections({
 
       <Panel title="Term & Dates">
         <dl className="fsp-submit__fields">
-          <Field label="Plan Term (years)" value={dash(preview.termAndDates?.planTermYears)} />
-          <Field label="Plan Term (months)" value={dash(preview.termAndDates?.planTermMonths)} />
+          <Field label="Plan Term" value={dash(preview.termAndDates?.planTermYears)} />
+          <Field label="Plan Term" value={dash(preview.termAndDates?.planTermMonths)} />
           <Field label="Expiry Date" value={dash(preview.termAndDates?.planExpiryDate)} />
           {preview.termAndDates?.amendmentComment && (
             <Field

@@ -3,6 +3,7 @@ import type {ReactNode} from 'react';
 
 import Layout from './components/Layout';
 import {useAuth} from './context/auth/useAuth';
+import {useOrg} from './context/org/useOrg';
 
 // Pages
 import LandingPage from './pages/LandingPage';
@@ -17,6 +18,8 @@ import ExtensionSummaryPage from './pages/ExtensionSummaryPage';
 import ReplaceInformationPage from './pages/ReplaceInformationPage';
 import HistoryPage from './pages/HistoryPage';
 import DistrictNotificationPage from './pages/DistrictNotificationPage';
+import OrgSelectionPage from './pages/OrgSelectionPage';
+import SubmissionHistoryPage from './pages/SubmissionHistoryPage';
 import XmlSubmissionPage from './pages/XmlSubmissionPage';
 import JcrsReportsPage from './pages/JcrsReports';
 
@@ -29,6 +32,7 @@ const withLayout = (node: ReactNode) => <Layout>{node}</Layout>;
 // ── App ────────────────────────────────────────────────────
 export default function App() {
   const { isLoggedIn, isLoading, user } = useAuth();
+  const { needsOrgSelection } = useOrg();
 
   // Show a minimal placeholder during the initial auth bootstrap so a
   // page reload mid-session doesn't briefly render the LandingPage
@@ -52,6 +56,15 @@ export default function App() {
         <Routes>
           <Route path="*" element={<UnauthorizedPage />} />
         </Routes>
+      ) : isLoggedIn && needsOrgSelection ? (
+        // BCeID submitter with multiple client orgs and no choice yet —
+        // collapse every URL to the picker so downstream requests have
+        // an unambiguous org context. Layout intentionally omitted so
+        // the SideNav doesn't tempt the user to navigate around the gate.
+        <Routes>
+          <Route path="/org-select" element={<OrgSelectionPage />} />
+          <Route path="*" element={<Navigate to="/org-select" replace />} />
+        </Routes>
       ) : isLoggedIn ? (
         <Routes>
           {/* Login flow lands here after Amplify exchanges ?code=&state=;
@@ -60,6 +73,11 @@ export default function App() {
               dropped. */}
           <Route path="/auth/callback"          element={<Navigate to="/search" replace />} />
           <Route path="/"                       element={<Navigate to="/search" replace />} />
+          {/* The picker is reachable post-selection too in case the user
+              wants to switch orgs without signing out. Rendered without
+              Layout so the forest-image split-screen treatment matches
+              the Landing/Unauthorized look. */}
+          <Route path="/org-select"             element={<OrgSelectionPage />} />
 
           {/* Search */}
           <Route path="/search"                 element={withLayout(<SearchPage />)} />
@@ -86,6 +104,10 @@ export default function App() {
           {/* Data Submission — accepts both XML and GeoJSON. URL kept
               generic so it survives format additions. */}
           <Route path="/data-submission"        element={withLayout(<XmlSubmissionPage />)} />
+          {/* BCeID-only read view: every FSP for the active forest-client.
+              Routed for everyone so an IDIR support user can also view it
+              when impersonating; the SideNav only surfaces it for BCeID. */}
+          <Route path="/submission-history"     element={withLayout(<SubmissionHistoryPage />)} />
           {/* Backwards-compat redirect for any stored /data-submission/xml link */}
           <Route path="/data-submission/xml"    element={<Navigate to="/data-submission" replace />} />
 

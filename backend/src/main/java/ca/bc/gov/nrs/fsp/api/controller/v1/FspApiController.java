@@ -120,9 +120,10 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
-    public ResponseEntity<Void> submitWorkflowAction(String fspId, WorkflowRequest workflowRequest) {
-        workflowService.submitAction(fspId, workflowRequest);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<WorkflowState> submitWorkflowAction(
+            String fspId, WorkflowRequest workflowRequest) {
+        return ResponseEntity.ok(
+                workflowService.submitAction(fspId, workflowRequest));
     }
 
     // --- Stocking Standards ---
@@ -148,6 +149,11 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<List<AttachmentResponse>> getAttachments(String fspId) {
         return ResponseEntity.ok(attachmentsService.getByFspId(fspId));
+    }
+
+    @Override
+    public ResponseEntity<List<CodeOption>> getAttachmentCategories(String fspId) {
+        return ResponseEntity.ok(codeListsService.getAttachmentCategories(fspId));
     }
 
     @Override
@@ -257,6 +263,46 @@ public class FspApiController implements FspApiEndpoint {
         return ResponseEntity.ok(standardRegimeService.deleteLayerSpecies(
                 fspId, regimeId, layerCode, layerId,
                 speciesCode, "Y".equalsIgnoreCase(preferred), revisionCount));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeDetail> convertStandardRegimeLayers(
+            String fspId, String regimeId, String amendmentNumber) {
+        return ResponseEntity.ok(standardRegimeService.convertLayers(
+                fspId, amendmentNumber, regimeId));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeDetail> addStandardRegimeBgcZone(
+            String fspId, String regimeId, String amendmentNumber,
+            StandardRegimeBgcZoneUpsert body) {
+        return ResponseEntity.ok(standardRegimeService.saveBgcItem(
+                fspId, amendmentNumber, regimeId, null, null, body));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeDetail> deleteStandardRegimeBgcZone(
+            String fspId, String regimeId, String siteSeriesId,
+            String revisionCount, String amendmentNumber) {
+        return ResponseEntity.ok(standardRegimeService.deleteBgcItem(
+                fspId, amendmentNumber, regimeId, siteSeriesId, revisionCount));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeDetail> updateStandardRegimeBgcZone(
+            String fspId, String regimeId, String siteSeriesId,
+            String revisionCount, String amendmentNumber,
+            StandardRegimeBgcZoneUpsert body) {
+        return ResponseEntity.ok(standardRegimeService.saveBgcItem(
+                fspId, amendmentNumber, regimeId, siteSeriesId, revisionCount, body));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeDetail> addStandardRegimeAttachment(
+            String fspId, String regimeId, String amendmentNumber,
+            MultipartFile file) throws IOException {
+        return ResponseEntity.ok(standardRegimeService.addAttachment(
+                fspId, amendmentNumber, regimeId, file));
     }
 
     @Override

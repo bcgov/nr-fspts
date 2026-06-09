@@ -56,6 +56,17 @@ public class FspCodeListsDaoImpl extends AbstractStoredProcedureDao implements F
     return callOneInOneCursor("get_attach_reference_list", pFspId);
   }
 
+  @Override public List<Map<String, Object>> getFspAttachmentTypeCodes() {
+    // SYSDATE BETWEEN effective_date AND expiry_date keeps the list to
+    // active codes only. ORDER BY description so the dropdown reads
+    // alphabetically rather than by an arbitrary insert order.
+    return jdbcTemplate.queryForList(
+        "SELECT fsp_attachment_type_code AS code, description "
+            + "  FROM the.fsp_attachment_type_code "
+            + " WHERE SYSDATE BETWEEN effective_date AND expiry_date "
+            + " ORDER BY description");
+  }
+
   @Override public List<Map<String, Object>> getOrgUnitFiltered(String pOrgUnitFilter) {
     // p_org_unit_filter is IN-only (PARAM_IN), p_org_unit is INOUT cursor
     String call = "{call " + PACKAGE_NAME + ".get_org_unit_filtered(?,?)}";

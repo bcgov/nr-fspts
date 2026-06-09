@@ -1,0 +1,71 @@
+// Mirrors ClientSearchModal — same tile-style form so the user has a
+// consistent picker experience across all FSP add-by-search dialogs.
+
+.bgc-search-modal {
+  --cds-field: var(--cds-field-02);
+  --cds-field-hover: var(--cds-field-hover-02);
+}
+
+.bgc-search__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-block-end: 1.5rem;
+}
+
+.bgc-search__field-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 672px) {
+  .bgc-search__field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1056px) {
+  // Four criteria — keep them on one row at lg.
+  .bgc-search__field-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.bgc-search__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.bgc-search__results {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-block-start: 1.5rem;
+}
+
+.bgc-search__table-container {
+  position: relative;
+}
+
+.bgc-search__table--loading {
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+.bgc-search__table-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.35);
+  z-index: 1;
+}
+
+.bgc-search__summary {
+  margin: 0;
+  font-weight: 600;
+  padding: 1rem 0;
+}

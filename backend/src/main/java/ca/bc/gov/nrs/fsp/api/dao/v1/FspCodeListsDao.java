@@ -16,6 +16,15 @@ public interface FspCodeListsDao {
 
   List<Map<String, Object>> getAttachReferenceList(String pFspId);
 
+  /**
+   * Active rows from THE.FSP_ATTACHMENT_TYPE_CODE — the actual lookup
+   * table for attachment categories (the misleadingly-named
+   * {@code get_attach_reference_list} proc returns prior OTHR-type
+   * attachments for cross-FSP linking, not categories). Filters on
+   * effective_date / expiry_date so retired codes don't appear.
+   */
+  List<Map<String, Object>> getFspAttachmentTypeCodes();
+
   List<Map<String, Object>> getOrgUnitFiltered(String pOrgUnitFilter);
 
   List<Map<String, Object>> getDistrictNo();

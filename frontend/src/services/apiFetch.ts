@@ -3,6 +3,14 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { env } from '@/env';
 
 import { ensureSessionFresh } from '@/context/auth/refreshSession';
+import { getActiveOrgClientNumber } from '@/context/org/useOrg';
+
+/**
+ * Header sent on every authenticated request when a BCeID submitter
+ * has picked an active org. Backend RequestUtil reads this and
+ * validates it against the JWT's groups before scoping queries.
+ */
+const ACTIVE_ORG_HEADER = 'X-FSPTS-Active-Org-Client-Number';
 
 const API_BASE_URL = env.VITE_API_BASE_URL ?? '';
 
@@ -41,6 +49,13 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   const headers = new Headers(init.headers);
   if (token) headers.set('Authorization', `Bearer ${token}`);
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+  // Forward the BCeID submitter's active-org choice. Reads
+  // sessionStorage directly (no React context dependency), so this
+  // works from any caller — including non-React service modules.
+  const activeOrg = getActiveOrgClientNumber();
+  if (activeOrg && !headers.has(ACTIVE_ORG_HEADER)) {
+    headers.set(ACTIVE_ORG_HEADER, activeOrg);
+  }
 
   const url = /^https?:/.test(path) ? path : `${API_BASE_URL}${path}`;
   return fetch(url, { ...init, headers });

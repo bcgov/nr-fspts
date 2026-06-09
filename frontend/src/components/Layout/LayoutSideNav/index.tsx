@@ -65,7 +65,7 @@ export const LayoutSideNav: FC = () => {
       aria-label="Main navigation"
     >
       <SideNavItems>
-        {getMenuEntries(roles).map(renderParent)}
+        {getMenuEntries(roles, user?.idpProvider).map(renderParent)}
       </SideNavItems>
     </SideNav>
   );
