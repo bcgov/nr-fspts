@@ -81,8 +81,8 @@ public interface FspApiEndpoint {
     ResponseEntity<WorkflowState> getWorkflowState(@PathVariable String fspId);
 
     @PostMapping(URL.WORKFLOW_ACTION)
-    @Operation(summary = "Submit a workflow action via FSP_700_WORKFLOW.MAINLINE")
-    ResponseEntity<Void> submitWorkflowAction(
+    @Operation(summary = "Submit a workflow action via FSP_700_WORKFLOW.MAINLINE; returns the refreshed state")
+    ResponseEntity<WorkflowState> submitWorkflowAction(
             @PathVariable String fspId, @Valid @RequestBody WorkflowRequest workflowRequest);
 
     // --- Stocking Standards ---
@@ -106,6 +106,10 @@ public interface FspApiEndpoint {
     @GetMapping(URL.ATTACHMENTS)
     @Operation(summary = "List attachments via FSP_400_ATTACHMENTS.GET (flattened across categories)")
     ResponseEntity<List<AttachmentResponse>> getAttachments(@PathVariable String fspId);
+
+    @GetMapping(URL.ATTACHMENT_CATEGORIES)
+    @Operation(summary = "List attachment categories for an FSP via FSP_CODE_LISTS.get_attach_reference_list")
+    ResponseEntity<List<CodeOption>> getAttachmentCategories(@PathVariable String fspId);
 
     @PostMapping(value = URL.ATTACHMENTS, consumes = "multipart/form-data")
     @Operation(summary = "Upload an attachment via FSP_400_ATTACHMENTS.CREATE_ATTACHMENT + SAVE_ATTACHMENT_CONTENT")
@@ -190,12 +194,12 @@ public interface FspApiEndpoint {
             @RequestParam(name = "layerId") String layerId);
 
     @PutMapping(URL.STANDARD_LAYER_DETAIL)
-    @Operation(summary = "Save layer scalar fields via FSP_550_SUB_LAYERS.MAINLINE(SAVE)")
+    @Operation(summary = "Save layer scalar fields via FSP_550_SUB_LAYERS.MAINLINE(SAVE); omit layerId to ADD a brand-new layer")
     ResponseEntity<StandardRegimeLayerDetail> updateStandardRegimeLayer(
             @PathVariable String fspId,
             @PathVariable String regimeId,
             @PathVariable String layerCode,
-            @RequestParam(name = "layerId") String layerId,
+            @RequestParam(name = "layerId", required = false) String layerId,
             @Valid @RequestBody StandardRegimeLayerUpdate body);
 
     @PostMapping(URL.STANDARD_LAYER_SPECIES)
@@ -217,6 +221,51 @@ public interface FspApiEndpoint {
             @RequestParam(name = "layerId") String layerId,
             @RequestParam(name = "preferred") String preferred,
             @RequestParam(name = "revisionCount") String revisionCount);
+
+    @PostMapping(URL.STANDARD_LAYERS_CONVERT)
+    @Operation(summary = "Toggle between single-layer and multi-layer via FSP_550_SUB_LAYERS.MAINLINE(CONVERT_LAYERS)")
+    ResponseEntity<StandardRegimeDetail> convertStandardRegimeLayers(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
+
+    @PostMapping(URL.STANDARD_BGC_ZONES)
+    @Operation(summary = "Add a BGC site-series row via FSP_550_STDS_PROPOSAL.SAVE_BGC_ITEM")
+    ResponseEntity<StandardRegimeDetail> addStandardRegimeBgcZone(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            // Needed by the re-read after save — FSP_550_STDS_PROPOSAL.GET
+            // does an unguarded SELECT INTO on FOREST_STEWARDSHIP_PLAN by
+            // (fsp_id, amendment_number); missing amendment ⇒ NO_DATA_FOUND ⇒ noRecord.
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
+            @Valid @RequestBody StandardRegimeBgcZoneUpsert body);
+
+    @DeleteMapping(URL.STANDARD_BGC_ZONE_BY_ID)
+    @Operation(summary = "Delete a BGC site-series row via FSP_550_STDS_PROPOSAL.REMOVE_BGC_ITEM")
+    ResponseEntity<StandardRegimeDetail> deleteStandardRegimeBgcZone(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @PathVariable String siteSeriesId,
+            @RequestParam(name = "revisionCount") String revisionCount,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
+
+    @PutMapping(URL.STANDARD_BGC_ZONE_BY_ID)
+    @Operation(summary = "Update a BGC site-series row via FSP_550_STDS_PROPOSAL.SAVE_BGC_ITEM")
+    ResponseEntity<StandardRegimeDetail> updateStandardRegimeBgcZone(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @PathVariable String siteSeriesId,
+            @RequestParam(name = "revisionCount") String revisionCount,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
+            @Valid @RequestBody StandardRegimeBgcZoneUpsert body);
+
+    @PostMapping(value = URL.STANDARD_ATTACHMENTS, consumes = "multipart/form-data")
+    @Operation(summary = "Add an attachment to a standards regime via FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB_FOR_UPDATE")
+    ResponseEntity<StandardRegimeDetail> addStandardRegimeAttachment(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
+            @RequestParam("file") MultipartFile file) throws IOException;
 
     @GetMapping(URL.STANDARD_ATTACHMENT_DOWNLOAD)
     @Operation(summary = "Download a standards-regime attachment BLOB via FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB")

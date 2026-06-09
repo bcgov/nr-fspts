@@ -18,12 +18,31 @@ public record WorkflowState(
     String fspAmendmentNumber,
     String fspStatusCode,
     String fspStatusDesc,
+    /**
+     * P_FSP_AMENDMENT_CODE — surfaced so the DDM Decision dialog can
+     * round-trip it on SAVE_DDM_APP (the proc needs the amendment code
+     * to route the approval through fsp_approval correctly).
+     */
+    String fspAmendmentCode,
     List<ReviewItem> reviewItems,
     Otbh otbh,
     DdmDecision ddmDecision,
     ExtensionDecision extensionDecision,
-    String extensionIds
+    String extensionIds,
+    /**
+     * Effective FSPTS roles for the calling user, projected from the
+     * JWT's cognito:groups. The Workflow tab uses these to gate the
+     * per-section Edit buttons without re-implementing role-suffix
+     * matching client-side.
+     */
+    Roles roles
 ) {
+
+  public record Roles(
+      boolean isReviewer,
+      boolean isDecisionMaker,
+      boolean isAdministrator
+  ) {}
 
   /**
    * One row in the "Review Details" section. The legacy form rendered each

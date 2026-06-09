@@ -1,0 +1,32 @@
+# PLACEHOLDER — coarse hand-traced BC outline in EPSG:3005 (BC Albers).
+# Approx 15 vertices tracing the major shape: mainland coast, the
+# Alaska-panhandle inflection near Stewart, the NW Yukon border, the
+# northern NWT border, the AB border down the east side, and the
+# 49th-parallel south.  Sufficient to catch obviously-not-BC
+# submissions (Saskatchewan, US states); NOT precision-accurate near
+# the actual border.
+#
+# Replace with the canonical BCGW provincial boundary
+# (Provincial Boundary, generalized to ~1-2 km tolerance) when the
+# DBA/GIS team can publish it as a classpath resource.  See:
+#   FSP_FDS_SPATIAL_STRATEGY  (BCGW Provincial Boundary layer)
+#
+# Format: a single WKT string on the first non-comment line. Lines
+# starting with '#' are stripped by BcBoundaryValidator before parse.
+POLYGON ((
+  1170000 360000,
+  900000 470000,
+  820000 580000,
+  870000 660000,
+  1000000 700000,
+  880000 870000,
+  870000 1000000,
+  790000 1110000,
+  930000 1320000,
+  770000 1550000,
+  850000 1750000,
+  1900000 1750000,
+  1900000 600000,
+  1730000 410000,
+  1170000 360000
+))

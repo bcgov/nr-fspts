@@ -21,21 +21,30 @@ import {
   Tabs,
 } from '@carbon/react';
 import {Add, Edit, TrashCan} from '@carbon/icons-react';
-import {type FC, useEffect, useMemo, useState} from 'react';
+import {type FC, useCallback, useEffect, useMemo, useState} from 'react';
 
+import ConfirmationModal from '@/components/ConfirmationModal';
 import {useNotification} from '@/context/notification/useNotification';
 import {
   addLayerSpecies,
   type CodeOption,
+  convertStandardRegimeLayers,
   deleteLayerSpecies,
   getSilvTreeSpeciesCodes,
+  getStandardRegimeDetail,
   getStandardRegimeLayerDetail,
+  type StandardRegimeDetail,
   type StandardRegimeLayer,
   type StandardRegimeLayerDetail,
   type StandardRegimeLayerUpdate,
   type StandardRegimeSpecies,
   updateStandardRegimeLayer,
 } from '@/services/fspSearch';
+
+// Small Carbon spinner sized to fit a Button icon slot — matches the
+// pattern used in AttachmentsTab / BgcZoneSearchModal so every dialog
+// Save button shows the same in-flight affordance.
+const SavingIcon = () => <Loading small withOverlay={false} description="" />;
 
 // ─── Layer scalar-edit form ────────────────────────────────────────
 
@@ -107,9 +116,14 @@ const toLayerPayload = (form: LayerFormState): StandardRegimeLayerUpdate => ({
 interface Props {
   fspId: string;
   regimeId: string;
+  /** Forwarded into the convert-layers re-read; same noRecord trap as BGC. */
+  amendmentNumber: string;
   layers: StandardRegimeLayer[];
   /** When true, hides the layer Edit button + species add/delete UI. */
   readOnly?: boolean;
+  /** Called after a convert with the refreshed regime detail so the
+   *  parent's layer flags + tabs reflect the new shape. */
+  onDetailRefreshed?: (detail: StandardRegimeDetail) => void;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -144,16 +158,45 @@ const LAYER_LABEL: Record<string, string> = {
   '4': 'Layer 4 - Regen',
 };
 
+// Synthetic "no data yet" detail used when LayerDetailPanel renders a
+// layer whose layerId is null (regime has no layers; user is seeing the
+// synthetic Single tab). All density fields blank + empty species lists
+// — the densities still need to render so the user has the Edit button
+// to type values into. The proc's SAVE-as-ADD branch fires on the
+// first Save and assigns a real id.
+const EMPTY_LAYER_DETAIL = (layerCode: string): StandardRegimeLayerDetail => ({
+  layerCode,
+  layerId: null,
+  treeSizeUnitCode: null,
+  targetStocking: null,
+  minHorizontalDistance: null,
+  minPrefStockingStandard: null,
+  minStockingStandard: null,
+  residualBasalArea: null,
+  minPostSpacing: null,
+  maxPostSpacing: null,
+  maxConifer: null,
+  heightRelativeToComp: null,
+  revisionCount: null,
+  preferredSpecies: [],
+  acceptableSpecies: [],
+});
+
 const LayerDetailPanel: FC<{
   fspId: string;
   regimeId: string;
   layer: StandardRegimeLayer;
   readOnly?: boolean;
+  /** Called after a brand-new layer is created (initial Save on the
+   *  synthetic empty Single tab) so the parent can refetch the regime
+   *  detail and rebuild its tab strip with the real layer flags. */
+  onLayerCreated?: () => void;
 }> = ({
   fspId,
   regimeId,
   layer,
   readOnly = false,
+  onLayerCreated,
 }) => {
   const [detail, setDetail] = useState<StandardRegimeLayerDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -232,12 +275,21 @@ const LayerDetailPanel: FC<{
   };
 
   useEffect(() => {
-    if (!layer.layerCode || !layer.layerId) return;
+    if (!layer.layerCode) return;
+    // No layerId = synthetic empty layer (e.g. Single tab on a regime
+    // with no layers yet). Skip the GET and render placeholders; the
+    // user can click Edit to type values and Save, which will route
+    // through the proc's ADD branch and create the real layer.
+    if (!layer.layerId) {
+      setDetail(EMPTY_LAYER_DETAIL(layer.layerCode));
+      setEditing(false);
+      setForm(null);
+      setErrors({});
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setDetail(null);
-    // Drop any in-flight edit state when the layer changes — the form
-    // would belong to the previous layer.
     setEditing(false);
     setForm(null);
     setErrors({});
@@ -296,12 +348,13 @@ const LayerDetailPanel: FC<{
   };
 
   const handleSave = async () => {
-    if (!form || !layer.layerCode || !layer.layerId) return;
+    if (!form || !layer.layerCode) return;
     const found = validateLayer(form);
     if (Object.keys(found).length > 0) {
       setErrors(found);
       return;
     }
+    const isCreate = !layer.layerId;
     setSaving(true);
     try {
       const updated = await updateStandardRegimeLayer(
@@ -315,9 +368,14 @@ const LayerDetailPanel: FC<{
       setEditing(false);
       display({
         kind: 'success',
-        title: 'Layer updated.',
+        title: isCreate ? 'Layer created.' : 'Layer updated.',
         timeout: 7000,
       });
+      // On the first save of a synthetic Single tab, ask the parent to
+      // refetch the regime so its layer flags reflect the new row and
+      // the tab strip rebuilds against real ids (lets the Species
+      // editors enable Add).
+      if (isCreate) onLayerCreated?.();
     } catch (e) {
       display({
         kind: 'error',
@@ -345,7 +403,7 @@ const LayerDetailPanel: FC<{
   //   col 3: Post Spacing Density (st/ha)  (min/max spacing)
   const densityRows = [
     { label: 'Target', well: detail.targetStocking, basal: '', post: '' },
-    { label: 'Min Horiz (m)', well: detail.minHorizontalDistance, basal: '', post: '' },
+    { label: 'Min Horiz', well: detail.minHorizontalDistance, basal: '', post: '' },
     { label: 'Min Pref', well: detail.minPrefStockingStandard, basal: '', post: '' },
     {
       label: 'Min',
@@ -357,13 +415,12 @@ const LayerDetailPanel: FC<{
   ];
 
   // Pretty unit label used inside read-mode and edit-mode helper text.
-  const unitLabel = (detail.treeSizeUnitCode ?? form?.treeSizeUnitCode) === 'CM' ? 'cm' : '%';
 
   return (
     <div className="fsp-info__tab-panel">
       {!editing && !readOnly && (
         <div className="fsp-info__tab-actions">
-          <Button kind="primary" size="sm" renderIcon={Edit} onClick={handleEdit}>
+          <Button kind="tertiary" size="sm" renderIcon={Edit} onClick={handleEdit}>
             Edit
           </Button>
         </div>
@@ -379,12 +436,12 @@ const LayerDetailPanel: FC<{
               disabled={saving}
               onChange={(e) => setField('treeSizeUnitCode', e.target.value)}
             >
-              <SelectItem value="CM" text="Centimetres (cm)" />
-              <SelectItem value="PCT" text="Percent (%)" />
+              <SelectItem value="CM" text="Centimetres" />
+              <SelectItem value="PCT" text="Percent" />
             </Select>
             <NumberInput
               id={`edit-layer-targetStocking-${layer.layerCode}`}
-              label="Target Stocking (Well Spaced / ha)"
+              label="Target Stocking"
               min={0}
               allowEmpty
               hideSteppers
@@ -398,7 +455,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-minHoriz-${layer.layerCode}`}
-              label="Min Horizontal Distance (m)"
+              label="Min Horizontal Distance"
               min={0}
               allowEmpty
               hideSteppers
@@ -440,7 +497,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-basalArea-${layer.layerCode}`}
-              label="Residual Basal Area (m²/ha)"
+              label="Residual Basal Area"
               min={0}
               allowEmpty
               hideSteppers
@@ -454,7 +511,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-minPost-${layer.layerCode}`}
-              label="Min Post Spacing (st/ha)"
+              label="Min Post Spacing"
               min={0}
               allowEmpty
               hideSteppers
@@ -468,7 +525,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-maxPost-${layer.layerCode}`}
-              label="Max Post Spacing (st/ha)"
+              label="Max Post Spacing"
               min={0}
               allowEmpty
               hideSteppers
@@ -482,7 +539,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-maxConifer-${layer.layerCode}`}
-              label="Max Coniferous (st/ha)"
+              label="Max Coniferous"
               min={0}
               allowEmpty
               hideSteppers
@@ -496,7 +553,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-heightRel-${layer.layerCode}`}
-              label={`Height Relative to Comp (${form.treeSizeUnitCode === 'CM' ? 'cm' : '%'})`}
+              label="Height Relative to Comp"
               min={0}
               allowEmpty
               hideSteppers
@@ -534,8 +591,8 @@ const LayerDetailPanel: FC<{
                 headers={[
                   { key: 'label', header: '' },
                   { key: 'well', header: 'Well Spaced Trees / ha' },
-                  { key: 'basal', header: 'Residual Basal Area (m²/ha)' },
-                  { key: 'post', header: 'Post Spacing Density (st/ha)' },
+                  { key: 'basal', header: 'Residual Basal Area' },
+                  { key: 'post', header: 'Post Spacing Density' },
                 ]}
               >
                 {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
@@ -568,11 +625,11 @@ const LayerDetailPanel: FC<{
 
           <dl className="fsp-info__field-list">
             <div className="fsp-info__field">
-              <dt>Max Coniferous (st/ha)</dt>
+              <dt>Max Coniferous</dt>
               <dd>{dash(detail.maxConifer)}</dd>
             </div>
             <div className="fsp-info__field">
-              <dt>Height Relative to Comp ({unitLabel})</dt>
+              <dt>Height Relative to Comp</dt>
               <dd>{dash(detail.heightRelativeToComp)}</dd>
             </div>
           </dl>
@@ -585,6 +642,7 @@ const LayerDetailPanel: FC<{
         idPrefix={`pref-${layer.layerCode}`}
         preferred
         readOnly={readOnly}
+        layerExists={!!layer.layerId}
         speciesCodes={speciesCodes}
         speciesCodesLoading={speciesCodesLoading}
         onAdd={handleSpeciesAdd}
@@ -597,6 +655,7 @@ const LayerDetailPanel: FC<{
         idPrefix={`acc-${layer.layerCode}`}
         preferred={false}
         readOnly={readOnly}
+        layerExists={!!layer.layerId}
         speciesCodes={speciesCodes}
         speciesCodesLoading={speciesCodesLoading}
         onAdd={handleSpeciesAdd}
@@ -620,6 +679,10 @@ const SpeciesEditor: FC<{
   idPrefix: string;
   preferred: boolean;
   readOnly?: boolean;
+  /** False when the parent layer has no id yet (synthetic empty Single
+   *  on a regime with no layers). Add stays disabled until the user
+   *  saves the layer densities first. */
+  layerExists?: boolean;
   speciesCodes: CodeOption[];
   speciesCodesLoading: boolean;
   onAdd: (
@@ -638,6 +701,7 @@ const SpeciesEditor: FC<{
   idPrefix,
   preferred,
   readOnly = false,
+  layerExists = true,
   speciesCodes,
   speciesCodesLoading,
   onAdd,
@@ -713,7 +777,11 @@ const SpeciesEditor: FC<{
             kind="tertiary"
             size="sm"
             renderIcon={Add}
-            disabled={speciesCodesLoading || availableCodes.length === 0}
+            disabled={
+              !layerExists ||
+              speciesCodesLoading ||
+              availableCodes.length === 0
+            }
             onClick={() => {
               resetComposer();
               setModalOpen(true);
@@ -724,7 +792,9 @@ const SpeciesEditor: FC<{
         )}
       </header>
 
-      {rows.length === 0 ? (
+      {!layerExists ? (
+        <p>Enter layer data and save before adding species.</p>
+      ) : rows.length === 0 ? (
         <p>No {title.toLowerCase()}.</p>
       ) : (
         <div className="bordered-table">
@@ -833,6 +903,7 @@ const SpeciesEditor: FC<{
           <Button
             kind="primary"
             disabled={adding || !composerCode || !composerMinHeight.trim()}
+            renderIcon={adding ? SavingIcon : undefined}
             onClick={() => void submitModal()}
           >
             {adding ? 'Adding…' : 'Save'}
@@ -851,10 +922,14 @@ const SpeciesEditor: FC<{
 const StandardRegimeLayersPanel: FC<Props> = ({
   fspId,
   regimeId,
+  amendmentNumber,
   layers,
   readOnly = false,
+  onDetailRefreshed,
 }) => {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [convertConfirmOpen, setConvertConfirmOpen] = useState(false);
+  const { display } = useNotification();
 
   // Reset to first tab when the regime changes (the parent already
   // remounts on regime change via its key, but defensive in case it
@@ -863,12 +938,10 @@ const StandardRegimeLayersPanel: FC<Props> = ({
     setActiveIndex(0);
   }, [regimeId]);
 
-  // Defensive default — the parent passes detail.layers but if the
-  // backend response is from a pre-deploy build that lacks the field,
-  // it'd be undefined and crash the .filter() below. Only filter out
-  // entries without a layerCode; a missing layerId still gets a tab
-  // so the per-layer fetch can surface whatever data is there.
-  const tabs = useMemo(
+  // Real layers as the backend reported them. Only filter out entries
+  // without a layerCode; a missing layerId still gets a tab so the
+  // per-layer fetch can surface whatever data is there.
+  const realTabs = useMemo(
     () =>
       (layers ?? []).filter((l) => l.layerCode !== null) as Array<
         StandardRegimeLayer & { layerCode: string; layerId: string | null }
@@ -876,12 +949,90 @@ const StandardRegimeLayersPanel: FC<Props> = ({
     [layers],
   );
 
-  if (tabs.length === 0) {
-    return <p>This regime has no layer data.</p>;
-  }
+  // When the regime has no layers at all, render a synthetic Single
+  // tab so the user can still see the layer widgets + Edit button.
+  // Saving the form fires the proc's ADD branch (P_REVISION_COUNT
+  // null) and onLayerCreated bubbles a re-fetch so the synthetic tab
+  // becomes a real one.
+  const tabs = useMemo(
+    () =>
+      realTabs.length > 0
+        ? realTabs
+        : ([{ layerCode: 'I', layerId: null }] as Array<
+            StandardRegimeLayer & { layerCode: string; layerId: string | null }
+          >),
+    [realTabs],
+  );
+
+  // Single-layer regimes have exactly one tab whose code is 'I'.
+  // Anything else is "multi" — including 1-of-4 with only layer 4
+  // present, which is still treated as the uneven-aged shape.
+  const isSingleLayer =
+    tabs.length === 1 && tabs[0].layerCode === 'I';
+  // No real layers exist → there's nothing to convert FROM, so hide
+  // the Convert button until the user saves the synthetic Single.
+  const canConvert = realTabs.length > 0;
+
+  // Refetch the regime detail and bubble it up. Used as the
+  // onLayerCreated callback so the synthetic Single tab is replaced
+  // by a real one (with a layerId) after the first save — which in
+  // turn flips layerExists=true on the Species editors.
+  const refreshRegime = useCallback(async () => {
+    try {
+      const updated = await getStandardRegimeDetail(
+        fspId,
+        regimeId,
+        amendmentNumber || undefined,
+      );
+      onDetailRefreshed?.(updated);
+    } catch (e) {
+      display({
+        kind: 'error',
+        title: 'Failed to refresh regime after layer save',
+        subtitle: e instanceof Error ? e.message : 'Unknown error',
+        timeout: 7000,
+      });
+    }
+  }, [fspId, regimeId, amendmentNumber, onDetailRefreshed, display]);
+  const convertLabel = isSingleLayer
+    ? 'Convert to Multi-Layer'
+    : 'Convert to Single Layer';
+  const convertConfirm = isSingleLayer
+    ? 'Convert this regime to multi-layer? The current layer becomes Layer 4, and empty layers 1, 2, 3 are added.'
+    : 'Convert this regime to single layer? Layers 1, 2, and 3 (and their species) will be deleted; layer 4 becomes the single layer.';
+
+  // Actual convert call — invoked by the confirmation modal. Errors
+  // surface as a toast through ConfirmationModal's catch path (it
+  // shows `errorTitle` + the thrown message), so we just rethrow here.
+  const performConvert = async () => {
+    const updated = await convertStandardRegimeLayers(
+      fspId,
+      regimeId,
+      amendmentNumber || undefined,
+    );
+    onDetailRefreshed?.(updated);
+    display({
+      kind: 'success',
+      title: isSingleLayer
+        ? 'Converted to multi-layer.'
+        : 'Converted to single layer.',
+      timeout: 6000,
+    });
+  };
 
   return (
     <div className="fsp-info__inner-tabs fsp-info__inner-tabs--gray">
+      {!readOnly && canConvert && (
+        <div className="fsp-info__tab-actions">
+          <Button
+            kind="tertiary"
+            size="sm"
+            onClick={() => setConvertConfirmOpen(true)}
+          >
+            {convertLabel}
+          </Button>
+        </div>
+      )}
       <Tabs selectedIndex={activeIndex} onChange={({ selectedIndex }) => setActiveIndex(selectedIndex)}>
         <TabList aria-label="Standards regime layers" contained>
           {tabs.map((l) => (
@@ -896,11 +1047,23 @@ const StandardRegimeLayersPanel: FC<Props> = ({
                 regimeId={regimeId}
                 layer={l}
                 readOnly={readOnly}
+                onLayerCreated={refreshRegime}
               />
             </TabPanel>
           ))}
         </TabPanels>
       </Tabs>
+      <ConfirmationModal
+        open={convertConfirmOpen}
+        onClose={() => setConvertConfirmOpen(false)}
+        heading={convertLabel}
+        confirmLabel={isSingleLayer ? 'Convert' : 'Convert'}
+        danger={!isSingleLayer}
+        errorTitle="Failed to convert layers"
+        onConfirm={performConvert}
+      >
+        <p>{convertConfirm}</p>
+      </ConfirmationModal>
     </div>
   );
 };

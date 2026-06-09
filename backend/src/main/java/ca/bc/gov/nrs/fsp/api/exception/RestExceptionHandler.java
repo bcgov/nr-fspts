@@ -1,6 +1,8 @@
 package ca.bc.gov.nrs.fsp.api.exception;
 
+import ca.bc.gov.nrs.fsp.api.dao.v1.StoredProcedureException;
 import ca.bc.gov.nrs.fsp.api.exception.errors.ApiError;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
@@ -157,6 +159,60 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
     log.error("", ex);
     return buildResponseEntity(ex.getError());
   }
+
+  /**
+   * Map well-known legacy proc error codes (the {@code sil.web.error.*}
+   * / {@code FSP.*} strings the procs put in {@code P_ERROR_MESSAGE})
+   * to friendly HTTP responses. Unknown proc errors still surface as
+   * 500s so we notice them in logs and can add a mapping later.
+   */
+  @ExceptionHandler(StoredProcedureException.class)
+  protected ResponseEntity<Object> handleStoredProcedureError(StoredProcedureException ex) {
+    String oracleMessage = ex.getOracleErrorMessage() == null
+        ? ""
+        : ex.getOracleErrorMessage();
+    for (Map.Entry<String, ProcErrorMapping> entry : PROC_ERROR_MAP.entrySet()) {
+      if (oracleMessage.contains(entry.getKey())) {
+        ProcErrorMapping m = entry.getValue();
+        ApiError apiError = new ApiError(m.status);
+        apiError.setMessage(m.userMessage);
+        log.warn("{}.{} → {}: {}",
+            ex.getPackageName(), ex.getProcedureName(), entry.getKey(), m.userMessage);
+        return buildResponseEntity(apiError);
+      }
+    }
+    // Fall back to 500 + the raw Oracle message for unknown codes.
+    log.error("Unhandled proc error from {}.{}: {}",
+        ex.getPackageName(), ex.getProcedureName(), oracleMessage, ex);
+    ApiError apiError = new ApiError(INTERNAL_SERVER_ERROR);
+    apiError.setMessage(ex.getMessage());
+    return buildResponseEntity(apiError);
+  }
+
+  private record ProcErrorMapping(
+      org.springframework.http.HttpStatus status, String userMessage) {}
+
+  /**
+   * Curated list of legacy proc error codes that have a clean
+   * user-facing equivalent. Substring match on the Oracle error message
+   * so suffixes / package paths don't matter.
+   */
+  private static final Map<String, ProcErrorMapping> PROC_ERROR_MAP = Map.of(
+      "FSP.INVALID.AGREEMENT.HOLDER", new ProcErrorMapping(FORBIDDEN,
+          "Your client number is not on this FSP's agreement holder list, so "
+              + "you can't modify it. An agreement holder for this FSP needs "
+              + "to make the change."),
+      "FSP.NO.AGREEMENT.HOLDER", new ProcErrorMapping(BAD_REQUEST,
+          "FSP must have at least one agreement holder."),
+      "FSP.BAD.ORG.UNIT", new ProcErrorMapping(BAD_REQUEST,
+          "One of the supplied district codes isn't recognized."),
+      "FSP.NO.NAME", new ProcErrorMapping(BAD_REQUEST,
+          "Plan name is required."),
+      "sil.web.error.usr.noRecord", new ProcErrorMapping(NOT_FOUND,
+          "The requested record could not be found."),
+      "sil.web.usr.database.record.modified", new ProcErrorMapping(CONFLICT,
+          "This record was modified by someone else after you opened it. "
+              + "Reload and try again."));
 
   // MaxUploadSizeExceededException, MultipartException, MissingServletRequest{Part,Parameter}Exception
   // are all already handled by the parent ResponseEntityExceptionHandler in

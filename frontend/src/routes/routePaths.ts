@@ -1,5 +1,15 @@
-import {Catalog, ChartLineData, Notification, Report, Search, UserAdmin,} from '@carbon/icons-react';
+import {
+  Catalog,
+  ChartLineData,
+  Notification,
+  Report,
+  Search,
+  Time,
+  UserAdmin,
+} from '@carbon/icons-react';
 import type {ComponentType} from 'react';
+
+import type {IdpProviderType} from '@/context/auth/types';
 
 // Each menu entry is either a leaf (renders as <SideNavLink>) or a parent
 // with children (renders as <SideNavMenu> + <SideNavMenuItem>s). Top-level
@@ -78,16 +88,42 @@ const NAV: MenuItem[] = [
     path: '/standards-search',
     icon: Search,
   },
+  {
+    // BCeID submitters' read-only audit of their org's submissions.
+    // Hidden from IDIR users — they have Inbox / Search / Reports for
+    // the same info.
+    id: 'Submission History',
+    label: 'Submission History',
+    path: '/submission-history',
+    icon: Time,
+  },
   // Kept commented so the icon import doesn't tree-shake — wire in if we
   // ever add a dashboard route. Removing for now keeps the SideNav focused.
   // { id: 'Dashboard', label: 'Dashboard', path: '/welcome', icon: ChartLineData },
 ];
 
+/**
+ * BCeID submitters get a deliberately narrow nav — they have no business
+ * touching admin or DDM-side screens, and IDIR-flavoured pages like
+ * Search/Inbox/Reports either don't apply or carry confusing extra
+ * affordances. Restricting the menu to what they actually do prevents
+ * support tickets and keeps the SPA's screen logic from having to gate
+ * every IDIR-only widget by idpProvider.
+ */
+const BCEID_ALLOWED_IDS = new Set(['Data Submission', 'Submission History']);
+
 // Discourage tree-shaking of the unused icon. (TS otherwise complains.)
 void ChartLineData;
 
-export function getMenuEntries(userRoles: string[]): MenuItem[] {
+export function getMenuEntries(
+  userRoles: string[],
+  idpProvider?: IdpProviderType,
+): MenuItem[] {
   const has = (required?: string[]) =>
     !required || required.length === 0 || required.some((r) => userRoles.includes(r));
-  return NAV.filter((item) => has(item.roles));
+  const roleFiltered = NAV.filter((item) => has(item.roles));
+  if (idpProvider === 'BCEIDBUSINESS') {
+    return roleFiltered.filter((item) => BCEID_ALLOWED_IDS.has(item.id));
+  }
+  return roleFiltered;
 }

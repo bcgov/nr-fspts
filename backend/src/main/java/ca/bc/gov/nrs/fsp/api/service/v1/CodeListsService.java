@@ -78,6 +78,28 @@ public class CodeListsService {
   }
 
   /**
+   * Attachment categories available for the given FSP. Backs the
+   * Attachments tab's "Add Attachment" dialog dropdown. The legacy
+   * cursor is per-FSP because the allowed categories vary by amendment
+   * state (e.g. amendments need different doc types than originals).
+   */
+  /**
+   * Returns all active rows from THE.FSP_ATTACHMENT_TYPE_CODE. The
+   * {@code fspId} parameter is kept on the signature for the
+   * controller path (and future per-FSP filtering) but isn't used
+   * server-side — the lookup table is global and the proc named
+   * {@code get_attach_reference_list} doesn't actually return
+   * categories.
+   */
+  @SuppressWarnings("unused")
+  public List<CodeOption> getAttachmentCategories(String fspId) {
+    return fspCodeListsDao.getFspAttachmentTypeCodes().stream()
+        .map(CodeListsService::toCodeOption)
+        .filter(o -> o.getCode() != null)
+        .toList();
+  }
+
+  /**
    * Silviculture tree species codes (SILV_TREE_SPECIES_CODE table).
    * Backs the Standards View → Layers species dropdown (preferred +
    * acceptable lists). Cursor exposes code + description columns.

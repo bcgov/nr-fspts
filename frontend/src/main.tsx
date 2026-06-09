@@ -8,6 +8,7 @@ import App from './App';
 import amplifyconfig from './config/fam/config';
 import { AuthProvider } from './context/auth/AuthProvider';
 import { NotificationProvider } from './context/notification/NotificationProvider';
+import OrgProvider from './context/org/OrgProvider';
 import ThemeProvider from './context/theme/ThemeProvider';
 
 import './index.scss';
@@ -40,11 +41,13 @@ if (!container) throw new Error('Root container #root not found');
 createRoot(container).render(
   <React.StrictMode>
     <AuthProvider>
-      <ThemeProvider>
-        <NotificationProvider>
-          <App />
-        </NotificationProvider>
-      </ThemeProvider>
+      <OrgProvider>
+        <ThemeProvider>
+          <NotificationProvider>
+            <App />
+          </NotificationProvider>
+        </ThemeProvider>
+      </OrgProvider>
     </AuthProvider>
   </React.StrictMode>,
 );

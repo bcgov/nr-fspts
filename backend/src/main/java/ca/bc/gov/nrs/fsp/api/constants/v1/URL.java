@@ -53,11 +53,36 @@ public final class URL {
       "/{fspId}/standards/{regimeId}/layers/{layerCode}/species";
   public static final String STANDARD_LAYER_SPECIES_BY_CODE =
       "/{fspId}/standards/{regimeId}/layers/{layerCode}/species/{speciesCode}";
+  // Toggles a standards regime between single-layer ('I') and multi-layer
+  // (1-4) via FSP_550_SUB_LAYERS.MAINLINE(CONVERT_LAYERS). The proc
+  // auto-detects the current shape and converts in the opposite direction.
+  //
+  // Path note: deliberately NOT nested under /layers/ — that segment is
+  // followed by {layerCode} on STANDARD_LAYER_DETAIL, so /layers/convert
+  // would resolve to GET/PUT-only "layer with code 'convert'" → 405.
+  public static final String STANDARD_LAYERS_CONVERT =
+      "/{fspId}/standards/{regimeId}/convert-layers";
+  // BGC site-series CRUD — POST inserts a new row, PUT updates the row
+  // identified by {siteSeriesId}. Both target FSP_550_STDS_PROPOSAL.SAVE_BGC_ITEM
+  // and return the refreshed regime detail so the BGC Zones tab redraws.
+  public static final String STANDARD_BGC_ZONES =
+      "/{fspId}/standards/{regimeId}/bgc-zones";
+  public static final String STANDARD_BGC_ZONE_BY_ID =
+      "/{fspId}/standards/{regimeId}/bgc-zones/{siteSeriesId}";
+  // Upload endpoint for the Standards View Attachments tab. POST a
+  // multipart file; backend hands it through FSP_550_STDS_PROPOSAL's
+  // GET_ATTACHMENT_BLOB_FOR_UPDATE proc (the only writeable path FSP
+  // roles can use against STANDARDS_REGIME_ATTACHMENT).
+  public static final String STANDARD_ATTACHMENTS =
+      "/{fspId}/standards/{regimeId}/attachments";
   public static final String STANDARD_ATTACHMENT_DOWNLOAD =
       "/{fspId}/standards/{regimeId}/attachments/{attachmentId}/download";
   public static final String ATTACHMENTS = "/{fspId}/attachments";
   public static final String ATTACHMENT_BY_ID = "/{fspId}/attachments/{attachmentId}";
   public static final String ATTACHMENT_DOWNLOAD = "/{fspId}/attachments/{attachmentId}/download";
+  // Per-FSP attachment-category dropdown for the upload dialog —
+  // mirrors FSP_CODE_LISTS.get_attach_reference_list(p_fsp_id).
+  public static final String ATTACHMENT_CATEGORIES = "/{fspId}/attachment-categories";
   public static final String INBOX = "/inbox";
   public static final String HISTORY = "/{fspId}/history";
   public static final String EXTENSIONS = "/{fspId}/extensions";

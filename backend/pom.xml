@@ -239,6 +239,22 @@
       <artifactId>jts-core</artifactId>
       <version>1.20.0</version>
     </dependency>
+    <!-- Pure-Java reprojection. Used to convert WGS84 (EPSG:4326) inputs
+         to BC Albers (EPSG:3005) before bounds-check / generalization /
+         persistence so all spatial code runs in metres. -->
+    <dependency>
+      <groupId>org.locationtech.proj4j</groupId>
+      <artifactId>proj4j</artifactId>
+      <version>1.4.0</version>
+    </dependency>
+    <!-- The core jar no longer ships the EPSG database; this companion
+         artifact carries the `proj4/nad/epsg` resource that
+         createFromName("EPSG:3005") needs to compile a CRS. -->
+    <dependency>
+      <groupId>org.locationtech.proj4j</groupId>
+      <artifactId>proj4j-epsg</artifactId>
+      <version>1.4.0</version>
+    </dependency>
   </dependencies>
 
   <build>

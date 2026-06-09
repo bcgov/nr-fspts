@@ -3,6 +3,7 @@ package ca.bc.gov.nrs.fsp.api.service.v1;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550StdsProposalDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubLayersDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubSpeciesDao;
+import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeBgcZoneUpsert;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeLayerDetail;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeLayerUpdate;
@@ -12,7 +13,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -124,8 +127,10 @@ public class StandardRegimeService {
             .toList(),
         r.bgcZones().stream()
             .map(b -> new StandardRegimeDetail.BgcZone(
+                b.stdsRegimeSiteSeriesId(),
                 b.bgcZoneCode(), b.bgcSubzoneCode(), b.bgcVariant(), b.bgcPhase(),
-                b.becSiteSeriesCd(), b.becSiteSeriesPhaseCd(), b.becSeral()))
+                b.becSiteSeriesCd(), b.becSiteSeriesPhaseCd(), b.becSeral(),
+                b.revisionCount()))
             .toList());
   }
 
@@ -243,33 +248,87 @@ public class StandardRegimeService {
   public StandardRegimeLayerDetail saveLayer(
       String fspId, String regimeId, String layerCode, String layerId,
       StandardRegimeLayerUpdate edits) {
-    StandardRegimeLayerDetail current = getLayerDetail(regimeId, layerCode, layerId);
+    // Blank layerId = ADD path. The legacy SAVE proc routes to ADD when
+    // P_REVISION_COUNT is null, so we skip the current-detail fetch (no
+    // current exists) and pass nulls for both the layer id and revision.
+    // The proc returns the assigned id via the INOUT pStandardsRegimeLayerId
+    // slot so we can re-fetch using the new id.
+    final boolean isAdd = layerId == null || layerId.isBlank();
     StandardRegimeDetail regime = getDetail(fspId, null, regimeId);
     if (regime == null) {
       throw new IllegalStateException(
           "Standards regime " + regimeId + " not found for FSP " + fspId);
     }
+    StandardRegimeLayerDetail current = isAdd
+        ? null
+        : getLayerDetail(regimeId, layerCode, layerId);
     Fsp550SubLayersDao.Result r = layersDao.mainline(
         "SAVE",
         regimeId,
-        layerId,
+        isAdd ? null : layerId,
         layerCode,
-        pick(edits.getTargetStocking(), current.targetStocking()),
-        pick(edits.getMinHorizontalDistance(), current.minHorizontalDistance()),
-        pick(edits.getMinPrefStockingStandard(), current.minPrefStockingStandard()),
-        pick(edits.getMinStockingStandard(), current.minStockingStandard()),
-        pick(edits.getResidualBasalArea(), current.residualBasalArea()),
-        pick(edits.getMinPostSpacing(), current.minPostSpacing()),
-        pick(edits.getMaxPostSpacing(), current.maxPostSpacing()),
-        pick(edits.getMaxConifer(), current.maxConifer()),
-        pick(edits.getHeightRelativeToComp(), current.heightRelativeToComp()),
-        pick(edits.getTreeSizeUnitCode(), current.treeSizeUnitCode()),
+        pick(edits.getTargetStocking(), valueOf(current, StandardRegimeLayerDetail::targetStocking)),
+        pick(edits.getMinHorizontalDistance(), valueOf(current, StandardRegimeLayerDetail::minHorizontalDistance)),
+        pick(edits.getMinPrefStockingStandard(), valueOf(current, StandardRegimeLayerDetail::minPrefStockingStandard)),
+        pick(edits.getMinStockingStandard(), valueOf(current, StandardRegimeLayerDetail::minStockingStandard)),
+        pick(edits.getResidualBasalArea(), valueOf(current, StandardRegimeLayerDetail::residualBasalArea)),
+        pick(edits.getMinPostSpacing(), valueOf(current, StandardRegimeLayerDetail::minPostSpacing)),
+        pick(edits.getMaxPostSpacing(), valueOf(current, StandardRegimeLayerDetail::maxPostSpacing)),
+        pick(edits.getMaxConifer(), valueOf(current, StandardRegimeLayerDetail::maxConifer)),
+        pick(edits.getHeightRelativeToComp(), valueOf(current, StandardRegimeLayerDetail::heightRelativeToComp)),
+        pick(edits.getTreeSizeUnitCode(), valueOf(current, StandardRegimeLayerDetail::treeSizeUnitCode)),
         RequestUtil.getCurrentIdir(),
-        current.revisionCount(),
+        isAdd ? null : current.revisionCount(),
         regime.revisionCount());
-    log.info("Standards regime {} layer {} ({}) saved by {} — new layer revision_count={}",
-        regimeId, layerId, layerCode, RequestUtil.getCurrentIdir(), r.pRevisionCount());
-    return getLayerDetail(regimeId, layerCode, layerId);
+    String effectiveLayerId = isAdd ? r.pStandardsRegimeLayerId() : layerId;
+    log.info("Standards regime {} layer {} ({}) {} by {} — new layer revision_count={}",
+        regimeId, effectiveLayerId, layerCode,
+        isAdd ? "created" : "saved",
+        RequestUtil.getCurrentIdir(), r.pRevisionCount());
+    return getLayerDetail(regimeId, layerCode, effectiveLayerId);
+  }
+
+  private static <T> String valueOf(T source, java.util.function.Function<T, String> getter) {
+    return source == null ? null : getter.apply(source);
+  }
+
+  /**
+   * Toggle between even-aged (single layer 'I') and uneven-aged
+   * (layers 1-4) via FSP_550_SUB_LAYERS.MAINLINE(CONVERT_LAYERS).
+   *
+   * <p>The proc auto-detects the current shape and converts in the
+   * opposite direction. Internally it:
+   * <ul>
+   *   <li>Single → Multi: renames the 'I' layer to '4' and inserts
+   *       empty layers 1, 2, 3.</li>
+   *   <li>Multi → Single: deletes layers 1, 2, 3 (and their species)
+   *       and renames layer '4' to 'I'.</li>
+   * </ul>
+   *
+   * <p>p_revision_count is unused by the underlying convert_layers
+   * routine but the MAINLINE signature requires a value; we pass blank.
+   * The parent regime's revision_count IS used by update_audit_info
+   * after the convert succeeds.
+   */
+  @Transactional
+  public StandardRegimeDetail convertLayers(
+      String fspId, String amendmentNumber, String regimeId) {
+    String regimeRev = dao.getRevisionCount(regimeId);
+    if (regimeRev == null) {
+      throw new IllegalStateException(
+          "Standards regime " + regimeId + " not found");
+    }
+    layersDao.mainline(
+        "CONVERT_LAYERS",
+        regimeId,
+        "", "",                                   // layer id + stocking layer code
+        "", "", "", "", "", "", "", "", "", "",   // scalar layer fields — unused
+        RequestUtil.getCurrentIdir(),
+        "",                                       // p_revision_count — unread by convert_layers
+        regimeRev);
+    log.info("Standards regime {} — layers converted by {} (parent rev was {})",
+        regimeId, RequestUtil.getCurrentIdir(), regimeRev);
+    return getDetail(fspId, amendmentNumber, regimeId);
   }
 
   /**
@@ -362,5 +421,98 @@ public class StandardRegimeService {
     log.info("Standards regime {} layer {} ({}) — deleted species {} (preferred={})",
         regimeId, layerId, layerCode, speciesCode, preferred);
     return getLayerDetail(regimeId, layerCode, layerId);
+  }
+
+  /**
+   * Insert or update one row of STANDARDS_REGIME_SITE_SERIES through
+   * FSP_550_STDS_PROPOSAL.SAVE_BGC_ITEM. Null {@code siteSeriesId} +
+   * {@code rowRevisionCount} → INSERT branch; non-null → UPDATE branch
+   * with optimistic-lock check on the row revision.
+   *
+   * <p>The parent regime's revision_count is bumped by the proc's
+   * {@code update_audit_info} call, so we re-read the full detail to
+   * surface the new value to the UI.
+   */
+  @Transactional
+  public StandardRegimeDetail saveBgcItem(
+      String fspId, String amendmentNumber, String regimeId,
+      String siteSeriesId, String rowRevisionCount,
+      StandardRegimeBgcZoneUpsert edits) {
+    String regimeRev = dao.getRevisionCount(regimeId);
+    if (regimeRev == null) {
+      throw new IllegalStateException(
+          "Standards regime " + regimeId + " not found");
+    }
+    Fsp550StdsProposalDao.SaveBgcRequest req = new Fsp550StdsProposalDao.SaveBgcRequest(
+        siteSeriesId,
+        regimeId,
+        edits.getBgcZoneCode(),
+        edits.getBgcSubzoneCode(),
+        edits.getBgcVariant(),
+        edits.getBgcPhase(),
+        edits.getBecSiteSeriesCd(),
+        edits.getBecSiteSeriesPhaseCd(),
+        edits.getBecSeral(),
+        RequestUtil.getCurrentIdir(),
+        rowRevisionCount,
+        regimeRev);
+    Fsp550StdsProposalDao.SaveBgcResult result = dao.saveBgcItem(req);
+    log.info("Standards regime {} — {} BGC site-series id={} by {}",
+        regimeId,
+        rowRevisionCount == null ? "added" : "updated",
+        result.stdsRegimeSiteSeriesId(),
+        RequestUtil.getCurrentIdir());
+    return getDetail(fspId, amendmentNumber, regimeId);
+  }
+
+  /**
+   * Delete one row of STANDARDS_REGIME_SITE_SERIES via
+   * FSP_550_STDS_PROPOSAL.REMOVE_BGC_ITEM. The row's own
+   * {@code revisionCount} is required for the optimistic-lock check;
+   * the parent regime's revision_count is bumped by the proc on success.
+   */
+  @Transactional
+  public StandardRegimeDetail deleteBgcItem(
+      String fspId, String amendmentNumber, String regimeId,
+      String siteSeriesId, String rowRevisionCount) {
+    String regimeRev = dao.getRevisionCount(regimeId);
+    if (regimeRev == null) {
+      throw new IllegalStateException(
+          "Standards regime " + regimeId + " not found");
+    }
+    dao.removeBgcItem(new Fsp550StdsProposalDao.RemoveBgcRequest(
+        siteSeriesId,
+        regimeId,
+        RequestUtil.getCurrentIdir(),
+        rowRevisionCount,
+        regimeRev));
+    log.info("Standards regime {} — removed BGC site-series id={} by {}",
+        regimeId, siteSeriesId, RequestUtil.getCurrentIdir());
+    return getDetail(fspId, amendmentNumber, regimeId);
+  }
+
+  /**
+   * Adds a new attachment to a standards regime. The BLOB write happens
+   * inside the DAO call (FSP roles don't have direct INSERT/UPDATE on
+   * STANDARDS_REGIME_ATTACHMENT, so we rely on the proc's INSERT + the
+   * returned FOR-UPDATE locator). Re-reads the regime detail so the
+   * Attachments tab redraws with the new row.
+   */
+  @Transactional
+  public StandardRegimeDetail addAttachment(
+      String fspId, String amendmentNumber, String regimeId,
+      MultipartFile file) throws IOException {
+    Fsp550StdsProposalDao.AddAttachmentResult result = dao.addAttachment(
+        new Fsp550StdsProposalDao.AddAttachmentRequest(
+            regimeId,
+            file.getOriginalFilename(),
+            "",                          // description — not collected on this dialog
+            file.getContentType(),       // mime_type — proc derives mime_type_code
+            file.getBytes(),
+            RequestUtil.getCurrentIdir()));
+    log.info("Standards regime {} — added attachment {} (id={}, size={}) by {}",
+        regimeId, file.getOriginalFilename(), result.standardsRegimeAttachId(),
+        file.getSize(), RequestUtil.getCurrentIdir());
+    return getDetail(fspId, amendmentNumber, regimeId);
   }
 }

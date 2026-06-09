@@ -115,6 +115,68 @@ public class GmlGeometryConverter {
     return GF.createMultiPolygon(polys);
   }
 
+  /**
+   * Inverse of {@link #toJts(SingleOrMultiplePolygonPropertyType)} —
+   * replaces the extent's geometry with a GML representation of the
+   * supplied JTS geometry (Polygon or MultiPolygon). Used by the
+   * validator after simplification + precision-snap so the persistence
+   * pipeline picks up the storage-ready coordinates without any extra
+   * plumbing.
+   *
+   * <p>The output is always wrapped in a {@link MultiPolygonType}
+   * (single-member when the input was a Polygon) since downstream
+   * {@code extentOf} is typed as {@link SingleOrMultiplePolygonPropertyType}
+   * and the existing pipeline already handles the multi shape
+   * uniformly.
+   */
+  public void writeJtsToExtent(
+      org.locationtech.jts.geom.Geometry geom,
+      SingleOrMultiplePolygonPropertyType extent,
+      String srsName) {
+    MultiPolygonType multi = new MultiPolygonType();
+    multi.setSrsName(srsName);
+    if (geom instanceof org.locationtech.jts.geom.Polygon p) {
+      multi.getGeometryMember().add(OF.createPolygonMember(toPolygonMember(p)));
+    } else if (geom instanceof org.locationtech.jts.geom.MultiPolygon mp) {
+      for (int i = 0; i < mp.getNumGeometries(); i++) {
+        multi.getGeometryMember().add(OF.createPolygonMember(
+            toPolygonMember((org.locationtech.jts.geom.Polygon) mp.getGeometryN(i))));
+      }
+    } else {
+      throw new IllegalArgumentException(
+          "writeJtsToExtent: only Polygon or MultiPolygon supported (got "
+              + geom.getGeometryType() + ")");
+    }
+    extent.setGeometry(OF.createMultiPolygon(multi));
+  }
+
+  private static final ObjectFactory OF = new ObjectFactory();
+
+  private static PolygonMemberType toPolygonMember(org.locationtech.jts.geom.Polygon p) {
+    PolygonType polygon = new PolygonType();
+    polygon.setOuterBoundaryIs(linearRingMember(p.getExteriorRing()));
+    for (int i = 0; i < p.getNumInteriorRing(); i++) {
+      polygon.getInnerBoundaryIs().add(linearRingMember(p.getInteriorRingN(i)));
+    }
+    PolygonMemberType member = new PolygonMemberType();
+    member.setGeometry(OF.createPolygon(polygon));
+    return member;
+  }
+
+  private static LinearRingMemberType linearRingMember(
+      org.locationtech.jts.geom.LineString ring) {
+    LinearRingType linear = new LinearRingType();
+    for (org.locationtech.jts.geom.Coordinate c : ring.getCoordinates()) {
+      CoordType ct = new CoordType();
+      ct.setX(java.math.BigDecimal.valueOf(c.x));
+      ct.setY(java.math.BigDecimal.valueOf(c.y));
+      linear.getCoord().add(ct);
+    }
+    LinearRingMemberType member = new LinearRingMemberType();
+    member.setGeometry(OF.createLinearRing(linear));
+    return member;
+  }
+
   private LinearRing ringFromMember(LinearRingMemberType member, String label)
       throws GmlConversionException {
     if (member == null) {

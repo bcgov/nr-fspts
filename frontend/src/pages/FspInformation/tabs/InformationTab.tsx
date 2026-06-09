@@ -15,11 +15,20 @@ import {
   TextInput,
   Toggle,
 } from '@carbon/react';
-import {Edit} from '@carbon/icons-react';
+import {Add, Edit} from '@carbon/icons-react';
 import {type FC, useEffect, useState} from 'react';
 
+import ClientSearchModal from '@/components/ClientSearchModal';
+import DistrictPickerModal from '@/components/DistrictPickerModal';
 import {useNotification} from '@/context/notification/useNotification';
-import {type FspInformation, updateFsp} from '@/services/fspSearch';
+import type {ClientSearchResult} from '@/services/clientSearch';
+import {
+  type CodeOption,
+  type FspAgreementHolder,
+  type FspDistrict,
+  type FspInformation,
+  updateFsp,
+} from '@/services/fspSearch';
 
 interface Props {
   fsp: FspInformation | null;
@@ -175,6 +184,12 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
   );
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
+  // Add-collection dialog state. Each one opens via its own button
+  // on the Agreement Holders / Districts section headers; persistence
+  // calls updateFsp with the full merged list so the proc rewrites
+  // the licensees / org-units relations.
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
+  const [districtPickerOpen, setDistrictPickerOpen] = useState(false);
 
   // Reset form whenever the underlying fsp changes (amendment switch,
   // post-save refresh, etc.) — same useEffect-guard idiom nr-rept uses.
@@ -247,6 +262,73 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
     }
   };
 
+  // Add a row to a collection (holders or districts) and PUT the
+  // merged FSP. Persistence-side, FspService.applyEdits overlays the
+  // supplied list onto the GET-resolved record before SAVE.
+  const handleAddHolder = async (client: ClientSearchResult) => {
+    if (!fsp?.fspId || !client.clientNumber) return;
+    const next: FspAgreementHolder = {
+      clientNumber: client.clientNumber,
+      // Proc resolves clientName + agreement description server-side
+      // on the next GET; sending null keeps the payload thin.
+      clientName: client.clientName,
+      agreementDescription: null,
+    };
+    const merged = [...(fsp.agreementHolders ?? []), next];
+    const updated = await updateFsp(fsp.fspId, { agreementHolders: merged });
+    onSaved(updated);
+    display({
+      kind: 'success',
+      title: 'Agreement holder added.',
+      subtitle: client.clientName || client.clientNumber || undefined,
+      timeout: 6000,
+    });
+  };
+
+  const handleAddDistrict = async (district: CodeOption) => {
+    if (!fsp?.fspId || !district.code) return;
+    // Belt-and-suspenders dedup. The modal already filters the
+    // dropdown by org_unit_no, but if a race / refresh ever lets a
+    // duplicate through we still want a friendly toast rather than a
+    // silent second row in the list.
+    const alreadyOn = (fsp.districts ?? []).some(
+      (d) => d.orgUnitNo === district.code,
+    );
+    if (alreadyOn) {
+      display({
+        kind: 'warning',
+        title: 'District is already included in this FSP',
+        subtitle: district.description ?? district.code,
+        timeout: 6000,
+      });
+      return;
+    }
+    // FSP_CODE_LISTS.get_org_unit_filtered returns rows shaped as
+    //   code        = org_unit_no   (numeric, e.g. "15")
+    //   description = "ORG_UNIT_CODE - ORG_UNIT_NAME" ("DCK - Chilliwack…")
+    // Split that apart so the new row matches the shape the proc + the
+    // existing FSP rows use (orgUnitNo numeric, orgUnitCode 3-letter,
+    // orgUnitName plain).
+    const desc = district.description ?? '';
+    const dashIdx = desc.indexOf(' - ');
+    const code = dashIdx > 0 ? desc.slice(0, dashIdx).trim() : null;
+    const name = dashIdx > 0 ? desc.slice(dashIdx + 3).trim() : desc.trim() || null;
+    const next: FspDistrict = {
+      orgUnitNo: district.code,
+      orgUnitCode: code,
+      orgUnitName: name,
+    };
+    const merged = [...(fsp.districts ?? []), next];
+    const updated = await updateFsp(fsp.fspId, { districts: merged });
+    onSaved(updated);
+    display({
+      kind: 'success',
+      title: 'District added.',
+      subtitle: code ?? district.code,
+      timeout: 6000,
+    });
+  };
+
   // ─── Read-only field lists ──────────────────────────────────────────
 
   const planDetails: FieldEntry[] = [
@@ -262,8 +344,8 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
     { label: 'Effective Date', value: dash(fsp.fspPlanStartDate) },
     { label: 'Expiry Date', value: dash(fsp.fspExpiryDate) },
     { label: 'Submission Date', value: dash(fsp.fspPlanSubmissionDate) },
-    { label: 'Term (Years)', value: dash(fsp.fspPlanTermYears) },
-    { label: 'Term (Months)', value: dash(fsp.fspPlanTermMonths) },
+    { label: 'Term', value: dash(fsp.fspPlanTermYears) },
+    { label: 'Term', value: dash(fsp.fspPlanTermMonths) },
     { label: 'Plan End Date', value: dash(fsp.fspPlanEndDate) },
   ];
 
@@ -298,7 +380,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
     <div>
       {!editing && (
         <div className="fsp-info__tab-actions">
-          <Button kind="primary" size="sm" renderIcon={Edit} onClick={handleEdit}>
+          <Button kind="tertiary" size="sm" renderIcon={Edit} onClick={handleEdit}>
             Edit
           </Button>
         </div>
@@ -402,7 +484,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
               </DatePicker>
               <NumberInput
                 id="edit-fspPlanTermYears"
-                label="Term (Years)"
+                label="Term"
                 min={0}
                 max={99}
                 allowEmpty
@@ -417,7 +499,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
               />
               <NumberInput
                 id="edit-fspPlanTermMonths"
-                label="Term (Months)"
+                label="Term"
                 min={0}
                 max={11}
                 allowEmpty
@@ -540,10 +622,20 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
           )}
         </section>
 
-        {/* Agreement Holders — read-only for now (row-edit is its own UX) */}
+        {/* Agreement Holders — row-edit deferred; Add wired via the
+            ClientSearchModal so a holder can be picked from FOREST_CLIENT
+            and persisted without going through the scalar edit mode. */}
         <section className="fsp-info__tile fsp-info__tile--full">
           <header className="fsp-info__tile-header">
             <h2 className="fsp-info__section-title">Agreement Holders</h2>
+            <Button
+              kind="tertiary"
+              size="sm"
+              renderIcon={Add}
+              onClick={() => setClientPickerOpen(true)}
+            >
+              Add Agreement Holder
+            </Button>
           </header>
           {agreementHolderRows.length === 0 ? (
             <p>No agreement holders linked to this FSP.</p>
@@ -586,10 +678,19 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
           )}
         </section>
 
-        {/* Districts — read-only for now */}
+        {/* Districts — Add wired via the DistrictPickerModal autocomplete
+            (Carbon ComboBox over getOrgUnits). */}
         <section className="fsp-info__tile fsp-info__tile--full">
           <header className="fsp-info__tile-header">
             <h2 className="fsp-info__section-title">Districts</h2>
+            <Button
+              kind="tertiary"
+              size="sm"
+              renderIcon={Add}
+              onClick={() => setDistrictPickerOpen(true)}
+            >
+              Add District
+            </Button>
           </header>
           {districtRows.length === 0 ? (
             <p>No districts linked to this FSP.</p>
@@ -642,6 +743,30 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
           </Button>
         </div>
       )}
+
+      <ClientSearchModal
+        open={clientPickerOpen}
+        onClose={() => setClientPickerOpen(false)}
+        onSelect={(client) => {
+          void handleAddHolder(client).catch((err) => {
+            display({
+              kind: 'error',
+              title: 'Failed to add agreement holder',
+              subtitle: err instanceof Error ? err.message : 'Unknown error',
+              timeout: 9000,
+            });
+          });
+        }}
+      />
+
+      <DistrictPickerModal
+        open={districtPickerOpen}
+        onClose={() => setDistrictPickerOpen(false)}
+        excludeOrgUnitNos={(fsp.districts ?? [])
+          .map((d) => d.orgUnitNo)
+          .filter((c): c is string => !!c)}
+        onSelect={handleAddDistrict}
+      />
     </div>
   );
 };

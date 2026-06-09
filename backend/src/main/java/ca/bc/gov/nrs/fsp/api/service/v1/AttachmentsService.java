@@ -4,8 +4,11 @@ import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp400AttachmentsDao;
 import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentBlob;
 import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentResponse;
 import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+// RequiredArgsConstructor dropped — explicit constructor below so
+// JdbcTemplate (added for the amendment-lookup) injects cleanly.
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,15 +23,19 @@ import java.util.List;
  * list as the simplest preservation of "all attachments for an FSP".
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class AttachmentsService {
 
   private static final String ALL_ATTACHES_IND = "Y";
-  private static final String DEFAULT_AMENDMENT_NUMBER = "1";
   private static final String DEFAULT_CONSOLIDATED_IND = "N";
 
   private final Fsp400AttachmentsDao attachmentsDao;
+  private final JdbcTemplate jdbcTemplate;
+
+  public AttachmentsService(Fsp400AttachmentsDao attachmentsDao, JdbcTemplate jdbcTemplate) {
+    this.attachmentsDao = attachmentsDao;
+    this.jdbcTemplate = jdbcTemplate;
+  }
 
   public List<AttachmentResponse> getByFspId(String fspId) {
     // Bind for fsp_tombstone.get's "find latest accessible amendment"
@@ -74,13 +81,17 @@ public class AttachmentsService {
   @Transactional
   public AttachmentResponse upload(String fspId, MultipartFile file, String typeCode)
       throws IOException {
+    // Resolve the FSP's current latest amendment number — the old
+    // hardcoded "1" tripped FAX_FSP_FK whenever the FSP's amendments
+    // didn't include 1 (e.g. original-only FSPs sitting at amendment 0).
+    String amendmentNumber = findLatestAmendmentNumber(fspId);
     // Audit columns are VARCHAR2(30); the long Cognito composite
     // would blow the column. getCurrentIdir returns the short FAM
     // IDIR ("MAVILLEN"-style) with a 30-char safety cap.
     String userId = RequestUtil.getCurrentIdir();
     Fsp400AttachmentsDao.CreateAttachmentResult created = attachmentsDao.createAttachment(
         Long.valueOf(fspId),
-        DEFAULT_AMENDMENT_NUMBER,
+        amendmentNumber,
         typeCode,
         file.getOriginalFilename(),
         file.getSize(),
@@ -90,7 +101,7 @@ public class AttachmentsService {
     attachmentsDao.saveAttachmentContent(created.createdAttachmentId(), file.getBytes());
     return AttachmentResponse.builder()
         .fspAttachmentId(String.valueOf(created.createdAttachmentId()))
-        .fspAmendmentNumber(DEFAULT_AMENDMENT_NUMBER)
+        .fspAmendmentNumber(amendmentNumber)
         .attachmentName(file.getOriginalFilename())
         .attachmentSize(String.valueOf(file.getSize()))
         .consolidatedInd(DEFAULT_CONSOLIDATED_IND)
@@ -99,7 +110,33 @@ public class AttachmentsService {
 
   @Transactional
   public void delete(String fspId, Long attachmentId) {
-    attachmentsDao.removeAttachment(Long.valueOf(fspId), DEFAULT_AMENDMENT_NUMBER, attachmentId);
+    attachmentsDao.removeAttachment(
+        Long.valueOf(fspId), findLatestAmendmentNumber(fspId), attachmentId);
+  }
+
+  /**
+   * Resolves the highest {@code fsp_amendment_number} that exists on
+   * {@code forest_stewardship_plan} for the given FSP. Used by the
+   * upload + delete paths so writes target a real FK-valid amendment
+   * row instead of a hardcoded guess.
+   */
+  private String findLatestAmendmentNumber(String fspId) {
+    try {
+      Long max = jdbcTemplate.queryForObject(
+          "SELECT MAX(fsp_amendment_number) "
+              + "  FROM the.forest_stewardship_plan "
+              + " WHERE fsp_id = ?",
+          Long.class, Long.parseLong(fspId));
+      if (max == null) {
+        throw new IllegalArgumentException(
+            "FSP " + fspId + " has no amendments — cannot determine upload target");
+      }
+      return max.toString();
+    } catch (EmptyResultDataAccessException e) {
+      throw new IllegalArgumentException("FSP " + fspId + " not found", e);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException("FSP id must be numeric: " + fspId, e);
+    }
   }
 
   private static void appendAll(

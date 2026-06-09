@@ -2,6 +2,8 @@ package ca.bc.gov.nrs.fsp.api.util;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * The type Request util.
@@ -112,31 +114,111 @@ public class RequestUtil {
   }
 
   /**
-   * Extracts the 8-digit forest-client number embedded in a role-qualified
-   * cognito group (e.g. {@code FSPTS_ADMINISTRATOR_00012797} → "00012797").
-   * Non-numeric suffixes (org codes like {@code _DCC}) are ignored. When
-   * the user belongs to multiple client-scoped groups the first numeric
-   * match wins, mirroring legacy single-client behaviour. Returns "" if
-   * no client suffix is found.
+   * Header sent by the SPA when a BCeID submitter has picked an active
+   * org from the multi-client picker. Validated against the user's own
+   * JWT groups before being used — a forged value that isn't a real
+   * scope for the user is dropped silently and we fall back to the
+   * legacy "first match wins" behaviour.
+   */
+  private static final String ACTIVE_ORG_HEADER = "X-FSPTS-Active-Org-Client-Number";
+
+  /**
+   * Extracts the 8-digit forest-client number that should scope this
+   * request's database queries.
+   *
+   * <p>Resolution order:
+   * <ol>
+   *   <li>{@code X-FSPTS-Active-Org-Client-Number} header (set by the
+   *       SPA after the BCeID multi-org picker) — IF it appears as a
+   *       numeric suffix on one of the JWT's groups, return it.</li>
+   *   <li>Otherwise the first numeric suffix in the user's groups —
+   *       mirrors legacy single-client behaviour for IDIR users and
+   *       single-org BCeID users.</li>
+   *   <li>Empty string if no client suffix exists at all.</li>
+   * </ol>
    */
   public static String getCurrentClientNumber() {
     try {
       var groups = getCurrentJwt().getClaimAsStringList("cognito:groups");
       if (groups == null || groups.isEmpty()) return "";
-      for (String group : groups) {
-        for (String role : CANONICAL_FSPTS_ROLES) {
-          String prefix = role + "_";
-          if (group.startsWith(prefix)) {
-            String suffix = group.substring(prefix.length());
-            if (suffix.matches("\\d{8}")) {
-              return suffix;
-            }
+      var ownClientNumbers = collectClientNumberSuffixes(groups);
+      if (ownClientNumbers.isEmpty()) return "";
+      String requested = readActiveOrgHeader();
+      if (requested != null && ownClientNumbers.contains(requested)) {
+        return requested;
+      }
+      return ownClientNumbers.iterator().next();
+    } catch (RuntimeException ex) {
+      return "";
+    }
+  }
+
+  private static java.util.LinkedHashSet<String> collectClientNumberSuffixes(
+      java.util.List<String> groups) {
+    var result = new java.util.LinkedHashSet<String>();
+    for (String group : groups) {
+      for (String role : CANONICAL_FSPTS_ROLES) {
+        String prefix = role + "_";
+        if (group.startsWith(prefix)) {
+          String suffix = group.substring(prefix.length());
+          if (suffix.matches("\\d{8}")) {
+            result.add(suffix);
           }
         }
       }
-      return "";
+    }
+    return result;
+  }
+
+  private static String readActiveOrgHeader() {
+    try {
+      var attrs = RequestContextHolder.getRequestAttributes();
+      if (!(attrs instanceof ServletRequestAttributes sra)) return null;
+      String raw = sra.getRequest().getHeader(ACTIVE_ORG_HEADER);
+      if (raw == null) return null;
+      String trimmed = raw.trim();
+      return trimmed.matches("\\d{8}") ? trimmed : null;
     } catch (RuntimeException ex) {
-      return "";
+      return null;
+    }
+  }
+
+  /**
+   * True when the current JWT carries {@code FSPTS_ADMINISTRATOR} as
+   * one of its cognito groups (with or without an org/client suffix).
+   */
+  public static boolean isCurrentUserAdmin() {
+    return hasFsptsRole("FSPTS_ADMINISTRATOR");
+  }
+
+  /** True when the JWT carries {@code FSPTS_DECISION_MAKER} (with or without suffix). */
+  public static boolean isCurrentUserDecisionMaker() {
+    return hasFsptsRole("FSPTS_DECISION_MAKER");
+  }
+
+  /** True when the JWT carries {@code FSPTS_REVIEWER} (with or without suffix). */
+  public static boolean isCurrentUserReviewer() {
+    return hasFsptsRole("FSPTS_REVIEWER");
+  }
+
+  /**
+   * Shared FSPTS-role match. A role is "present" if the JWT carries it
+   * exactly or as an org/client-suffixed variant (e.g.
+   * {@code FSPTS_ADMINISTRATOR_00012797}).
+   */
+  private static boolean hasFsptsRole(String role) {
+    try {
+      var groups = getCurrentJwt().getClaimAsStringList("cognito:groups");
+      if (groups == null || groups.isEmpty()) return false;
+      String prefix = role + "_";
+      for (String group : groups) {
+        if (role.equals(group) || group.startsWith(prefix)) {
+          return true;
+        }
+      }
+      return false;
+    } catch (RuntimeException ex) {
+      return false;
     }
   }
 }

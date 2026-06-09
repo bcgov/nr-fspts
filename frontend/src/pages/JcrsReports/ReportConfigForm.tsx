@@ -232,11 +232,7 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
           <Select
             key="orgUnit"
             id={`report-${definition.id}-orgUnit`}
-            labelText={
-              definition.fields.orgUnit === 'required'
-                ? 'Organization Unit (required)'
-                : 'Organization Unit'
-            }
+            labelText="Organization Unit"
             value={formState.orgUnitNo}
             onChange={handleSelectChange('orgUnitNo')}
             disabled={orgUnitsLoading}
@@ -272,9 +268,7 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
           <TextInput
             key="fspId"
             id={`report-${definition.id}-fspId`}
-            labelText={
-              definition.fields.fspId === 'required' ? 'FSP ID (required)' : 'FSP ID'
-            }
+            labelText="FSP ID"
             value={formState.fspId}
             onChange={handleTextChange('fspId')}
             maxLength={10}

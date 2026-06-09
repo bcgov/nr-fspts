@@ -6,6 +6,7 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Blob;
 import java.sql.Types;
 import java.util.List;
 
@@ -108,13 +109,16 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
               rs.getString(6)    // file_size
           ));
           List<BgcZoneRow> bgcZones = readCursor(cs, 9, rs -> new BgcZoneRow(
+              rs.getString(2),   // standard_regime_site_series_id
               rs.getString(3),   // bgc_zone_code
               rs.getString(4),   // bgc_subzone_code
               rs.getString(5),   // bgc_variant
               rs.getString(6),   // bgc_phase
               rs.getString(7),   // bec_site_series_cd
               rs.getString(8),   // bec_site_series_phase_cd
-              rs.getString(9)    // bec_seral
+              rs.getString(9),   // bec_seral
+              // update_userid (10) — not surfaced
+              rs.getString(11)   // revision_count
           ));
           // Header cursor is one row but defensively handle empty.
           Header header = headers.isEmpty() ? null : headers.get(0);
@@ -233,8 +237,72 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
         });
   }
 
-  // Suppress unused-import warnings on Types — kept for readability if
-  // the cursor map evolves to need OUT-only scalar registration later.
-  @SuppressWarnings("unused")
-  private static final int TYPES_VARCHAR_HINT = Types.VARCHAR;
+  private static final int REMOVE_BGC_PARAM_COUNT = 6;
+  private static final String REMOVE_BGC_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_REMOVE_BGC_ITEM, REMOVE_BGC_PARAM_COUNT);
+
+  @Override
+  public void removeBgcItem(RemoveBgcRequest req) {
+    executeCall(REMOVE_BGC_CALL,
+        cs -> {
+          cs.setString(1, req.stdsRegimeSiteSeriesId());       // IN
+          cs.setString(2, req.standardsRegimeId());            // IN
+          cs.setString(3, req.updateUserid());                 // IN
+          cs.setString(4, req.revisionCount());                // IN
+          cs.setString(5, req.standardsRevisionCount());       // IN
+          setInOutString(cs, 6, "");                           // INOUT p_error_message
+        },
+        cs -> {
+          String error = cs.getString(6);
+          throwIfError(PACKAGE_NAME, PROCEDURE_REMOVE_BGC_ITEM, error);
+          return null;
+        });
+  }
+
+  private static final int ADD_ATTACHMENT_PARAM_COUNT = 10;
+  private static final String ADD_ATTACHMENT_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_GET_ATTACHMENT_BLOB_FOR_UPDATE, ADD_ATTACHMENT_PARAM_COUNT);
+
+  @Override
+  public AddAttachmentResult addAttachment(AddAttachmentRequest req) {
+    byte[] content = req.content() == null ? new byte[0] : req.content();
+    return executeCall(ADD_ATTACHMENT_CALL,
+        cs -> {
+          setInOutString(cs, 1, null);                       // INOUT id — null triggers insert
+          setInOutString(cs, 2, req.standardsRegimeId());    // INOUT regime id
+          setInOutString(cs, 3, req.attachmentName());       // INOUT name
+          setInOutString(cs, 4, req.attachmentDescription()); // INOUT description
+          setInOutString(cs, 5, null);                       // INOUT mime_type_code — proc derives
+          setInOutString(cs, 6, req.mimeType());             // INOUT mime_type (browser content type)
+          // INOUT BLOB — set NULL on the IN side (Oracle JDBC's
+          // setBlob rejects a zero-length stream with "0 byte of BLOB
+          // data cannot be read"). The proc's insert path uses
+          // EMPTY_BLOB() internally when id IS NULL, so the IN value
+          // is unread; we write actual bytes into the OUT locator below.
+          cs.setNull(7, Types.BLOB);
+          cs.registerOutParameter(7, Types.BLOB);
+          setInOutString(cs, 8, req.updateUserid());         // INOUT userid
+          setInOutString(cs, 9, null);                       // INOUT revision_count — assigned by proc
+          setInOutString(cs, 10, "");                        // INOUT error
+        },
+        cs -> {
+          String error = cs.getString(10);
+          throwIfError(PACKAGE_NAME, PROCEDURE_GET_ATTACHMENT_BLOB_FOR_UPDATE, error);
+          String newId = cs.getString(1);
+          String revisionCount = cs.getString(9);
+          // Write the file bytes into the FOR-UPDATE BLOB locator.
+          // Still in the same JDBC connection + transaction, so the
+          // update propagates to the inserted standards_regime_attach_file row.
+          if (content.length > 0) {
+            Blob blob = cs.getBlob(7);
+            if (blob == null) {
+              throw new IllegalStateException(
+                  "FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB_FOR_UPDATE returned a"
+                      + " null BLOB locator — cannot write attachment bytes.");
+            }
+            blob.setBytes(1L, content);
+          }
+          return new AddAttachmentResult(newId, revisionCount);
+        });
+  }
 }
