@@ -216,6 +216,12 @@ downloads/
 eggs/
 .eggs/
 lib/
+# Source-code `lib/` directories are NOT build artifacts — un-ignore the
+# frontend's shared helper folder so files like
+# frontend/src/lib/attachmentConstraints.ts get committed (the broad
+# `lib/` rule above came from the Python template and matched it too).
+!frontend/src/lib/
+!frontend/src/lib/**
 lib64/
 parts/
 sdist/
