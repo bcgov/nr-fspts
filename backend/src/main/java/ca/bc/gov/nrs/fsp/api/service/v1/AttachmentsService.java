@@ -79,23 +79,25 @@ public class AttachmentsService {
   }
 
   @Transactional
-  public AttachmentResponse upload(String fspId, MultipartFile file, String typeCode)
+  public AttachmentResponse upload(
+      String fspId, MultipartFile file, String typeCode, String description)
       throws IOException {
     // Resolve the FSP's current latest amendment number — the old
     // hardcoded "1" tripped FAX_FSP_FK whenever the FSP's amendments
     // didn't include 1 (e.g. original-only FSPs sitting at amendment 0).
     String amendmentNumber = findLatestAmendmentNumber(fspId);
-    // Audit columns are VARCHAR2(30); the long Cognito composite
-    // would blow the column. getCurrentIdir returns the short FAM
-    // IDIR ("MAVILLEN"-style) with a 30-char safety cap.
-    String userId = RequestUtil.getCurrentIdir();
+    // Directory-prefixed audit user (IDIR\name / BCEID\name) so the
+    // attachment row matches the legacy audit convention. Truncated
+    // to 30 chars inside the helper so the prefix doesn't blow the
+    // VARCHAR2(30) audit columns.
+    String userId = RequestUtil.getCurrentAuditUserId();
     Fsp400AttachmentsDao.CreateAttachmentResult created = attachmentsDao.createAttachment(
         Long.valueOf(fspId),
         amendmentNumber,
         typeCode,
         file.getOriginalFilename(),
         file.getSize(),
-        "",   // description
+        description == null ? "" : description.trim(),
         DEFAULT_CONSOLIDATED_IND,
         userId);
     attachmentsDao.saveAttachmentContent(created.createdAttachmentId(), file.getBytes());

@@ -1,0 +1,15 @@
+This is an automated message from the FSP Tracking System.
+Please do not reply to this message.
+
+This message was sent to: {{emailAddress}}
+This message is to inform you that your application for a Forest Stewardship Plan named {{planName}} has been {{statusDesc}} by your local district manager.
+{{contactName}} - user submitted
+{{submissionDate}} - date submitted
+{{orgUnits}} - district of FSP
+{{fspId}}
+{{licensees}}
+
+
+Below is any message added by the District Manager concerning the decision:
+
+{{history}}

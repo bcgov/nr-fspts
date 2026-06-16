@@ -1,5 +1,7 @@
 package ca.bc.gov.nrs.fsp.api.dao.v1;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -17,4 +19,13 @@ public interface OrgUnitLookupDao {
    *     {@code org_unit_code}, or empty when no such code exists.
    */
   Optional<String> findOrgUnitNoByCode(String orgUnitCode);
+
+  /**
+   * Full list of org-unit code/name pairs for display lookups (the FSP
+   * search result returns the 3-letter {@code org_unit_code} and the
+   * SPA wants to render the human-friendly {@code org_unit_name} —
+   * this powers that mapping). Sorted by code so paginated rendering
+   * is stable.
+   */
+  List<Map<String, String>> findAllCodeNamePairs();
 }

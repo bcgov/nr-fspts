@@ -2,16 +2,24 @@ package ca.bc.gov.nrs.fsp.api.service.v1;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp700WorkflowDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp800HistoryDao;
+import ca.bc.gov.nrs.fsp.api.notification.EmailNotificationService;
+import ca.bc.gov.nrs.fsp.api.notification.WorkflowEmailEvent;
+import ca.bc.gov.nrs.fsp.api.struct.v1.FspRequest;
 import ca.bc.gov.nrs.fsp.api.struct.v1.WorkflowRequest;
 import ca.bc.gov.nrs.fsp.api.struct.v1.WorkflowResponse;
 import ca.bc.gov.nrs.fsp.api.struct.v1.WorkflowState;
 import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 /**
  * /workflow GET reuses FSP_800_HISTORY (legacy app's audit cursor); workflow
@@ -34,8 +42,21 @@ public class WorkflowService {
   // as every other FSP_* package — see FspService for the full story.
   private static final String ACTION_GET = "GET";
 
+  // Actions that may trigger a workflow email (legacy section/item
+  // combinations from Fsp700WorkflowAction.java:391-445). Used to gate
+  // the BEFORE-save status fetch and to short-circuit publishEmailFor.
+  private static final Set<String> EMAIL_TRIGGERING_ACTIONS = Set.of(
+      "SAVE_OTBH_HEARD",
+      "SAVE_DDM_DFT",
+      "SAVE_DDM_APP",
+      "SAVE_DDM_REJ",
+      "SAVE_EXT_APP",
+      "SAVE_EXT_REJ");
+
   private final Fsp700WorkflowDao workflowDao;
   private final Fsp800HistoryDao historyDao;
+  private final FspService fspService;
+  private final EmailNotificationService emailService;
 
   public List<WorkflowResponse> getWorkflow(String fspId) {
     // FSP id flows in via P_NEW_FSP_ID; P_FSP_ID + both amendment slots
@@ -106,19 +127,19 @@ public class WorkflowService {
 
     List<WorkflowState.ReviewItem> reviewItems = List.of(
         new WorkflowState.ReviewItem(
-            "FNR", "First Nations Review",
+            "FNR", "First Nations review",
             r.pFnrCompletedInd(), r.pFnrEntryUserId(),
             r.pFnrEntryTimestamp(), r.pFnrComment()),
         new WorkflowState.ReviewItem(
-            "RS", "Results & Strategies reviewed by C&E",
+            "RS", "Results & strategies reviewed by C&E",
             r.pRsCompletedInd(), r.pRsEntryUserId(),
             r.pRsEntryTimestamp(), r.pRsComment()),
         new WorkflowState.ReviewItem(
-            "ORS", "Objectives, Results and Strategies reviewed by Tenures",
+            "ORS", "Objectives, results and strategies reviewed by Tenures",
             r.pOrsCompletedInd(), r.pOrsEntryUserId(),
             r.pOrsEntryTimestamp(), r.pOrsComment()),
         new WorkflowState.ReviewItem(
-            "DDM", "Sent to DDM for Determination",
+            "DDM", "Sent to DDM for determination",
             r.pDdmCompletedInd(), r.pDdmEntryUserId(),
             r.pDdmEntryTimestamp(), r.pDdmComment()),
         new WorkflowState.ReviewItem(
@@ -171,17 +192,61 @@ public class WorkflowService {
    * are threaded — everything else stays blank to avoid accidentally
    * overwriting unrelated columns.
    */
-  /**
-   * Submit one workflow mutation through FSP_700_WORKFLOW.MAINLINE and
-   * return the refreshed projection so the Workflow tab redraws in one
-   * round-trip. Only the fields the per-action dispatch actually reads
-   * are threaded — everything else stays blank to avoid accidentally
-   * overwriting unrelated columns.
-   */
   @Transactional
   public WorkflowState submitAction(String fspId, WorkflowRequest request) {
-    String userId = RequestUtil.getCurrentIdir();
+    // Block the legacy "reverse decision" path. SAVE_DDM_* with
+    // completed='N' was the proc-level undo branch that flipped the
+    // FSP back from APP/INE/DFT/REJ to SUB. The SPA no longer exposes
+    // this gesture (the Reverse Decision button was removed from the
+    // DDM Decision dialog), so reject the same shape server-side to
+    // keep stray API clients from re-introducing the flow.
+    String requestedAction = nz(request.getAction());
+    if (requestedAction.startsWith("SAVE_DDM_")
+        && "N".equalsIgnoreCase(nz(request.getCompleted()))) {
+      throw new IllegalArgumentException(
+          "Reversing a DDM decision is no longer supported.");
+    }
+
+    // Prefixed form (IDIR\name / BCEID\name) so the workflow audit
+    // history matches the legacy convention. FSP_700_WORKFLOW only
+    // uses this value for audit columns — no proc-side joins on it.
+    String userId = RequestUtil.getCurrentAuditUserId();
     String amendment = nz(request.getFspAmendmentNumber());
+
+    // Capture the PRE-save status code so publishEmailFor can apply the
+    // legacy "DDM/admin just adjusting dates → don't email" guard. Done
+    // here (inside the transaction, before the mutation) because after
+    // the save the row already reflects the new status. Only loaded for
+    // actions that could send mail, so non-emailing actions don't pay.
+    //
+    // Also reused for the post-approval lock below: once an FSP is in
+    // APP (Approved) or INE (In Effect) we refuse SAVE_DDM_REJ and
+    // SAVE_DDM_DFT — the decision-maker can edit the existing approval
+    // but cannot pivot it into a rejection or clarification request.
+    boolean approvalLockRelevant =
+        "SAVE_DDM_REJ".equals(requestedAction)
+            || "SAVE_DDM_DFT".equals(requestedAction);
+    String oldStatusCode = "";
+    if (EMAIL_TRIGGERING_ACTIONS.contains(nz(request.getAction()))
+        || approvalLockRelevant) {
+      try {
+        FspRequest before = fspService.getById(fspId, amendment);
+        if (before != null) oldStatusCode = nz(before.getFspStatusCode());
+      } catch (RuntimeException e) {
+        log.warn(
+            "Pre-save FSP fetch for email guard failed (treating status as changed): {}",
+            e.getMessage());
+      }
+    }
+
+    if (approvalLockRelevant
+        && ("APP".equalsIgnoreCase(oldStatusCode)
+            || "INE".equalsIgnoreCase(oldStatusCode))) {
+      throw new IllegalArgumentException(
+          "Once an FSP has been approved, it cannot be rejected or "
+              + "returned for clarification.");
+    }
+
     workflowDao.mainline(
         request.getAction(),     // P_ACTION
         "",                       // P_NEW_FSP_ID
@@ -216,7 +281,11 @@ public class WorkflowService {
         nz(request.getCompleted()),
         // P_OTBH_DATE (SAVE_OTBH_*), then P_PLAN_START_DATE +
         // P_SUBMISSION_DATE + P_DECISION_DATE (SAVE_DDM_* / SAVE_EXT_*).
-        nz(request.getOtbhDate()),
+        // The OTBH date carries a wall-clock time so the date-sequence
+        // guard inside fsp_status_update (R__06412_FSP_COMMON_DB.sql:1759)
+        // doesn't flag a same-day Heard save as < an existing
+        // SYSDATE-stamped Offered row. See buildOtbhTimestamp.
+        buildOtbhTimestamp(request.getOtbhDate()),
         nz(request.getEffectiveDate()),    // P_PLAN_START_DATE
         nz(request.getSubmissionDate()),
         nz(request.getDecisionDate()),
@@ -233,10 +302,219 @@ public class WorkflowService {
         request.getOtbhDate(), request.getSubmissionDate(),
         request.getDecisionDate(), request.getEffectiveDate(),
         request.getExtensionId());
-    return getWorkflowState(fspId);
+
+    // Re-fetch fresh state for the response AND so the email snapshot
+    // (built below) sees the post-save status. State also carries the
+    // extension submitter / submission date the extension template needs.
+    WorkflowState state = getWorkflowState(fspId);
+    publishEmailFor(fspId, amendment, request, oldStatusCode, state);
+    return state;
+  }
+
+  /**
+   * Mirrors the legacy {@code Fsp700WorkflowAction} email ladder
+   * (lines 391-445 of the original). Each branch builds a
+   * {@link WorkflowEmailEvent.FspSnapshot} from a fresh FSP_300 read +
+   * one-line history blurb, then publishes through
+   * {@link EmailNotificationService} — which defers the actual CHES
+   * send until {@code AFTER_COMMIT} of this transaction.
+   *
+   * <p>Snapshot is captured here (not in the dispatcher) because the
+   * dispatcher runs on the {@code emailExecutor} pool where the JWT
+   * isn't present; reading the FSP from a background thread would 401.
+   */
+  private void publishEmailFor(
+      String fspId,
+      String amendment,
+      WorkflowRequest request,
+      String oldStatusCode,
+      WorkflowState state) {
+    if (!"Y".equals(request.getCompleted())) return;
+    String action = nz(request.getAction());
+    if (!EMAIL_TRIGGERING_ACTIONS.contains(action)) return;
+
+    FspRequest fsp;
+    try {
+      fsp = fspService.getById(fspId, amendment);
+    } catch (RuntimeException e) {
+      log.warn(
+          "Skipping {} email — failed to load FSP {}/{}: {}",
+          action, fspId, amendment, e.getMessage());
+      return;
+    }
+    if (fsp == null) {
+      log.warn("Skipping {} email — FSP {}/{} not found post-save", action, fspId, amendment);
+      return;
+    }
+
+    WorkflowEmailEvent.FspSnapshot snap = toSnapshot(fsp, firstHistoryLine(fspId));
+    String amendmentNumber = nz(fsp.getFspAmendmentNumber());
+    String amendmentCode = nz(fsp.getFspAmendmentCode());
+
+    switch (action) {
+      case "SAVE_OTBH_HEARD" ->
+          emailService.publish(new WorkflowEmailEvent.OtbhHeard(snap));
+      case "SAVE_DDM_DFT" ->
+          emailService.publish(new WorkflowEmailEvent.RequestClarification(snap));
+      case "SAVE_DDM_APP" -> {
+        if (statusUnchanged(oldStatusCode, "APP")) return;
+        publishDdmDecision(snap, amendmentNumber, amendmentCode);
+      }
+      case "SAVE_DDM_REJ" -> {
+        if (statusUnchanged(oldStatusCode, "REJ")) return;
+        publishDdmDecision(snap, amendmentNumber, amendmentCode);
+      }
+      case "SAVE_EXT_APP" -> {
+        if (statusUnchanged(oldStatusCode, "APP")) return;
+        publishExtensionDecision(snap, state);
+      }
+      case "SAVE_EXT_REJ" -> {
+        if (statusUnchanged(oldStatusCode, "REJ")) return;
+        publishExtensionDecision(snap, state);
+      }
+      default -> {
+        // Unreachable — gated above by EMAIL_TRIGGERING_ACTIONS.
+      }
+    }
+  }
+
+  /** Amendment 0 → FspDecision, amendment >0 splits on AMD vs RPL. */
+  private void publishDdmDecision(
+      WorkflowEmailEvent.FspSnapshot snap, String amendmentNumber, String amendmentCode) {
+    if (amendmentNumber.isEmpty() || "0".equals(amendmentNumber)) {
+      emailService.publish(new WorkflowEmailEvent.FspDecision(snap));
+    } else if ("AMD".equalsIgnoreCase(amendmentCode)) {
+      emailService.publish(new WorkflowEmailEvent.AmendmentDecision(snap));
+    } else {
+      emailService.publish(new WorkflowEmailEvent.ReplacementDecision(snap));
+    }
+  }
+
+  private void publishExtensionDecision(WorkflowEmailEvent.FspSnapshot snap, WorkflowState state) {
+    WorkflowState.ExtensionDecision ext = state == null ? null : state.extensionDecision();
+    // ext.name() holds the IDIR / submitter, matching legacy
+    // fsp302Bean.getP_user_id(); ext.submissionDate() matches getP_submission_date().
+    String submittedBy = ext == null ? "" : nz(ext.name());
+    String submissionDate = ext == null ? "" : nz(ext.submissionDate());
+    emailService.publish(
+        new WorkflowEmailEvent.ExtensionDecision(snap, submittedBy, submissionDate));
+  }
+
+  /**
+   * Legacy guard from {@code Fsp700WorkflowAction.java:397}: when the
+   * pre-save status already equals the item being applied (e.g. DDM
+   * adjusts the decision date on an already-APP'd FSP), the action
+   * isn't a real state change and no email goes out.
+   */
+  private static boolean statusUnchanged(String oldStatusCode, String item) {
+    return oldStatusCode != null && item.equalsIgnoreCase(oldStatusCode);
+  }
+
+  private WorkflowEmailEvent.FspSnapshot toSnapshot(FspRequest fsp, String history) {
+    return new WorkflowEmailEvent.FspSnapshot(
+        nz(fsp.getFspId()),
+        nz(fsp.getFspAmendmentNumber()),
+        nz(fsp.getFspPlanName()),
+        nz(fsp.getFspStatusDesc()),
+        nz(fsp.getFspContactName()),
+        nz(fsp.getFspPlanSubmissionDate()),
+        nz(fsp.getFspEmailAddress()),
+        joinOrgUnits(fsp.getDistricts()),
+        joinLicensees(fsp.getAgreementHolders()),
+        history);
+  }
+
+  private static String joinOrgUnits(List<FspRequest.District> districts) {
+    if (districts == null) return "";
+    return districts.stream()
+        .map(FspRequest.District::getOrgUnitCode)
+        .filter(s -> s != null && !s.isEmpty())
+        .collect(Collectors.joining(", "));
+  }
+
+  private static String joinLicensees(List<FspRequest.AgreementHolder> holders) {
+    if (holders == null) return "";
+    return holders.stream()
+        .map(FspRequest.AgreementHolder::getClientNumber)
+        .filter(s -> s != null && !s.isEmpty())
+        .collect(Collectors.joining(", "));
+  }
+
+  /**
+   * Replicates {@code Fsp700WorkflowAction.getHistory(items)}: the
+   * legacy template only embeds the most-recent history row, prefixed
+   * with "  - " and newline-terminated.
+   */
+  private String firstHistoryLine(String fspId) {
+    try {
+      Fsp800HistoryDao.Result result = historyDao.mainline(
+          ACTION_GET, "", fspId, "", null,
+          "", "", "", "",
+          RequestUtil.getCurrentClientNumber(),
+          RequestUtil.getCurrentLegacyRoles(),
+          "", "", "", "", "");
+      var rows = result.rows();
+      if (rows == null || rows.isEmpty()) return "";
+      return "  - " + nz(rows.get(0).description()) + "\n";
+    } catch (RuntimeException e) {
+      log.warn("Failed to load FSP history for {} email: {}", fspId, e.getMessage());
+      return "";
+    }
   }
 
   private static String nz(String s) {
     return s == null ? "" : s;
+  }
+
+  /**
+   * Pacific time zone the proc-side date arithmetic was tuned against
+   * (legacy WebLogic JVM TZ). Hard-coded here so an API server running
+   * in UTC doesn't accidentally roll an OTBH save to the previous day
+   * after 00:00 UTC.
+   */
+  private static final ZoneId BC_TZ = ZoneId.of("America/Vancouver");
+
+  private static final DateTimeFormatter ISO_TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
+  private static final DateTimeFormatter ISO_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
+
+  /**
+   * Append a wall-clock time to an OTBH date so the proc's
+   * date-sequence guard treats successive same-day saves as
+   * monotonic. The check at
+   * {@code R__06412_FSP_COMMON_DB.sql:1759} compares the incoming
+   * {@code entry_timestamp} (strict {@code <}, no TRUNC) against the
+   * most-recent {@code fsp_status_history.entry_timestamp} for the
+   * same FSP + amendment. The prior OHS row from SAVE_OTBH_OFFERED
+   * was written via {@code COALESCE(p_sh_entry_date, SYSDATE)} —
+   * which means in practice the stored timestamp carries a sub-day
+   * time component. A bare {@code "YYYY-MM-DD"} from the SPA parses
+   * as midnight and trips the guard.
+   *
+   * <p>Behavior mirrors legacy {@code Fsp700WorkflowAction}:
+   * <ul>
+   *   <li>blank input → blank output (lets other actions go through
+   *       the same call site without padding).</li>
+   *   <li>today's local date → append the current wall-clock time so
+   *       the Heard save sorts strictly after the same-day Offered.</li>
+   *   <li>any past date → append {@code "00:00:00"} (the row this
+   *       date is being compared against was also stamped earlier
+   *       than today, so midnight-of-past < anything-newer is fine).</li>
+   * </ul>
+   *
+   * <p>The helper is invoked unconditionally — non-OTBH actions send
+   * {@code null}/blank for {@code otbhDate} and take the blank branch.
+   */
+  private static String buildOtbhTimestamp(String otbhDate) {
+    if (otbhDate == null || otbhDate.isBlank()) return "";
+    String date = otbhDate.trim();
+    // Defensive: if the SPA ever starts shipping an ISO timestamp,
+    // pass it through unchanged rather than glue on a second time.
+    if (date.length() > 10) return date;
+    LocalDate today = LocalDate.now(BC_TZ);
+    String todayStr = today.format(ISO_DATE);
+    if (date.equals(todayStr)) {
+      return date + " " + LocalTime.now(BC_TZ).format(ISO_TIME);
+    }
+    return date + " 00:00:00";
   }
 }

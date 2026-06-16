@@ -14,8 +14,17 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const [notificationClass, setNotificationClass] = useState<string>('slide-in');
 
   const display = useCallback((content: NotificationContent) => {
+    // Error / warning toasts stay until the user closes them. The
+    // caller's timeout is ignored for those kinds so an information
+    // error doesn't disappear before the user has read it. Success
+    // and info toasts still auto-dismiss after their requested
+    // timeout (typical 5-6 s).
+    const sticky =
+      content.kind === 'error'
+      || content.kind === 'warning'
+      || content.kind === 'warning-alt';
     setNotificationClass('slide-in');
-    setNotificationContent(content);
+    setNotificationContent(sticky ? { ...content, timeout: 0 } : content);
   }, []);
 
   const onClose = useCallback(() => {

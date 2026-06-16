@@ -26,11 +26,15 @@ public class IdentifiedAreasService {
   // Ordered map so the legacy display order is preserved when the
   // results are merged. Keys are the proc legislation_type codes;
   // values are the pretty labels shown in the table's column.
+  //
+  // FPPR s.14(4) and FRPA s.196(1) are intentionally absent from this
+  // list — the Identified Areas tab now surfaces only FRPA s.196(2)
+  // records. The loop below short-circuits the proc calls for the
+  // dropped types so we don't pay for round trips whose rows would be
+  // discarded anyway.
   private static final Map<String, String> LEGISLATION_LABELS = new LinkedHashMap<>();
   static {
-    LEGISLATION_LABELS.put("FRPA196(1)", "FRPA s.196(1)");
     LEGISLATION_LABELS.put("FRPA196(2)", "FRPA s.196(2)");
-    LEGISLATION_LABELS.put("FPPR14(4)", "FPPR s.14(4)");
   }
 
   private final Fsp650IdentifiedAreasMapDao dao;

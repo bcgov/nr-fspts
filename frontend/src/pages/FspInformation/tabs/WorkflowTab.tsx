@@ -15,6 +15,13 @@ import {type FspWorkflowEvent, getFspWorkflow} from '@/services/fspSearch';
 
 interface Props {
   fspId: string;
+  /**
+   * Parent-supplied monotonic counter. Bumped after any mutation
+   * (Submit, Extend, …) so this tab re-fetches the History event log
+   * — the proc appends a new SUBMIT/RET/etc. event server-side and
+   * we'd otherwise show stale rows until the page is reloaded.
+   */
+  refreshKey?: number;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -30,7 +37,7 @@ const HEADERS = [
   { key: 'submissionId', header: 'Submission ID' },
 ];
 
-const WorkflowTab: FC<Props> = ({ fspId }) => {
+const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
   const [rows, setRows] = useState<FspWorkflowEvent[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +60,7 @@ const WorkflowTab: FC<Props> = ({ fspId }) => {
     return () => {
       cancelled = true;
     };
-  }, [fspId]);
+  }, [fspId, refreshKey]);
 
   if (loading && !rows) {
     return (
@@ -84,7 +91,7 @@ const WorkflowTab: FC<Props> = ({ fspId }) => {
         <h2 className="fsp-info__section-title">History</h2>
       </header>
       <div className="bordered-table">
-        <DataTable rows={tableRows} headers={HEADERS}>
+        <DataTable rows={tableRows} headers={HEADERS} isSortable>
           {({ rows: r, headers, getTableProps, getHeaderProps, getRowProps }) => (
             <TableContainer>
               <Table {...getTableProps()} size="md" useZebraStyles>

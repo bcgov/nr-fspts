@@ -63,6 +63,19 @@ public class FduPersistenceService {
     List<FDUType> fdus = fduList.getFdu();
     log.info("Persisting {} FDU(s) for fspId={} amendment={}", fdus.size(), fspId, amendmentNumber);
 
+    // Clear any rows fsp_common_db.fdu_copy forward-copied from the
+    // prior amendment (header + licence, no geometry) before inserting
+    // the XML's FDUs. Without this the amendment ends up with the
+    // copied FDUs AND the new ones — and because the copied fdu_ids
+    // still join to the prior amendment's geometry, FSP_600_MAP.GET
+    // raises ORA-01422 ("exact fetch returns more than requested
+    // number of rows") on the next read.
+    int cleared = fduWriteDao.clearFdusForAmendment(fspId, amendmentNumber);
+    if (cleared > 0) {
+      log.info("Cleared {} pre-existing FDU header(s) on fspId={} amendment={} before submission writes",
+          cleared, fspId, amendmentNumber);
+    }
+
     for (FDUType fdu : fdus) {
       persistOne(fdu, fspId, amendmentNumber, featureClassSkey, userId);
     }
@@ -81,6 +94,10 @@ public class FduPersistenceService {
     }
 
     long fduId = fduWriteDao.nextFduId();
+    // Normalize ring winding before WKT — Oracle's MOF_SPATIAL_VALIDATION
+    // raises ORA-13367 on CW exterior rings, which some source files
+    // produce. See GeometryOrientationNormalizer for the why.
+    jts = GeometryOrientationNormalizer.normalize(jts);
     String wkt = WKT_WRITER.write(jts);
     // BC Albers (EPSG:42102, 3005) is metric — JTS area/length are in
     // square metres / metres. Convert to ha / km for the table units.

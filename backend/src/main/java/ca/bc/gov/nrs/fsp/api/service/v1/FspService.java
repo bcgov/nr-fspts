@@ -47,9 +47,33 @@ public class FspService {
   // After AMEND, the body still needs a SAVE call to populate the new
   // amendment's plan-level fields with the submitted values.
   private static final String ACTION_AMEND = "AMEND";
+  // REPLACE is the AMEND analogue for Replacement (FSP304 in the legacy
+  // UI). The proc creates a new draft amendment row carrying
+  // fsp_amendment_code='RPL' and seeds it with the carry-forward state
+  // a Replacement needs (always-approval-required, etc.). Same SAVE
+  // follow-up pattern as AMEND — REPLACE only inserts the skeleton; the
+  // body fields land via a subsequent SAVE on the proc-assigned
+  // amendment number. CHANGE_REPLACE updates an existing replacement
+  // row before submission and isn't exposed yet — UI-side edits use
+  // the regular SAVE path keyed by the assigned amendment.
+  private static final String ACTION_REPLACE = "REPLACE";
+  // SUBMIT transitions a DFT amendment to SUB (or directly to IN-EFFECT
+  // when amendment_approval_requird_ind='N'). The proc runs
+  // validate_fsp first — submission fails with collected business-rule
+  // errors when the amendment is incomplete. Mirrors the legacy
+  // Fsp300InformationAction.handleSubmit.
+  private static final String ACTION_SUBMIT = "SUBMIT";
+  // REMOVE hard-deletes the FSP row + all child records (attachments,
+  // standards, FDUs, identified areas, etc.). The proc only allows
+  // deletion when status is DFT or REJ — anything else raises
+  // FSP.CANNOT.DEL.PREV.AMENDMENT (see fsp_common_db.fsp_delete:2576).
+  // We additionally gate on DFT only at the FE so users can't delete
+  // rejected FSPs through the UI (matches the spec).
+  private static final String ACTION_REMOVE = "REMOVE";
 
   private final Fsp100SearchDao searchDao;
   private final Fsp300InformationDao informationDao;
+  private final ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao validationDao;
 
   // Allow-listed sort keys. Maps the JSON field name the front-end sends
   // (sortBy) onto a Comparator over FspSearchResult. Kept narrow so
@@ -240,6 +264,19 @@ public class FspService {
     if (edits.getAmendmentReason() != null) target.setAmendmentReason(edits.getAmendmentReason());
     if (edits.getTransitionInd() != null) target.setTransitionInd(edits.getTransitionInd());
     if (edits.getFrpa197electionInd() != null) target.setFrpa197electionInd(edits.getFrpa197electionInd());
+    // FSP301 (Amendment / Replacement Description dialog) edits these
+    // four Y/N indicators along with the summary text. They share the
+    // FSP_300_INFORMATION SAVE proc as the regular Information tab.
+    if (edits.getFduUpdateInd() != null) target.setFduUpdateInd(edits.getFduUpdateInd());
+    if (edits.getIdentifiedAreasUpdateInd() != null) {
+      target.setIdentifiedAreasUpdateInd(edits.getIdentifiedAreasUpdateInd());
+    }
+    if (edits.getStockingStandardUpdateInd() != null) {
+      target.setStockingStandardUpdateInd(edits.getStockingStandardUpdateInd());
+    }
+    if (edits.getApprovalRequiredInd() != null) {
+      target.setApprovalRequiredInd(edits.getApprovalRequiredInd());
+    }
     // VARRAY-style collections — when caller supplies a list, replace
     // the GET-resolved one. Drives the Add Agreement Holder / Add
     // District dialogs: frontend sends the full list (existing + new)
@@ -317,9 +354,120 @@ public class FspService {
    * <p>The submitted {@code request.fspAmendmentNumber} is ignored
    * here — the proc owns the assignment.
    */
+  /**
+   * Hard-delete an FSP (master row + child records) via
+   * {@code FSP_300_INFORMATION.MAINLINE} with {@code P_ACTION=REMOVE}.
+   * The proc raises {@code FSP.CANNOT.DEL.PREV.AMENDMENT} for FSPs
+   * that aren't in DFT or REJ status, and {@code fsp_tombstone.user_may_access}
+   * still gates by role + client number so a BCeID submitter can't
+   * delete an FSP they're not an agreement holder on.
+   *
+   * <p>The amendment number narrows the delete to a specific row;
+   * pass the head amendment to delete the whole plan (the proc walks
+   * the children of that single amendment row).
+   */
+  @Transactional
+  public void delete(String fspId, String amendmentNumber) {
+    callInformation(ACTION_REMOVE, fspId, nz(amendmentNumber), null);
+  }
+
+  /**
+   * Flip a Draft FSP/amendment to Submitted via
+   * {@code FSP_300_INFORMATION.MAINLINE} with {@code P_ACTION=SUBMIT}.
+   * The proc validates the FSP via {@code fsp_common_validation.validate_fsp}
+   * before transitioning — any missing required field, invalid
+   * agreement holder, etc. surfaces as a {@code FSP.*} error and the
+   * status stays in DFT.
+   *
+   * <p>When the amendment's {@code amendment_approval_requird_ind} is
+   * {@code 'N'} the proc cascades to {@code fsp_approval} which moves
+   * the amendment straight to IN-EFFECT and retires prior approved
+   * amendments. With {@code 'Y'} (the normal case) the new status is
+   * SUB, awaiting ministry decision.
+   *
+   * @param amendmentNumber the amendment to submit. When blank the
+   *     proc resolves the current amendment via the tombstone read.
+   */
+  @Transactional
+  public FspRequest submit(String fspId, String amendmentNumber) {
+    // MAINLINE's SUBMIT dispatch internally calls SAVE before the
+    // status transition (R__06394_FSP_300_INFORMATION.sql:1300-1332),
+    // and SAVE in turn calls fsp_update with whatever this client
+    // passes for plan_name, contact details, licensees, org units, etc.
+    // The legacy Fsp300InformationAction.handleSubmit sent the FSP's
+    // fully-populated form bean — we have to do the same or the proc
+    // sees blanks and emits FSP.NO.NAME / NO.CONTACT.PERSON / NO.
+    // AGREEMENT.HOLDER. GET the current row first so the SAVE in
+    // SUBMIT runs as a no-op rewrite of the existing state.
+    FspRequest current = getById(fspId, nz(amendmentNumber));
+    callInformation(ACTION_SUBMIT, fspId, nz(amendmentNumber), current);
+    // The inner submit() call updates the row's fsp_status_code, but
+    // MAINLINE's IN/OUT parameters don't get refreshed from the row
+    // after the transition — the returned DTO would still show the
+    // pre-submit status. Re-read so the SPA sees the new status
+    // (typically SUB, or INE when approval_required_ind='N').
+    return getById(fspId, nz(amendmentNumber));
+  }
+
+  /**
+   * Submit preflight — runs the same {@code validate_fsp} chain the
+   * SUBMIT proc would run, but without changing status. Returns every
+   * accumulated proc error mapped to a curated user message so the
+   * SPA can render a "fix this before you submit" checklist.
+   *
+   * <p>{@code amendmentNumber} may be blank — the proc validates
+   * whichever amendment the tombstone read resolves, same as the
+   * SUBMIT path.
+   */
+  @Transactional(readOnly = true)
+  public ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse preflightSubmit(
+      String fspId, String amendmentNumber) {
+    long fspIdLong = Long.parseLong(fspId);
+    long amendmentLong = parseLongOrZero(amendmentNumber);
+    List<ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao.ValidationError> raw =
+        validationDao.validate(fspIdLong, amendmentLong);
+    List<ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse.Issue> issues = raw.stream()
+        .map(e -> {
+          String curated = ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(e.code());
+          // Prefer curated message; fall back to whatever the proc
+          // formatted (FSP.COMMON.* codes include their template
+          // parameters in the proc message).
+          String surface = curated != null ? curated
+              : (e.procMessage() != null && !e.procMessage().isBlank()
+                  ? e.procMessage() : e.code());
+          return new ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse.Issue(
+              e.code(), e.procMessage(), surface);
+        })
+        .toList();
+    return new ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse(issues.isEmpty(), issues);
+  }
+
   @Transactional
   public FspRequest amend(String fspId, FspRequest request) {
     Fsp300InformationDao.Result r = callInformation(ACTION_AMEND, fspId, "", request);
+    return toFspDto(r);
+  }
+
+  /**
+   * Create a new Replacement amendment row on an existing FSP —
+   * corresponds to the legacy {@code actionCode="R"} submission
+   * (FSP304 ReplaceInformation) and the legacy proc invocation
+   * {@code P_ACTION="REPLACE"} with {@code p_fsp_amendment_code="RPL"}.
+   * The proc auto-assigns the next amendment_number; the returned DTO
+   * carries it so the caller can issue the follow-up SAVE that
+   * populates body fields.
+   *
+   * <p>Like {@link #amend(String, FspRequest)} this only seeds the
+   * skeleton — the body still needs a SAVE pass on the proc-assigned
+   * amendment number.
+   */
+  @Transactional
+  public FspRequest replace(String fspId, FspRequest request) {
+    // Force fsp_amendment_code='RPL' so callers can't accidentally
+    // route a Replacement through the AMD lookup. Mirrors the legacy
+    // Fsp304ReplaceInformationAction.handleSave hard-set.
+    request.setFspAmendmentCode("RPL");
+    Fsp300InformationDao.Result r = callInformation(ACTION_REPLACE, fspId, "", request);
     return toFspDto(r);
   }
 
@@ -331,13 +479,18 @@ public class FspService {
     // caller didn't supply them in the request body, fall back to the
     // current JWT.
     //
-    // Use the short IDIR (MAVILLEN-style), NOT the composite Cognito
-    // username — the proc joins the value into a users table (the
-    // legacy Fsp300InformationAction passes formBean.getUser().getName()
-    // which is the short form). With the 46-char Cognito composite the
-    // proc finds no matching row and falls through to no_access_right
-    // even when the user has FSP_ADMINISTRATOR.
-    String userId = RequestUtil.getCurrentIdir();
+    // Pass the directory-prefixed form (IDIR\name / BCEID\name) so the
+    // audit columns on FSP master rows match what the legacy SilUser
+    // path stamped (formBean.getUser().getName() returned the full
+    // "IDIR\MAVILLEN" form). The FSP_300_INFORMATION proc uses
+    // p_update_userid only for audit-column assignment — no joins on
+    // the value — so the prefixed string is safe here. The actual
+    // authorization check goes through fsp_tombstone.user_may_access
+    // which gates on role + client number, not username. Do NOT pass
+    // the 46-char Cognito subject ("idir_<guid>@idir") — the audit
+    // columns are VARCHAR2(30); the truncate inside the helper keeps
+    // the prefixed form under that cap.
+    String userId = RequestUtil.getCurrentAuditUserId();
     String userRoles = request != null && request.getUserRole() != null
         ? request.getUserRole()
         : RequestUtil.getCurrentLegacyRoles();

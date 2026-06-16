@@ -31,9 +31,25 @@ public class SubmissionToFspRequestMapper {
         .fspAmendmentNumber(asString(plan.getAmendmentID()))
         .fspPlanName(plan.getPlanName())
         .amendmentName(jaxbValue(plan.getLicenseeAmendmentName()))
-        .fspPlanTermYears(asString(plan.getPlanTermYears()))
-        .fspPlanTermMonths(asString(plan.getPlanTermMonths()))
-        .fspExpiryDate(asString(plan.getPlanTermExpiry()))
+        // Plan term and end-date are mutually exclusive at the proc
+        // (FSP.BOTH.PLAN.TERM_OR_END_DATE), and PlanTermValidator already
+        // caught any XML that supplied both. Two non-obvious moves here:
+        //
+        // 1. <planTermExpiry> maps to fspPlanEndDate (proc position 21,
+        //    p_fsp_plan_end_date — the write-side plan_end_date column),
+        //    NOT fspExpiryDate (position 13, p_fsp_expiry_date — a
+        //    tombstone-output FSP-level expiry from fsp_extension that
+        //    SAVE never reads).
+        //
+        // 2. Empty-string the unused side so FspService.update()'s
+        //    GET→applyEdits→SAVE merge doesn't carry forward the
+        //    fsp_create_amendment-copied plan_end_date when the XML
+        //    supplies term, or carry forward years/months when the XML
+        //    supplies expiry. applyEdits treats null as "no change", so
+        //    "" is the only way to force a clear through the merge.
+        .fspPlanTermYears(planTermYearsForRequest(plan))
+        .fspPlanTermMonths(planTermMonthsForRequest(plan))
+        .fspPlanEndDate(planEndDateForRequest(plan))
         .amendmentReason(plan.getAmendmentComment())
         .approvalRequiredInd(boolToInd(jaxbValue(plan.getAmendmentApprovalRequiredInd())))
         .fspAmendmentCode(mapActionCode(plan.getActionCode()))
@@ -92,6 +108,36 @@ public class SubmissionToFspRequestMapper {
     return submission.getSubmissionItem().getForestStewardshipPlan();
   }
 
+  /**
+   * Returns the XML's planTermYears as a string, or "" if the XML
+   * supplied a planTermExpiry instead (forcing the merge to clear any
+   * carried-forward term on the new amendment).
+   */
+  private static String planTermYearsForRequest(ForestStewardshipPlanType plan) {
+    if (plan.getPlanTermExpiry() != null) return "";
+    return asString(plan.getPlanTermYears());
+  }
+
+  /**
+   * Returns the XML's planTermMonths as a string, or "" if the XML
+   * supplied a planTermExpiry instead.
+   */
+  private static String planTermMonthsForRequest(ForestStewardshipPlanType plan) {
+    if (plan.getPlanTermExpiry() != null) return "";
+    return asString(plan.getPlanTermMonths());
+  }
+
+  /**
+   * Returns the XML's planTermExpiry as a string, or "" if the XML
+   * supplied a term instead (forcing the merge to clear any
+   * carried-forward plan_end_date).
+   */
+  private static String planEndDateForRequest(ForestStewardshipPlanType plan) {
+    boolean hasTerm = plan.getPlanTermYears() != null || plan.getPlanTermMonths() != null;
+    if (hasTerm) return "";
+    return asString(plan.getPlanTermExpiry());
+  }
+
   private static String asString(Object value) {
     return value == null ? null : value.toString();
   }
@@ -116,15 +162,16 @@ public class SubmissionToFspRequestMapper {
   }
 
   /**
-   * Translate the XML's {@code actionCode} (I/U/A) into the legacy
-   * DB's {@code fsp_amendment_code} (ORG/AMD/...). They look similar
+   * Translate the XML's {@code actionCode} (I/U/A/R) into the legacy
+   * DB's {@code fsp_amendment_code} (ORG/AMD/RPL). They look similar
    * but they're entirely different vocabularies:
    *
    * <ul>
-   *   <li>XML actionCode = submission intent: <b>I</b>nitial / <b>U</b>pdate-draft / <b>A</b>mendment</li>
+   *   <li>XML actionCode = submission intent: <b>I</b>nitial / <b>U</b>pdate-draft /
+   *       <b>A</b>mendment / <b>R</b>eplacement</li>
    *   <li>DB fsp_amendment_code = row category in the lookup table
    *       {@code fsp_amendment_code} (FK from {@code forest_stewardship_plan}):
-   *       <b>ORG</b> (original), <b>AMD</b> (amendment), <b>RPL</b> (replace), etc.</li>
+   *       <b>ORG</b> (original), <b>AMD</b> (amendment), <b>RPL</b> (replace).</li>
    * </ul>
    *
    * <p>Passing "I" through unchanged trips the FK lookup in the GET
@@ -140,6 +187,7 @@ public class SubmissionToFspRequestMapper {
     return switch (code) {
       case I, U -> "ORG";
       case A -> "AMD";
+      case R -> "RPL";
     };
   }
 }

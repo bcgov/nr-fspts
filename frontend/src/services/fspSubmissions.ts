@@ -70,7 +70,11 @@ export interface SubmissionPreviewIdentifiedArea {
 }
 
 export interface SubmissionPreviewStockingStandard {
+  id: string | null;
   name: string | null;
+  objective: string | null;
+  bgcSummary: string | null;
+  bgcCount: number;
   layerCount: number;
 }
 

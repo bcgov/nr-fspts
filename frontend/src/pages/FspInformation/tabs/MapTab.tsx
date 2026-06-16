@@ -10,9 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import {Map as MapIcon} from '@carbon/icons-react';
+import {Edit, Map as MapIcon} from '@carbon/icons-react';
 import {type FC, useEffect, useState} from 'react';
 
+import FduLicencesModal from '@/components/FduLicencesModal';
 import {useNotification} from '@/context/notification/useNotification';
 import {env} from '@/env';
 import {type FspFduList, getFspExtent, getFspFduList,} from '@/services/fspSearch';
@@ -22,6 +23,15 @@ interface Props {
   amendmentNumber: string;
   /** Title shown above the extent card — distinguishes FDU from Identified Areas. */
   variant: 'fdu' | 'identified-areas';
+  /**
+   * Current FSP status code (DFT/APP/SUB/...). Drives whether per-row
+   * "Edit licences" is shown — DFT for any submitter, APP for admins only.
+   */
+  fspStatusCode?: string | null;
+  /** Whether the signed-in user has the FSPTS_ADMINISTRATOR role. */
+  isAdmin?: boolean;
+  /** Parent-bumped counter that forces a refetch on Submit/Extend/etc. */
+  refreshKey?: number;
 }
 
 const VARIANT_TITLE: Record<Props['variant'], string> = {
@@ -36,12 +46,19 @@ const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
 
 const FDU_HEADERS = [
-  { key: 'fduName', header: 'FDU Name' },
+  { key: 'fduName', header: 'FDU name' },
   { key: 'licences', header: 'Licence' },
-  { key: 'actions', header: '' },
+  { key: 'actions', header: '', isSortable: false },
 ];
 
-const MapTab: FC<Props> = ({ fspId, amendmentNumber, variant }) => {
+const MapTab: FC<Props> = ({
+  fspId,
+  amendmentNumber,
+  variant,
+  fspStatusCode,
+  isAdmin,
+  refreshKey,
+}) => {
   const [extent, setExtent] = useState<string | null>(null);
   const [extentLoading, setExtentLoading] = useState(false);
   const [extentError, setExtentError] = useState<string | null>(null);
@@ -53,8 +70,22 @@ const MapTab: FC<Props> = ({ fspId, amendmentNumber, variant }) => {
   const [fduList, setFduList] = useState<FspFduList | null>(null);
   const [fduLoading, setFduLoading] = useState(false);
 
+  // Edit-licences modal target — null when closed.
+  const [editTarget, setEditTarget] = useState<
+    { fduId: string; fduName: string; licences: string } | null
+  >(null);
+
   const { display } = useNotification();
   const title = VARIANT_TITLE[variant];
+
+  // Status gate matches the backend: DFT writable by submitters, APP by
+  // admins only, everything else read-only. We don't try to detect "is
+  // this user a submitter" on the client — the read path's tombstone
+  // gate already rejected unauthorised users before the table loaded.
+  const canEditLicences =
+    variant === 'fdu' &&
+    (fspStatusCode === 'DFT' ||
+      (fspStatusCode === 'APP' && !!isAdmin));
 
   useEffect(() => {
     if (!fspId) return;
@@ -75,7 +106,7 @@ const MapTab: FC<Props> = ({ fspId, amendmentNumber, variant }) => {
     return () => {
       cancelled = true;
     };
-  }, [fspId, amendmentNumber]);
+  }, [fspId, amendmentNumber, refreshKey]);
 
   useEffect(() => {
     if (!fspId || variant !== 'fdu') return;
@@ -100,7 +131,7 @@ const MapTab: FC<Props> = ({ fspId, amendmentNumber, variant }) => {
     return () => {
       cancelled = true;
     };
-  }, [fspId, variant, display]);
+  }, [fspId, variant, display, refreshKey]);
 
   /**
    * Opens the legacy arcmaps viewer in a new tab, scoped to the FSP's
@@ -192,7 +223,7 @@ const MapTab: FC<Props> = ({ fspId, amendmentNumber, variant }) => {
             <p>No FDU records with spatial data for this FSP/amendment.</p>
           ) : (
             <div className="bordered-table">
-              <DataTable rows={fduRows} headers={FDU_HEADERS}>
+              <DataTable rows={fduRows} headers={FDU_HEADERS} isSortable>
                 {({ rows: r, headers, getTableProps, getHeaderProps, getRowProps }) => (
                   <TableContainer>
                     <Table {...getTableProps()} size="md" useZebraStyles>
@@ -213,6 +244,9 @@ const MapTab: FC<Props> = ({ fspId, amendmentNumber, variant }) => {
                           <TableRow {...getRowProps({ row })} key={row.id}>
                             {row.cells.map((cell) => {
                               if (cell.info.header === 'actions') {
+                                const sourceRow = fduList?.fdus.find(
+                                  (f) => (f.fduId ?? '') === row.id,
+                                );
                                 return (
                                   <TableCell key={cell.id}>
                                     <Button
@@ -224,6 +258,22 @@ const MapTab: FC<Props> = ({ fspId, amendmentNumber, variant }) => {
                                     >
                                       Map View
                                     </Button>
+                                    {canEditLicences && sourceRow?.fduId && (
+                                      <Button
+                                        kind="ghost"
+                                        size="sm"
+                                        renderIcon={Edit}
+                                        onClick={() =>
+                                          setEditTarget({
+                                            fduId: sourceRow.fduId as string,
+                                            fduName: sourceRow.fduName ?? '',
+                                            licences: sourceRow.licences ?? '',
+                                          })
+                                        }
+                                      >
+                                        Edit licences
+                                      </Button>
+                                    )}
                                   </TableCell>
                                 );
                               }
@@ -241,6 +291,33 @@ const MapTab: FC<Props> = ({ fspId, amendmentNumber, variant }) => {
             </div>
           )}
         </section>
+      )}
+
+      {editTarget && (
+        <FduLicencesModal
+          open={!!editTarget}
+          fspId={fspId}
+          fduId={editTarget.fduId}
+          fduName={editTarget.fduName}
+          initialLicences={editTarget.licences}
+          onClose={() => setEditTarget(null)}
+          onSaved={(licences) => {
+            // Splice the refreshed licence list into the row in place
+            // so the table reflects the change immediately. The next
+            // tab switch re-fetches the proc-truth list anyway.
+            setFduList((cur) => {
+              if (!cur) return cur;
+              return {
+                ...cur,
+                fdus: cur.fdus.map((f) =>
+                  f.fduId === editTarget.fduId
+                    ? { ...f, licences: licences.join(', ') }
+                    : f,
+                ),
+              };
+            });
+          }}
+        />
       )}
     </>
   );

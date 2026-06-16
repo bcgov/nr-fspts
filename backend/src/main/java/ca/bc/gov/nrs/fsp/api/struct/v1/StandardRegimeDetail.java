@@ -5,8 +5,8 @@ import java.util.List;
 /**
  * Read-only projection of FSP_550_STDS_PROPOSAL.GET — backs the FSP250
  * "Standards View" detail panel. Surfaces a subset of the proc's full
- * scalar set + four related lists (districts, clients, attachments,
- * bgc zones). Layer/species detail is intentionally out-of-scope here.
+ * scalar set + three related lists (districts, clients, bgc zones).
+ * Layer/species detail is intentionally out-of-scope here.
  */
 public record StandardRegimeDetail(
     String standardsRegimeId,
@@ -37,7 +37,6 @@ public record StandardRegimeDetail(
     List<LayerSummary> layers,
     List<District> districts,
     List<AgreementHolder> agreementHolders,
-    List<Attachment> attachments,
     List<BgcZone> bgcZones
 ) {
 
@@ -52,14 +51,6 @@ public record StandardRegimeDetail(
   public record District(String orgUnitNo, String orgUnitCode, String orgUnitName) {}
 
   public record AgreementHolder(String clientNumber, String clientName, String clientAcronym) {}
-
-  public record Attachment(
-      String attachmentId,
-      String attachmentName,
-      String attachmentDescription,
-      String mimeTypeCode,
-      String fileSize
-  ) {}
 
   public record BgcZone(
       /** STANDARD_REGIME_SITE_SERIES_ID — addresses the row for SAVE/REMOVE. */

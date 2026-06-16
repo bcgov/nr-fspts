@@ -1,6 +1,7 @@
 package ca.bc.gov.nrs.fsp.api.service.v1;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao;
+import ca.bc.gov.nrs.fsp.api.dao.v1.OrgUnitLookupDao;
 import ca.bc.gov.nrs.fsp.api.struct.v1.CodeOption;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,7 @@ public class CodeListsService {
   };
 
   private final FspCodeListsDao fspCodeListsDao;
+  private final OrgUnitLookupDao orgUnitLookupDao;
 
   /**
    * Org units suitable for the FSP-100 search form's Organization Unit
@@ -48,6 +50,24 @@ public class CodeListsService {
   public List<CodeOption> getOrgUnits() {
     return fspCodeListsDao.getOrgUnitFiltered("").stream()
         .map(CodeListsService::toCodeOption)
+        .filter(o -> o.getCode() != null)
+        .toList();
+  }
+
+  /**
+   * Org units keyed by the 3-letter {@code org_unit_code} (e.g. "DCC")
+   * with {@code description} = {@code org_unit_name}. Distinct from
+   * {@link #getOrgUnits()}, which keys by the numeric {@code org_unit_no}
+   * used by the FSP search filter. This variant powers the SPA's
+   * display lookup that expands the comma-separated abbreviation list
+   * returned in each search row into human-friendly district names.
+   */
+  public List<CodeOption> getOrgUnitCodes() {
+    return orgUnitLookupDao.findAllCodeNamePairs().stream()
+        .map(row -> CodeOption.builder()
+            .code(row.get("code"))
+            .description(row.get("description"))
+            .build())
         .filter(o -> o.getCode() != null)
         .toList();
   }
@@ -106,6 +126,21 @@ public class CodeListsService {
    */
   public List<CodeOption> getSilvTreeSpeciesCodes() {
     return fspCodeListsDao.getSilvTreeSpCd().stream()
+        .map(CodeListsService::toCodeOption)
+        .filter(o -> o.getCode() != null)
+        .toList();
+  }
+
+  /**
+   * Silviculture statute codes (THE.SILV_STATUTE_CODE table) — the
+   * "Regulation" dropdown on the FSP550 Stocking Standards Proposal
+   * page. Same shape the legacy code-list loader used
+   * (FSP_CODE_LISTS.get_statute_cd), so the FSP can be created with
+   * any value the DBA has provisioned without hard-coding the list
+   * in the SPA.
+   */
+  public List<CodeOption> getStatuteCodes() {
+    return fspCodeListsDao.getStatuteCd().stream()
         .map(CodeListsService::toCodeOption)
         .filter(o -> o.getCode() != null)
         .toList();

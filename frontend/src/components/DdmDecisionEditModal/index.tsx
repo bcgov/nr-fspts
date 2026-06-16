@@ -11,7 +11,6 @@ import {
 } from '@carbon/react';
 import { useEffect, useMemo, useState, type FC } from 'react';
 
-import ConfirmationModal from '@/components/ConfirmationModal';
 import { useNotification } from '@/context/notification/useNotification';
 import type { FspDdmDecision } from '@/services/fspSearch';
 
@@ -27,16 +26,11 @@ export interface DdmDecisionSubmitPayload {
   comment: string;
 }
 
-export interface DdmReversePayload {
-  /** The status code currently in effect — drives which SAVE_DDM_* the reverse routes to. */
-  currentStatusCode: string;
-}
-
 interface DdmDecisionEditModalProps {
   open: boolean;
   /** Current persisted decision (if any). Used to pre-fill the form. */
   value: FspDdmDecision;
-  /** Current FSP status — needed so the Reverse path can target the right SAVE_DDM_*. */
+  /** Current FSP status — used to pre-select the matching decision radio. */
   currentStatusCode: string | null;
   onClose: () => void;
   /**
@@ -44,12 +38,6 @@ interface DdmDecisionEditModalProps {
    * and only closes on success — throw to keep the modal open.
    */
   onSubmit: (payload: DdmDecisionSubmitPayload) => Promise<void>;
-  /**
-   * Reverse the currently-saved decision (proc's "undo" branch, runs
-   * with p_completed_ind='N'). Only invoked when an existing decision
-   * is in effect. Modal awaits, closes on success.
-   */
-  onReverse: (payload: DdmReversePayload) => Promise<void>;
 }
 
 const isoToday = (): string => {
@@ -113,7 +101,6 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   currentStatusCode,
   onClose,
   onSubmit,
-  onReverse,
 }) => {
   const { display } = useNotification();
   const prevDecision = useMemo(
@@ -123,12 +110,15 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   const [decision, setDecision] = useState<DdmDecisionChoice>(
     prevDecision ?? 'APP',
   );
-  const [submissionDate, setSubmissionDate] = useState('');
   const [decisionDate, setDecisionDate] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('');
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
-  const [reverseConfirmOpen, setReverseConfirmOpen] = useState(false);
+
+  // Approved state — covers both APP (Approved) and INE (In Effect).
+  // Used to lock the Reject / Request-Clarification radios so a DDM
+  // can't pivot the decision after the FSP has been approved.
+  const isApproved = prevDecision === 'APP';
 
   // Re-prefill on every open so re-opening the dialog reflects the
   // current persisted decision rather than whatever the user typed
@@ -136,23 +126,19 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   useEffect(() => {
     if (!open) return;
     setDecision(prevDecision ?? 'APP');
-    setSubmissionDate(value.submissionDate ?? '');
     setDecisionDate(value.decisionDate ?? isoToday());
     setEffectiveDate(value.effectiveDate ?? '');
     setComment(value.comment ?? '');
   }, [open, prevDecision, value]);
 
-  const needsSubmissionDate = decision === 'APP' || decision === 'REJ';
   const needsEffectiveDate = decision === 'APP';
   const needsComment = decision === 'DFT';
 
-  const submissionMissing = needsSubmissionDate && submissionDate.trim() === '';
   const decisionDateMissing = decisionDate.trim() === '';
   const effectiveMissing = needsEffectiveDate && effectiveDate.trim() === '';
   const commentMissing = needsComment && comment.trim() === '';
   const canSubmit =
     !saving &&
-    !submissionMissing &&
     !decisionDateMissing &&
     !effectiveMissing &&
     !commentMissing;
@@ -168,7 +154,11 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
     try {
       await onSubmit({
         decision,
-        submissionDate: needsSubmissionDate ? submissionDate : '',
+        // Submission date is set by the user's Submit FSP action and
+        // shouldn't be changed here. Pass through whatever the proc
+        // already has on the row so the SAVE_DDM_* call doesn't
+        // overwrite the real submission timestamp.
+        submissionDate: value.submissionDate ?? '',
         decisionDate,
         effectiveDate: needsEffectiveDate ? effectiveDate : undefined,
         comment: comment.trim(),
@@ -184,13 +174,6 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
     } finally {
       setSaving(false);
     }
-  };
-
-  const performReverse = async () => {
-    if (!currentStatusCode) return;
-    await onReverse({ currentStatusCode });
-    // ConfirmationModal closes itself on success; close the parent too.
-    onClose();
   };
 
   return (
@@ -225,39 +208,39 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
               value="APP"
               disabled={saving}
             />
+            {/* Reject and Request Clarification are locked once the FSP
+                has been approved (APP / INE). The DDM Decision dialog
+                in this state can only adjust the existing Approve
+                row's dates and comment — flipping to REJ/DFT after an
+                approval is no longer allowed. */}
             <RadioButton
               id="ddm-decision-dft"
               labelText={DECISION_LABEL.DFT}
               value="DFT"
-              disabled={saving}
+              disabled={saving || isApproved}
             />
             <RadioButton
               id="ddm-decision-rej"
               labelText={DECISION_LABEL.REJ}
               value="REJ"
-              disabled={saving}
+              disabled={saving || isApproved}
             />
           </RadioButtonGroup>
-
-          {needsSubmissionDate && (
-            <DatePicker
-              datePickerType="single"
-              dateFormat="Y-m-d"
-              value={submissionDate || undefined}
-              onChange={(dates: Date[]) =>
-                setSubmissionDate(dates[0] ? toIsoDate(dates[0]) : '')
-              }
-            >
-              <DatePickerInput
-                id="ddm-submission-date"
-                placeholder="YYYY-MM-DD"
-                labelText="Submission Date *"
-                disabled={saving}
-                invalid={submissionMissing}
-                invalidText="Submission date is required."
-              />
-            </DatePicker>
+          {isApproved && (
+            <InlineNotification
+              kind="info"
+              lowContrast
+              hideCloseButton
+              title="Approved FSPs can only be edited, not rejected or returned for clarification."
+              subtitle=""
+            />
           )}
+
+          {/* Submission Date intentionally omitted — it's set by the
+              submitter's Submit FSP action and isn't editable here.
+              The legacy FSP700 page showed it as a field too but had
+              no path to actually persist a change, so it was just
+              cosmetic UI weight. */}
 
           <DatePicker
             datePickerType="single"
@@ -324,15 +307,6 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
           <Button kind="secondary" disabled={saving} onClick={closeDialog}>
             Cancel
           </Button>
-          {prevDecision && (
-            <Button
-              kind="danger--tertiary"
-              disabled={saving}
-              onClick={() => setReverseConfirmOpen(true)}
-            >
-              Reverse Decision
-            </Button>
-          )}
           <Button
             kind="primary"
             disabled={!canSubmit}
@@ -343,24 +317,6 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
           </Button>
         </div>
       </Modal>
-
-      <ConfirmationModal
-        open={reverseConfirmOpen}
-        onClose={() => setReverseConfirmOpen(false)}
-        heading="Reverse DDM Decision"
-        confirmLabel="Reverse"
-        danger
-        errorTitle="Failed to reverse decision"
-        onConfirm={performReverse}
-      >
-        <p>
-          Reverse the current decision and return the FSP to{' '}
-          {(currentStatusCode ?? '').toUpperCase() === 'INE'
-            ? 'Clarification Requested'
-            : 'Submitted'}{' '}
-          status? This cannot be undone.
-        </p>
-      </ConfirmationModal>
     </>
   );
 };

@@ -60,3 +60,26 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   const url = /^https?:/.test(path) ? path : `${API_BASE_URL}${path}`;
   return fetch(url, { ...init, headers });
 }
+
+/**
+ * Pulls the user-facing message out of an error response body. The
+ * backend's {@code RestExceptionHandler} returns
+ * {@code {status, timestamp, message, ...}} JSON for handled errors —
+ * we only want {@code message} on the wire to the toast subtitle.
+ * Falls back to the raw text for non-JSON bodies (e.g. a plain 502 from
+ * a proxy or an unhandled exception that surfaces as text).
+ */
+export async function readErrorMessage(res: Response): Promise<string> {
+  const raw = await res.text().catch(() => '');
+  if (!raw) return '';
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && 'message' in parsed) {
+      const msg = (parsed as { message: unknown }).message;
+      if (typeof msg === 'string' && msg.trim()) return msg.trim();
+    }
+  } catch {
+    // Body wasn't JSON — fall through and surface the raw text.
+  }
+  return raw;
+}

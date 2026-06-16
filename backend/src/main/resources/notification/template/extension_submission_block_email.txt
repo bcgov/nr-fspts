@@ -1,0 +1,8 @@
+This message is to inform you that an extension request for Forest Stewardship Plan {{fspId}}, attached to Amendment {{amendmentNumber}}, has been {{statusCode}}.
+
+Submitted by - {{entryUserid}}
+
+Submitted on - {{entryTimestamp}}
+
+
+-------------------------------------------------------------------

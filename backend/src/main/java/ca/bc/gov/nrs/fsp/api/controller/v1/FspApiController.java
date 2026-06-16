@@ -70,6 +70,11 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
+    public ResponseEntity<List<CodeOption>> getOrgUnitCodes() {
+        return ResponseEntity.ok(codeListsService.getOrgUnitCodes());
+    }
+
+    @Override
     public ResponseEntity<List<CodeOption>> getFspStatusCodes() {
         return ResponseEntity.ok(codeListsService.getFspStatusCodes());
     }
@@ -82,6 +87,11 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<List<CodeOption>> getSilvTreeSpeciesCodes() {
         return ResponseEntity.ok(codeListsService.getSilvTreeSpeciesCodes());
+    }
+
+    @Override
+    public ResponseEntity<List<CodeOption>> getStatuteCodes() {
+        return ResponseEntity.ok(codeListsService.getStatuteCodes());
     }
 
     // --- FSP ---
@@ -105,6 +115,33 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<FspRequest> updateFsp(String fspId, FspRequest fspRequest) {
         return ResponseEntity.ok(fspService.update(fspId, fspRequest));
+    }
+
+    @Override
+    public ResponseEntity<Void> deleteFsp(String fspId, String amendmentNumber) {
+        fspService.delete(fspId, amendmentNumber);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<FspRequest> submitFsp(String fspId, String amendmentNumber) {
+        return ResponseEntity.ok(fspService.submit(fspId, amendmentNumber));
+    }
+
+    @Override
+    public ResponseEntity<ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse> submitPreflight(
+            String fspId, String amendmentNumber) {
+        return ResponseEntity.ok(fspService.preflightSubmit(fspId, amendmentNumber));
+    }
+
+    @Override
+    public ResponseEntity<FspRequest> amendFsp(String fspId) {
+        return ResponseEntity.ok(fspService.amend(fspId, new FspRequest()));
+    }
+
+    @Override
+    public ResponseEntity<FspRequest> replaceFsp(String fspId) {
+        return ResponseEntity.ok(fspService.replace(fspId, new FspRequest()));
     }
 
     // --- Workflow ---
@@ -139,6 +176,19 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
+    public ResponseEntity<ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail> createStandardRegime(
+            String fspId, ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeCreate body) {
+        return ResponseEntity.ok(standardRegimeService.createRegime(fspId, body));
+    }
+
+    @Override
+    public ResponseEntity<ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail> copyStandardRegime(
+            String fspId, String regimeId, String amendmentNumber) {
+        return ResponseEntity.ok(
+                standardRegimeService.copyRegime(fspId, amendmentNumber, regimeId));
+    }
+
+    @Override
     public ResponseEntity<Void> deleteStandard(String fspId, String standardId) {
         standardsService.delete(standardId);
         return ResponseEntity.noContent().build();
@@ -157,8 +207,10 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
-    public ResponseEntity<AttachmentResponse> uploadAttachment(String fspId, MultipartFile file, String typeCode) throws IOException {
-        return ResponseEntity.ok(attachmentsService.upload(fspId, file, typeCode));
+    public ResponseEntity<AttachmentResponse> uploadAttachment(
+            String fspId, MultipartFile file, String typeCode, String description)
+            throws IOException {
+        return ResponseEntity.ok(attachmentsService.upload(fspId, file, typeCode, description));
     }
 
     @Override
@@ -196,8 +248,21 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
+    public ResponseEntity<ExtensionRequestSaved> createExtension(
+            String fspId, ExtensionRequestSave body) {
+        var result = extensionService.createRequest(fspId, body);
+        return ResponseEntity.ok(new ExtensionRequestSaved(result.extensionId()));
+    }
+
+    @Override
     public ResponseEntity<FduList> getFduList(String fspId) {
         return ResponseEntity.ok(fduService.getFdus(fspId));
+    }
+
+    @Override
+    public ResponseEntity<FduLicencesUpdated> updateFduLicences(
+            String fspId, long fduId, FduLicencesUpdate body) {
+        return ResponseEntity.ok(fduService.updateLicences(fspId, fduId, body));
     }
 
     @Override
@@ -295,28 +360,6 @@ public class FspApiController implements FspApiEndpoint {
             StandardRegimeBgcZoneUpsert body) {
         return ResponseEntity.ok(standardRegimeService.saveBgcItem(
                 fspId, amendmentNumber, regimeId, siteSeriesId, revisionCount, body));
-    }
-
-    @Override
-    public ResponseEntity<StandardRegimeDetail> addStandardRegimeAttachment(
-            String fspId, String regimeId, String amendmentNumber,
-            MultipartFile file) throws IOException {
-        return ResponseEntity.ok(standardRegimeService.addAttachment(
-                fspId, amendmentNumber, regimeId, file));
-    }
-
-    @Override
-    public ResponseEntity<byte[]> downloadStandardRegimeAttachment(
-            String fspId, String regimeId, String attachmentId) {
-        var blob = standardRegimeService.getAttachmentBlob(attachmentId);
-        String filename = blob.attachmentName() != null
-                ? blob.attachmentName()
-                : "attachment-" + attachmentId;
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + filename + "\"")
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(blob.content());
     }
 
     // --- Map View extent ---

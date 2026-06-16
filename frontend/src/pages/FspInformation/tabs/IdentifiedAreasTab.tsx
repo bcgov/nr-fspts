@@ -20,15 +20,17 @@ import {type FspIdentifiedAreaList, getFspExtent, getFspIdentifiedAreas,} from '
 interface Props {
   fspId: string;
   amendmentNumber: string;
+  /** Parent-bumped counter that forces a refetch on Submit/Extend/etc. */
+  refreshKey?: number;
 }
 
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
 
 const HEADERS = [
-  { key: 'name', header: 'Identified Area Name' },
-  { key: 'section', header: 'FRPA Section' },
-  { key: 'actions', header: '' },
+  { key: 'name', header: 'Identified area name' },
+  { key: 'section', header: 'FRPA section' },
+  { key: 'actions', header: '', isSortable: false },
 ];
 
 const MAP_VIEWER_URL = env.VITE_MAP_VIEWER_URL ?? '';
@@ -40,7 +42,7 @@ const MAP_VIEWER_LAYERS = '1417,1418,1419,1420';
  * Section as a column. Each row's Map View link reuses the FSP-level
  * MBR extent (the proc doesn't surface a per-area extent).
  */
-const IdentifiedAreasTab: FC<Props> = ({ fspId, amendmentNumber }) => {
+const IdentifiedAreasTab: FC<Props> = ({ fspId, amendmentNumber, refreshKey }) => {
   const [list, setList] = useState<FspIdentifiedAreaList | null>(null);
   const [loading, setLoading] = useState(false);
   const [extent, setExtent] = useState<string | null>(null);
@@ -70,7 +72,7 @@ const IdentifiedAreasTab: FC<Props> = ({ fspId, amendmentNumber }) => {
     return () => {
       cancelled = true;
     };
-  }, [fspId, display]);
+  }, [fspId, display, refreshKey]);
 
   // Lazy-fetch extent on mount so the per-row Map View button is
   // ready when the user clicks. Same pattern as MapTab.
@@ -88,7 +90,7 @@ const IdentifiedAreasTab: FC<Props> = ({ fspId, amendmentNumber }) => {
     return () => {
       cancelled = true;
     };
-  }, [fspId, amendmentNumber]);
+  }, [fspId, amendmentNumber, refreshKey]);
 
   const openMapView = () => {
     if (!MAP_VIEWER_URL) {
@@ -151,7 +153,7 @@ const IdentifiedAreasTab: FC<Props> = ({ fspId, amendmentNumber }) => {
         <p>No identified or declared areas on this FSP/amendment.</p>
       ) : (
         <div className="bordered-table">
-          <DataTable rows={tableRows} headers={HEADERS}>
+          <DataTable rows={tableRows} headers={HEADERS} isSortable>
             {({ rows: r, headers, getTableProps, getHeaderProps, getRowProps }) => (
               <TableContainer>
                 <Table {...getTableProps()} size="md" useZebraStyles>

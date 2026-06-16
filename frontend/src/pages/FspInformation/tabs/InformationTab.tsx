@@ -15,11 +15,14 @@ import {
   TextInput,
   Toggle,
 } from '@carbon/react';
-import {Add, Edit} from '@carbon/icons-react';
+import {Add, Edit, TrashCan} from '@carbon/icons-react';
 import {type FC, useEffect, useState} from 'react';
 
+import AmendmentDescriptionModal from '@/components/AmendmentDescriptionModal';
 import ClientSearchModal from '@/components/ClientSearchModal';
+import ConfirmationModal from '@/components/ConfirmationModal';
 import DistrictPickerModal from '@/components/DistrictPickerModal';
+import ExtensionSummaryModal from '@/components/ExtensionSummaryModal';
 import {useNotification} from '@/context/notification/useNotification';
 import type {ClientSearchResult} from '@/services/clientSearch';
 import {
@@ -42,6 +45,19 @@ const yesNo = (value: string | null | undefined): string => {
   if (value === 'Y') return 'Yes';
   if (value === 'N') return 'No';
   return '—';
+};
+
+// "5 years, 0 months" — only renders an em-dash when both halves are
+// blank so partial entry (e.g. years filled, months still empty) still
+// shows something useful.
+const formatTerm = (
+  years: string | null | undefined,
+  months: string | null | undefined,
+): string => {
+  const y = (years ?? '').trim();
+  const m = (months ?? '').trim();
+  if (!y && !m) return '—';
+  return `${y || '0'} years, ${m || '0'} months`;
 };
 
 interface FieldEntry {
@@ -191,6 +207,20 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [districtPickerOpen, setDistrictPickerOpen] = useState(false);
 
+  // FSP301 dialog — covers both AMD ("Amendment Description") and RPL
+  // ("Replacement Description") flows. Stored as a string so the same
+  // modal instance can render the right heading text.
+  const [amendmentDialog, setAmendmentDialog] = useState<
+    'Amendment Description' | 'Replacement Description' | null
+  >(null);
+  const [extensionSummaryOpen, setExtensionSummaryOpen] = useState(false);
+  // Holds the district pending removal so ConfirmationModal can render
+  // the right label and the confirm handler knows which orgUnitNo to
+  // drop from the PUT payload. Mirrors the BGC zone delete pattern in
+  // StandardRegimeDetailPanel.
+  const [districtDeleteTarget, setDistrictDeleteTarget] =
+    useState<FspDistrict | null>(null);
+
   // Reset form whenever the underlying fsp changes (amendment switch,
   // post-save refresh, etc.) — same useEffect-guard idiom nr-rept uses.
   useEffect(() => {
@@ -329,35 +359,63 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
     });
   };
 
+  // Invoked by the ConfirmationModal's Confirm button. Re-fetches the
+  // current districts list (snapshotting it from the close-over `fsp`
+  // is fine because the ConfirmationModal blocks input while saving)
+  // and PUTs the list minus the dropped row.
+  const handleDeleteDistrictConfirmed = async () => {
+    if (!fsp?.fspId || !districtDeleteTarget?.orgUnitNo) return;
+    const merged = (fsp.districts ?? []).filter(
+      (d) => d.orgUnitNo !== districtDeleteTarget.orgUnitNo,
+    );
+    const updated = await updateFsp(fsp.fspId, { districts: merged });
+    onSaved(updated);
+    display({
+      kind: 'success',
+      title: 'District removed.',
+      subtitle:
+        districtDeleteTarget.orgUnitCode ?? districtDeleteTarget.orgUnitNo,
+      timeout: 6000,
+    });
+  };
+
   // ─── Read-only field lists ──────────────────────────────────────────
 
   const planDetails: FieldEntry[] = [
-    { label: 'FSP Name', value: dash(fsp.fspPlanName) },
+    { label: 'FSP name', value: dash(fsp.fspPlanName) },
     { label: 'Status', value: dash(fsp.fspStatusDesc) },
-    { label: 'Amendment Name', value: dash(fsp.amendmentName) },
-    { label: 'Amendment Type', value: dash(fsp.fspAmendmentDesc) },
-    { label: 'Amendment Authority', value: dash(fsp.amendmentAuthority) },
-    { label: 'Revision', value: dash(fsp.revisionCount) },
+    { label: 'Amendment name', value: dash(fsp.amendmentName) },
+    { label: 'Amendment type', value: dash(fsp.fspAmendmentDesc) },
+    { label: 'Amendment authority', value: dash(fsp.amendmentAuthority) },
   ];
 
+  // Matches the legacy FSP300 Y/N-with-link convention. All three
+  // entries open as dialogs:
+  //   Amendment Description     visible only when amendment_code = 'AMD'
+  //   Replacement Description   visible only when amendment_code = 'RPL'
+  //   Extension Summary         visible whenever fsp_extension_stat != 'N'
+  const hasAmendmentDescription = fsp.fspAmendmentCode === 'AMD';
+  const hasReplacementDescription = fsp.fspAmendmentCode === 'RPL';
+  const hasExtensionSummary =
+    !!fsp.fspExtensionStat && fsp.fspExtensionStat !== 'N';
+
   const termAndDates: FieldEntry[] = [
-    { label: 'Effective Date', value: dash(fsp.fspPlanStartDate) },
-    { label: 'Expiry Date', value: dash(fsp.fspExpiryDate) },
-    { label: 'Submission Date', value: dash(fsp.fspPlanSubmissionDate) },
-    { label: 'Term', value: dash(fsp.fspPlanTermYears) },
-    { label: 'Term', value: dash(fsp.fspPlanTermMonths) },
-    { label: 'Plan End Date', value: dash(fsp.fspPlanEndDate) },
+    { label: 'Effective date', value: dash(fsp.fspPlanStartDate) },
+    { label: 'Expiry date', value: dash(fsp.fspExpiryDate) },
+    { label: 'Submission date', value: dash(fsp.fspPlanSubmissionDate) },
+    { label: 'Term', value: formatTerm(fsp.fspPlanTermYears, fsp.fspPlanTermMonths) },
+    { label: 'Plan end date', value: dash(fsp.fspPlanEndDate) },
   ];
 
   const flags: FieldEntry[] = [
     { label: 'Transitional FSP', value: yesNo(fsp.transitionInd) },
-    { label: 'FRPA 197 Election', value: yesNo(fsp.frpa197electionInd) },
+    { label: 'FRPA 197 election', value: yesNo(fsp.frpa197electionInd) },
   ];
 
   const contact: FieldEntry[] = [
-    { label: 'Contact Name', value: dash(fsp.fspContactName) },
+    { label: 'Contact name', value: dash(fsp.fspContactName) },
     { label: 'Telephone', value: dash(fsp.fspTelephoneNumber) },
-    { label: 'E-mail Address', value: dash(fsp.fspEmailAddress) },
+    { label: 'E-mail address', value: dash(fsp.fspEmailAddress) },
   ];
 
   const agreementHolders = fsp.agreementHolders ?? [];
@@ -370,11 +428,6 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
     agreement: dash(h.agreementDescription),
   }));
 
-  const districtRows = districts.map((d, i) => ({
-    id: d.orgUnitNo ?? d.orgUnitCode ?? `row-${i}`,
-    code: dash(d.orgUnitCode),
-    name: dash(d.orgUnitName),
-  }));
 
   return (
     <div>
@@ -445,6 +498,71 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
           )}
         </section>
 
+        {/* Related Forms — Y/N + navigation buttons matching the
+            legacy FSP300 "Amendment Description / Replacement
+            Description / Extension Summary" rows. Each row shows "Y"
+            with an Open button when applicable, "—" otherwise. */}
+        {!editing && (
+          <section className="fsp-info__tile">
+            <header className="fsp-info__tile-header">
+              <h2 className="fsp-info__section-title">Related Forms</h2>
+            </header>
+            <dl className="fsp-info__field-list">
+              <div className="fsp-info__field">
+                <dt>Amendment description</dt>
+                <dd>
+                  {hasAmendmentDescription ? (
+                    <Button
+                      kind="ghost"
+                      size="sm"
+                      renderIcon={Edit}
+                      onClick={() => setAmendmentDialog('Amendment Description')}
+                    >
+                      Open
+                    </Button>
+                  ) : (
+                    '—'
+                  )}
+                </dd>
+              </div>
+              <div className="fsp-info__field">
+                <dt>Replacement description</dt>
+                <dd>
+                  {hasReplacementDescription ? (
+                    <Button
+                      kind="ghost"
+                      size="sm"
+                      renderIcon={Edit}
+                      onClick={() => setAmendmentDialog('Replacement Description')}
+                    >
+                      Open
+                    </Button>
+                  ) : (
+                    '—'
+                  )}
+                </dd>
+              </div>
+              <div className="fsp-info__field">
+                <dt>Extension summary</dt>
+                <dd>
+                  {hasExtensionSummary ? (
+                    <Button
+                      kind="ghost"
+                      size="sm"
+                      renderIcon={Edit}
+                      onClick={() => setExtensionSummaryOpen(true)}
+                    >
+                      View
+                    </Button>
+                  ) : (
+                    '—'
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </section>
+        )}
+
         {/* Term & Dates */}
         <section className="fsp-info__tile">
           <header className="fsp-info__tile-header">
@@ -482,51 +600,79 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                   disabled={saving}
                 />
               </DatePicker>
-              <NumberInput
-                id="edit-fspPlanTermYears"
-                label="Term"
-                min={0}
-                max={99}
-                allowEmpty
-                hideSteppers
-                value={form.fspPlanTermYears === '' ? '' : Number(form.fspPlanTermYears)}
-                invalid={!!errors.fspPlanTermYears}
-                invalidText={errors.fspPlanTermYears}
-                disabled={saving}
-                onChange={(_e, { value }) =>
-                  setField('fspPlanTermYears', value === '' ? '' : String(value))
-                }
-              />
-              <NumberInput
-                id="edit-fspPlanTermMonths"
-                label="Term"
-                min={0}
-                max={11}
-                allowEmpty
-                hideSteppers
-                value={form.fspPlanTermMonths === '' ? '' : Number(form.fspPlanTermMonths)}
-                invalid={!!errors.fspPlanTermMonths}
-                invalidText={errors.fspPlanTermMonths}
-                disabled={saving}
-                onChange={(_e, { value }) =>
-                  setField('fspPlanTermMonths', value === '' ? '' : String(value))
-                }
-              />
-              <DatePicker
-                datePickerType="single"
-                dateFormat="Y-m-d"
-                value={form.fspPlanEndDate || undefined}
-                onChange={(dates: Date[]) =>
-                  setField('fspPlanEndDate', dates[0] ? toIsoDate(dates[0]) : '')
-                }
-              >
-                <DatePickerInput
-                  id="edit-fspPlanEndDate"
-                  placeholder="YYYY-MM-DD"
-                  labelText="Plan End Date"
-                  disabled={saving}
-                />
-              </DatePicker>
+              {/*
+                Term + Plan End Date share one column of the 2-col edit
+                grid so Plan End Date sits directly under Term (the
+                right column of this row stays empty by design — matches
+                the legacy 5-year-cap layout where Plan End Date is the
+                fallback / alternative entry to the term).
+              */}
+              <div className="fsp-info__edit-stack">
+                <fieldset className="fsp-info__term-group">
+                  <legend className="fsp-info__term-legend">Term</legend>
+                  {/*
+                    Inline styles set the flex layout + cell widths.
+                    The .fsp-info__term-inputs class anchors a separate
+                    SCSS rule that resets Carbon's hard-coded 9.375rem
+                    min-inline-size on the inner <input>, which is what
+                    was actually overflowing the cell.
+                  */}
+                  <div
+                    className="fsp-info__term-inputs"
+                    style={{ display: 'flex', gap: '1rem' }}
+                  >
+                    <div style={{ width: '5rem', flex: '0 0 5rem' }}>
+                      <NumberInput
+                        id="edit-fspPlanTermYears"
+                        label="Years"
+                        min={0}
+                        max={99}
+                        allowEmpty
+                        hideSteppers
+                        value={form.fspPlanTermYears === '' ? '' : Number(form.fspPlanTermYears)}
+                        invalid={!!errors.fspPlanTermYears}
+                        invalidText={errors.fspPlanTermYears}
+                        disabled={saving}
+                        onChange={(_e, { value }) =>
+                          setField('fspPlanTermYears', value === '' ? '' : String(value))
+                        }
+                      />
+                    </div>
+                    <div style={{ width: '5rem', flex: '0 0 5rem' }}>
+                      <NumberInput
+                        id="edit-fspPlanTermMonths"
+                        label="Months"
+                        min={0}
+                        max={11}
+                        allowEmpty
+                        hideSteppers
+                        value={form.fspPlanTermMonths === '' ? '' : Number(form.fspPlanTermMonths)}
+                        invalid={!!errors.fspPlanTermMonths}
+                        invalidText={errors.fspPlanTermMonths}
+                        disabled={saving}
+                        onChange={(_e, { value }) =>
+                          setField('fspPlanTermMonths', value === '' ? '' : String(value))
+                        }
+                      />
+                    </div>
+                  </div>
+                </fieldset>
+                <DatePicker
+                  datePickerType="single"
+                  dateFormat="Y-m-d"
+                  value={form.fspPlanEndDate || undefined}
+                  onChange={(dates: Date[]) =>
+                    setField('fspPlanEndDate', dates[0] ? toIsoDate(dates[0]) : '')
+                  }
+                >
+                  <DatePickerInput
+                    id="edit-fspPlanEndDate"
+                    placeholder="YYYY-MM-DD"
+                    labelText="Plan End Date"
+                    disabled={saving}
+                  />
+                </DatePicker>
+              </div>
             </div>
           ) : (
             <dl className="fsp-info__field-list">
@@ -645,9 +791,10 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                 rows={agreementHolderRows}
                 headers={[
                   { key: 'clientNumber', header: 'Client #' },
-                  { key: 'clientName', header: 'Client Name' },
+                  { key: 'clientName', header: 'Client name' },
                   { key: 'agreement', header: 'Agreement' },
                 ]}
+                isSortable
               >
                 {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
                   <TableContainer>
@@ -692,42 +839,42 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
               Add District
             </Button>
           </header>
-          {districtRows.length === 0 ? (
+          {districts.length === 0 ? (
             <p>No districts linked to this FSP.</p>
           ) : (
             <div className="bordered-table">
-              <DataTable
-                rows={districtRows}
-                headers={[
-                  { key: 'code', header: 'Code' },
-                  { key: 'name', header: 'Name' },
-                ]}
-              >
-                {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
-                  <TableContainer>
-                    <Table {...getTableProps()} size="md" useZebraStyles>
-                      <TableHead>
-                        <TableRow>
-                          {headers.map((h) => (
-                            <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
-                              {h.header}
-                            </TableHeader>
-                          ))}
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {rows.map((row) => (
-                          <TableRow {...getRowProps({ row })} key={row.id}>
-                            {row.cells.map((cell) => (
-                              <TableCell key={cell.id}>{cell.value as string}</TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-              </DataTable>
+              <TableContainer>
+                <Table size="md" useZebraStyles>
+                  <TableHead>
+                    <TableRow>
+                      <TableHeader>Code</TableHeader>
+                      <TableHeader>Name</TableHeader>
+                      <TableHeader style={{ width: '4rem' }} aria-label="Actions" />
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {districts.map((d, i) => (
+                      <TableRow
+                        key={d.orgUnitNo ?? d.orgUnitCode ?? `row-${i}`}
+                      >
+                        <TableCell>{dash(d.orgUnitCode)}</TableCell>
+                        <TableCell>{dash(d.orgUnitName)}</TableCell>
+                        <TableCell>
+                          <Button
+                            kind="ghost"
+                            size="sm"
+                            renderIcon={TrashCan}
+                            iconDescription="Remove"
+                            hasIconOnly
+                            disabled={!d.orgUnitNo}
+                            onClick={() => setDistrictDeleteTarget(d)}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </div>
           )}
         </section>
@@ -766,6 +913,41 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
           .map((d) => d.orgUnitNo)
           .filter((c): c is string => !!c)}
         onSelect={handleAddDistrict}
+      />
+
+      <ConfirmationModal
+        open={districtDeleteTarget != null}
+        onClose={() => setDistrictDeleteTarget(null)}
+        heading="Remove District"
+        confirmLabel="Remove"
+        danger
+        errorTitle="Failed to remove district"
+        onConfirm={handleDeleteDistrictConfirmed}
+      >
+        <p>
+          Remove district{' '}
+          <strong>
+            {districtDeleteTarget?.orgUnitCode ??
+              districtDeleteTarget?.orgUnitNo ??
+              '(unnamed)'}
+            {districtDeleteTarget?.orgUnitName
+              ? ` — ${districtDeleteTarget.orgUnitName}`
+              : ''}
+          </strong>{' '}
+          from this FSP? This cannot be undone.
+        </p>
+      </ConfirmationModal>
+      <AmendmentDescriptionModal
+        open={amendmentDialog != null}
+        fsp={fsp}
+        heading={amendmentDialog ?? 'Amendment Description'}
+        onClose={() => setAmendmentDialog(null)}
+        onSaved={onSaved}
+      />
+      <ExtensionSummaryModal
+        open={extensionSummaryOpen}
+        fspId={fsp.fspId}
+        onClose={() => setExtensionSummaryOpen(false)}
       />
     </div>
   );

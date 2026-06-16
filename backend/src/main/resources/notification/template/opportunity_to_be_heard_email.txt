@@ -1,0 +1,19 @@
+This is an automated message from the FSP Tracking System.
+Please do not reply to this message.
+
+This message was sent to: {{emailAddress}}
+
+This message is to inform you that your District Manager has granted you an Opportunity To Be Heard before making a decision on your application for Forest Stewardship Plan named {{planName}}.
+
+Please contact your District Office for details on how to take advantage of your Opportunity To Be Heard.
+
+{{contactName}} - user submitted
+{{submissionDate}} - date submitted
+{{fspId}} - FSP ID
+{{orgUnits}} - district of FSP
+
+{{licensees}}
+
+Below is any message added by the District Manager concerning the request:
+
+{{history}}

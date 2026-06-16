@@ -3,8 +3,21 @@
 // Class names use fsp-search__* to make the lineage clear when someone
 // greps either app.
 
-.fsp-search-grid {
-  row-gap: 2rem;
+// Flat page layout — no Carbon Grid wrapper. We control every gap
+// explicitly here so the gray banner can sit immediately under the
+// form Tile (the previous Grid+Column structure injected too many
+// padding layers and the cumulative overrides weren't winning the
+// cascade).
+//
+// The page is a flex column directly inside Carbon's .cds--content
+// (which already provides `padding: 0 1.5rem` horizontally). The
+// inset works for the header + form Tile; the results-fullbleed
+// uses negative margin to escape it.
+.fsp-search-page {
+  display: flex;
+  flex-direction: column;
+  padding-block-start: 1rem;
+  min-block-size: calc(100vh - 3rem);
 }
 
 .fsp-search__header {
@@ -19,17 +32,28 @@
   }
 }
 
+.fsp-search__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--cds-text-secondary);
+}
+
 .fsp-search__tile {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 
-  // Bump the field surface to layer-02 (white) so input widgets stand out
-  // against the Tile's default gray (layer-01). Same trick REPT uses on its
-  // project search tile — without it, inputs blend into the tile and look
-  // like underline-only Carbon defaults.
-  --cds-field: var(--cds-field-02);
-  --cds-field-hover: var(--cds-field-hover-02);
+  // White tile surface, gray widgets. Matches the inverted-panel
+  // pattern in _overrides.scss (.agreement-workspace-tabs): bump the
+  // tile's --cds-layer to layer-02 (white) and bump widget surfaces
+  // back down to layer-01 (gray) so inputs read distinct against the
+  // white tile. Override --cds-layer ON the tile element (not just
+  // declare a background-color) so nested Carbon components that
+  // consume the token also pick up white.
+  --cds-layer: var(--cds-layer-02);
+  --cds-field: var(--cds-field-01);
+  --cds-field-hover: var(--cds-field-hover-01);
+  --cds-border-subtle: var(--cds-border-subtle-01);
+  background-color: var(--cds-layer-02);
 }
 
 .fsp-search__form {
@@ -186,3 +210,135 @@
   // the container. position:absolute + inset:0 already handles that.
   z-index: 1;
 }
+
+// Results section — sits outside the search-form Tile so the table
+// can fill the column edge-to-edge. Banner / table / pagination read
+// as a single connected block (no gap between siblings).
+.fsp-search__results {
+  display: flex;
+  flex-direction: column;
+}
+
+// Gray banner directly attached to the top of the table — holds the
+// total result count flush-left and visually anchors the table below.
+.fsp-search__results-header {
+  background-color: var(--cds-layer-01);
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--cds-text-primary);
+}
+
+.fsp-search__results-count {
+  display: inline-block;
+}
+
+// Drop the table's outer border/rounded-corner wrapper — the user wants
+// a flat full-width grid, not a card-style table.
+.fsp-search__table .cds--data-table-container {
+  padding-block-start: 0;
+  background: transparent;
+}
+
+// The Org Unit cell value carries newlines (\n) inserted by the
+// displayResults useMemo in SearchPage.tsx — each district on its
+// own line. white-space: pre-line honors the newlines so a row with
+// multiple districts grows vertically. Top-aligning all cells keeps
+// shorter cells (status tag, dates) aligned with the first line of
+// the multi-line org unit cell rather than vertically centered.
+.fsp-search__table .cds--data-table tbody td {
+  vertical-align: top;
+  white-space: pre-line;
+}
+
+// Zebra striping — odd rows pure white, even rows light gray. We're
+// not using Carbon's `useZebraStyles` prop because its tint depends
+// on theme tokens that don't render as a strong-enough contrast in
+// this app's white-tile setup; explicit nth-child rules give us the
+// exact two values the user asked for.
+.fsp-search__table .cds--data-table tbody tr:nth-child(odd),
+.fsp-search__table .cds--data-table tbody tr:nth-child(odd) td {
+  background-color: #ffffff;
+}
+
+.fsp-search__table .cds--data-table tbody tr:nth-child(even),
+.fsp-search__table .cds--data-table tbody tr:nth-child(even) td {
+  background-color: var(--cds-layer-01);
+}
+
+// Footer/pagination bar — white surface with no internal vertical
+// dividers. Carbon's pagination ships borders on every inner section
+// (items-count, page select, nav buttons); neutralize them inside
+// the search results scope only so global pagination styling stays
+// intact elsewhere.
+.fsp-search__results .cds--pagination,
+.fsp-search__results .cds--pagination * {
+  border-color: transparent !important;
+}
+
+.fsp-search__results .cds--pagination {
+  background-color: var(--cds-layer-02);
+}
+
+// Pagination bar layout: Items per page sits on the far left at its
+// natural position; the "1-X of N items" range indicator (Carbon's
+// .cds--pagination__items-count) gets pushed to the right edge of
+// .cds--pagination__left so it ends up flush against the page-selector
+// block. Doing it via flex-grow on __left rather than absolute moves
+// keeps Carbon's hover/border tokens intact.
+.fsp-search__results .cds--pagination__left {
+  flex: 1 1 auto;
+}
+
+.fsp-search__results .cds--pagination__items-count {
+  margin-inline-start: auto;
+}
+
+// Full-bleed results section. Rendered OUTSIDE .fsp-search-grid (see
+// SearchPage.tsx) so the only horizontal inset between it and the
+// viewport edge is .cds--content's own `padding: 0 1.5rem`. Negative
+// margin escapes that single layer.
+//
+// No margin-block-start: the .default-grid above already carries
+// `padding: 2rem` which provides the visual gap above this section.
+// Adding more margin here is what was producing the excessive whitespace
+// between the Search button and the gray banner.
+//
+// Background matches .fsp-search__results-header (--cds-layer-01) so
+// any empty viewport space below the pagination bar reads as the same
+// gray banner color rather than as the page background.
+// Full-bleed results section. Now a direct child of .fsp-search-page
+// (flex column), so there's no Carbon Grid / Column / default-grid
+// padding chain to fight. The Tile above ends at its own bottom
+// padding; we add `margin-block-start: 0` for a flush attachment
+// (the user wants minimal gap).
+//
+// Gray background matches .fsp-search__results-header so any empty
+// viewport space below the pagination reads as one continuous panel.
+// flex: 1 1 auto stretches the panel to fill remaining viewport
+// height when results are short.
+.fsp-search__results-fullbleed {
+  background-color: var(--cds-layer-01);
+  margin-block-start: 2rem;
+  margin-inline: -1.5rem;
+  flex: 1 1 auto;
+}
+
+// Trim the Tile's bottom padding so the Search button row sits
+// near the Tile's bottom edge — combined with the fullbleed's
+// zero top margin, that puts the gray banner directly below the
+// buttons with only the Tile's small residual padding between.
+.fsp-search__tile.cds--tile {
+  padding-block-end: 0.5rem;
+}
+
+.fsp-search__form {
+  gap: 0.75rem;
+}
+
+.fsp-search__results,
+.fsp-search__table,
+.fsp-search__table-container {
+  inline-size: 100%;
+}
+

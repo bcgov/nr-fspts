@@ -1,5 +1,6 @@
 package ca.bc.gov.nrs.fsp.api.submission.persist;
 
+import ca.bc.gov.nrs.fsp.api.dao.v1.FduWriteDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.OrgUnitLookupDao;
 import ca.bc.gov.nrs.fsp.api.service.v1.FspService;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspRequest;
@@ -63,6 +64,7 @@ public class SubmissionPersistenceService {
   private final StandardsPersistenceService standardsPersistenceService;
   private final SubmissionAttachmentService attachmentService;
   private final OrgUnitLookupDao orgUnitLookupDao;
+  private final FduWriteDao fduWriteDao;
 
   /**
    * Persist the validated submission. Caller must already have run the
@@ -75,12 +77,14 @@ public class SubmissionPersistenceService {
    */
   // Constants are the DB-side fsp_amendment_code values that
   // SubmissionToFspRequestMapper#mapActionCode produces from the
-  // XML's actionCode (I/U → ORG, A → AMD). The XML's letter codes
-  // are an internal vocabulary; the proc layer speaks ORG/AMD.
+  // XML's actionCode (I/U → ORG, A → AMD, R → RPL). The XML's letter
+  // codes are an internal vocabulary; the proc layer speaks ORG/AMD/RPL.
   /** Original FSP — XML actionCode=I or U → create a new FSP row. */
   private static final String ACTION_ORIGINAL = "ORG";
   /** Amendment — XML actionCode=A → AMEND a new row, then SAVE to populate. */
   private static final String ACTION_AMENDMENT = "AMD";
+  /** Replacement — XML actionCode=R → REPLACE a new row, then SAVE to populate. */
+  private static final String ACTION_REPLACEMENT = "RPL";
 
   @Transactional
   public FspRequest persist(FSPSubmissionType submission, List<MultipartFile> attachments)
@@ -97,6 +101,8 @@ public class SubmissionPersistenceService {
     //   A → fspService.amend() to create the new amendment row, then
     //       fspService.update() on the proc-assigned amendment_number
     //       to populate the body (AMEND only seeds the skeleton).
+    //   R → fspService.replace() — same shape as AMEND but the proc
+    //       stamps fsp_amendment_code='RPL' and forces approval-required.
     //   U → fspService.update() on the existing fsp_id + amendment.
     FspRequest saved;
     if (ACTION_ORIGINAL.equals(actionCode)) {
@@ -123,6 +129,39 @@ public class SubmissionPersistenceService {
           request.getFspId(), assignedAmendment);
       request.setFspAmendmentNumber(assignedAmendment);
       saved = fspService.update(request.getFspId(), request);
+      suppressUpdHistoryRow(saved);
+    } else if (ACTION_REPLACEMENT.equals(actionCode)) {
+      if (request.getFspId() == null || request.getFspId().isBlank()) {
+        throw new IllegalArgumentException(
+            "submission with actionCode=R requires an fspID");
+      }
+      // The APP/INE-amendment precondition is enforced upstream by
+      // ActionCodeContextValidator at upload time; reaching here means
+      // it already passed validation.
+      // Replacement is mandatory-ministry-approval per FRPA — mirrors
+      // the legacy Fsp304ReplaceInformationAction hard-coded "Y".
+      // Default-set rather than overwrite so an admin tool can still
+      // override if a future workflow needs it.
+      if (request.getApprovalRequiredInd() == null
+          || request.getApprovalRequiredInd().isBlank()) {
+        request.setApprovalRequiredInd("Y");
+      }
+      FspRequest replaced = fspService.replace(request.getFspId(), request);
+      String assignedAmendment = replaced.getFspAmendmentNumber();
+      if (assignedAmendment == null || assignedAmendment.isBlank()) {
+        throw new IllegalStateException(
+            "REPLACE succeeded but proc did not return an assigned amendment_number");
+      }
+      log.info("REPLACE assigned fsp_id={} amendment_number={}",
+          request.getFspId(), assignedAmendment);
+      request.setFspAmendmentNumber(assignedAmendment);
+      saved = fspService.update(request.getFspId(), request);
+      suppressUpdHistoryRow(saved);
+      // Legacy parity: a submitted Replacement immediately retires the
+      // prior APP/INE amendment(s) on the FSP — the History tab in the
+      // legacy app showed the Retired event right after submission,
+      // not waiting for approval like fsp_approval does.
+      retirePriorApprovedAmendmentsForReplace(saved);
     } else {
       // U (Update) — existing FSP, existing amendment
       if (request.getFspId() == null || request.getFspId().isBlank()) {
@@ -137,7 +176,12 @@ public class SubmissionPersistenceService {
     long fspIdLong = Long.parseLong(saved.getFspId());
     long amendmentNumberLong = parseLongOrZero(saved.getFspAmendmentNumber());
     ForestStewardshipPlanType plan = submission.getSubmissionItem().getForestStewardshipPlan();
-    String userId = RequestUtil.getCurrentIdir();
+    // Submission audit columns get the directory-prefixed form
+    // (IDIR\name / BCEID\name) so reports / downstream consumers can
+    // tell at a glance who the row was authored by. Other write paths
+    // (workflow, edit-pane saves) still use the bare IDIR for now —
+    // the legacy proc-side audit conventions there are bare-name.
+    String userId = RequestUtil.getCurrentAuditUserId();
     fduPersistenceService.persist(plan, fspIdLong, amendmentNumberLong, userId);
     identifiedAreaPersistenceService.persist(plan, fspIdLong, amendmentNumberLong, userId);
     standardsPersistenceService.persist(plan, fspIdLong, amendmentNumberLong, userId);
@@ -156,6 +200,68 @@ public class SubmissionPersistenceService {
       return 0L;
     }
     return Long.parseLong(s);
+  }
+
+  /**
+   * Removes the noise {@code UPD} ("FSP has been updated") row that
+   * {@code fsp_common_db.fsp_update} drops on every SAVE. The
+   * AMEND/REPLACE procs already emitted the meaningful "Draft" event
+   * with the submitter's amendment comment; this second row is just
+   * bookkeeping from the body-population SAVE we issue right after,
+   * and it doesn't appear in the legacy FSP304 flow which goes through
+   * {@code update_replace} instead of {@code fsp_update}.
+   *
+   * <p>No-op when the saved DTO doesn't carry numeric ids (defensive
+   * — the update path always returns them in practice).
+   */
+  /**
+   * Retires every APP/INE amendment on the FSP other than the one
+   * the Replacement just created. Matches the legacy History tab
+   * behaviour: a "Retired" event appears on the prior amendment as
+   * soon as the Replacement is submitted, ahead of any approval step.
+   */
+  private void retirePriorApprovedAmendmentsForReplace(FspRequest saved) {
+    if (saved == null || saved.getFspId() == null || saved.getFspAmendmentNumber() == null) {
+      return;
+    }
+    long fspIdLong;
+    long currentAmendment;
+    try {
+      fspIdLong = Long.parseLong(saved.getFspId());
+      currentAmendment = Long.parseLong(saved.getFspAmendmentNumber());
+    } catch (NumberFormatException e) {
+      log.warn("Skipped retire-prior-on-replace — non-numeric ids returned by SAVE: {} / {}",
+          saved.getFspId(), saved.getFspAmendmentNumber());
+      return;
+    }
+    String userId = RequestUtil.getCurrentAuditUserId();
+    int retired = fduWriteDao.retirePriorApprovedAmendments(
+        fspIdLong, currentAmendment, userId);
+    if (retired > 0) {
+      log.info("Retired {} prior APP/INE amendment(s) on fspId={} (replacement amendment={})",
+          retired, fspIdLong, currentAmendment);
+    }
+  }
+
+  private void suppressUpdHistoryRow(FspRequest saved) {
+    if (saved == null || saved.getFspId() == null || saved.getFspAmendmentNumber() == null) {
+      return;
+    }
+    long fspIdLong;
+    long amendmentLong;
+    try {
+      fspIdLong = Long.parseLong(saved.getFspId());
+      amendmentLong = Long.parseLong(saved.getFspAmendmentNumber());
+    } catch (NumberFormatException e) {
+      log.warn("Skipped UPD-row suppression — non-numeric ids returned by SAVE: {} / {}",
+          saved.getFspId(), saved.getFspAmendmentNumber());
+      return;
+    }
+    int removed = fduWriteDao.deleteLatestUpdHistoryRow(fspIdLong, amendmentLong);
+    if (removed > 0) {
+      log.info("Suppressed UPD status_history row on fspId={} amendment={}",
+          fspIdLong, amendmentLong);
+    }
   }
 
   /**

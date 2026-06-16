@@ -55,7 +55,7 @@ const statusTag = (desc: string | null | undefined): ReactNode => {
 
 const HEADERS = [
   { key: 'fspId', header: 'FSP ID' },
-  { key: 'planName', header: 'Plan Name' },
+  { key: 'planName', header: 'Plan name' },
   { key: 'amendmentName', header: 'Amendment' },
   { key: 'orgUnit', header: 'District' },
   { key: 'submitted', header: 'Submitted' },

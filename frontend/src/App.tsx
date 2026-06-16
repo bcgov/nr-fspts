@@ -12,10 +12,6 @@ import SearchPage from './pages/SearchPage';
 import StandardsSearchPage from './pages/StandardsSearchPage';
 import InboxPage from './pages/InboxPage';
 import FspInformationPage from './pages/FspInformation';
-import AmendInformationPage from './pages/AmendInformationPage';
-import ExtensionRequestPage from './pages/ExtensionRequestPage';
-import ExtensionSummaryPage from './pages/ExtensionSummaryPage';
-import ReplaceInformationPage from './pages/ReplaceInformationPage';
 import HistoryPage from './pages/HistoryPage';
 import DistrictNotificationPage from './pages/DistrictNotificationPage';
 import OrgSelectionPage from './pages/OrgSelectionPage';
@@ -95,10 +91,9 @@ export default function App() {
               Replace remain separate destinations (the legacy treats
               them as dedicated sub-pages, not tabs). */}
           <Route path="/fsp/information"        element={withLayout(<FspInformationPage />)} />
-          <Route path="/fsp/amend-information"  element={withLayout(<AmendInformationPage />)} />
-          <Route path="/fsp/extension-request"  element={withLayout(<ExtensionRequestPage />)} />
-          <Route path="/fsp/extension-summary"  element={withLayout(<ExtensionSummaryPage />)} />
-          <Route path="/fsp/replace-information" element={withLayout(<ReplaceInformationPage />)} />
+          {/* Amendment + Replacement Description, New Extension Request,
+              and Extension Summary are all dialogs now — no standalone
+              routes. */}
           <Route path="/fsp/history"            element={withLayout(<HistoryPage />)} />
 
           {/* Data Submission — accepts both XML and GeoJSON. URL kept

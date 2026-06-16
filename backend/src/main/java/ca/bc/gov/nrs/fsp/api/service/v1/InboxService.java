@@ -86,15 +86,45 @@ public class InboxService {
     return PageableResponse.of(all, page, size);
   }
 
+  /**
+   * Chains comparators for a multi-column sort. Both {@code sortBy} and
+   * {@code sortDir} accept comma-delimited lists so the frontend can ask
+   * for "status desc, then submission-date desc" via
+   * {@code sortBy=fspStatusDesc,planSubmissionDate}
+   * + {@code sortDir=desc,desc} without a custom request shape.
+   *
+   * <p>Single-key callers (no commas) still work — the splits return
+   * one-element arrays. When {@code sortDir} has fewer values than
+   * {@code sortBy}, the trailing keys inherit the last supplied
+   * direction (so {@code sortDir=desc} applies to every key).
+   *
+   * <p>Unknown / blank keys are skipped; an all-blank input falls back
+   * to the legacy {@code fspId desc} so callers without an explicit
+   * sort still get deterministic ordering.
+   */
   private static Comparator<FspSearchResult> buildComparator(String sortBy, String sortDir) {
-    String resolved = SORT_KEYS.containsKey(sortBy) ? sortBy : "fspId";
-    Function<FspSearchResult, String> extract = SORT_KEYS.get(resolved);
-    Comparator<FspSearchResult> asc = NUMERIC_SORT_KEYS.contains(resolved)
+    String[] keys = (sortBy == null || sortBy.isBlank() ? "fspId" : sortBy).split(",");
+    String[] dirs = (sortDir == null || sortDir.isBlank() ? "desc" : sortDir).split(",");
+    Comparator<FspSearchResult> chain = null;
+    String lastDir = dirs.length > 0 ? dirs[dirs.length - 1].trim() : "desc";
+    for (int i = 0; i < keys.length; i++) {
+      String key = keys[i].trim();
+      if (key.isEmpty() || !SORT_KEYS.containsKey(key)) continue;
+      String dir = i < dirs.length ? dirs[i].trim() : lastDir;
+      Comparator<FspSearchResult> next = singleKeyComparator(key, dir);
+      chain = chain == null ? next : chain.thenComparing(next);
+    }
+    return chain != null ? chain : singleKeyComparator("fspId", "desc");
+  }
+
+  private static Comparator<FspSearchResult> singleKeyComparator(String key, String dir) {
+    Function<FspSearchResult, String> extract = SORT_KEYS.get(key);
+    Comparator<FspSearchResult> asc = NUMERIC_SORT_KEYS.contains(key)
         ? Comparator.comparing(extract.andThen(InboxService::toLong),
             Comparator.nullsLast(Long::compareTo))
         : Comparator.comparing(extract,
             Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
-    return "asc".equalsIgnoreCase(sortDir) ? asc : asc.reversed();
+    return "asc".equalsIgnoreCase(dir) ? asc : asc.reversed();
   }
 
   /**

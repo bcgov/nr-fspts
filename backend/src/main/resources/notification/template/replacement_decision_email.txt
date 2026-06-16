@@ -1,0 +1,13 @@
+This is an automated message from the FSP Tracking System.
+Please do not reply to this message.
+
+This message was sent to: {{emailAddress}}
+This message is to inform you that your request for a replacement amendment to Forest Stewardship Plan {{fspId}} was {{statusDesc}}.
+The FSP Name is {{planName}}.
+The replacement request was submitted by: {{contactName}} on {{submissionDate}}
+
+Licensee: {{licensees}}
+
+Below are any comments made by your local district manager concerning the decision.
+
+{{history}}

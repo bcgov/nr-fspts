@@ -81,7 +81,11 @@ public record SubmissionPreview(
   ) {}
 
   public record StockingStandardSummary(
+      String id,
       String name,
+      String objective,
+      String bgcSummary,
+      int bgcCount,
       int layerCount
   ) {}
 }

@@ -4,6 +4,7 @@ import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550StdsProposalDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubLayersDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubSpeciesDao;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeBgcZoneUpsert;
+import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeCreate;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeLayerDetail;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeLayerUpdate;
@@ -13,9 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -120,11 +119,6 @@ public class StandardRegimeService {
             .map(c -> new StandardRegimeDetail.AgreementHolder(
                 c.clientNumber(), c.clientName(), c.clientAcronym()))
             .toList(),
-        r.attachments().stream()
-            .map(a -> new StandardRegimeDetail.Attachment(
-                a.attachmentId(), a.attachmentName(), a.attachmentDescription(),
-                a.mimeTypeCode(), a.fileSize()))
-            .toList(),
         r.bgcZones().stream()
             .map(b -> new StandardRegimeDetail.BgcZone(
                 b.stdsRegimeSiteSeriesId(),
@@ -181,17 +175,101 @@ public class StandardRegimeService {
         current.noRegenEarlyOffsetYrs(),
         current.noRegenLateOffsetYrs(),
         additional,
-        RequestUtil.getCurrentIdir(),
+        RequestUtil.getCurrentAuditUserId(),
         current.revisionCount());
     Fsp550StdsProposalDao.SaveResult result = dao.save(req);
     log.info("Standards regime {} saved by {} — new revision_count={}",
-        result.standardsRegimeId(), RequestUtil.getCurrentIdir(), result.revisionCount());
+        result.standardsRegimeId(), RequestUtil.getCurrentAuditUserId(), result.revisionCount());
     return getDetail(fspId, amendmentNumber, regimeId);
   }
 
   /** Null in the edit → keep the current value; non-null (incl. "") wins. */
   private static String pick(String edit, String current) {
     return edit != null ? edit : current;
+  }
+
+  /**
+   * Insert a brand-new standards regime against the given FSP +
+   * amendment via {@code FSP_550_STDS_PROPOSAL.SAVE} with the
+   * INOUT {@code standardsRegimeId} bound NULL — the proc detects
+   * the null and routes to the insert branch, allocating the next
+   * id from {@code STANDARDS_REGIME_ID_SEQ}. The new id is returned
+   * via the SAVE result so the SPA can navigate the user straight
+   * to the new regime's detail panel.
+   *
+   * <p>Layers, species, and BGC zones are added separately via the
+   * existing per-layer endpoints — this method only seeds the
+   * tombstone / regen-obligation header row.
+   */
+  @Transactional
+  public StandardRegimeDetail createRegime(String fspId, StandardRegimeCreate body) {
+    String userId = RequestUtil.getCurrentAuditUserId();
+    // STANDARDS_REGIME.SILV_STATUTE_CODE is VARCHAR2(3) and is a FK
+    // to THE.SILV_STATUTE_CODE — the actual codes vary by deployment
+    // and are surfaced to the SPA via /code-lists/statutes. Whatever
+    // the SPA picked must already be in the table or the proc trips
+    // SR_SSTCD_FK. No fallback here — let the proc surface the FK
+    // violation if the caller sends a missing/invalid value.
+    String regulation = body.getRegulationCode();
+    Fsp550StdsProposalDao.SaveRequest req = new Fsp550StdsProposalDao.SaveRequest(
+        null,                                  // INOUT — null triggers insert
+        fspId,
+        body.getFspAmendmentNumber(),
+        body.getStandardsRegimeName(),
+        body.getStandardsObjective(),
+        regulation,
+        body.getGeographicDescription(),
+        "",                                    // status — proc defaults on insert
+        body.getEffectiveDate(),
+        body.getExpiryDate(),
+        body.getRegenObligationInd(),
+        body.getRegenDelayOffsetYrs(),
+        body.getFreeGrowingEarlyOffsetYrs(),
+        body.getFreeGrowingLateOffsetYrs(),
+        body.getNoRegenEarlyOffsetYrs(),
+        body.getNoRegenLateOffsetYrs(),
+        body.getAdditionalStandards(),
+        userId,
+        null);                                 // revision_count INOUT — null on insert
+    Fsp550StdsProposalDao.SaveResult result = dao.save(req);
+    log.info("Created standards regime {} on fsp {} amendment {} by {}",
+        result.standardsRegimeId(), fspId, body.getFspAmendmentNumber(), userId);
+    return getDetail(fspId, body.getFspAmendmentNumber(), result.standardsRegimeId());
+  }
+
+  /**
+   * Duplicate an existing standards regime on the same FSP / amendment.
+   * The proc copies the header row plus every child (layers, species,
+   * BGC site series) under a freshly-assigned regime id and returns
+   * the new regime's full detail so the SPA can navigate to it.
+   *
+   * <p>Used by the Copy Standard button on the Stocking Standards tab
+   * (DFT-only). The source regime's revision_count is needed by the
+   * proc's optimistic-lock check; fetched up-front via the lightweight
+   * {@link Fsp550StdsProposalDao#getRevisionCount(String)} helper so
+   * we don't have to run the heavier GET for it.</p>
+   */
+  @Transactional
+  public StandardRegimeDetail copyRegime(
+      String fspId, String amendmentNumber, String sourceRegimeId) {
+    String userId = RequestUtil.getCurrentAuditUserId();
+    String revisionCount = dao.getRevisionCount(sourceRegimeId);
+    if (revisionCount == null) {
+      throw new IllegalArgumentException(
+          "Source standards regime " + sourceRegimeId + " not found.");
+    }
+    Fsp550StdsProposalDao.CopyResult result = dao.copyRegime(
+        new Fsp550StdsProposalDao.CopyRequest(
+            sourceRegimeId,
+            fspId,
+            amendmentNumber,
+            "",                                  // org_unit_no — inherit from source
+            RequestUtil.getCurrentClientNumber(),
+            userId,
+            revisionCount));
+    log.info("Copied standards regime {} → {} on fsp {} amendment {} by {}",
+        sourceRegimeId, result.newRegimeId(), fspId, amendmentNumber, userId);
+    return getDetail(fspId, amendmentNumber, result.newRegimeId());
   }
 
   /**
@@ -277,14 +355,14 @@ public class StandardRegimeService {
         pick(edits.getMaxConifer(), valueOf(current, StandardRegimeLayerDetail::maxConifer)),
         pick(edits.getHeightRelativeToComp(), valueOf(current, StandardRegimeLayerDetail::heightRelativeToComp)),
         pick(edits.getTreeSizeUnitCode(), valueOf(current, StandardRegimeLayerDetail::treeSizeUnitCode)),
-        RequestUtil.getCurrentIdir(),
+        RequestUtil.getCurrentAuditUserId(),
         isAdd ? null : current.revisionCount(),
         regime.revisionCount());
     String effectiveLayerId = isAdd ? r.pStandardsRegimeLayerId() : layerId;
     log.info("Standards regime {} layer {} ({}) {} by {} — new layer revision_count={}",
         regimeId, effectiveLayerId, layerCode,
         isAdd ? "created" : "saved",
-        RequestUtil.getCurrentIdir(), r.pRevisionCount());
+        RequestUtil.getCurrentAuditUserId(), r.pRevisionCount());
     return getLayerDetail(regimeId, layerCode, effectiveLayerId);
   }
 
@@ -323,21 +401,12 @@ public class StandardRegimeService {
         regimeId,
         "", "",                                   // layer id + stocking layer code
         "", "", "", "", "", "", "", "", "", "",   // scalar layer fields — unused
-        RequestUtil.getCurrentIdir(),
+        RequestUtil.getCurrentAuditUserId(),
         "",                                       // p_revision_count — unread by convert_layers
         regimeRev);
     log.info("Standards regime {} — layers converted by {} (parent rev was {})",
-        regimeId, RequestUtil.getCurrentIdir(), regimeRev);
+        regimeId, RequestUtil.getCurrentAuditUserId(), regimeRev);
     return getDetail(fspId, amendmentNumber, regimeId);
-  }
-
-  /**
-   * Downloads the BLOB content of one standards-regime attachment.
-   * Returns the raw bytes + the filename the proc reports (so the
-   * controller can stamp a Content-Disposition header).
-   */
-  public Fsp550StdsProposalDao.AttachmentBlob getAttachmentBlob(String regimeAttachId) {
-    return dao.getAttachmentBlob(regimeAttachId);
   }
 
   private List<StandardRegimeLayerDetail.Species> readSpecies(
@@ -384,7 +453,7 @@ public class StandardRegimeService {
         null,                           // silvTreeSpeciesCodeOld — only set on UPDATE-rename
         minHeight,
         preferred ? "Y" : "N",
-        RequestUtil.getCurrentIdir(),
+        RequestUtil.getCurrentAuditUserId(),
         null,                           // revisionCount null → INSERT
         regimeId,
         regimeRev);
@@ -414,7 +483,7 @@ public class StandardRegimeService {
         null,
         null,
         preferred ? "Y" : "N",
-        RequestUtil.getCurrentIdir(),
+        RequestUtil.getCurrentAuditUserId(),
         revisionCount,
         regimeId,
         regimeRev);
@@ -453,7 +522,7 @@ public class StandardRegimeService {
         edits.getBecSiteSeriesCd(),
         edits.getBecSiteSeriesPhaseCd(),
         edits.getBecSeral(),
-        RequestUtil.getCurrentIdir(),
+        RequestUtil.getCurrentAuditUserId(),
         rowRevisionCount,
         regimeRev);
     Fsp550StdsProposalDao.SaveBgcResult result = dao.saveBgcItem(req);
@@ -461,7 +530,7 @@ public class StandardRegimeService {
         regimeId,
         rowRevisionCount == null ? "added" : "updated",
         result.stdsRegimeSiteSeriesId(),
-        RequestUtil.getCurrentIdir());
+        RequestUtil.getCurrentAuditUserId());
     return getDetail(fspId, amendmentNumber, regimeId);
   }
 
@@ -483,36 +552,12 @@ public class StandardRegimeService {
     dao.removeBgcItem(new Fsp550StdsProposalDao.RemoveBgcRequest(
         siteSeriesId,
         regimeId,
-        RequestUtil.getCurrentIdir(),
+        RequestUtil.getCurrentAuditUserId(),
         rowRevisionCount,
         regimeRev));
     log.info("Standards regime {} — removed BGC site-series id={} by {}",
-        regimeId, siteSeriesId, RequestUtil.getCurrentIdir());
+        regimeId, siteSeriesId, RequestUtil.getCurrentAuditUserId());
     return getDetail(fspId, amendmentNumber, regimeId);
   }
 
-  /**
-   * Adds a new attachment to a standards regime. The BLOB write happens
-   * inside the DAO call (FSP roles don't have direct INSERT/UPDATE on
-   * STANDARDS_REGIME_ATTACHMENT, so we rely on the proc's INSERT + the
-   * returned FOR-UPDATE locator). Re-reads the regime detail so the
-   * Attachments tab redraws with the new row.
-   */
-  @Transactional
-  public StandardRegimeDetail addAttachment(
-      String fspId, String amendmentNumber, String regimeId,
-      MultipartFile file) throws IOException {
-    Fsp550StdsProposalDao.AddAttachmentResult result = dao.addAttachment(
-        new Fsp550StdsProposalDao.AddAttachmentRequest(
-            regimeId,
-            file.getOriginalFilename(),
-            "",                          // description — not collected on this dialog
-            file.getContentType(),       // mime_type — proc derives mime_type_code
-            file.getBytes(),
-            RequestUtil.getCurrentIdir()));
-    log.info("Standards regime {} — added attachment {} (id={}, size={}) by {}",
-        regimeId, file.getOriginalFilename(), result.standardsRegimeAttachId(),
-        file.getSize(), RequestUtil.getCurrentIdir());
-    return getDetail(fspId, amendmentNumber, regimeId);
-  }
 }

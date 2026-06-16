@@ -2,6 +2,7 @@ import {
   Button,
   Loading,
   Modal,
+  Stack,
   TextArea,
   Toggle,
 } from '@carbon/react';
@@ -88,7 +89,9 @@ const ReviewMilestoneEditModal: FC<ReviewMilestoneEditModalProps> = ({
   return (
     <Modal
       open={open}
-      modalHeading="Edit Review Milestone"
+      // Title carries the milestone label so the duplicate "Milestone:
+      // …" line that used to sit at the top of the form can go away.
+      modalHeading={`Edit ${value.label}`}
       passiveModal
       size="sm"
       className="fsp-species-modal"
@@ -96,40 +99,43 @@ const ReviewMilestoneEditModal: FC<ReviewMilestoneEditModalProps> = ({
       preventCloseOnClickOutside
     >
       <div className="fsp-species-modal__form">
-        <p className="fsp-info__placeholder" style={{ marginTop: 0 }}>
-          <strong>Milestone:</strong> {value.label}
-        </p>
-        <Toggle
-          id="review-completed-toggle"
-          labelText="Status"
-          labelA="Pending"
-          labelB="Completed"
-          toggled={completed}
-          disabled={saving}
-          onToggle={(value) => setCompleted(value)}
-        />
-        <TextArea
-          id="review-comment"
-          labelText={isOther ? 'Comment *' : 'Comment'}
-          helperText={
-            isOther && completed
-              ? 'A comment is required when marking "Other" as complete.'
-              : 'Optional — up to 4000 characters.'
-          }
-          maxLength={4000}
-          rows={6}
-          value={comment}
-          disabled={saving}
-          invalid={otherCommentMissing}
-          invalidText="Comment is required for the 'Other' milestone when marked Completed."
-          onChange={(e) => setComment(e.target.value)}
-        />
-        {(value.entryUserId || value.entryTimestamp) && (
-          <p className="fsp-info__placeholder" style={{ marginBottom: 0 }}>
-            Last updated by <strong>{value.entryUserId ?? '—'}</strong>{' '}
-            on <strong>{value.entryTimestamp ?? '—'}</strong>.
-          </p>
-        )}
+        {/* Stack with gap=6 gives roughly 1.5rem (Carbon spacing-06)
+            between the Toggle and the TextArea — the previous
+            no-wrapper layout left them stuck together because Carbon's
+            Toggle ships with no bottom margin. */}
+        <Stack gap={6}>
+          <Toggle
+            id="review-completed-toggle"
+            labelText="Status"
+            labelA="Pending"
+            labelB="Completed"
+            toggled={completed}
+            disabled={saving}
+            onToggle={(value) => setCompleted(value)}
+          />
+          <TextArea
+            id="review-comment"
+            labelText={isOther ? 'Comment *' : 'Comment'}
+            helperText={
+              isOther && completed
+                ? 'A comment is required when marking "Other" as complete.'
+                : 'Optional — up to 4000 characters.'
+            }
+            maxLength={4000}
+            rows={6}
+            value={comment}
+            disabled={saving}
+            invalid={otherCommentMissing}
+            invalidText="Comment is required for the 'Other' milestone when marked Completed."
+            onChange={(e) => setComment(e.target.value)}
+          />
+          {(value.entryUserId || value.entryTimestamp) && (
+            <p className="fsp-info__placeholder" style={{ margin: 0 }}>
+              Last updated by <strong>{value.entryUserId ?? '—'}</strong>{' '}
+              on <strong>{value.entryTimestamp ?? '—'}</strong>.
+            </p>
+          )}
+        </Stack>
       </div>
       <div className="fsp-species-modal__actions">
         <Button kind="secondary" disabled={saving} onClick={closeDialog}>

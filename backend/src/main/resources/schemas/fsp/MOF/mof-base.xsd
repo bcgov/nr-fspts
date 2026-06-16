@@ -2,7 +2,7 @@
 <!-- target namespace is a URL by popular convention.  It is an idenfitier only, such that no pysical resource is required at this URL. -->
 <schema targetNamespace="http://www.for.gov.bc.ca/schema/base" xmlns="http://www.w3.org/2001/XMLSchema"
         xmlns:gml="http://www.opengis.net/gml"
-        xmlns:mof="http://www.for.gov.bc.ca/schema/base" elementFormDefault="qualified" version="0.6">
+        xmlns:mof="http://www.for.gov.bc.ca/schema/base" elementFormDefault="qualified" version="4">
 	<annotation>
 		<documentation>BC MOF Base GML Types schema.  Copyright (c) 2002 BC Ministry of Forests,  All Rights Reserved.</documentation>
 	</annotation>

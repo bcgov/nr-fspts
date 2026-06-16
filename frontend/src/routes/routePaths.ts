@@ -112,6 +112,14 @@ const NAV: MenuItem[] = [
  */
 const BCEID_ALLOWED_IDS = new Set(['Data Submission', 'Submission History']);
 
+/**
+ * BCeID-only nav entries. IDIR users have the same data available via
+ * the FSP Search / Inbox flows with richer affordances, so the per-org
+ * Submission History view is hidden from their menu (the route itself
+ * stays mounted so a support user can still link into it directly).
+ */
+const BCEID_ONLY_IDS = new Set(['Submission History']);
+
 // Discourage tree-shaking of the unused icon. (TS otherwise complains.)
 void ChartLineData;
 
@@ -125,5 +133,6 @@ export function getMenuEntries(
   if (idpProvider === 'BCEIDBUSINESS') {
     return roleFiltered.filter((item) => BCEID_ALLOWED_IDS.has(item.id));
   }
-  return roleFiltered;
+  // IDIR / unknown provider: drop the BCeID-only entries.
+  return roleFiltered.filter((item) => !BCEID_ONLY_IDS.has(item.id));
 }
