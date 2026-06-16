@@ -3,14 +3,24 @@ package ca.bc.gov.nrs.fsp.api.submission;
 import ca.bc.gov.nrs.fsp.api.submission.parser.GmlGeometryConverter;
 import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionEnvelopeStripper;
 import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionXmlParser;
+import ca.bc.gov.nrs.fsp.api.submission.validator.ActionCodeContextValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.AgreementHolderValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.DistrictCodeValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.FduUniquenessValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.IdentifiedAreaValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.LicenceContextValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.PlanNameValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.PlanTermValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.SchemaValidator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -39,9 +49,42 @@ class SubmissionValidationServiceTest {
         new ca.bc.gov.nrs.fsp.api.submission.geojson.SubmissionGeoJsonParser(
             new com.fasterxml.jackson.databind.ObjectMapper()),
         newGeometryValidator(),
+        // Contextual validators (action-code / licence / plan-term / etc.)
+        // hit DAOs we don't wire here — mock them all to return an empty
+        // error list so this test stays focused on the parse + geometry
+        // pipeline. Dedicated unit tests cover each contextual rule.
+        noOpValidator(ActionCodeContextValidator.class),
+        noOpValidator(LicenceContextValidator.class),
+        noOpValidator(PlanTermValidator.class),
+        noOpValidator(PlanNameValidator.class),
+        noOpValidator(AgreementHolderValidator.class),
+        noOpValidator(DistrictCodeValidator.class),
+        noOpValidator(FduUniquenessValidator.class),
+        noOpValidator(IdentifiedAreaValidator.class),
         new SubmissionPreviewMapper(
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.Sil21ClientSearchDao.class)));
+  }
+
+  /**
+   * Returns a Mockito stub of the given validator class whose every
+   * {@code List}-returning method yields {@link List#of()}. The eight
+   * contextual validators (action code, licence, plan term, plan
+   * name, agreement holder, district code, FDU uniqueness,
+   * identified area) all expose the same
+   * {@code validate(...) -> List<SubmissionValidationError>} shape,
+   * so a single return-type-aware Answer covers them all without
+   * per-class reflection. Non-List methods fall back to Mockito's
+   * default behaviour so {@code equals}/{@code hashCode}/{@code
+   * toString} still return their primitive defaults instead of
+   * exploding with a ClassCastException.
+   */
+  private static <T> T noOpValidator(Class<T> type) {
+    return Mockito.mock(type, invocation -> {
+      Class<?> returnType = invocation.getMethod().getReturnType();
+      if (List.class.isAssignableFrom(returnType)) return List.of();
+      return Mockito.RETURNS_DEFAULTS.answer(invocation);
+    });
   }
 
   @Test
