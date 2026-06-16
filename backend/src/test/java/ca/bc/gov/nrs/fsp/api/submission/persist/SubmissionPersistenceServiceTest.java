@@ -1,5 +1,6 @@
 package ca.bc.gov.nrs.fsp.api.submission.persist;
 
+import ca.bc.gov.nrs.fsp.api.dao.v1.FduWriteDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.OrgUnitLookupDao;
 import ca.bc.gov.nrs.fsp.api.service.v1.FspService;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspRequest;
@@ -30,6 +31,7 @@ class SubmissionPersistenceServiceTest {
   private StandardsPersistenceService standards;
   private SubmissionAttachmentService attachments;
   private OrgUnitLookupDao orgUnitLookup;
+  private FduWriteDao fduWrite;
   private SubmissionToFspRequestMapper mapper;
   private SubmissionPersistenceService service;
 
@@ -46,9 +48,11 @@ class SubmissionPersistenceServiceTest {
     // number so any code resolves without bothering tests.
     Mockito.when(orgUnitLookup.findOrgUnitNoByCode(Mockito.anyString()))
         .thenReturn(java.util.Optional.of("12345"));
+    fduWrite = Mockito.mock(FduWriteDao.class);
     mapper = new SubmissionToFspRequestMapper();
     service = new SubmissionPersistenceService(
-        mapper, fspService, fdu, identifiedAreas, standards, attachments, orgUnitLookup);
+        mapper, fspService, fdu, identifiedAreas, standards, attachments,
+        orgUnitLookup, fduWrite);
   }
 
   @Test

@@ -1,10 +1,8 @@
 import {
   Button,
-  Column,
   DataTable,
   DatePicker,
   DatePickerInput,
-  Grid,
   Loading,
   Modal,
   Pagination,
@@ -70,12 +68,12 @@ interface ResultRow {
 
 const HEADERS = [
   { key: 'standardsRegimeId', header: 'Standards ID' },
-  { key: 'standardsRegimeName', header: 'Standards Name' },
+  { key: 'standardsRegimeName', header: 'Standards name' },
   { key: 'standardsObjective', header: 'Objective' },
   { key: 'bgc', header: 'BGC' },
-  { key: 'clientNumber', header: 'Client Number' },
+  { key: 'clientNumber', header: 'Client number' },
   { key: 'status', header: 'Status' },
-  { key: 'expiryDate', header: 'Expiry Date' },
+  { key: 'expiryDate', header: 'Expiry date' },
   { key: 'fspIdList', header: 'FSP ID' },
 ];
 
@@ -345,16 +343,19 @@ const StandardsSearchPage: FC = () => {
   void navigate;
 
   return (
-    <Grid fullWidth className="default-grid fsp-search-grid">
-      <Column sm={4} md={8} lg={16}>
-        <div className="fsp-search__header">
+    <div className="fsp-search-page">
+      <div className="fsp-search__header">
+        <div>
           <h1>Stocking Standards Search</h1>
+          <p className="fsp-search__subtitle">
+            Search and view stocking standards regimes across all Forest
+            Stewardship Plans.
+          </p>
         </div>
-      </Column>
+      </div>
 
-      <Column sm={4} md={8} lg={16}>
-        <Tile className="fsp-search__tile">
-          <form className="fsp-search__form" onSubmit={handleSubmit}>
+      <Tile className="fsp-search__tile">
+        <form className="fsp-search__form" onSubmit={handleSubmit}>
             <div className="fsp-search__field-grid">
               {/* Row 1: regime metadata */}
               <Select
@@ -550,10 +551,9 @@ const StandardsSearchPage: FC = () => {
               >
                 {loading ? 'Searching…' : 'Search'}
               </Button>
-            </div>
-          </form>
-        </Tile>
-      </Column>
+          </div>
+        </form>
+      </Tile>
 
       {/* FSP250 Standards View modal — opens on results row click.
           passiveModal renders the X close button automatically and
@@ -582,72 +582,85 @@ const StandardsSearchPage: FC = () => {
       </Modal>
 
       {results !== null && (
-        <Column sm={4} md={8} lg={16}>
-          <Tile className="fsp-search__tile">
+        <div className="fsp-search__results-fullbleed">
+          <div className="fsp-search__results">
             {hasResults ? (
               <>
-                <DataTable rows={results} headers={HEADERS}>
-                  {({
-                    rows,
-                    headers,
-                    getTableProps,
-                    getHeaderProps,
-                    getRowProps,
-                  }) => (
-                    <TableContainer>
-                      <Table {...getTableProps()} size="md" useZebraStyles>
-                        <TableHead>
-                          <TableRow>
-                            {headers.map((h) => (
-                              <TableHeader
-                                {...getHeaderProps({ header: h })}
-                                key={h.key}
-                              >
-                                {h.header}
-                              </TableHeader>
-                            ))}
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {rows.map((row) => {
-                            const source = results.find((r) => r.id === row.id);
-                            return (
-                              <TableRow
-                                {...getRowProps({ row })}
-                                key={row.id}
-                                className="fsp-search__row"
-                                onClick={() => source && openRegimeDetail(source)}
-                              >
-                                {row.cells.map((cell) => (
-                                  <TableCell key={cell.id}>
-                                    {formatCellText(cell.value as string)}
-                                  </TableCell>
+                {/* Gray banner attached to the table top, mirroring
+                    SearchPage / InboxPage treatment. */}
+                <div className="fsp-search__results-header">
+                  <span className="fsp-search__results-count">
+                    {totalElements.toLocaleString()}{' '}
+                    {totalElements === 1 ? 'standard' : 'standards'} found
+                  </span>
+                </div>
+                <div className="fsp-search__table-container">
+                  <div className="fsp-search__table">
+                    <DataTable rows={results} headers={HEADERS}>
+                      {({
+                        rows,
+                        headers,
+                        getTableProps,
+                        getHeaderProps,
+                        getRowProps,
+                      }) => (
+                        <TableContainer>
+                          <Table {...getTableProps()} size="md">
+                            <TableHead>
+                              <TableRow>
+                                {headers.map((h) => (
+                                  <TableHeader
+                                    {...getHeaderProps({ header: h })}
+                                    key={h.key}
+                                  >
+                                    {h.header}
+                                  </TableHeader>
                                 ))}
                               </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
-                </DataTable>
+                            </TableHead>
+                            <TableBody>
+                              {rows.map((row) => {
+                                const source = results.find((r) => r.id === row.id);
+                                return (
+                                  <TableRow
+                                    {...getRowProps({ row })}
+                                    key={row.id}
+                                    className="fsp-search__row--selectable"
+                                    onClick={() => source && openRegimeDetail(source)}
+                                  >
+                                    {row.cells.map((cell) => (
+                                      <TableCell key={cell.id}>
+                                        {formatCellText(cell.value as string)}
+                                      </TableCell>
+                                    ))}
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      )}
+                    </DataTable>
+                  </div>
+                </div>
                 <Pagination
                   page={page + 1}
                   pageSize={pageSize}
                   pageSizes={[10, 25, 50, 100]}
                   totalItems={totalElements}
                   onChange={handlePagination}
+                  size="md"
                 />
               </>
             ) : (
-              <p className="fsp-search__no-results">
+              <p className="fsp-search__summary">
                 No standards regimes matched. Adjust your search criteria and try again.
               </p>
             )}
-          </Tile>
-        </Column>
+          </div>
+        </div>
       )}
-    </Grid>
+    </div>
   );
 };
 

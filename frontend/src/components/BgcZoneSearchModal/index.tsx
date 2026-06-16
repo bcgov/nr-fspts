@@ -61,8 +61,8 @@ const HEADERS = [
   { key: 'bgcSubzoneCode', header: 'Subzone' },
   { key: 'bgcVariant', header: 'Variant' },
   { key: 'bgcPhase', header: 'Phase' },
-  { key: 'becSiteSeriesCd', header: 'Site Series' },
-  { key: 'becSiteSeriesPhaseCd', header: 'Site Series Phase' },
+  { key: 'becSiteSeriesCd', header: 'Site series' },
+  { key: 'becSiteSeriesPhaseCd', header: 'Site series phase' },
   { key: 'becSeral', header: 'Seral' },
   { key: 'siteSeriesDesc', header: 'Description' },
   // Synthetic action column. DataTable iterates row.cells over the

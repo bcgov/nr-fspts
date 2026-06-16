@@ -150,12 +150,9 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
       } else {
         triggerBrowserDownload(response.blob, response.filename);
       }
-      display({
-        kind: 'success',
-        title: `${definition.title} ready`,
-        subtitle: response.filename,
-        timeout: 5000,
-      });
+      // No success toast — the report opening in a new tab / starting
+      // a browser download IS the success affordance. Errors still
+      // surface via the catch branch below.
     } catch (error) {
       display({
         kind: 'error',

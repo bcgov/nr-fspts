@@ -137,7 +137,7 @@
 					</element>
 					<element name="actionCode" type="fsp:actionCodeType">
 						<annotation>
-							<documentation>Mandatory: set to "I" (Input) for first-time submission; set to "U" if updating FSP in Draft mode; set to "R" for Amendment submission.</documentation>
+							<documentation>Mandatory: set to "I" (Input) for first-time submission; set to "U" if updating FSP in Draft mode; set to "A" for Amendment submission; set to "R" for Replacement submission.</documentation>
 						</annotation>
 					</element>
 					<element name="planHolderList" type="fsp:PlanHolderAssociationType" minOccurs="0">
@@ -502,12 +502,13 @@
 	</complexType>
 	<simpleType name="actionCodeType" final="#all">
 		<annotation>
-			<documentation>Describes submission as (I)nsert or (U)pdate or (A)mendment</documentation>
+			<documentation>Describes submission as (I)nsert or (U)pdate or (A)mendment or (R)eplacement</documentation>
 		</annotation>
 		<restriction base="string">
 			<enumeration value="I"/>
 			<enumeration value="U"/>
 			<enumeration value="A"/>
+			<enumeration value="R"/>
 		</restriction>
 	</simpleType>
 </schema>

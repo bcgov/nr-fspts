@@ -8,12 +8,23 @@ public final class URL {
 
   // Code lists (dropdown options) — backed by FSP_CODE_LISTS / PKG_SIL_CODE_LISTS.
   public static final String CODE_LISTS_ORG_UNITS = "/code-lists/org-units";
+  // Org units keyed by the 3-letter org_unit_code (e.g. "DCC") with
+  // description = org_unit_name. Distinct from /code-lists/org-units
+  // (which is keyed by numeric org_unit_no for the search filter).
+  // Used by the SPA to expand the comma-separated abbreviation list
+  // returned in each FSP search result row into full district names.
+  public static final String CODE_LISTS_ORG_UNIT_CODES = "/code-lists/org-unit-codes";
   public static final String CODE_LISTS_FSP_STATUS = "/code-lists/fsp-status";
   public static final String CODE_LISTS_FSP_AMENDMENT_NUMBERS =
       "/code-lists/fsp-amendment-numbers";
   // Silviculture tree species codes — backs the Standards View
   // Preferred/Acceptable Species dropdowns. Cached client-side.
   public static final String CODE_LISTS_SPECIES = "/code-lists/species";
+  // Silviculture statute codes — backs the Stocking Standards
+  // "Regulation" dropdown. Loaded from FSP_CODE_LISTS.GET_STATUTE_CD
+  // (SILV_STATUTE_CODE table) so the SPA doesn't hard-code values
+  // that would drift from the DB.
+  public static final String CODE_LISTS_STATUTES = "/code-lists/statutes";
 
   // FSP
   public static final String FSP_SEARCH = "/search";
@@ -32,6 +43,10 @@ public final class URL {
   public static final String STANDARDS = "/{fspId}/standards";
   public static final String STANDARD_BY_ID = "/{fspId}/standards/{standardId}";
   public static final String STANDARD_DETAIL = "/{fspId}/standards/{regimeId}/detail";
+  // POST — duplicate an existing standards regime on the same FSP /
+  // amendment via FSP_550_STDS_PROPOSAL.COPY. Used by the Copy Standard
+  // button on the Stocking Standards tab (DFT-only).
+  public static final String STANDARD_COPY = "/{fspId}/standards/{regimeId}/copy";
   // Regime-only GET (no FSP context). Used by the standards-search
   // modal where the user lands on a regime without picking an FSP.
   public static final String STANDARD_REGIME_DETAIL = "/standards/{regimeId}/detail";
@@ -69,14 +84,6 @@ public final class URL {
       "/{fspId}/standards/{regimeId}/bgc-zones";
   public static final String STANDARD_BGC_ZONE_BY_ID =
       "/{fspId}/standards/{regimeId}/bgc-zones/{siteSeriesId}";
-  // Upload endpoint for the Standards View Attachments tab. POST a
-  // multipart file; backend hands it through FSP_550_STDS_PROPOSAL's
-  // GET_ATTACHMENT_BLOB_FOR_UPDATE proc (the only writeable path FSP
-  // roles can use against STANDARDS_REGIME_ATTACHMENT).
-  public static final String STANDARD_ATTACHMENTS =
-      "/{fspId}/standards/{regimeId}/attachments";
-  public static final String STANDARD_ATTACHMENT_DOWNLOAD =
-      "/{fspId}/standards/{regimeId}/attachments/{attachmentId}/download";
   public static final String ATTACHMENTS = "/{fspId}/attachments";
   public static final String ATTACHMENT_BY_ID = "/{fspId}/attachments/{attachmentId}";
   public static final String ATTACHMENT_DOWNLOAD = "/{fspId}/attachments/{attachmentId}/download";
@@ -86,7 +93,29 @@ public final class URL {
   public static final String INBOX = "/inbox";
   public static final String HISTORY = "/{fspId}/history";
   public static final String EXTENSIONS = "/{fspId}/extensions";
+  // POST — flip a Draft FSP/amendment to Submitted via
+  // FSP_300_INFORMATION.MAINLINE(P_ACTION=SUBMIT). The proc transitions
+  // DFT → SUB when approval_required_ind='Y' (the typical path) or
+  // DFT → IN-EFFECT directly when approval_required_ind='N'.
+  public static final String SUBMIT = "/{fspId}/submit";
+  // POST — create a new amendment row on an existing FSP via
+  // FSP_300_INFORMATION.MAINLINE(P_ACTION=AMEND). The proc assigns
+  // the next amendment_number and seeds the row with carry-forward
+  // licensees / org-units from the prior approved amendment. Returns
+  // the new amendment as an FspInformation DTO so the SPA can
+  // navigate straight to it.
+  public static final String AMEND = "/{fspId}/amend";
+  // POST — create a new replacement amendment row on an existing FSP
+  // via FSP_300_INFORMATION.MAINLINE(P_ACTION=REPLACE). Same shape as
+  // AMEND but the proc stamps fsp_amendment_code='RPL' and forces
+  // approval-required.
+  public static final String REPLACE = "/{fspId}/replace";
+  // GET — Submit preflight. Runs fsp_common_validation.validate_fsp
+  // and returns the accumulated FSP.* error codes + curated messages
+  // so the SPA can render a checklist before the user hits Submit.
+  public static final String SUBMIT_PREFLIGHT = "/{fspId}/submit/preflight";
   public static final String FDU_LIST = "/{fspId}/fdu-list";
+  public static final String FDU_LICENCES = "/{fspId}/fdus/{fduId}/licences";
   public static final String IDENTIFIED_AREAS = "/{fspId}/identified-areas";
 
   // Map View extent — bounding box of all FDU polygons for this FSP +

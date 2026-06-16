@@ -1,10 +1,14 @@
-// Mirrors src/pages/InboxPage.scss almost verbatim — only the BEM
-// prefix differs (fsp-district__* vs fsp-inbox__*). Keeping them
-// parallel rather than sharing a module makes per-page tweaks
-// easier without one-page changes leaking into another.
+// Mirrors src/pages/InboxPage.scss — flat page layout, white form Tile
+// with gray widget surfaces, full-bleed gray results panel, no Carbon
+// Grid/Column wrappers. See SearchPage.scss for the reasoning behind
+// each chunk; this file keeps the same structure with fsp-district__*
+// prefixes.
 
-.fsp-district-grid {
-  row-gap: 2rem;
+.fsp-district-page {
+  display: flex;
+  flex-direction: column;
+  padding-block-start: 1rem;
+  min-block-size: calc(100vh - 3rem);
 }
 
 .fsp-district__header {
@@ -19,15 +23,27 @@
   }
 }
 
+.fsp-district__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--cds-text-secondary);
+}
+
 .fsp-district__tile {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 
-  // Bump the field surface to layer-02 (white) so input widgets stand
-  // out against the Tile's default gray — same trick InboxPage uses.
-  --cds-field: var(--cds-field-02);
-  --cds-field-hover: var(--cds-field-hover-02);
+  // White tile surface, gray widgets — matches the inverted-panel
+  // pattern in _overrides.scss / SearchPage.scss.
+  --cds-layer: var(--cds-layer-02);
+  --cds-field: var(--cds-field-01);
+  --cds-field-hover: var(--cds-field-hover-01);
+  --cds-border-subtle: var(--cds-border-subtle-01);
+  background-color: var(--cds-layer-02);
+}
+
+.fsp-district__tile.cds--tile {
+  padding-block-end: 0.5rem;
 }
 
 .fsp-district__form {
@@ -45,7 +61,7 @@
 }
 
 // Right-align the Add user… trigger so it sits at the far edge of the
-// results-pane Tile.
+// form Tile, in line with the district selector above.
 .fsp-district__add-row {
   display: flex;
   align-items: center;
@@ -55,6 +71,11 @@
 
 .fsp-district__add-trigger.cds--btn {
   flex: 0 0 auto;
+}
+
+.fsp-district__summary {
+  margin: 0;
+  font-weight: 600;
 }
 
 .fsp-district__loading {
@@ -86,8 +107,70 @@
 
 .fsp-district__delete-btn.cds--btn {
   // Compact icon button so the trailing actions column doesn't bloat
-  // row height. Same idea as the Map View link in inbox.
+  // row height.
   block-size: auto;
   min-block-size: 0;
   padding-block: 0.25rem;
+}
+
+// Results section — banner + table as one connected flex column block.
+.fsp-district__results {
+  display: flex;
+  flex-direction: column;
+}
+
+// Gray banner directly attached to the table top.
+.fsp-district__results-header {
+  background-color: var(--cds-layer-01);
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--cds-text-primary);
+}
+
+.fsp-district__results-count {
+  display: inline-block;
+}
+
+// Drop the table's outer border/rounded-corner wrapper — flat
+// full-width grid, no card chrome.
+.fsp-district__table .cds--data-table-container {
+  padding-block-start: 0;
+  background: transparent;
+}
+
+// Zebra striping — odd rows pure white, even rows light gray. We're
+// not using Carbon's `useZebraStyles` prop because its tint depends
+// on theme tokens that don't render with enough contrast in this
+// app's white-tile setup; explicit nth-child rules give us the exact
+// two values the user asked for.
+.fsp-district__table .cds--data-table tbody tr:nth-child(odd),
+.fsp-district__table .cds--data-table tbody tr:nth-child(odd) td {
+  background-color: #ffffff;
+}
+
+.fsp-district__table .cds--data-table tbody tr:nth-child(even),
+.fsp-district__table .cds--data-table tbody tr:nth-child(even) td {
+  background-color: var(--cds-layer-01);
+}
+
+// Full-bleed results section. A direct child of .fsp-district-page
+// (flex column), so the only horizontal inset is .cds--content's
+// 1.5rem padding — negative margin escapes it. Gray background
+// matches the banner so any empty viewport space below the table
+// reads as one continuous panel.
+.fsp-district__results-fullbleed {
+  background-color: var(--cds-layer-01);
+  margin-block-start: 1rem;
+  margin-inline: -1.5rem;
+  flex: 1 1 auto;
+}
+
+// Make .cds--content a flex column on the District Notification page
+// so the gray fullbleed panel can flex-grow to fill remaining viewport
+// height below the table. :has() scopes the change to this page only.
+.cds--content:has(.fsp-district__results-fullbleed) {
+  display: flex;
+  flex-direction: column;
+  min-block-size: calc(100vh - 3rem);
 }

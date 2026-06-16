@@ -1,8 +1,6 @@
 import {
   Button,
-  Column,
   DataTable,
-  Grid,
   Loading,
   Select,
   SelectItem,
@@ -43,10 +41,10 @@ const stripIdirPrefix = (idir: string): string => {
 import './DistrictNotificationPage.scss';
 
 const HEADERS = [
-  { key: 'designateIdir', header: 'IDIR Username' },
-  { key: 'displayName', header: 'Display Name' },
-  { key: 'emailAddress', header: 'E-mail Address' },
-  { key: 'actions', header: '' },
+  { key: 'designateIdir', header: 'IDIR username' },
+  { key: 'displayName', header: 'Display name' },
+  { key: 'emailAddress', header: 'E-mail address' },
+  { key: 'actions', header: '', isSortable: false },
 ];
 
 const formatCellText = (value: string | null | undefined): string =>
@@ -263,59 +261,75 @@ const DistrictNotificationPage: FC = () => {
   const hasResults = designates !== null && designates.length > 0;
 
   return (
-    <>
-    <Grid fullWidth className="default-grid fsp-district-grid">
-      <Column sm={4} md={8} lg={16}>
-        <div className="fsp-district__header">
+    <div className="fsp-district-page">
+      <div className="fsp-district__header">
+        <div>
           <h1>District Notification</h1>
+          <p className="fsp-district__subtitle">
+            Manage IDIR users CC'd on FSP submission notification emails for
+            each district.
+          </p>
         </div>
-      </Column>
+      </div>
 
-      <Column sm={4} md={8} lg={16}>
-        <Tile className="fsp-district__tile">
-            <div className="fsp-district__form">
-              <div className="fsp-district__form-col">
-                <Select
-                  id="district-orgUnit"
-                  labelText="District"
-                  value={orgUnitNo}
-                  onChange={(e) => handleDistrictChange(e.target.value)}
-                  disabled={loading}
-                >
-                  <SelectItem value="" text="Select a district" />
-                  {orgUnits.map((o) => (
-                    <SelectItem key={o.code} value={o.code} text={o.description} />
-                  ))}
-                </Select>
-              </div>
-            </div>
+      <Tile className="fsp-district__tile">
+        <div className="fsp-district__form">
+          <div className="fsp-district__form-col">
+            <Select
+              id="district-orgUnit"
+              labelText="District"
+              value={orgUnitNo}
+              onChange={(e) => handleDistrictChange(e.target.value)}
+              disabled={loading}
+            >
+              <SelectItem value="" text="Select a district" />
+              {orgUnits.map((o) => (
+                <SelectItem key={o.code} value={o.code} text={o.description} />
+              ))}
+            </Select>
+          </div>
+        </div>
 
-            {designates !== null && !error && (
-              <Stack gap={5}>
-                {/* Add-designate trigger, right-aligned. Clicking
-                    opens the FAM user-search modal; picking a user
-                    there is the entire add gesture (handleUserPicked
-                    fires SAVE directly, no separate Add button). */}
-                <div className="fsp-district__add-row">
-                  <Button
-                    className="fsp-district__add-trigger"
-                    kind="primary"
-                    size="md"
-                    onClick={() => setUserSearchOpen(true)}
-                    disabled={adding || loading}
-                  >
-                    {adding ? 'Saving…' : 'Add user…'}
-                  </Button>
+        {/* Add-designate trigger, right-aligned. Clicking opens the FAM
+            user-search modal; picking a user there is the entire add
+            gesture (handleUserPicked fires SAVE directly, no separate
+            Add button). Kept inside the form Tile so it sits next to
+            the district selector. */}
+        {designates !== null && !error && (
+          <div className="fsp-district__add-row">
+            <Button
+              className="fsp-district__add-trigger"
+              kind="primary"
+              size="md"
+              onClick={() => setUserSearchOpen(true)}
+              disabled={adding || loading}
+            >
+              {adding ? 'Saving…' : 'Add user…'}
+            </Button>
+          </div>
+        )}
+      </Tile>
+
+      {designates !== null && !error && (
+        <div className="fsp-district__results-fullbleed">
+          <div className="fsp-district__results">
+            {hasResults && (
+              <Stack gap={0}>
+                {/* Gray banner directly attached to the table top —
+                    mirrors SearchPage / InboxPage treatment. */}
+                <div className="fsp-district__results-header">
+                  <span className="fsp-district__results-count">
+                    {(designates?.length ?? 0).toLocaleString()}{' '}
+                    {designates?.length === 1 ? 'designate' : 'designates'}
+                  </span>
                 </div>
-
-                {hasResults && (
-                  <div className="fsp-district__table-container">
-                    <div className={loading ? 'fsp-district__table--loading' : undefined}>
-                      <div className="bordered-table">
-                        <DataTable rows={tableRows} headers={HEADERS}>
-                          {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
-                            <TableContainer>
-                              <Table {...getTableProps()} size="md" useZebraStyles>
+                <div className="fsp-district__table-container">
+                  <div className={loading ? 'fsp-district__table--loading' : undefined}>
+                    <div className="fsp-district__table">
+                      <DataTable rows={tableRows} headers={HEADERS} isSortable>
+                        {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
+                          <TableContainer>
+                            <Table {...getTableProps()} size="md">
                                 <TableHead>
                                   <TableRow>
                                     {headers.map((h) => (
@@ -377,29 +391,30 @@ const DistrictNotificationPage: FC = () => {
                         </DataTable>
                       </div>
                     </div>
-                    {loading && (
-                      <div
-                        className="fsp-district__table-overlay"
-                        role="status"
-                        aria-live="polite"
-                      >
-                        <Loading description="Loading…" withOverlay={false} />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {!hasResults && !loading && (
-                  <p>No designates configured for this district yet.</p>
-                )}
+                  {loading && (
+                    <div
+                      className="fsp-district__table-overlay"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <Loading description="Loading…" withOverlay={false} />
+                    </div>
+                  )}
+                </div>
               </Stack>
             )}
-          </Tile>
-        </Column>
-      </Grid>
+
+            {!hasResults && !loading && (
+              <p className="fsp-district__summary">
+                No designates configured for this district yet.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation. Rendered at the page root so its Modal
-          z-index doesn't fight with the Tile/Grid above. The same
+          z-index doesn't fight with the page chrome above. The same
           rendering branch as the trash-can: if pendingDelete is null
           the Modal stays closed. */}
       <UserSearchModal
@@ -421,7 +436,7 @@ const DistrictNotificationPage: FC = () => {
         onCancel={cancelDelete}
         loading={removingId !== null}
       />
-    </>
+    </div>
   );
 };
 

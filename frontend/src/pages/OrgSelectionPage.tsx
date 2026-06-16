@@ -6,8 +6,8 @@ import {
   RadioButton,
   RadioButtonGroup,
 } from '@carbon/react';
-import { useEffect, useState, type FC } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState, type FC } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/context/auth/useAuth';
 import { useOrg } from '@/context/org/useOrg';
@@ -43,9 +43,16 @@ const OrgSelectionPage: FC = () => {
   const {
     availableOrgClientNumbers,
     activeOrgClientNumber,
+    needsOrgSelection,
     setActiveOrgClientNumber,
   } = useOrg();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Marks whether the user clicked Continue. Used by the post-gate
+  // useEffect below so a user who revisits /org-select after picking
+  // doesn't get auto-redirected; only an explicit Continue triggers
+  // the navigate-to-data-submission flow.
+  const continueClicked = useRef(false);
   const [rows, setRows] = useState<OrgRow[] | null>(null);
   const [selected, setSelected] = useState<string>(
     activeOrgClientNumber ?? availableOrgClientNumbers[0] ?? '',
@@ -91,9 +98,29 @@ const OrgSelectionPage: FC = () => {
 
   const onContinue = () => {
     if (!selected) return;
+    continueClicked.current = true;
     setActiveOrgClientNumber(selected);
     navigate('/data-submission', { replace: true });
   };
+
+  // When the gate flips from true→false the App.tsx route branch
+  // switches from gated→authenticated. If a navigate to a non-gated
+  // path (e.g. /data-submission) fired *before* the branch swap, the
+  // gated catch-all bounces the URL back to /org-select. This effect
+  // catches that bounce and re-issues the navigate once the
+  // authenticated branch is mounted. Gated on the click marker so a
+  // post-selection revisit (user dropped in to switch orgs) isn't
+  // immediately redirected away.
+  useEffect(() => {
+    if (
+      continueClicked.current &&
+      activeOrgClientNumber &&
+      !needsOrgSelection &&
+      location.pathname === '/org-select'
+    ) {
+      navigate('/data-submission', { replace: true });
+    }
+  }, [activeOrgClientNumber, needsOrgSelection, location.pathname, navigate]);
 
   return (
     <div className="landing-grid-container">

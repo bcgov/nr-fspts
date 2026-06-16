@@ -58,10 +58,10 @@ const FIELD_LENGTHS = {
 } as const;
 
 const HEADERS = [
-  { key: 'clientAcronym', header: 'Client Acronym' },
-  { key: 'clientNumber', header: 'Client Number' },
-  { key: 'clientLocnCode', header: 'Location Code' },
-  { key: 'clientName', header: 'Client Name' },
+  { key: 'clientAcronym', header: 'Client acronym' },
+  { key: 'clientNumber', header: 'Client number' },
+  { key: 'clientLocnCode', header: 'Location code' },
+  { key: 'clientName', header: 'Client name' },
   { key: 'clientLocnName', header: 'Location' },
   { key: 'city', header: 'City' },
   { key: 'clientStatusCode', header: 'Status' },

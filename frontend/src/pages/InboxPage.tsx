@@ -1,13 +1,10 @@
 import {
   Button,
-  Column,
   DataTable,
-  Grid,
   Loading,
   Pagination,
   Select,
   SelectItem,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -20,7 +17,8 @@ import {
   Tile,
 } from '@carbon/react';
 import { Search as SearchIcon } from '@carbon/icons-react';
-import { useCallback, useEffect, useState, type FC, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FC, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import ClientSearchModal from '@/components/ClientSearchModal';
 import { useNotification } from '@/context/notification/useNotification';
@@ -86,11 +84,11 @@ const HEADERS = [
   { key: 'fspId', header: 'FSP ID' },
   { key: 'amendNo', header: 'Amendment #' },
   { key: 'extNo', header: 'Ext #' },
-  { key: 'name', header: 'FSP Name' },
+  { key: 'name', header: 'FSP name' },
   { key: 'status', header: 'Status' },
   { key: 'submitted', header: 'Submitted' },
-  { key: 'submittedBy', header: 'Submitted By' },
-  { key: 'holder', header: 'Agreement Holder' },
+  { key: 'submittedBy', header: 'Submitted by' },
+  { key: 'holder', header: 'Agreement holder' },
   // Trailing actions column — no header text, just the Map View
   // trigger per the legacy inbox JSP. Carbon renders an empty <th>
   // for "". Cell value is the FDU-presence flag (see InboxRow.hasMapView).
@@ -143,8 +141,13 @@ const EMPTY_FORM: InboxForm = {
 
 const STORAGE_KEY = 'fsp.inbox.state';
 const DEFAULT_PAGE_SIZE = 10;
-const SORT_BY = 'fspId';
-const SORT_DIR: 'asc' | 'desc' = 'desc';
+// Multi-column sort — backend parses these as comma-delimited lists
+// (InboxService.buildComparator). Status first descending puts the
+// "live" statuses (Submitted, Rejected, Opportunity to be Heard Sent…)
+// near the top; planSubmissionDate descending breaks ties so the most
+// recently submitted FSP in each status group leads.
+const SORT_BY = 'fspStatusDesc,planSubmissionDate';
+const SORT_DIR = 'desc,desc';
 
 type PersistedInboxState = {
   form: InboxForm;
@@ -177,6 +180,7 @@ const formatCellText = (value: string | null | undefined) =>
   value && value.trim().length > 0 ? value.trim() : '—';
 
 const InboxPage: FC = () => {
+  const navigate = useNavigate();
   const persisted = loadPersistedState();
   const [form, setForm] = useState<InboxForm>(() => persisted?.form ?? EMPTY_FORM);
   const [results, setResults] = useState<InboxRow[] | null>(() => persisted?.results ?? null);
@@ -298,6 +302,19 @@ const InboxPage: FC = () => {
     [runSearch, pageSize],
   );
 
+  // Auto-fire on every mount so navigating back to Inbox always shows
+  // fresh data against the persisted criteria (rather than the cached
+  // results from the last visit). Gated by a ref so we only fire once
+  // per mount even though runSearch's identity changes when the form
+  // is edited. Uses the persisted page if available so the user lands
+  // on the same slice they were viewing.
+  const autoSearchFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoSearchFiredRef.current) return;
+    autoSearchFiredRef.current = true;
+    void runSearch(persisted?.page ?? 0, persisted?.pageSize ?? DEFAULT_PAGE_SIZE);
+  }, [runSearch, persisted]);
+
   const handlePagination = useCallback(
     ({ page: newPage, pageSize: newSize }: { page: number; pageSize: number }) => {
       void runSearch(newPage - 1, newSize);
@@ -380,16 +397,18 @@ const InboxPage: FC = () => {
   }
 
   return (
-    <Grid fullWidth className="default-grid fsp-inbox-grid">
-      <Column sm={4} md={8} lg={16}>
-        <div className="fsp-inbox__header">
+    <div className="fsp-inbox-page">
+      <div className="fsp-inbox__header">
+        <div>
           <h1>Inbox</h1>
+          <p className="fsp-inbox__subtitle">
+            Forest Stewardship Plans awaiting your review and action.
+          </p>
         </div>
-      </Column>
+      </div>
 
-      <Column sm={4} md={8} lg={16}>
-        <Tile className="fsp-inbox__tile">
-          <form className="fsp-inbox__form" onSubmit={handleSubmit}>
+      <Tile className="fsp-inbox__tile">
+        <form className="fsp-inbox__form" onSubmit={handleSubmit}>
             <div className="fsp-inbox__field-grid">
               <Select
                 id="inbox-orgUnit"
@@ -485,21 +504,28 @@ const InboxPage: FC = () => {
             </div>
           </form>
         </Tile>
-      </Column>
 
       {results !== null && (
-        <Column sm={4} md={8} lg={16}>
-          <Tile className="fsp-inbox__tile">
-            <Stack gap={4}>
-              {hasResults && (
-                <>
+        <div className="fsp-inbox__results-fullbleed">
+          <div className="fsp-inbox__results">
+            {hasResults && (
+              <>
+                {/* Gray banner directly attached to the table top —
+                    holds the total inbox count flush-left, mirrors the
+                    treatment on SearchPage. */}
+                <div className="fsp-inbox__results-header">
+                  <span className="fsp-inbox__results-count">
+                    {totalElements.toLocaleString()}{' '}
+                    {totalElements === 1 ? 'item' : 'items'} found
+                  </span>
+                </div>
                   <div className="fsp-inbox__table-container">
                     <div className={loading ? 'fsp-inbox__table--loading' : undefined}>
-                      <div className="bordered-table">
+                      <div className="fsp-inbox__table">
                         <DataTable rows={results!} headers={HEADERS}>
                           {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
                             <TableContainer>
-                              <Table {...getTableProps()} size="md" useZebraStyles>
+                              <Table {...getTableProps()} size="md">
                                 <TableHead>
                                   <TableRow>
                                     {headers.map((h) => (
@@ -510,8 +536,40 @@ const InboxPage: FC = () => {
                                   </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                  {rows.map((row) => (
-                                    <TableRow {...getRowProps({ row })} key={row.id}>
+                                  {rows.map((row) => {
+                                    // Pull fspId + amendNo off the row cells so a
+                                    // click anywhere on the row navigates to the
+                                    // FSP information page (same pattern as
+                                    // SearchPage). row.id is not safe for nav —
+                                    // it carries an index suffix.
+                                    const fspIdRaw =
+                                      (row.cells.find((c) => c.info.header === 'fspId')
+                                        ?.value as string | undefined) ?? '';
+                                    const amendmentNumber =
+                                      (row.cells.find((c) => c.info.header === 'amendNo')
+                                        ?.value as string | undefined) ?? '';
+                                    const goToFsp = () => {
+                                      if (!fspIdRaw) return;
+                                      const params = new URLSearchParams({ fspId: fspIdRaw });
+                                      if (amendmentNumber)
+                                        params.set('amendmentNumber', amendmentNumber);
+                                      navigate(`/fsp/information?${params.toString()}`);
+                                    };
+                                    return (
+                                    <TableRow
+                                      {...getRowProps({ row })}
+                                      key={row.id}
+                                      className="fsp-search__row--selectable"
+                                      onClick={goToFsp}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          goToFsp();
+                                        }
+                                      }}
+                                      tabIndex={0}
+                                      role="link"
+                                    >
                                       {row.cells.map((cell) => {
                                         const value = cell.value as string | null | undefined;
                                         if (cell.info.header === 'status' && value) {
@@ -549,9 +607,14 @@ const InboxPage: FC = () => {
                                                 <button
                                                   type="button"
                                                   className="fsp-inbox__map-link"
-                                                  onClick={() =>
-                                                    void handleOpenMapView(row.id, fspIdCell, amendCell ?? '0')
-                                                  }
+                                                  // Stop the click from bubbling
+                                                  // to the row-level navigate
+                                                  // handler — Map View opens the
+                                                  // legacy popup, not the FSP page.
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    void handleOpenMapView(row.id, fspIdCell, amendCell ?? '0');
+                                                  }}
                                                   disabled={isLoading}
                                                 >
                                                   {isLoading ? 'Loading…' : 'Map View'}
@@ -565,7 +628,8 @@ const InboxPage: FC = () => {
                                         );
                                       })}
                                     </TableRow>
-                                  ))}
+                                    );
+                                  })}
                                 </TableBody>
                               </Table>
                             </TableContainer>
@@ -584,23 +648,22 @@ const InboxPage: FC = () => {
                     )}
                   </div>
 
-                  <Pagination
-                    page={page + 1}
-                    pageSize={pageSize}
-                    pageSizes={[10, 25, 50, 100]}
-                    totalItems={totalElements}
-                    onChange={handlePagination}
-                    size="md"
-                  />
-                </>
-              )}
+                <Pagination
+                  page={page + 1}
+                  pageSize={pageSize}
+                  pageSizes={[10, 25, 50, 100]}
+                  totalItems={totalElements}
+                  onChange={handlePagination}
+                  size="md"
+                />
+              </>
+            )}
 
-              {!hasResults && results !== null && !error && (
-                <p className="fsp-inbox__summary">No inbox items match your criteria.</p>
-              )}
-            </Stack>
-          </Tile>
-        </Column>
+            {!hasResults && results !== null && !error && (
+              <p className="fsp-inbox__summary">No inbox items match your criteria.</p>
+            )}
+          </div>
+        </div>
       )}
 
       <ClientSearchModal
@@ -610,7 +673,7 @@ const InboxPage: FC = () => {
           set('holder', client.clientNumber?.trim() ?? '');
         }}
       />
-    </Grid>
+    </div>
   );
 };
 

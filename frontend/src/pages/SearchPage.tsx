@@ -1,15 +1,12 @@
 import {
   Button,
-  Column,
   DataTable,
   DatePicker,
   DatePickerInput,
-  Grid,
   Loading,
   Pagination,
   Select,
   SelectItem,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -22,12 +19,12 @@ import {
   Tile,
 } from '@carbon/react';
 import {Search as SearchIcon} from '@carbon/icons-react';
-import {type FC, type FormEvent, useCallback, useEffect, useState} from 'react';
+import {type FC, type FormEvent, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 
 import ClientSearchModal from '@/components/ClientSearchModal';
 import {useNotification} from '@/context/notification/useNotification';
-import {type CodeOption, type FspSearchResult, getFspStatusCodes, getOrgUnits, searchFsp,} from '@/services/fspSearch';
+import {type CodeOption, type FspSearchResult, getFspStatusCodes, getOrgUnitCodes, getOrgUnits, searchFsp,} from '@/services/fspSearch';
 import './SearchPage.scss';
 
 // Renders Carbon's small inline spinner sized to fit inside a Button's
@@ -75,14 +72,14 @@ interface SearchResult {
 const HEADERS = [
   { key: 'fspId', header: 'FSP ID' },
   { key: 'amendNo', header: 'Amendment #' },
-  { key: 'name', header: 'FSP Name' },
-  { key: 'amendName', header: 'Amendment Name' },
+  { key: 'name', header: 'FSP name' },
+  { key: 'amendName', header: 'Amendment name' },
   { key: 'status', header: 'Status' },
-  { key: 'orgUnit', header: 'Org Unit' },
-  { key: 'effectiveDate', header: 'Effective Date' },
-  { key: 'expiryDate', header: 'Expiry Date' },
-  { key: 'holder', header: 'Agreement Holder' },
-  { key: 'approvalRequired', header: 'Approval Required' },
+  { key: 'orgUnit', header: 'Org unit' },
+  { key: 'effectiveDate', header: 'Effective date' },
+  { key: 'expiryDate', header: 'Expiry date' },
+  { key: 'holder', header: 'Agreement holder' },
+  { key: 'approvalRequired', header: 'Approval required' },
 ];
 
 // Carbon Tag color by FSP status description as returned in fspStatusDesc.
@@ -249,23 +246,35 @@ const SearchPage: FC = () => {
   // status doesn't need its own loading flag because the page works fine
   // with an empty status list (the user can submit the search anyway).
   const [orgUnits, setOrgUnits] = useState<CodeOption[]>([]);
+  const [orgUnitCodes, setOrgUnitCodes] = useState<CodeOption[]>([]);
   const [statusOptions, setStatusOptions] = useState<CodeOption[]>([]);
   const [codeListsLoading, setCodeListsLoading] = useState(true);
 
   useEffect(() => {
-    // Parallel load — both endpoints are independent. We deliberately do
-    // NOT bail on a single failure: org units might 404 while statuses
-    // succeed, and partial dropdown availability is better than empty
-    // dropdowns. Failures bubble into the page-level error banner.
+    // Parallel load — all endpoints are independent. We deliberately do
+    // NOT bail on a single failure: one might 404 while the others
+    // succeed, and partial availability is better than empty dropdowns.
+    // org-unit-codes is the abbreviation→name lookup used to expand
+    // the Org Unit cell into a stacked list of full names; getOrgUnits
+    // returns the numeric-keyed list used by the dropdown filter.
     let cancelled = false;
     setCodeListsLoading(true);
-    Promise.allSettled([getOrgUnits(), getFspStatusCodes()]).then((results) => {
+    Promise.allSettled([
+      getOrgUnits(),
+      getFspStatusCodes(),
+      getOrgUnitCodes(),
+    ]).then((results) => {
       if (cancelled) return;
-      const [orgRes, statusRes] = results;
+      const [orgRes, statusRes, orgCodeRes] = results;
       if (orgRes.status === 'fulfilled') setOrgUnits(orgRes.value);
       if (statusRes.status === 'fulfilled') setStatusOptions(statusRes.value);
+      if (orgCodeRes.status === 'fulfilled') setOrgUnitCodes(orgCodeRes.value);
       const failures = results
-        .map((r, i) => (r.status === 'rejected' ? `${i === 0 ? 'org units' : 'status codes'}: ${r.reason}` : null))
+        .map((r, i) => {
+          if (r.status !== 'rejected') return null;
+          const label = ['org units', 'status codes', 'org unit codes'][i] ?? 'lookup';
+          return `${label}: ${r.reason}`;
+        })
         .filter(Boolean);
       if (failures.length > 0) {
         setError(`Failed to load ${failures.join('; ')}`);
@@ -387,6 +396,19 @@ const SearchPage: FC = () => {
     [runSearch],
   );
 
+  // Auto-fire on every mount so navigating back to Search always re-runs
+  // against the persisted criteria (rather than showing the cached
+  // results from the last visit). One-shot ref so edits to the form
+  // during the same mount don't re-trigger. Resumes on the persisted
+  // page / page-size so the user lands on the same slice.
+  const autoSearchFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoSearchFiredRef.current) return;
+    autoSearchFiredRef.current = true;
+    void runSearch(persisted?.page ?? 0, persisted?.pageSize ?? DEFAULT_PAGE_SIZE);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runSearch]);
+
   const handleClear = useCallback(() => {
     setForm(EMPTY_FORM);
     setResults(null);
@@ -395,7 +417,30 @@ const SearchPage: FC = () => {
     setError(null);
   }, []);
 
-  const hasResults = results !== null && results.length > 0;
+  // Expand the Org Unit comma-separated 3-letter codes (e.g. "DCC,
+  // DKM, HRE") into the full district names via the org-unit-codes
+  // lookup (keyed by org_unit_code, not the numeric org_unit_no the
+  // dropdown filter uses — that's why we have TWO endpoints). Joined
+  // with newlines so the cell can render one per line via
+  // white-space: pre-line on .fsp-search__table body td. Done at
+  // display time rather than in mapToSearchResult so results loaded
+  // from sessionStorage also get the expansion.
+  const displayResults = useMemo(() => {
+    if (!results) return null;
+    if (orgUnitCodes.length === 0) return results;
+    const lookup = new Map(orgUnitCodes.map((o) => [o.code, o.description]));
+    return results.map((r) => ({
+      ...r,
+      orgUnit: r.orgUnit
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean)
+        .map((c) => lookup.get(c) ?? c)
+        .join('\n'),
+    }));
+  }, [results, orgUnitCodes]);
+
+  const hasResults = displayResults !== null && displayResults.length > 0;
 
   // While the code tables are still loading, render only a centered
   // spinner — no header, no form, no dropdowns flashing in their
@@ -412,16 +457,18 @@ const SearchPage: FC = () => {
   }
 
   return (
-    <Grid fullWidth className="default-grid fsp-search-grid">
-      <Column sm={4} md={8} lg={16}>
-        <div className="fsp-search__header">
-          <h1>Search</h1>
+    <div className="fsp-search-page">
+      <div className="fsp-search__header">
+        <div>
+          <h1>FSP Search</h1>
+          <p className="fsp-search__subtitle">
+            Search and view Forest Stewardship Plans across BC districts.
+          </p>
         </div>
-      </Column>
+      </div>
 
-      <Column sm={4} md={8} lg={16}>
-        <Tile className="fsp-search__tile">
-          <form className="fsp-search__form" onSubmit={handleSubmit}>
+      <Tile className="fsp-search__tile">
+        <form className="fsp-search__form" onSubmit={handleSubmit}>
             <div className="fsp-search__field-grid">
               <Select
                 id="search-orgUnit"
@@ -610,30 +657,43 @@ const SearchPage: FC = () => {
                 {loading ? 'Searching...' : 'Search'}
               </Button>
             </div>
-          </form>
-        </Tile>
-      </Column>
+        </form>
+      </Tile>
 
+      {/* Results section is a flat sibling of the form Tile so there's
+          no Grid / Column padding between them. Only .cds--content's
+          own 1.5rem horizontal padding has to be negated (see
+          SearchPage.scss). */}
       {results !== null && (
-        <Column sm={4} md={8} lg={16}>
-          <Tile className="fsp-search__tile">
-            <Stack gap={4}>
-              {hasResults && (
-                <>
-                  {/* Position-relative wrapper so the loading overlay
-                      can absolutely-position itself inside the table
-                      bounds. While loading, the inner wrapper gets
-                      .fsp-search__table--loading which dims the table
-                      and disables pointer-events; the overlay parks a
-                      centered spinner on top. Both come off together
-                      when the next page lands. */}
-                  <div className="fsp-search__table-container">
-                    <div className={loading ? 'fsp-search__table--loading' : undefined}>
-                      <div className="bordered-table">
-                        <DataTable rows={results!} headers={HEADERS}>
+        <div className="fsp-search__results-fullbleed">
+          <div className="fsp-search__results">
+            {hasResults && (
+              <>
+                {/* Gray banner directly attached to the top of the
+                    table. Holds the total result count flush-left so
+                    the user has the figure in their eyeline as they
+                    scroll. No Stack gap between banner / table /
+                    pagination — they read as one connected block. */}
+                <div className="fsp-search__results-header">
+                  <span className="fsp-search__results-count">
+                    {totalElements.toLocaleString()}{' '}
+                    {totalElements === 1 ? 'result' : 'results'} found
+                  </span>
+                </div>
+                {/* Position-relative wrapper so the loading overlay
+                    can absolutely-position itself inside the table
+                    bounds. While loading, the inner wrapper gets
+                    .fsp-search__table--loading which dims the table
+                    and disables pointer-events; the overlay parks a
+                    centered spinner on top. Both come off together
+                    when the next page lands. */}
+                <div className="fsp-search__table-container">
+                  <div className={loading ? 'fsp-search__table--loading' : undefined}>
+                    <div className="fsp-search__table">
+                      <DataTable rows={displayResults!} headers={HEADERS}>
                           {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
                             <TableContainer>
-                              <Table {...getTableProps()} size="md" useZebraStyles>
+                              <Table {...getTableProps()} size="md">
                                 <TableHead>
                                   <TableRow>
                                     {headers.map((h) => (
@@ -737,15 +797,14 @@ const SearchPage: FC = () => {
                 </>
               )}
 
-              {!hasResults && results !== null && !error && (
-                // No-results state still gets a one-line message — the
-                // empty Tile would otherwise leave the user wondering
-                // whether the search ran at all.
-                <p className="fsp-search__summary">No results match your search.</p>
-              )}
-            </Stack>
-          </Tile>
-        </Column>
+            {!hasResults && results !== null && !error && (
+              // No-results state still gets a one-line message — the
+              // empty area would otherwise leave the user wondering
+              // whether the search ran at all.
+              <p className="fsp-search__summary">No results match your search.</p>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Modal lives at the Grid root so it portals/positions over the
@@ -764,7 +823,7 @@ const SearchPage: FC = () => {
           set('holder', client.clientNumber?.trim() ?? '');
         }}
       />
-    </Grid>
+    </div>
   );
 };
 

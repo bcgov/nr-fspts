@@ -5,6 +5,8 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,5 +44,19 @@ public class OrgUnitLookupDaoImpl implements OrgUnitLookupDao {
     } catch (EmptyResultDataAccessException e) {
       return Optional.empty();
     }
+  }
+
+  @Override
+  public List<Map<String, String>> findAllCodeNamePairs() {
+    return jdbc.query(
+        "SELECT org_unit_code, org_unit_name FROM org_unit "
+            + "WHERE org_unit_code IS NOT NULL "
+            + "ORDER BY org_unit_code",
+        (rs, rowNum) -> {
+          Map<String, String> row = new HashMap<>(2);
+          row.put("code", rs.getString(1));
+          row.put("description", rs.getString(2));
+          return row;
+        });
   }
 }

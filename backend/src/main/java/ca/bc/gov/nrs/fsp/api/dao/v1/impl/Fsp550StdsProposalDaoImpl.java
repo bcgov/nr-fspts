@@ -6,8 +6,6 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.sql.Blob;
-import java.sql.Types;
 import java.util.List;
 
 @Repository
@@ -101,13 +99,10 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
               rs.getString(3),   // client_name
               rs.getString(4)    // client_acronym
           ));
-          List<AttachmentRow> attachments = readCursor(cs, 8, rs -> new AttachmentRow(
-              rs.getString(2),   // standards_regime_attach_id
-              rs.getString(3),   // attachment_name
-              rs.getString(4),   // attachment_description
-              rs.getString(5),   // mime_type_code
-              rs.getString(6)    // file_size
-          ));
+          // Cursor 8 (attachments) is opened by the proc but never read —
+          // the SS Attachments UI was dropped, and the Oracle JDBC
+          // driver closes the unread REF CURSOR when the statement
+          // closes, so leaving it un-read is safe.
           List<BgcZoneRow> bgcZones = readCursor(cs, 9, rs -> new BgcZoneRow(
               rs.getString(2),   // standard_regime_site_series_id
               rs.getString(3),   // bgc_zone_code
@@ -123,7 +118,7 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
           // Header cursor is one row but defensively handle empty.
           Header header = headers.isEmpty() ? null : headers.get(0);
           String error = cs.getString(4);
-          Result r = new Result(header, districts, clients, attachments, bgcZones, error);
+          Result r = new Result(header, districts, clients, bgcZones, error);
           throwIfError(PACKAGE_NAME, PROCEDURE_NAME, error);
           return r;
         });
@@ -141,30 +136,6 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
     } catch (NumberFormatException e) {
       return null;
     }
-  }
-
-  @Override
-  public AttachmentBlob getAttachmentBlob(String regimeAttachId) {
-    String call = "{call " + PACKAGE_NAME + ".GET_ATTACHMENT_BLOB(?,?,?,?)}";
-    return executeCall(call,
-        cs -> {
-          // 1 INOUT regime_attach_id, 2 OUT attachment_name,
-          // 3 INOUT BLOB attachment_data, 4 OUT error_message
-          setInOutString(cs, 1, regimeAttachId);
-          cs.registerOutParameter(2, Types.VARCHAR);
-          cs.setNull(3, Types.BLOB);
-          cs.registerOutParameter(3, Types.BLOB);
-          cs.registerOutParameter(4, Types.VARCHAR);
-        },
-        cs -> {
-          String name = cs.getString(2);
-          java.sql.Blob blob = cs.getBlob(3);
-          byte[] bytes = blob == null
-              ? new byte[0]
-              : blob.getBytes(1L, (int) blob.length());
-          throwIfError(PACKAGE_NAME, "GET_ATTACHMENT_BLOB", cs.getString(4));
-          return new AttachmentBlob(name, bytes);
-        });
   }
 
   // -----------------------------------------------------------------
@@ -259,50 +230,37 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
         });
   }
 
-  private static final int ADD_ATTACHMENT_PARAM_COUNT = 10;
-  private static final String ADD_ATTACHMENT_CALL =
-      callSql(PACKAGE_NAME, PROCEDURE_GET_ATTACHMENT_BLOB_FOR_UPDATE, ADD_ATTACHMENT_PARAM_COUNT);
+  // FSP_550_STDS_PROPOSAL.COPY positional params (8):
+  //   1. p_standards_regime_id INOUT — source id in, new id out
+  //   2. p_fsp_id IN
+  //   3. p_fsp_amendment_number IN
+  //   4. p_org_unit_no IN — caller's session district (or "")
+  //   5. p_client_number IN — caller's session client (or "")
+  //   6. p_update_userid IN
+  //   7. p_revision_count IN — source row's optimistic-lock token
+  //   8. p_errors INOUT
+  private static final int COPY_PARAM_COUNT = 8;
+  private static final String COPY_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_COPY, COPY_PARAM_COUNT);
 
   @Override
-  public AddAttachmentResult addAttachment(AddAttachmentRequest req) {
-    byte[] content = req.content() == null ? new byte[0] : req.content();
-    return executeCall(ADD_ATTACHMENT_CALL,
+  public CopyResult copyRegime(CopyRequest req) {
+    return executeCall(COPY_CALL,
         cs -> {
-          setInOutString(cs, 1, null);                       // INOUT id — null triggers insert
-          setInOutString(cs, 2, req.standardsRegimeId());    // INOUT regime id
-          setInOutString(cs, 3, req.attachmentName());       // INOUT name
-          setInOutString(cs, 4, req.attachmentDescription()); // INOUT description
-          setInOutString(cs, 5, null);                       // INOUT mime_type_code — proc derives
-          setInOutString(cs, 6, req.mimeType());             // INOUT mime_type (browser content type)
-          // INOUT BLOB — set NULL on the IN side (Oracle JDBC's
-          // setBlob rejects a zero-length stream with "0 byte of BLOB
-          // data cannot be read"). The proc's insert path uses
-          // EMPTY_BLOB() internally when id IS NULL, so the IN value
-          // is unread; we write actual bytes into the OUT locator below.
-          cs.setNull(7, Types.BLOB);
-          cs.registerOutParameter(7, Types.BLOB);
-          setInOutString(cs, 8, req.updateUserid());         // INOUT userid
-          setInOutString(cs, 9, null);                       // INOUT revision_count — assigned by proc
-          setInOutString(cs, 10, "");                        // INOUT error
+          setInOutString(cs, 1, req.sourceRegimeId());     // INOUT
+          cs.setString(2, req.fspId());                     // IN
+          cs.setString(3, req.fspAmendmentNumber());        // IN
+          cs.setString(4, req.orgUnitNo());                 // IN
+          cs.setString(5, req.clientNumber());              // IN
+          cs.setString(6, req.updateUserid());              // IN
+          cs.setString(7, req.revisionCount());             // IN
+          setInOutString(cs, 8, "");                        // INOUT p_errors
         },
         cs -> {
-          String error = cs.getString(10);
-          throwIfError(PACKAGE_NAME, PROCEDURE_GET_ATTACHMENT_BLOB_FOR_UPDATE, error);
-          String newId = cs.getString(1);
-          String revisionCount = cs.getString(9);
-          // Write the file bytes into the FOR-UPDATE BLOB locator.
-          // Still in the same JDBC connection + transaction, so the
-          // update propagates to the inserted standards_regime_attach_file row.
-          if (content.length > 0) {
-            Blob blob = cs.getBlob(7);
-            if (blob == null) {
-              throw new IllegalStateException(
-                  "FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB_FOR_UPDATE returned a"
-                      + " null BLOB locator — cannot write attachment bytes.");
-            }
-            blob.setBytes(1L, content);
-          }
-          return new AddAttachmentResult(newId, revisionCount);
+          CopyResult r = new CopyResult(cs.getString(1), cs.getString(8));
+          throwIfError(PACKAGE_NAME, PROCEDURE_COPY, r.errorMessage());
+          return r;
         });
   }
+
 }

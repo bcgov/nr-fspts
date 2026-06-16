@@ -1,0 +1,69 @@
+// Size + spacing tuning for the FSP303 Extension Summary dialog.
+// Modal at size="lg" gives the 8-column extensions table room to
+// breathe; the tombstone strip sits above it on a 2-col responsive grid.
+
+.fsp-extension-summary-modal {
+  // Modal body needs some breathing room around the tombstone +
+  // table. Carbon's default modal body padding is enough horizontally
+  // but a bit tight vertically when stacking two sections.
+  .cds--modal-content {
+    padding-block-end: 1rem;
+  }
+}
+
+.fsp-extension-summary-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.fsp-extension-summary-modal__loading {
+  display: flex;
+  justify-content: center;
+  padding-block: 2rem;
+}
+
+.fsp-extension-summary-modal__tombstone {
+  background-color: var(--cds-layer-01);
+  padding: 1rem 1.25rem;
+}
+
+.fsp-extension-summary-modal__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem 1.5rem;
+  margin: 0;
+
+  @media (min-width: 672px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (min-width: 1056px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.fsp-extension-summary-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+
+  dt {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--cds-text-secondary);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--cds-text-primary);
+  }
+}
+
+.fsp-extension-summary-modal__section-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+}

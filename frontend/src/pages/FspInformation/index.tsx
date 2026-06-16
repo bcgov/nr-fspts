@@ -1,10 +1,15 @@
-import {Column, Grid, Loading, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs, Tag,} from '@carbon/react';
-import {ArrowLeft} from '@carbon/icons-react';
+import {Button, Column, Grid, Loading, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs, Tag,} from '@carbon/react';
+import {ArrowLeft, CalendarAdd, DocumentAdd, Renew, SendAlt, TrashCan} from '@carbon/icons-react';
 import {type FC, useEffect, useState} from 'react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 
+import AmendmentDescriptionModal from '@/components/AmendmentDescriptionModal';
+import ConfirmationModal from '@/components/ConfirmationModal';
+import ExtensionRequestModal from '@/components/ExtensionRequestModal';
+import SubmitFspModal from '@/components/SubmitFspModal';
+import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
-import {type CodeOption, type FspInformation, getFspAmendmentNumbers, getFspById,} from '@/services/fspSearch';
+import {type CodeOption, type FspInformation, deleteFsp, getFspAmendmentNumbers, getFspById,} from '@/services/fspSearch';
 
 import AttachmentsTab from './tabs/AttachmentsTab';
 import InformationTab from './tabs/InformationTab';
@@ -34,6 +39,8 @@ const FspInformationPage: FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { display } = useNotification();
+  const { user } = useAuth();
+  const isAdmin = !!user?.roles?.includes('FSPTS_ADMINISTRATOR');
 
   const fspId = searchParams.get('fspId') ?? '';
   const amendmentNumber = searchParams.get('amendmentNumber') ?? '';
@@ -44,6 +51,23 @@ const FspInformationPage: FC = () => {
   // Amendments-dropdown options for this FSP. Loaded once per fspId
   // change; switching amendments only re-fetches the FSP record.
   const [amendments, setAmendments] = useState<CodeOption[]>([]);
+  // Monotonic counter the parent bumps after a state-mutating action
+  // (Submit, Extend, etc.). Every child tab that fetches its own
+  // server data threads this through its useEffect deps so it
+  // refetches when the parent signals — without it, tabs like
+  // WorkflowDataTab keep showing pre-submit status because they're
+  // keyed on [fspId] alone.
+  const [refreshKey, setRefreshKey] = useState(0);
+  /**
+   * Swap the FSP DTO in place AND bump refreshKey so the tabs
+   * re-fetch their own slices. Use after any mutation whose effects
+   * the tabs would otherwise miss (submit, extension create,
+   * delete-and-replace amendment, etc.).
+   */
+  const refreshAfterMutation = (updated: FspInformation) => {
+    setFsp(updated);
+    setRefreshKey((k) => k + 1);
+  };
 
   useEffect(() => {
     if (!fspId) {
@@ -76,8 +100,10 @@ const FspInformationPage: FC = () => {
     };
   }, [fspId, amendmentNumber, display]);
 
-  // Amendment-numbers fetch is independent of the FSP fetch — it only
-  // depends on fspId. Refresh only when the user switches FSPs.
+  // Amendment-numbers fetch refreshes when the user switches FSPs OR
+  // when the parent signals a mutation that may have bumped revision_count
+  // (Submit, Extend, etc.). Threading refreshKey here keeps the dropdown
+  // honest after those flows.
   useEffect(() => {
     if (!fspId) return;
     let cancelled = false;
@@ -92,7 +118,7 @@ const FspInformationPage: FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [fspId]);
+  }, [fspId, refreshKey]);
 
   const handleAmendmentChange = (next: string) => {
     const params = new URLSearchParams(searchParams);
@@ -121,6 +147,72 @@ const FspInformationPage: FC = () => {
   const amendmentSelectWidth = `${Math.max(2, selectedLabel.length) + 6}ch`;
 
   const statusDesc = fsp?.fspStatusDesc?.trim() ?? '';
+  // Delete is gated by the legacy status CODE (not the human description)
+  // since the description varies by locale / future renames. DFT is the
+  // only state the UI exposes — the proc itself also accepts REJ, but
+  // hiding that here matches the product spec ("draft only").
+  const canDelete = fsp?.fspStatusCode === 'DFT';
+  // Submit transitions a draft to Submitted via the SUBMIT proc
+  // action — matches the legacy Fsp300InformationForm.isSubmitEnabled
+  // which also gated on DFT status (the proc itself accepts SUB→DFT
+  // and other transitions but Submit-from-the-header is draft-only).
+  const canSubmit = fsp?.fspStatusCode === 'DFT';
+  // Extending an FSP only makes sense once it's been approved (FSP302's
+  // legacy isExtendFSPEnabled gates on APP / INE statuses). Replicating
+  // that here so the button doesn't show for drafts or rejections.
+  const isApprovedOrInEffect =
+    fsp?.fspStatusCode === 'APP' || fsp?.fspStatusCode === 'INE';
+  const canExtend = isApprovedOrInEffect;
+  // Amend: legacy isAmendFSPEnabled also blocks while a previous
+  // amendment is still unapproved (DFT/SUB/OHS) — kicking off another
+  // would leave two open amendments in flight at the same time.
+  const hasUnapprovedAmend = fsp?.fspUnapprovedAmendsInd === 'Y';
+  const canAmend = isApprovedOrInEffect && !hasUnapprovedAmend;
+  // Replace: legacy isReplaceFSPEnabled gates on APP/INE only — no
+  // unapproved-amends check (a Replacement is a hard cut-over).
+  const canReplace = isApprovedOrInEffect;
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
+  const [confirmAmendOpen, setConfirmAmendOpen] = useState(false);
+  const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false);
+  const [extensionDialogOpen, setExtensionDialogOpen] = useState(false);
+
+  // ConfirmationModal manages its own busy + error-toast lifecycle:
+  // it awaits the promise, closes on success, and shows an "Action
+  // failed" toast on throw. We only post the success toast and navigate
+  // after the modal resolves — Inbox is the typical origin point for a
+  // draft delete (you saw it in inbox, came in, deleted, return there).
+  const handleConfirmDelete = async () => {
+    if (!fsp?.fspId) return;
+    await deleteFsp(fsp.fspId, fsp.fspAmendmentNumber ?? amendmentNumber);
+    display({
+      kind: 'success',
+      title: `FSP ${fsp.fspId} deleted`,
+      timeout: 6000,
+    });
+    navigate('/inbox');
+  };
+
+  // Amend / Replace open AmendmentDescriptionModal in 'create-amend'
+  // or 'create-replace' mode — the modal chains AMEND/REPLACE then SAVE
+  // internally. On success it returns the new amendment as an
+  // FspInformation DTO; we pin the URL to its new amendmentNumber so
+  // the rest of the page re-fetches against the new draft and the
+  // amendments dropdown picks up the assignment.
+  const navigateToNewAmendment = (updated: FspInformation) => {
+    refreshAfterMutation(updated);
+    if (updated.fspAmendmentNumber) {
+      const params = new URLSearchParams(searchParams);
+      params.set('amendmentNumber', updated.fspAmendmentNumber);
+      setSearchParams(params);
+    }
+  };
+
+  // Submit is handled by the SubmitFspModal — it runs the proc-side
+  // preflight (validate_fsp) when it opens and renders a checklist if
+  // any FSP.* issues come back, only enabling the Submit button once
+  // the preflight is clean. The page just provides the open/close
+  // toggle and the post-submit detail refresh.
   const planName = fsp?.fspPlanName?.trim() || '—';
   // The proc returns 200 + all-null fields when the requested FSP id
   // can't be resolved in forest_stewardship_plan (warning-only error
@@ -152,6 +244,60 @@ const FspInformationPage: FC = () => {
               <Tag type={STATUS_TAG_TYPE_BY_DESC[statusDesc] ?? 'gray'} size="md">
                 {statusDesc}
               </Tag>
+            )}
+            {(canExtend || canAmend || canReplace || canSubmit || canDelete) && (
+              <div className="fsp-info__header-actions">
+                {canAmend && fsp?.fspId && (
+                  <Button
+                    kind="tertiary"
+                    size="sm"
+                    renderIcon={DocumentAdd}
+                    onClick={() => setConfirmAmendOpen(true)}
+                  >
+                    Amend FSP
+                  </Button>
+                )}
+                {canExtend && fsp?.fspId && (
+                  <Button
+                    kind="tertiary"
+                    size="sm"
+                    renderIcon={CalendarAdd}
+                    onClick={() => setExtensionDialogOpen(true)}
+                  >
+                    Extend FSP
+                  </Button>
+                )}
+                {canReplace && fsp?.fspId && (
+                  <Button
+                    kind="tertiary"
+                    size="sm"
+                    renderIcon={Renew}
+                    onClick={() => setConfirmReplaceOpen(true)}
+                  >
+                    Replace FSP
+                  </Button>
+                )}
+                {canSubmit && fsp?.fspId && (
+                  <Button
+                    kind="primary"
+                    size="sm"
+                    renderIcon={SendAlt}
+                    onClick={() => setConfirmSubmitOpen(true)}
+                  >
+                    Submit FSP
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button
+                    kind="danger--tertiary"
+                    size="sm"
+                    renderIcon={TrashCan}
+                    onClick={() => setConfirmDeleteOpen(true)}
+                  >
+                    Delete draft
+                  </Button>
+                )}
+              </div>
             )}
           </div>
           {!fspMissing && (
@@ -244,7 +390,7 @@ const FspInformationPage: FC = () => {
               </TabPanel>
               <TabPanel>
                 <div className="fsp-info__tab-panel">
-                  <AttachmentsTab fspId={fspId} />
+                  <AttachmentsTab fspId={fspId} refreshKey={refreshKey} />
                 </div>
               </TabPanel>
               <TabPanel>
@@ -254,6 +400,9 @@ const FspInformationPage: FC = () => {
                     amendmentNumber={
                       fsp?.fspAmendmentNumber || amendmentNumber || ''
                     }
+                    refreshKey={refreshKey}
+                    fspStatusCode={fsp?.fspStatusCode}
+                    isAdmin={isAdmin}
                   />
                 </div>
               </TabPanel>
@@ -265,6 +414,9 @@ const FspInformationPage: FC = () => {
                       fsp?.fspAmendmentNumber || amendmentNumber || '0'
                     }
                     variant="fdu"
+                    fspStatusCode={fsp?.fspStatusCode}
+                    isAdmin={isAdmin}
+                    refreshKey={refreshKey}
                   />
                 </div>
               </TabPanel>
@@ -275,17 +427,35 @@ const FspInformationPage: FC = () => {
                     amendmentNumber={
                       fsp?.fspAmendmentNumber || amendmentNumber || '0'
                     }
+                    refreshKey={refreshKey}
                   />
                 </div>
               </TabPanel>
               <TabPanel>
                 <div className="fsp-info__tab-panel">
-                  <WorkflowTab fspId={fspId} />
+                  <WorkflowTab fspId={fspId} refreshKey={refreshKey} />
                 </div>
               </TabPanel>
               <TabPanel>
                 <div className="fsp-info__tab-panel">
-                  <WorkflowDataTab fspId={fspId} />
+                  <WorkflowDataTab
+                    fspId={fspId}
+                    refreshKey={refreshKey}
+                    // Any workflow action (review milestone, DDM
+                    // decision, OTBH offered/heard, extension decision,
+                    // DDM reverse) mutates the FSP's status server-side.
+                    // The proc returns FspWorkflowState only, so re-fetch
+                    // the FSP DTO and pipe it through refreshAfterMutation
+                    // — same shape as ExtensionRequestModal.onCreated.
+                    onWorkflowChanged={() => {
+                      if (fsp?.fspId) {
+                        void getFspById(
+                          fsp.fspId,
+                          fsp.fspAmendmentNumber ?? undefined,
+                        ).then(refreshAfterMutation);
+                      }
+                    }}
+                  />
                 </div>
               </TabPanel>
             </TabPanels>
@@ -293,6 +463,59 @@ const FspInformationPage: FC = () => {
           </div>
         )}
       </Column>
+      <ConfirmationModal
+        open={confirmDeleteOpen}
+        heading="Delete this draft FSP?"
+        confirmLabel="Delete"
+        danger
+        errorTitle="Failed to delete FSP"
+        onConfirm={handleConfirmDelete}
+        onClose={() => setConfirmDeleteOpen(false)}
+      >
+        <p>
+          This permanently removes FSP <strong>{fsp?.fspId}</strong> ({planName}) and
+          all its child records — attachments, standards, FDUs, identified areas.
+        </p>
+        <p>This cannot be undone.</p>
+      </ConfirmationModal>
+      <SubmitFspModal
+        open={confirmSubmitOpen}
+        fsp={fsp}
+        fallbackAmendmentNumber={amendmentNumber || null}
+        onClose={() => setConfirmSubmitOpen(false)}
+        onSubmitted={refreshAfterMutation}
+      />
+      <AmendmentDescriptionModal
+        open={confirmAmendOpen}
+        fsp={fsp}
+        heading="Amend FSP"
+        mode="create-amend"
+        onClose={() => setConfirmAmendOpen(false)}
+        onSaved={navigateToNewAmendment}
+      />
+      <AmendmentDescriptionModal
+        open={confirmReplaceOpen}
+        fsp={fsp}
+        heading="Replace FSP"
+        mode="create-replace"
+        onClose={() => setConfirmReplaceOpen(false)}
+        onSaved={navigateToNewAmendment}
+      />
+      <ExtensionRequestModal
+        open={extensionDialogOpen}
+        fsp={fsp}
+        onClose={() => setExtensionDialogOpen(false)}
+        // Refresh FSP detail so the Information tab's Related Forms
+        // tile flips "Extension Summary" → button (fspExtensionStat
+        // moves off 'N'). Also re-fetch amendments + every data-driven
+        // tab via the refreshKey bump in refreshAfterMutation.
+        onCreated={() => {
+          if (fsp?.fspId) {
+            void getFspById(fsp.fspId, fsp.fspAmendmentNumber ?? undefined)
+              .then(refreshAfterMutation);
+          }
+        }}
+      />
     </Grid>
   );
 };

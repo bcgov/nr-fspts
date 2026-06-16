@@ -71,6 +71,9 @@ public class IdentifiedAreaPersistenceService {
     }
 
     long iaId = writeDao.nextIdentifiedAreaId();
+    // Same Oracle ORA-13367 guard as FduPersistenceService — force
+    // exterior CCW / interior CW before WKT.
+    jts = GeometryOrientationNormalizer.normalize(jts);
     String wkt = WKT_WRITER.write(jts);
     double areaHa = jts.getArea() / 10_000.0;
     double perimeterKm = jts.getLength() / 1_000.0;

@@ -1,0 +1,23 @@
+This message is to inform you that Forest Stewardship Plan {{fspId}} Amendment {{amendmentNumber}}, {{approvalRequirement}}, has been {{statusCode}}.
+
+Submitted by - {{entryUserid}}
+
+Submitted on - {{entryTimestamp}}
+
+FDU Update Indicated - {{fduUpdateInd}}
+
+Identified Area Update Indicated - {{identifiedAreasUpdateInd}}
+
+Stocking Standard Update Indicated - {{stockingStandardUpdateInd}}
+
+FDU Attachments Added - {{fduAttachments}}
+
+Identified Area Attachments Added - {{iaAttachments}}
+
+FDU Spatial Changed - {{fduSpatialChanged}}
+
+Identified Area Spatial Changed - {{identifiedSpatialChanged}}
+
+Stocking Standards Changed - {{stockingStandardsChanged}}
+
+-------------------------------------------------------------------

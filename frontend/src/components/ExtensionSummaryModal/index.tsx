@@ -1,8 +1,7 @@
 import {
-  Column,
   DataTable,
-  Grid,
   Loading,
+  Modal,
   Table,
   TableBody,
   TableCell,
@@ -12,14 +11,29 @@ import {
   TableRow,
   Tag,
 } from '@carbon/react';
-import {ArrowLeft} from '@carbon/icons-react';
-import {type FC, useEffect, useState} from 'react';
-import {useNavigate, useSearchParams} from 'react-router-dom';
+import { useEffect, useState, type FC } from 'react';
 
-import {useNotification} from '@/context/notification/useNotification';
-import {type FspExtensionSummary, getFspExtensions,} from '@/services/fspSearch';
+import { useNotification } from '@/context/notification/useNotification';
+import { type FspExtensionSummary, getFspExtensions } from '@/services/fspSearch';
 
-import './FspInformation/fsp-info.scss';
+import './extension-summary-modal.scss';
+
+/**
+ * Dialog version of the legacy FSP303 "Extension Summary" page. Two
+ * sections: an FSP tombstone strip across the top (original effective
+ * date, original expiry, current term, current expiry) and a table of
+ * every extension request — number, request date, status, decision
+ * date, term, dates, and which amendment number the extension is
+ * tied to.
+ *
+ * <p>Lazy-loads the summary the first time it opens for a given fspId;
+ * re-fetches when the fspId changes mid-session.
+ */
+interface Props {
+  open: boolean;
+  fspId: string | null;
+  onClose: () => void;
+}
 
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
@@ -38,26 +52,22 @@ const STATUS_TAG: Record<string, 'green' | 'blue' | 'gray' | 'red' | 'warm-gray'
 
 const HEADERS = [
   { key: 'extensionNumber', header: 'Ext #' },
-  { key: 'submissionDate', header: 'Request Date' },
+  { key: 'submissionDate', header: 'Request date' },
   { key: 'status', header: 'Status' },
-  { key: 'decisionDate', header: 'Decision Date' },
+  { key: 'decisionDate', header: 'Decision date' },
   { key: 'term', header: 'Term' },
-  { key: 'planEndDate', header: 'Expiry Date' },
-  { key: 'planStartDate', header: 'Effective Date' },
-  { key: 'fspAmendmentNumber', header: 'Amnd # in Effect' },
+  { key: 'planEndDate', header: 'Expiry date' },
+  { key: 'planStartDate', header: 'Effective date' },
+  { key: 'fspAmendmentNumber', header: 'Amnd # in effect' },
 ];
 
-const ExtensionSummaryPage: FC = () => {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+const ExtensionSummaryModal: FC<Props> = ({ open, fspId, onClose }) => {
   const { display } = useNotification();
-  const fspId = searchParams.get('fspId') ?? '';
-
   const [summary, setSummary] = useState<FspExtensionSummary | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!fspId) return;
+    if (!open || !fspId) return;
     let cancelled = false;
     setLoading(true);
     getFspExtensions(fspId)
@@ -79,32 +89,30 @@ const ExtensionSummaryPage: FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [fspId, display]);
+  }, [open, fspId, display]);
 
-  const backToFsp = () => {
-    if (fspId) {
-      navigate(`/fsp/information?fspId=${encodeURIComponent(fspId)}`);
-    } else {
-      navigate('/search');
-    }
-  };
+  // Reset the cached summary when the modal closes so the next open
+  // shows the loading spinner instead of a stale view.
+  useEffect(() => {
+    if (!open) setSummary(null);
+  }, [open]);
 
   const tombstone: { label: string; value: string }[] = summary
     ? [
-        { label: 'FSP Name', value: dash(summary.fspPlanName) },
-        { label: 'Effective Date', value: dash(summary.originalEffectiveDate) },
+        { label: 'FSP name', value: dash(summary.fspPlanName) },
+        { label: 'Effective date', value: dash(summary.originalEffectiveDate) },
         {
-          label: 'Original Expiry Date',
+          label: 'Original expiry date',
           value: dash(summary.originalExpiryDate),
         },
         {
-          label: 'Current Term',
+          label: 'Current term',
           value: `${dash(summary.currentPlanTermYears)} yr ${dash(
             summary.currentPlanTermMonths,
           )} mo`,
         },
         {
-          label: 'Current Expiry Date',
+          label: 'Current expiry date',
           value: dash(summary.currentExpiryDate),
         },
       ]
@@ -124,41 +132,27 @@ const ExtensionSummaryPage: FC = () => {
     })) ?? [];
 
   return (
-    <Grid fullWidth className="default-grid fsp-info-grid">
-      <Column sm={4} md={8} lg={16}>
-        <button type="button" className="fsp-info__back" onClick={backToFsp}>
-          <ArrowLeft size={16} /> Back to FSP {fspId}
-        </button>
-      </Column>
-
-      <Column sm={4} md={8} lg={16}>
-        <header className="fsp-info__header">
-          <div className="fsp-info__header-title">
-            <h1>Extension Summary — FSP {fspId || '—'}</h1>
-          </div>
-        </header>
-      </Column>
-
-      <Column sm={4} md={8} lg={16}>
-        {!fspId ? (
-          <p className="fsp-info__placeholder">No FSP selected.</p>
-        ) : loading && !summary ? (
-          <div className="fsp-info__loading" role="status" aria-live="polite">
+    <Modal
+      open={open}
+      modalHeading={`Extension Summary — FSP ${fspId ?? '—'}`}
+      passiveModal
+      size="lg"
+      className="fsp-extension-summary-modal"
+      onRequestClose={onClose}
+    >
+      <div className="fsp-extension-summary-modal__body">
+        {loading && !summary ? (
+          <div className="fsp-extension-summary-modal__loading" role="status" aria-live="polite">
             <Loading description="Loading extensions…" withOverlay={false} />
           </div>
         ) : !summary ? (
-          <p className="fsp-info__placeholder">
-            FSP not found or you do not have access to it.
-          </p>
+          <p>FSP not found or you do not have access to it.</p>
         ) : (
-          <div className="fsp-info__tiles-grid">
-            <section className="fsp-info__tile fsp-info__tile--full">
-              <header className="fsp-info__tile-header">
-                <h2 className="fsp-info__section-title">FSP Tombstone</h2>
-              </header>
-              <dl className="fsp-info__field-list">
+          <>
+            <section className="fsp-extension-summary-modal__tombstone">
+              <dl className="fsp-extension-summary-modal__fields">
                 {tombstone.map((f) => (
-                  <div key={f.label} className="fsp-info__field">
+                  <div key={f.label} className="fsp-extension-summary-modal__field">
                     <dt>{f.label}</dt>
                     <dd>{f.value}</dd>
                   </div>
@@ -166,27 +160,22 @@ const ExtensionSummaryPage: FC = () => {
               </dl>
             </section>
 
-            <section className="fsp-info__tile fsp-info__tile--full">
-              <header className="fsp-info__tile-header">
-                <h2 className="fsp-info__section-title">
-                  Extensions ({summary.extensions.length})
-                </h2>
-              </header>
+            <section>
+              <h3 className="fsp-extension-summary-modal__section-title">
+                Extensions ({summary.extensions.length})
+              </h3>
               {summary.extensions.length === 0 ? (
                 <p>No extension requests recorded for this FSP.</p>
               ) : (
                 <div className="bordered-table">
-                  <DataTable rows={tableRows} headers={HEADERS}>
+                  <DataTable rows={tableRows} headers={HEADERS} isSortable>
                     {({ rows: r, headers, getTableProps, getHeaderProps, getRowProps }) => (
                       <TableContainer>
-                        <Table {...getTableProps()} size="md" useZebraStyles>
+                        <Table {...getTableProps()} size="sm" useZebraStyles>
                           <TableHead>
                             <TableRow>
                               {headers.map((h) => (
-                                <TableHeader
-                                  {...getHeaderProps({ header: h })}
-                                  key={h.key}
-                                >
+                                <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
                                   {h.header}
                                 </TableHeader>
                               ))}
@@ -207,9 +196,7 @@ const ExtensionSummaryPage: FC = () => {
                                     );
                                   }
                                   return (
-                                    <TableCell key={cell.id}>
-                                      {cell.value as string}
-                                    </TableCell>
+                                    <TableCell key={cell.id}>{cell.value as string}</TableCell>
                                   );
                                 })}
                               </TableRow>
@@ -222,11 +209,11 @@ const ExtensionSummaryPage: FC = () => {
                 </div>
               )}
             </section>
-          </div>
+          </>
         )}
-      </Column>
-    </Grid>
+      </div>
+    </Modal>
   );
 };
 
-export default ExtensionSummaryPage;
+export default ExtensionSummaryModal;

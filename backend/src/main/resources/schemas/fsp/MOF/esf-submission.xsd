@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XML Spy v4.4 U (http://www.xmlspy.com) by Tim Wilson (Galdos Systems Inc.) -->
+<!-- target namespace is a URL by popular convention.  It is an idenfitier only, such that no pysical resource is required at this URL. -->
+<schema targetNamespace="http://www.for.gov.bc.ca/schema/esf" xmlns:esf="http://www.for.gov.bc.ca/schema/esf" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:gml="http://www.opengis.net/gml" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" version="4">
+    <annotation>
+        <appinfo source="urn:mof:schema-xsd:esf-submission:v4">esf-submission.xsd v4 2017-02</appinfo>
+        <documentation>Draft BC MOF ESF Data Submission schema for demonstration purposes only.  Any well-formed XML content, which belongs to, and is valid within, a declared namespace is allowable within an ESFSubmission.  Currently, the content namespace must be different from the ESF namespace.   Copyright (c) 2002 BC Ministry of Forests,  All Rights Reserved.</documentation>
+    </annotation>
+    <!-- ========================= ESF Submission  ================================================= -->
+    <element name="ESFSubmission" type="esf:ESFSubmissionType"/>
+    <complexType name="ESFSubmissionType">
+        <annotation>
+            <documentation>ESF Submission must contain the email address and telephone number for the submitter, as well as any well-formed XML content that is valid within its declared namespace.   Such content must be in a namespace OTHER THAN the targetNamespace (http://srmwww.gov.bc.ca/imb/schema/esf).  As an alternative, content could be restricted to well-formed XML content that belongs to namespaces from an explicit list.</documentation>
+        </annotation>
+        <sequence>
+            <element name="submissionMetadata" type="esf:ESFSubmissionMetadataType"/>
+            <element name="submissionContent" type="esf:ESFSubmissionContentType"/>
+        </sequence>
+    </complexType>
+    <!-- ========================= ESF Submission Metadata  ======================================== -->
+    <complexType name="ESFSubmissionContentType">
+        <annotation>
+            <documentation>Encloses a single instance of allowable (by Namespace) XML/GML submission content.  Only well-formed content validated by known schemas to ESF (e.g. Results, FTA) will be accepted by the ESF application.  All other content will be rejected by ESF.</documentation>
+        </annotation>
+        <sequence>
+            <any namespace="##other" processContents="strict"/>
+        </sequence>
+    </complexType>
+    <!-- ========================= ESF Submission Metadata  ======================================== -->
+    <complexType name="ESFSubmissionMetadataType">
+        <annotation>
+            <documentation>Required metadata information for any ESF submission.</documentation>
+        </annotation>
+        <sequence>
+            <element name="emailAddress" type="anyURI"/>
+            <element name="telephoneNumber" type="esf:TelephoneNumberType"/>
+        </sequence>
+    </complexType>
+    <simpleType name="TelephoneNumberType">
+        <annotation>
+            <documentation>A valid telephone number must be 10 digits, starting with the area code.  For example: '6045542233'.</documentation>
+        </annotation>
+        <restriction base="string">
+            <pattern value="[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]"/>
+        </restriction>
+    </simpleType>
+</schema>

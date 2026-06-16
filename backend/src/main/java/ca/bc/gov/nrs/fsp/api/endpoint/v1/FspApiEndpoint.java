@@ -31,6 +31,10 @@ public interface FspApiEndpoint {
     @Operation(summary = "List org units via FSP_CODE_LISTS.get_org_unit_filtered (unfiltered)")
     ResponseEntity<List<CodeOption>> getOrgUnits();
 
+    @GetMapping(URL.CODE_LISTS_ORG_UNIT_CODES)
+    @Operation(summary = "Org-unit lookup keyed by 3-letter org_unit_code (description = org_unit_name)")
+    ResponseEntity<List<CodeOption>> getOrgUnitCodes();
+
     @GetMapping(URL.CODE_LISTS_FSP_STATUS)
     @Operation(summary = "List FSP status codes via FSP_CODE_LISTS.get_fsp_status_code")
     ResponseEntity<List<CodeOption>> getFspStatusCodes();
@@ -43,6 +47,10 @@ public interface FspApiEndpoint {
     @GetMapping(URL.CODE_LISTS_SPECIES)
     @Operation(summary = "List silv tree species codes via FSP_CODE_LISTS.get_silv_tree_sp_cd")
     ResponseEntity<List<CodeOption>> getSilvTreeSpeciesCodes();
+
+    @GetMapping(URL.CODE_LISTS_STATUTES)
+    @Operation(summary = "List silv statute codes via FSP_CODE_LISTS.get_statute_cd (Regulation dropdown on FSP550)")
+    ResponseEntity<List<CodeOption>> getStatuteCodes();
 
     // --- FSP ---
 
@@ -70,6 +78,49 @@ public interface FspApiEndpoint {
     ResponseEntity<FspRequest> updateFsp(
             @PathVariable String fspId, @Valid @RequestBody FspRequest fspRequest);
 
+    @org.springframework.web.bind.annotation.DeleteMapping(URL.FSP_BY_ID)
+    @Operation(summary =
+            "Delete a draft FSP via fsp_300_information.MAINLINE (P_ACTION=REMOVE). "
+                    + "Proc rejects anything not in DFT or REJ status.")
+    ResponseEntity<Void> deleteFsp(
+            @PathVariable String fspId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
+
+    @PostMapping(URL.SUBMIT)
+    @Operation(summary =
+            "Submit a draft FSP via fsp_300_information.MAINLINE (P_ACTION=SUBMIT). "
+                    + "Proc runs validate_fsp first; missing required fields surface as "
+                    + "FSP.* error codes and the status stays in DFT. On success the "
+                    + "amendment transitions to SUB (or IN-EFFECT when "
+                    + "approval_required_ind='N').")
+    ResponseEntity<FspRequest> submitFsp(
+            @PathVariable String fspId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
+
+    @GetMapping(URL.SUBMIT_PREFLIGHT)
+    @Operation(summary =
+            "Submit preflight — runs fsp_common_validation.validate_fsp without "
+                    + "changing status. Returns the list of FSP.* validation issues "
+                    + "(empty when the FSP would submit cleanly).")
+    ResponseEntity<ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse> submitPreflight(
+            @PathVariable String fspId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
+
+    @PostMapping(URL.AMEND)
+    @Operation(summary =
+            "Create a new amendment row on an existing FSP via "
+                    + "fsp_300_information.MAINLINE(P_ACTION=AMEND). Returns the "
+                    + "freshly-assigned amendment as an FspRequest DTO so the SPA "
+                    + "can navigate to it.")
+    ResponseEntity<FspRequest> amendFsp(@PathVariable String fspId);
+
+    @PostMapping(URL.REPLACE)
+    @Operation(summary =
+            "Create a new replacement amendment row on an existing FSP via "
+                    + "fsp_300_information.MAINLINE(P_ACTION=REPLACE). Proc stamps "
+                    + "fsp_amendment_code='RPL' and forces approval-required.")
+    ResponseEntity<FspRequest> replaceFsp(@PathVariable String fspId);
+
     // --- Workflow ---
 
     @GetMapping(URL.WORKFLOW)
@@ -96,6 +147,26 @@ public interface FspApiEndpoint {
     ResponseEntity<List<StandardRequest>> saveStandards(
             @PathVariable String fspId, @Valid @RequestBody List<StandardRequest> standards);
 
+    @PostMapping(URL.STANDARDS)
+    @Operation(summary =
+            "Create a new stocking-standards regime against the given FSP + "
+                    + "amendment via FSP_550_STDS_PROPOSAL.SAVE (insert branch). "
+                    + "Returns the freshly-assigned regime as a StandardRegimeDetail "
+                    + "so the SPA can navigate straight to it.")
+    ResponseEntity<ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail> createStandardRegime(
+            @PathVariable String fspId,
+            @Valid @RequestBody ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeCreate body);
+
+    @PostMapping(URL.STANDARD_COPY)
+    @Operation(summary =
+            "Duplicate an existing stocking-standards regime on the same "
+                    + "FSP + amendment via FSP_550_STDS_PROPOSAL.COPY. "
+                    + "Returns the new regime as a StandardRegimeDetail.")
+    ResponseEntity<ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail> copyStandardRegime(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
+
     @DeleteMapping(URL.STANDARD_BY_ID)
     @Operation(summary = "Delete a stocking standard")
     ResponseEntity<Void> deleteStandard(
@@ -116,7 +187,9 @@ public interface FspApiEndpoint {
     ResponseEntity<AttachmentResponse> uploadAttachment(
             @PathVariable String fspId,
             @RequestParam("file") MultipartFile file,
-            @RequestParam("typeCode") String typeCode) throws IOException;
+            @RequestParam("typeCode") String typeCode,
+            @RequestParam(name = "description", required = false) String description)
+            throws IOException;
 
     @GetMapping(URL.ATTACHMENT_DOWNLOAD)
     @Operation(summary = "Download an attachment via FSP_400_ATTACHMENTS.GET_ATTACH_BLOB")
@@ -146,11 +219,26 @@ public interface FspApiEndpoint {
     @Operation(summary = "Get extension summary via FSP_303_EXTENSION_SUMMARY.GET_LIST")
     ResponseEntity<ExtensionSummary> getExtensions(@PathVariable String fspId);
 
+    @PostMapping(URL.EXTENSIONS)
+    @Operation(summary = "Create a new extension request via FSP_302_EXTENSION_REQUEST.SAVE")
+    ResponseEntity<ExtensionRequestSaved> createExtension(
+            @PathVariable String fspId,
+            @Valid @RequestBody ExtensionRequestSave body);
+
     // --- FDU list (Map tab) ---
 
     @GetMapping(URL.FDU_LIST)
     @Operation(summary = "Get the per-FDU list via FSP_600_MAP.GET")
     ResponseEntity<FduList> getFduList(@PathVariable String fspId);
+
+    @PutMapping(URL.FDU_LICENCES)
+    @Operation(summary =
+            "Apply licence additions/removals to an FDU. Status-gated: "
+                    + "DFT writable by submitters, APP writable by administrators only.")
+    ResponseEntity<FduLicencesUpdated> updateFduLicences(
+            @PathVariable String fspId,
+            @PathVariable long fduId,
+            @Valid @RequestBody FduLicencesUpdate body);
 
     @GetMapping(URL.IDENTIFIED_AREAS)
     @Operation(summary = "Get identified areas (all FRPA/FPPR sections combined) via FSP_650_IDENTIFIED_AREAS_MAP.GET")
@@ -258,21 +346,6 @@ public interface FspApiEndpoint {
             @RequestParam(name = "revisionCount") String revisionCount,
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
             @Valid @RequestBody StandardRegimeBgcZoneUpsert body);
-
-    @PostMapping(value = URL.STANDARD_ATTACHMENTS, consumes = "multipart/form-data")
-    @Operation(summary = "Add an attachment to a standards regime via FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB_FOR_UPDATE")
-    ResponseEntity<StandardRegimeDetail> addStandardRegimeAttachment(
-            @PathVariable String fspId,
-            @PathVariable String regimeId,
-            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
-            @RequestParam("file") MultipartFile file) throws IOException;
-
-    @GetMapping(URL.STANDARD_ATTACHMENT_DOWNLOAD)
-    @Operation(summary = "Download a standards-regime attachment BLOB via FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB")
-    ResponseEntity<byte[]> downloadStandardRegimeAttachment(
-            @PathVariable String fspId,
-            @PathVariable String regimeId,
-            @PathVariable String attachmentId);
 
     // --- Map View extent ---
 

@@ -21,20 +21,17 @@ import {
   TextInput,
   Toggle,
 } from '@carbon/react';
-import {Add, Download, Edit, TrashCan} from '@carbon/icons-react';
+import {Add, Edit, TrashCan} from '@carbon/icons-react';
 import {type FC, useEffect, useState} from 'react';
 
 import BgcZoneEditModal from '@/components/BgcZoneEditModal';
 import BgcZoneSearchModal from '@/components/BgcZoneSearchModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
-import StandardRegimeAttachmentModal from '@/components/StandardRegimeAttachmentModal';
 import {useNotification} from '@/context/notification/useNotification';
 import type {BgcSearchResult} from '@/services/bgcSearch';
 import {
-  addStandardRegimeAttachment,
   addStandardRegimeBgcZone,
   deleteStandardRegimeBgcZone,
-  downloadStandardRegimeAttachment,
   getStandardRegimeDetail,
   type StandardRegimeBgcZone,
   type StandardRegimeBgcZoneUpsert,
@@ -100,13 +97,23 @@ const validateOverview = (form: OverviewFormState): OverviewErrors => {
     errs.additionalStandards = `Max ${OVERVIEW_MAX.additionalStandards} characters.`;
   }
   const nonNeg = (s: string) => /^\d+$/.test(s);
-  if (form.regenDelayOffsetYrs && !nonNeg(form.regenDelayOffsetYrs)) {
+  // Required-when rules (FRPA stocking-standards spec):
+  //   - Regen Delay is required ONLY when Regen Obligation is on.
+  //   - Free Growing Early is always optional.
+  //   - Free Growing Late is always required.
+  // Required checks come before format checks so a blank required
+  // field shows "Required" rather than passing the format gate silently.
+  if (form.regenObligation && !form.regenDelayOffsetYrs.trim()) {
+    errs.regenDelayOffsetYrs = 'Required when Regen Obligation is on.';
+  } else if (form.regenDelayOffsetYrs && !nonNeg(form.regenDelayOffsetYrs)) {
     errs.regenDelayOffsetYrs = 'Whole number ≥ 0.';
   }
   if (form.freeGrowingEarlyOffsetYrs && !nonNeg(form.freeGrowingEarlyOffsetYrs)) {
     errs.freeGrowingEarlyOffsetYrs = 'Whole number ≥ 0.';
   }
-  if (form.freeGrowingLateOffsetYrs && !nonNeg(form.freeGrowingLateOffsetYrs)) {
+  if (!form.freeGrowingLateOffsetYrs.trim()) {
+    errs.freeGrowingLateOffsetYrs = 'Required.';
+  } else if (!nonNeg(form.freeGrowingLateOffsetYrs)) {
     errs.freeGrowingLateOffsetYrs = 'Whole number ≥ 0.';
   }
   return errs;
@@ -168,7 +175,6 @@ const StandardRegimeDetailPanel: FC<Props> = ({
 }) => {
   const [detail, setDetail] = useState<StandardRegimeDetail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   // Overview-tab edit state. Each inner tab gets its own toggle so a
   // save on Overview doesn't blow away the read-only context the user
   // had open on, say, Layers. Form state is null until the user clicks
@@ -192,29 +198,6 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   // resolve the right siteSeriesId + revisionCount on Confirm.
   const [bgcDeleteTarget, setBgcDeleteTarget] =
     useState<StandardRegimeBgcZone | null>(null);
-  const [attachmentModalOpen, setAttachmentModalOpen] = useState(false);
-
-  const handleDownload = async (attachmentId: string, fallbackName: string) => {
-    if (downloadingId) return;
-    setDownloadingId(attachmentId);
-    try {
-      await downloadStandardRegimeAttachment(
-        fspId,
-        regimeId,
-        attachmentId,
-        fallbackName,
-      );
-    } catch (e) {
-      display({
-        kind: 'error',
-        title: 'Download failed',
-        subtitle: e instanceof Error ? e.message : 'Unknown error',
-        timeout: 7000,
-      });
-    } finally {
-      setDownloadingId(null);
-    }
-  };
   const { display } = useNotification();
 
   useEffect(() => {
@@ -409,22 +392,6 @@ const StandardRegimeDetailPanel: FC<Props> = ({
     });
   };
 
-  const handleAttachmentUpload = async (file: File) => {
-    const updated = await addStandardRegimeAttachment(
-      fspId,
-      regimeId,
-      amendmentNumber || undefined,
-      file,
-    );
-    setDetail(updated);
-    display({
-      kind: 'success',
-      title: 'Attachment added.',
-      subtitle: file.name,
-      timeout: 6000,
-    });
-  };
-
   const setOverviewField = <K extends keyof OverviewFormState>(
     key: K,
     value: OverviewFormState[K],
@@ -460,28 +427,28 @@ const StandardRegimeDetailPanel: FC<Props> = ({
 
   const overview: { label: string; value: string }[] = [
     { label: 'SS ID', value: dash(detail.standardsRegimeId) },
-    { label: 'Standards Name', value: dash(detail.standardsRegimeName) },
+    { label: 'Standards name', value: dash(detail.standardsRegimeName) },
     { label: 'Status', value: dash(detail.statusDescription) },
-    { label: 'Default Standard', value: yesNo(detail.mofDefaultStandardInd) },
+    { label: 'Default standard', value: yesNo(detail.mofDefaultStandardInd) },
     { label: 'Regulation', value: dash(detail.regulationDescription) },
-    { label: 'Effective Date', value: dash(detail.effectiveDate) },
-    { label: 'Expiry Date', value: dash(detail.expiryDate) },
+    { label: 'Effective date', value: dash(detail.effectiveDate) },
+    { label: 'Expiry date', value: dash(detail.expiryDate) },
     { label: 'Amendment #', value: dash(detail.standardsAmendNumber) },
-    { label: 'Submitted By', value: dash(detail.submittedByUserid) },
+    { label: 'Submitted by', value: dash(detail.submittedByUserid) },
     {
-      label: 'Regen Obligation',
+      label: 'Regen obligation',
       value: yesNo(detail.regenObligationInd),
     },
     {
-      label: 'Regen Delay',
+      label: 'Regen delay',
       value: dash(detail.regenDelayOffsetYrs),
     },
     {
-      label: 'Free Growing Early',
+      label: 'Free growing early',
       value: dash(detail.freeGrowingEarlyOffsetYrs),
     },
     {
-      label: 'Free Growing Late',
+      label: 'Free growing late',
       value: dash(detail.freeGrowingLateOffsetYrs),
     },
   ];
@@ -495,7 +462,6 @@ const StandardRegimeDetailPanel: FC<Props> = ({
           <Tab>Layers</Tab>
           <Tab>Districts</Tab>
           <Tab>Agreement Holders</Tab>
-          <Tab>Attachments</Tab>
           <Tab>BGC Zones</Tab>
         </TabList>
         <TabPanels>
@@ -576,7 +542,11 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     />
                     <NumberInput
                       id="edit-ssRegenDelayYrs"
-                      label="Regen Delay"
+                      // Asterisk follows Carbon's convention for
+                      // required-field markers — added conditionally
+                      // because Regen Delay is only required when the
+                      // Regen Obligation toggle is on.
+                      label={overviewForm.regenObligation ? 'Regen Delay *' : 'Regen Delay'}
                       min={0}
                       max={99}
                       allowEmpty
@@ -620,7 +590,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     />
                     <NumberInput
                       id="edit-ssFgLateYrs"
-                      label="Free Growing Late"
+                      label="Free Growing Late *"
                       min={0}
                       max={99}
                       allowEmpty
@@ -763,6 +733,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                       { key: 'code', header: 'Code' },
                       { key: 'name', header: 'Name' },
                     ]}
+                    isSortable
                   >
                     {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
                       <TableContainer>
@@ -812,6 +783,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                       { key: 'acronym', header: 'Acronym' },
                       { key: 'name', header: 'Name' },
                     ]}
+                    isSortable
                   >
                     {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
                       <TableContainer>
@@ -851,104 +823,6 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     kind="tertiary"
                     size="sm"
                     renderIcon={Add}
-                    onClick={() => setAttachmentModalOpen(true)}
-                  >
-                    Add Attachment
-                  </Button>
-                </div>
-              )}
-              {detail.attachments.length === 0 ? (
-                <p>No attachments on this regime.</p>
-              ) : (
-                <div className="bordered-table">
-                  <DataTable
-                    rows={detail.attachments.map((a, i) => ({
-                      id: a.attachmentId ?? `row-${i}`,
-                      description: dash(a.attachmentDescription),
-                      name: dash(a.attachmentName),
-                      mime: dash(a.mimeTypeCode),
-                      size: dash(a.fileSize),
-                      actions: '',
-                      __attachmentId: a.attachmentId,
-                      __fileName: a.attachmentName,
-                    }))}
-                    headers={[
-                      { key: 'description', header: 'Description' },
-                      { key: 'name', header: 'File Name' },
-                      { key: 'mime', header: 'Type' },
-                      { key: 'size', header: 'Size' },
-                      { key: 'actions', header: '' },
-                    ]}
-                  >
-                    {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
-                      <TableContainer>
-                        <Table {...getTableProps()} size="md" useZebraStyles>
-                          <TableHead>
-                            <TableRow>
-                              {headers.map((h) => (
-                                <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
-                                  {h.header}
-                                </TableHeader>
-                              ))}
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {rows.map((row) => {
-                              const source = detail.attachments.find(
-                                (a, i) => (a.attachmentId ?? `row-${i}`) === row.id,
-                              );
-                              const attachmentId = source?.attachmentId ?? null;
-                              const fileName = source?.attachmentName ?? row.id;
-                              const isDownloading = downloadingId === attachmentId;
-                              return (
-                                <TableRow {...getRowProps({ row })} key={row.id}>
-                                  {row.cells.map((cell) => {
-                                    if (cell.info.header === 'actions') {
-                                      return (
-                                        <TableCell key={cell.id}>
-                                          {attachmentId ? (
-                                            <Button
-                                              kind="ghost"
-                                              size="sm"
-                                              renderIcon={Download}
-                                              iconDescription={
-                                                isDownloading ? 'Downloading…' : 'Download'
-                                              }
-                                              hasIconOnly
-                                              disabled={isDownloading}
-                                              onClick={() =>
-                                                void handleDownload(attachmentId, fileName)
-                                              }
-                                            />
-                                          ) : null}
-                                        </TableCell>
-                                      );
-                                    }
-                                    return (
-                                      <TableCell key={cell.id}>{cell.value as string}</TableCell>
-                                    );
-                                  })}
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    )}
-                  </DataTable>
-                </div>
-              )}
-            </div>
-          </TabPanel>
-
-          <TabPanel>
-            <div className="fsp-info__tab-panel">
-              {!readOnly && (
-                <div className="fsp-info__tab-actions">
-                  <Button
-                    kind="tertiary"
-                    size="sm"
-                    renderIcon={Add}
                     onClick={openBgcSearch}
                   >
                     Add BGC Zone
@@ -967,8 +841,8 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                           <TableHeader>Subzone</TableHeader>
                           <TableHeader>Variant</TableHeader>
                           <TableHeader>Phase</TableHeader>
-                          <TableHeader>Site Series</TableHeader>
-                          <TableHeader>Site Series Phase</TableHeader>
+                          <TableHeader>Site series</TableHeader>
+                          <TableHeader>Site series phase</TableHeader>
                           <TableHeader>Seral</TableHeader>
                           {!readOnly && (
                             <TableHeader style={{ width: '8rem' }} aria-label="Actions" />
@@ -1033,11 +907,6 @@ const StandardRegimeDetailPanel: FC<Props> = ({
         value={bgcEditTarget}
         onClose={() => setBgcEditOpen(false)}
         onSubmit={handleBgcEditSubmit}
-      />
-      <StandardRegimeAttachmentModal
-        open={attachmentModalOpen}
-        onClose={() => setAttachmentModalOpen(false)}
-        onSubmit={handleAttachmentUpload}
       />
       <ConfirmationModal
         open={bgcDeleteTarget != null}

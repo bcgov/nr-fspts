@@ -5,6 +5,7 @@ import {
   InlineNotification,
   Loading,
   Modal,
+  Stack,
   TextArea,
 } from '@carbon/react';
 import { useEffect, useState, type FC } from 'react';
@@ -126,43 +127,49 @@ const OtbhEditModal: FC<OtbhEditModalProps> = ({
       preventCloseOnClickOutside
     >
       <div className="fsp-species-modal__form">
-        <InlineNotification
-          kind="info"
-          lowContrast
-          hideCloseButton
-          title={bannerTitle}
-          // Suppress the default subtitle padding so the banner reads
-          // as one tight line at the top of the form.
-          subtitle=""
-        />
-        <DatePicker
-          datePickerType="single"
-          dateFormat="Y-m-d"
-          maxDate={isoToday()}
-          value={date || undefined}
-          onChange={(dates: Date[]) =>
-            setDate(dates[0] ? toIsoDate(dates[0]) : '')
-          }
-        >
-          <DatePickerInput
-            id="otbh-date"
-            placeholder="YYYY-MM-DD"
-            labelText={`${value.label} Date *`}
-            disabled={saving}
-            invalid={dateInFuture}
-            invalidText="OTBH date cannot be in the future."
+        {/* Stack with gap=6 (Carbon spacing-06, ~1.5rem) puts proper
+            air between the info banner and the date input — Carbon's
+            InlineNotification has no bottom margin of its own so the
+            two used to butt up against each other. */}
+        <Stack gap={6}>
+          <InlineNotification
+            kind="info"
+            lowContrast
+            hideCloseButton
+            title={bannerTitle}
+            // Suppress the default subtitle padding so the banner reads
+            // as one tight line at the top of the form.
+            subtitle=""
           />
-        </DatePicker>
-        <TextArea
-          id="otbh-comment"
-          labelText="Comment"
-          helperText="Optional — up to 4000 characters."
-          maxLength={4000}
-          rows={5}
-          value={comment}
-          disabled={saving}
-          onChange={(e) => setComment(e.target.value)}
-        />
+          <DatePicker
+            datePickerType="single"
+            dateFormat="Y-m-d"
+            maxDate={isoToday()}
+            value={date || undefined}
+            onChange={(dates: Date[]) =>
+              setDate(dates[0] ? toIsoDate(dates[0]) : '')
+            }
+          >
+            <DatePickerInput
+              id="otbh-date"
+              placeholder="YYYY-MM-DD"
+              labelText={`${value.label} Date *`}
+              disabled={saving}
+              invalid={dateInFuture}
+              invalidText="OTBH date cannot be in the future."
+            />
+          </DatePicker>
+          <TextArea
+            id="otbh-comment"
+            labelText="Comment"
+            helperText="Optional — up to 4000 characters."
+            maxLength={4000}
+            rows={5}
+            value={comment}
+            disabled={saving}
+            onChange={(e) => setComment(e.target.value)}
+          />
+        </Stack>
       </div>
       <div className="fsp-species-modal__actions">
         <Button kind="secondary" disabled={saving} onClick={closeDialog}>

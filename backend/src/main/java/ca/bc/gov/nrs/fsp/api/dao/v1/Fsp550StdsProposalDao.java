@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Wraps THE.FSP_550_STDS_PROPOSAL.GET — the legacy FSP250 ("Standards
  * View") detail proc. Reads a single standards regime by id plus four
- * related cursors (org units, clients, attachments, BGC zones). The
+ * related cursors (org units, clients, BGC zones). The
  * proc carries write-mode actions too (ADD/SAVE/COPY/REMOVE) but only
  * the read path is wrapped here.
  */
@@ -16,7 +16,7 @@ public interface Fsp550StdsProposalDao {
   String PROCEDURE_SAVE = "SAVE";
   String PROCEDURE_SAVE_BGC_ITEM = "SAVE_BGC_ITEM";
   String PROCEDURE_REMOVE_BGC_ITEM = "REMOVE_BGC_ITEM";
-  String PROCEDURE_GET_ATTACHMENT_BLOB_FOR_UPDATE = "GET_ATTACHMENT_BLOB_FOR_UPDATE";
+  String PROCEDURE_COPY = "COPY";
 
   /**
    * @param displayFspOrgClients {@code "Y"} scopes the org-unit + client
@@ -111,48 +111,35 @@ public interface Fsp550StdsProposalDao {
   ) {}
 
   /**
-   * Wraps {@code FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB_FOR_UPDATE}
-   * with {@code p_standards_regime_attach_id = NULL}: the proc inserts
-   * a new STANDARDS_REGIME_ATTACHMENT + STANDARDS_REGIME_ATTACH_FILE
-   * pair (with EMPTY_BLOB) and returns the new id alongside a BLOB
-   * locator FOR UPDATE. We write the supplied bytes into that locator
-   * inside the same transaction so the data lands without needing
-   * any direct DML on the (un-granted) STANDARDS_REGIME_ATTACHMENT.
+   * Wraps {@code FSP_550_STDS_PROPOSAL.COPY}. Duplicates an existing
+   * standards regime onto the same FSP / amendment so the user can
+   * tweak the copy without losing the original. The proc assigns a
+   * new STANDARDS_REGIME_ID and copies all child rows (layers,
+   * species, BGC site series, etc.).
    *
-   * <p>Direct INSERT is not an option — FSP roles only have UPDATE on
-   * STANDARDS_REGIME_ATTACH_FILE; the procs run with definer rights.
+   * <p>{@code orgUnitNo} and {@code clientNumber} are the legacy
+   * session-context values the proc associates with the new regime.
+   * Pass empty strings to let the proc inherit from the source row.</p>
    */
-  AddAttachmentResult addAttachment(AddAttachmentRequest req);
+  CopyResult copyRegime(CopyRequest req);
 
-  record AddAttachmentRequest(
-      String standardsRegimeId,
-      String attachmentName,
-      String attachmentDescription,
-      /** Browser-reported content type — proc looks up the matching MIME_TYPE_CODE row. */
-      String mimeType,
-      byte[] content,
-      String updateUserid
+  record CopyRequest(
+      String sourceRegimeId,
+      String fspId,
+      String fspAmendmentNumber,
+      String orgUnitNo,
+      String clientNumber,
+      String updateUserid,
+      String revisionCount
   ) {}
 
-  record AddAttachmentResult(String standardsRegimeAttachId, String revisionCount) {}
+  record CopyResult(String newRegimeId, String errorMessage) {}
 
-  /**
-   * Fetches the BLOB content + display name for a single standards-regime
-   * attachment. Backs the Standards View attachments-tab download
-   * action. Mirrors legacy FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB —
-   * 4 positional params: regime_attach_id INOUT, attachment_name OUT,
-   * attachment_data BLOB INOUT, error_message OUT.
-   */
-  AttachmentBlob getAttachmentBlob(String regimeAttachId);
-
-  record AttachmentBlob(String attachmentName, byte[] content) {}
-
-  /** The four cursor lists + the scalar header row. */
+  /** The three cursor lists + the scalar header row. */
   record Result(
       Header header,
       List<OrgUnitRow> districts,
       List<ClientRow> clients,
-      List<AttachmentRow> attachments,
       List<BgcZoneRow> bgcZones,
       String errorMessage
   ) {}
@@ -211,14 +198,6 @@ public interface Fsp550StdsProposalDao {
   record OrgUnitRow(String orgUnitNo, String orgUnitCode, String orgUnitName) {}
 
   record ClientRow(String clientNumber, String clientName, String clientAcronym) {}
-
-  record AttachmentRow(
-      String attachmentId,
-      String attachmentName,
-      String attachmentDescription,
-      String mimeTypeCode,
-      String fileSize
-  ) {}
 
   record BgcZoneRow(
       // STANDARD_REGIME_SITE_SERIES_ID (PK) — needed for SAVE/REMOVE.

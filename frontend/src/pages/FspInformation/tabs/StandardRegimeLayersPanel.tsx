@@ -403,8 +403,8 @@ const LayerDetailPanel: FC<{
   //   col 3: Post Spacing Density (st/ha)  (min/max spacing)
   const densityRows = [
     { label: 'Target', well: detail.targetStocking, basal: '', post: '' },
-    { label: 'Min Horiz', well: detail.minHorizontalDistance, basal: '', post: '' },
-    { label: 'Min Pref', well: detail.minPrefStockingStandard, basal: '', post: '' },
+    { label: 'Min horiz', well: detail.minHorizontalDistance, basal: '', post: '' },
+    { label: 'Min pref', well: detail.minPrefStockingStandard, basal: '', post: '' },
     {
       label: 'Min',
       well: detail.minStockingStandard,
@@ -590,9 +590,9 @@ const LayerDetailPanel: FC<{
                 }))}
                 headers={[
                   { key: 'label', header: '' },
-                  { key: 'well', header: 'Well Spaced Trees / ha' },
-                  { key: 'basal', header: 'Residual Basal Area' },
-                  { key: 'post', header: 'Post Spacing Density' },
+                  { key: 'well', header: 'Well spaced trees / ha' },
+                  { key: 'basal', header: 'Residual basal area' },
+                  { key: 'post', header: 'Post spacing density' },
                 ]}
               >
                 {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
@@ -625,11 +625,11 @@ const LayerDetailPanel: FC<{
 
           <dl className="fsp-info__field-list">
             <div className="fsp-info__field">
-              <dt>Max Coniferous</dt>
+              <dt>Max coniferous</dt>
               <dd>{dash(detail.maxConifer)}</dd>
             </div>
             <div className="fsp-info__field">
-              <dt>Height Relative to Comp</dt>
+              <dt>Height relative to comp</dt>
               <dd>{dash(detail.heightRelativeToComp)}</dd>
             </div>
           </dl>

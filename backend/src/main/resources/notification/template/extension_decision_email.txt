@@ -1,0 +1,14 @@
+This is an automated message from the FSP Tracking System.
+Please do not reply to this message.
+
+This message was sent to: {{emailAddress}}
+This message is to inform you that your request for an extension to Forest Stewardship Plan {{fspId}} has been {{statusDesc}}.
+The FSP Name is {{planName}}.
+The extension request was submitted by: {{extensionSubmittedBy}} on {{extensionSubmissionDate}}
+
+Licensee: {{licensees}}
+
+
+Below are any comments made by your local District Manager concerning the decision:
+
+{{history}}

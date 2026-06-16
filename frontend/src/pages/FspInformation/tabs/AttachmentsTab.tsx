@@ -14,6 +14,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TextArea,
 } from '@carbon/react';
 import { Add, Download } from '@carbon/icons-react';
 import { type FC, useEffect, useState } from 'react';
@@ -30,6 +31,8 @@ import {
 
 interface Props {
   fspId: string;
+  /** Parent-bumped counter that forces a refetch on Submit/Extend/etc. */
+  refreshKey?: number;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -42,18 +45,27 @@ const HEADERS = [
   { key: 'attachmentSize', header: 'Size' },
   { key: 'fspAmendmentNumber', header: 'Amendment' },
   { key: 'consolidatedInd', header: 'Consolidated' },
-  { key: 'actions', header: '' },
+  // Synthetic action column — Carbon's built-in DataTable sort tries
+  // to sort by cell value (empty for actions), so opt it out via
+  // isSortable=false on this header alone.
+  { key: 'actions', header: '', isSortable: false },
 ];
 
-// 50 MB cap — matches the XML submission uploader.
-const MAX_BYTES = 50 * 1024 * 1024;
+// Shared attachment constraints (extension allow-list, 50-char
+// filename cap, 50 MB size cap) live in @/lib/attachmentConstraints
+// so every upload site enforces them identically.
+import {
+  ACCEPTED_ATTACHMENT_EXTENSIONS,
+  MAX_ATTACHMENT_FILENAME_LEN,
+  validateAttachmentFile,
+} from '@/lib/attachmentConstraints';
 
 // Inline spinner sized to fit the Save button's icon slot while the
 // upload is in flight. withOverlay={false} suppresses Carbon's
 // default full-viewport dim layer; `small` matches Button's icon area.
 const UploadingIcon = () => <Loading small withOverlay={false} description="" />;
 
-const AttachmentsTab: FC<Props> = ({ fspId }) => {
+const AttachmentsTab: FC<Props> = ({ fspId, refreshKey }) => {
   const [rows, setRows] = useState<FspAttachmentRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +77,7 @@ const AttachmentsTab: FC<Props> = ({ fspId }) => {
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [selectedTypeCode, setSelectedTypeCode] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [description, setDescription] = useState('');
   // FileUploader is uncontrolled; bumping this key forces a remount
   // when the user clears or after a successful save.
   const [uploaderResetKey, setUploaderResetKey] = useState(0);
@@ -97,7 +110,7 @@ const AttachmentsTab: FC<Props> = ({ fspId }) => {
     const cleanup = refreshList();
     return cleanup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fspId]);
+  }, [fspId, refreshKey]);
 
   const handleDownload = async (attachmentId: string, fallbackName: string) => {
     if (downloadingId) return;
@@ -119,6 +132,7 @@ const AttachmentsTab: FC<Props> = ({ fspId }) => {
   const resetDialog = () => {
     setSelectedTypeCode('');
     setSelectedFile(null);
+    setDescription('');
     setUploaderResetKey((k) => k + 1);
   };
 
@@ -161,13 +175,13 @@ const AttachmentsTab: FC<Props> = ({ fspId }) => {
     data?: { addedFiles?: Array<{ file: File }> },
   ) => {
     const file = filesFromCarbon(event, data)[0] ?? null;
-    if (file && file.size > MAX_BYTES) {
-      display({
-        kind: 'error',
-        title: 'File too large',
-        subtitle: `Max 50 MB (${(file.size / 1_048_576).toFixed(1)} MB)`,
-        timeout: 6000,
-      });
+    if (!file) {
+      setSelectedFile(null);
+      return;
+    }
+    const problem = validateAttachmentFile(file);
+    if (problem) {
+      display({ kind: 'error', ...problem, timeout: 0 });
       setSelectedFile(null);
       return;
     }
@@ -178,7 +192,7 @@ const AttachmentsTab: FC<Props> = ({ fspId }) => {
     if (!selectedTypeCode || !selectedFile) return;
     setUploading(true);
     try {
-      await uploadFspAttachment(fspId, selectedTypeCode, selectedFile);
+      await uploadFspAttachment(fspId, selectedTypeCode, selectedFile, description);
       setModalOpen(false);
       resetDialog();
       refreshList();
@@ -239,7 +253,7 @@ const AttachmentsTab: FC<Props> = ({ fspId }) => {
         <p className="fsp-info__placeholder">No attachments on this FSP.</p>
       ) : (
         <div className="bordered-table">
-          <DataTable rows={tableRows} headers={HEADERS}>
+          <DataTable rows={tableRows} headers={HEADERS} isSortable>
             {({ rows: r, headers, getTableProps, getHeaderProps, getRowProps }) => (
               <TableContainer>
                 <Table {...getTableProps()} size="md" useZebraStyles>
@@ -338,12 +352,30 @@ const AttachmentsTab: FC<Props> = ({ fspId }) => {
           <FileUploader
             key={`att-${uploaderResetKey}`}
             labelTitle="File *"
-            labelDescription="Max 50 MB."
+            labelDescription={
+              `Allowed: ${ACCEPTED_ATTACHMENT_EXTENSIONS.join(', ')}. `
+              + `File name max ${MAX_ATTACHMENT_FILENAME_LEN} chars. Max 50 MB.`
+            }
             buttonLabel="Browse"
             filenameStatus="edit"
             multiple={false}
+            // The accept array hands the OS file picker an extension
+            // allow-list so the user can't even see disallowed files
+            // in the dialog. Re-checked in onFileChange because
+            // drag-and-drop can bypass the picker entirely.
+            accept={[...ACCEPTED_ATTACHMENT_EXTENSIONS]}
             onChange={onFileChange}
             onDelete={() => setSelectedFile(null)}
+          />
+          <TextArea
+            id="attachment-description"
+            labelText="Description"
+            placeholder="Optional — short note about this attachment."
+            maxLength={2000}
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={uploading}
           />
         </Stack>
         <div className="fsp-species-modal__actions">

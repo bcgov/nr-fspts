@@ -53,6 +53,70 @@ public class RequestUtil {
     }
   }
 
+  /**
+   * Like {@link #getCurrentIdir()} but prefixed with the AD-style
+   * directory name — {@code IDIR\MAVILLEN}, {@code BCEID\some.user},
+   * etc. — matching what the legacy submission writer stamped into the
+   * ENTRY_USERID / UPDATE_USERID audit columns.
+   *
+   * <p>Provider is read from the {@code custom:idp_name} claim (BCGov
+   * FAM sets {@code IDIR} or {@code BCEIDBUSINESS}). Anything starting
+   * with "BCEID" maps to the {@code BCEID\} prefix; "IDIR" maps to
+   * {@code IDIR\}; unknown providers get no prefix (we'd rather be
+   * un-prefixed than lie about the directory).
+   *
+   * <p>Final value is truncated to {@link #LEGACY_AUDIT_USERID_MAX} so
+   * the prefixed string still fits the VARCHAR2(30) audit columns.
+   */
+  public static String getCurrentAuditUserId() {
+    try {
+      Jwt jwt = getCurrentJwt();
+      String username = jwt.getClaimAsString("custom:idp_username");
+      if (username == null || username.isBlank()) {
+        username = getCurrentUserName();
+      }
+      if (username == null || username.isBlank()) return "";
+      String prefix = resolveDirectoryPrefix(jwt);
+      return truncate(prefix + username.trim());
+    } catch (RuntimeException ex) {
+      return "";
+    }
+  }
+
+  /**
+   * Picks the {@code IDIR\} / {@code BCEID\} prefix in order of
+   * trustworthiness. Returns empty string if no signal is available
+   * (better to leave the audit value un-prefixed than guess wrong).
+   *
+   * <ol>
+   *   <li>{@code custom:idp_name} claim if BCGov FAM put it on the
+   *       access token ({@code IDIR} or {@code BCEIDBUSINESS}).</li>
+   *   <li>The {@code cognito:username} pattern Cognito generates for
+   *       federated identities — {@code idir_<guid>} or
+   *       {@code <guid>@idir} → IDIR; {@code bceid…} variants → BCEID.</li>
+   * </ol>
+   */
+  private static String resolveDirectoryPrefix(Jwt jwt) {
+    String idpName = jwt.getClaimAsString("custom:idp_name");
+    if (idpName != null && !idpName.isBlank()) {
+      String upper = idpName.trim().toUpperCase();
+      if ("IDIR".equals(upper)) return "IDIR\\";
+      if (upper.startsWith("BCEID")) return "BCEID\\";
+    }
+    String cognitoUsername = jwt.getClaimAsString("cognito:username");
+    if (cognitoUsername == null) cognitoUsername = jwt.getClaimAsString("username");
+    if (cognitoUsername != null) {
+      String lower = cognitoUsername.toLowerCase();
+      if (lower.startsWith("idir_") || lower.endsWith("@idir") || lower.contains("\\idir\\")) {
+        return "IDIR\\";
+      }
+      if (lower.startsWith("bceid") || lower.contains("bceidbusiness")) {
+        return "BCEID\\";
+      }
+    }
+    return "";
+  }
+
   private static String truncate(String value) {
     if (value == null) return "";
     return value.length() <= LEGACY_AUDIT_USERID_MAX

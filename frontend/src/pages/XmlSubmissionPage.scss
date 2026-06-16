@@ -86,6 +86,15 @@
   grid-column: 1 / -1;
 }
 
+// Triple-column variant for the Term & Dates panel — Effective Date,
+// Term, Expiry Date sit side-by-side on wide viewports. Below the
+// breakpoint they stack the same way the default 2-col variant does.
+.fsp-submit__fields--3col {
+  @media (min-width: 672px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 // Inline list (chip-style) used for plain string lists like
 // agreement-holder codes and district codes.
 .fsp-submit__chip-list {

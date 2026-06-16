@@ -25,6 +25,11 @@ import { Upload } from '@carbon/react/icons';
 import { useNavigate } from 'react-router-dom';
 
 import { useNotification } from '@/context/notification/useNotification';
+import {
+  ACCEPTED_ATTACHMENT_EXTENSIONS,
+  MAX_ATTACHMENT_FILENAME_LEN,
+  validateAttachmentFile,
+} from '@/lib/attachmentConstraints';
 import type { FspInformation } from '@/services/fspSearch';
 import {
   type SubmissionOutcome,
@@ -102,17 +107,22 @@ export default function XmlSubmissionPage() {
     data?: { addedFiles?: Array<{ file: File }> },
   ) => {
     const list = filesFromCarbon(event, data);
-    const oversize = list.find((f) => validateSize(f));
-    if (oversize) {
-      const reason = validateSize(oversize);
-      display({
-        kind: 'error',
-        title: 'Attachment too large',
-        subtitle: reason ?? `${oversize.name} exceeds the 50 MB cap`,
-        timeout: 6000,
-      });
-      setAttachments([]);
-      return;
+    // Reject the whole batch on the first constraint violation so the
+    // user fixes the offending file rather than silently uploading a
+    // partial set. validateAttachmentFile handles extension allow-list,
+    // 50-char filename cap, and the 50 MB size cap.
+    for (const file of list) {
+      const problem = validateAttachmentFile(file);
+      if (problem) {
+        display({
+          kind: 'error',
+          title: problem.title,
+          subtitle: `${file.name}: ${problem.subtitle}`,
+          timeout: 0,
+        });
+        setAttachments([]);
+        return;
+      }
     }
     setAttachments(list);
   };
@@ -288,10 +298,18 @@ export default function XmlSubmissionPage() {
             <FileUploader
               key={`att-${resetKey}`}
               labelTitle="Attached files"
-              labelDescription="Optional. Multiple files allowed. Max 50 MB per file."
+              labelDescription={
+                `Optional. Multiple files allowed. `
+                + `Allowed: ${ACCEPTED_ATTACHMENT_EXTENSIONS.join(', ')}. `
+                + `File name max ${MAX_ATTACHMENT_FILENAME_LEN} chars. `
+                + `Max 50 MB per file.`
+              }
               buttonLabel="Add files"
               multiple
               filenameStatus="edit"
+              // OS picker filters to the allow-list; onAttachmentsChange
+              // re-checks because drag-and-drop bypasses `accept`.
+              accept={[...ACCEPTED_ATTACHMENT_EXTENSIONS]}
               onChange={onAttachmentsChange}
               onDelete={() => setAttachments([])}
             />
@@ -400,6 +418,19 @@ const yesNo = (v: boolean | null | undefined): string => {
   return v ? 'Yes' : 'No';
 };
 
+// "5 years, 0 months" — mirrors the formatter on the FSP Information
+// read-only pane. Both halves blank → em-dash; one filled → the other
+// defaults to 0 so partial entry still reads cleanly.
+const formatTerm = (
+  years: number | null | undefined,
+  months: number | null | undefined,
+): string => {
+  const y = years ?? null;
+  const m = months ?? null;
+  if (y == null && m == null) return '—';
+  return `${y ?? 0} years, ${m ?? 0} months`;
+};
+
 function Field({
   label,
   value,
@@ -447,11 +478,11 @@ function PreviewSections({
     <Stack gap={6}>
       <Panel title="Submission Metadata">
         <dl className="fsp-submit__fields">
-          <Field label="Contact Name" value={dash(preview.metadata?.contactName)} />
-          <Field label="Telephone Number" value={dash(preview.metadata?.telephoneNumber)} />
-          <Field label="Email Address" value={dash(preview.metadata?.emailAddress)} />
+          <Field label="Contact name" value={dash(preview.metadata?.contactName)} />
+          <Field label="Telephone number" value={dash(preview.metadata?.telephoneNumber)} />
+          <Field label="Email address" value={dash(preview.metadata?.emailAddress)} />
           <Field
-            label="Declared Attachment Count"
+            label="Declared attachment count"
             value={dash(preview.metadata?.attachmentCount)}
           />
         </dl>
@@ -460,8 +491,8 @@ function PreviewSections({
       <Panel title="Plan Details">
         <dl className="fsp-submit__fields">
           <Field label="FSP ID" value={dash(preview.plan?.fspId)} />
-          <Field label="Plan Name" value={dash(preview.plan?.planName)} />
-          <Field label="Amendment Name" value={dash(preview.plan?.amendmentName)} />
+          <Field label="Plan name" value={dash(preview.plan?.planName)} />
+          <Field label="Amendment name" value={dash(preview.plan?.amendmentName)} />
           <Field
             label="Action"
             value={
@@ -470,33 +501,50 @@ function PreviewSections({
                 : dash(preview.plan?.actionCode)
             }
           />
-          <Field label="Approval Required" value={yesNo(preview.plan?.approvalRequired)} />
-          <Field label="FRPA 197 Election" value={yesNo(preview.plan?.frpa197)} />
+          <Field label="Approval required" value={yesNo(preview.plan?.approvalRequired)} />
+          <Field label="FRPA 197 election" value={yesNo(preview.plan?.frpa197)} />
           <Field label="Transitional FSP" value={yesNo(preview.plan?.transitional)} />
           <Field
-            label="Legal Doc Consolidated"
+            label="Legal doc consolidated"
             value={yesNo(preview.plan?.legalDocConsolidated)}
           />
-          <Field label="FDU Update" value={yesNo(preview.plan?.fduUpdate)} />
+          <Field label="FDU update" value={yesNo(preview.plan?.fduUpdate)} />
           <Field
-            label="Identified Areas Update"
+            label="Identified areas update"
             value={yesNo(preview.plan?.identifiedAreasUpdate)}
           />
           <Field
-            label="Stocking Standards Update"
+            label="Stocking standards update"
             value={yesNo(preview.plan?.stockingStandardUpdate)}
           />
         </dl>
       </Panel>
 
       <Panel title="Term & Dates">
-        <dl className="fsp-submit__fields">
-          <Field label="Plan Term" value={dash(preview.termAndDates?.planTermYears)} />
-          <Field label="Plan Term" value={dash(preview.termAndDates?.planTermMonths)} />
-          <Field label="Expiry Date" value={dash(preview.termAndDates?.planExpiryDate)} />
+        <dl className="fsp-submit__fields fsp-submit__fields--3col">
+          {/*
+            Effective Date | Term | Expiry Date on a single row — same
+            shape and ordering as the Information read-only pane. Term
+            collapses Years + Months into "X years, Y months".
+          */}
+          <Field
+            label="Effective date"
+            value={dash(preview.termAndDates?.planStartDate)}
+          />
+          <Field
+            label="Term"
+            value={formatTerm(
+              preview.termAndDates?.planTermYears,
+              preview.termAndDates?.planTermMonths,
+            )}
+          />
+          <Field
+            label="Expiry date"
+            value={dash(preview.termAndDates?.planExpiryDate)}
+          />
           {preview.termAndDates?.amendmentComment && (
             <Field
-              label="Amendment Comment"
+              label="Amendment comment"
               value={preview.termAndDates.amendmentComment}
               wide
             />
@@ -588,14 +636,29 @@ function PreviewSections({
         {preview.stockingStandards.length === 0 ? (
           <p className="fsp-submit__empty">No new stocking standards regimes declared.</p>
         ) : (
+          // Columns mirror the FSP Stocking Standards selection table —
+          // ID, Name, Objective, BGC, Layers. Status / Effective Date /
+          // Default / Amendment Number are on the FSP table but aren't
+          // in the submission XML (they're set during persistence) so
+          // they're not surfaced here.
           <SummaryTable
             headers={[
-              { key: 'name', header: 'Regime Name' },
+              { key: 'standardsId', header: 'Standards ID' },
+              { key: 'name', header: 'Standards name' },
+              { key: 'objective', header: 'Objective' },
+              { key: 'bgc', header: 'BGC' },
               { key: 'layerCount', header: 'Layers' },
             ]}
             rows={preview.stockingStandards.map((s, i) => ({
               id: `ss-${i}`,
+              standardsId: dash(s.id),
               name: dash(s.name),
+              objective: dash(s.objective),
+              bgc: s.bgcSummary
+                ? s.bgcCount > 1
+                  ? `${s.bgcSummary} (${s.bgcCount})`
+                  : s.bgcSummary
+                : '—',
               layerCount: String(s.layerCount),
             }))}
           />
@@ -699,14 +762,72 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+// Human-friendly labels for the backend validation codes. Source of
+// truth: every `SubmissionValidationError.of(...)` call site in
+// backend/src/main/java/.../submission/. Keep in sync when new codes
+// are added on either side — unknown codes render as the raw code,
+// which is the right failure mode (never a blank cell).
+const VALIDATION_CODE_LABELS: Record<string, string> = {
+  // Format detection
+  FORMAT_UNRECOGNIZED: 'Unrecognized file format',
+  // XML pipeline
+  XML_READ: 'XML read failure',
+  XML_PARSE: 'XML parse error',
+  XSD: 'Schema validation error',
+  JAXB: 'XML content error',
+  // GeoJSON pipeline
+  GEOJSON_PARSE: 'GeoJSON parse error',
+  GEOJSON_SCHEMA: 'GeoJSON schema error',
+  GEOJSON_FIELD: 'GeoJSON field error',
+  GEOJSON_MISSING_FSP: 'GeoJSON missing FSP block',
+  GEOJSON_UNRECOGNIZED: 'GeoJSON shape not recognized',
+  // Geometry
+  GEOMETRY_MISSING: 'Geometry missing',
+  GEOMETRY_UNSUPPORTED: 'Unsupported geometry type',
+  GEOMETRY_PARSE_ERROR: 'Geometry parse error',
+  GEOMETRY_INVALID: 'Invalid geometry topology',
+  GEOMETRY_OUTSIDE_BC: 'Geometry outside BC boundary',
+  SRS_UNSUPPORTED: 'Unsupported coordinate system',
+  SIMPLIFY_INVALID: 'Simplification produced invalid geometry',
+  // actionCode preconditions (Amendment / Replacement)
+  FSP_ID_REQUIRED: 'fspID required',
+  FSP_NO_APPROVED_AMENDMENT: 'FSP has no Approved or In-Effect amendment',
+  // Licence registry
+  LICENCE_NOT_FOUND: 'Unknown licence number',
+  // Plan term vs expiry XOR
+  PLAN_TERM_OR_EXPIRY_EXCLUSIVE: 'Plan term and expiry both supplied',
+  // Header content rules
+  PLAN_NAME_REQUIRED: 'planName required',
+  AGREEMENT_HOLDER_REQUIRED: 'Agreement holder required',
+  DUPLICATE_AGREEMENT_HOLDER: 'Duplicate agreement holder',
+  DISTRICT_REQUIRED: 'District required',
+  UNKNOWN_DISTRICT: 'Unknown district code',
+  DUPLICATE_DISTRICT: 'Duplicate district',
+  DUPLICATE_FDU_NAME: 'Duplicate FDU name',
+  DUPLICATE_IDENTIFIED_AREA_NAME: 'Duplicate identified-area name',
+  INVALID_LEGISLATION_TYPE: 'Invalid legislationTypeCode',
+};
+
+const labelFor = (code: string): string => VALIDATION_CODE_LABELS[code] ?? code;
+
+// Xerces tags every XSD failure with a "cvc-…:" constraint id (e.g.
+// "cvc-enumeration-valid: Value 'X' is not facet-valid…",
+// "cvc-type.3.1.3: The value 'Y'…"). Useful for debugging the schema
+// but unhelpful in the UI — strip the prefix and any whitespace so the
+// human-readable sentence is what shows in the Detail column. The raw
+// API response still carries the unmodified message.
+const CVC_PREFIX = /^cvc-[a-z0-9.\-]+:\s*/i;
+const cleanDetail = (message: string | null | undefined): string =>
+  (message ?? '').replace(CVC_PREFIX, '').trim();
+
 function ErrorTable({ errors }: { errors: SubmissionValidationError[] }) {
   return (
     <StructuredListWrapper isCondensed>
       <StructuredListHead>
         <StructuredListRow head>
           <StructuredListCell head>Location</StructuredListCell>
-          <StructuredListCell head>Code</StructuredListCell>
-          <StructuredListCell head>Message</StructuredListCell>
+          <StructuredListCell head>Issue</StructuredListCell>
+          <StructuredListCell head>Detail</StructuredListCell>
         </StructuredListRow>
       </StructuredListHead>
       <StructuredListBody>
@@ -715,10 +836,8 @@ function ErrorTable({ errors }: { errors: SubmissionValidationError[] }) {
             <StructuredListCell>
               {e.path ? <code>{e.path}</code> : '—'}
             </StructuredListCell>
-            <StructuredListCell>
-              <code>{e.code}</code>
-            </StructuredListCell>
-            <StructuredListCell>{e.message}</StructuredListCell>
+            <StructuredListCell>{labelFor(e.code)}</StructuredListCell>
+            <StructuredListCell>{cleanDetail(e.message)}</StructuredListCell>
           </StructuredListRow>
         ))}
       </StructuredListBody>

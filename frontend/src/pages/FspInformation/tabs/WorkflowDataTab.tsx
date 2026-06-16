@@ -15,7 +15,6 @@ import { type FC, type ReactNode, useEffect, useState } from 'react';
 
 import DdmDecisionEditModal, {
   type DdmDecisionSubmitPayload,
-  type DdmReversePayload,
 } from '@/components/DdmDecisionEditModal';
 import ExtensionDecisionEditModal, {
   type ExtensionDecisionSubmitPayload,
@@ -35,6 +34,24 @@ import {
 
 interface Props {
   fspId: string;
+  /**
+   * Parent-supplied monotonic counter bumped after any mutation
+   * (Submit, Extend, …). Threaded into the workflow-state fetch
+   * deps so the local {@code state.fspStatusCode} flips DFT→SUB
+   * after a successful submit, which in turn unlocks every Edit
+   * gate this tab derives from {@code state.fspStatusCode} +
+   * {@code state.roles} (Review pencils, OTBH Offered, DDM, etc.).
+   */
+  refreshKey?: number;
+  /**
+   * Called after any successful workflow mutation (review milestone,
+   * DDM decision, DDM reverse, extension decision, OTBH offered/heard).
+   * The proc returns {@code FspWorkflowState} not {@code FspInformation},
+   * so the parent uses this callback to re-fetch the FSP DTO and bump
+   * its own refreshKey — without it the header status pill, amendments
+   * dropdown, and sibling tabs would stay stale until manual reload.
+   */
+  onWorkflowChanged?: () => void;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -152,13 +169,13 @@ const enableDdmEdit = (
 ): boolean => {
   const s = (status ?? '').toUpperCase();
   if (!roles.isDecisionMaker && !roles.isAdministrator) return false;
-  // Administrator override: always reachable, even in DFT/OHS. Matches the
-  // legacy canUpdateApproved spirit (Admin can always edit a decided FSP)
-  // and unlocks the Reverse Decision path the DDM modal already implements
-  // for DFT → SUB via SAVE_DDM_DFT (completed='N').
-  if (roles.isAdministrator) return true;
-  if (s === 'DFT' || s === 'OHS') return false;
-  return s === 'SUB' || canUpdateApproved(status, roles);
+  // DDM Decision tile is editable only when the FSP is awaiting a
+  // decision (SUB) or has already been approved (APP). The rule
+  // applies to BOTH DecisionMaker and Administrator — Admin no longer
+  // gets a blanket override that would let them edit in DFT / OHS /
+  // INE / REJ. Reverse-decision flows that previously relied on
+  // opening the tile in INE / DFT are blocked by this change.
+  return s === 'SUB' || s === 'APP';
 };
 
 const enableExtensionEdit = (
@@ -205,32 +222,12 @@ const extensionExists = (
 
 // ─── Tile components ────────────────────────────────────────────────
 
-const StatusSummaryTile: FC<{ state: FspWorkflowState }> = ({ state }) => (
-  <section className="fsp-info__tile fsp-info__tile--full">
-    <header className="fsp-info__tile-header">
-      <h2 className="fsp-info__section-title">Workflow Status</h2>
-      {statusTag(state.fspStatusCode)}
-    </header>
-    <dl className="fsp-info__field-list">
-      <Field
-        label="Amendment Number"
-        value={dash(state.fspAmendmentNumber)}
-      />
-      <Field
-        label="Submission Date"
-        value={dash(state.ddmDecision.submissionDate)}
-      />
-      <Field
-        label="Decision Date"
-        value={dash(state.ddmDecision.decisionDate)}
-      />
-      <Field
-        label="Effective Date"
-        value={dash(state.ddmDecision.effectiveDate)}
-      />
-    </dl>
-  </section>
-);
+// StatusSummaryTile was removed — the FSP-level status pill it
+// rendered duplicates the canonical one in the page header
+// (FspInformation/index.tsx). Its dl block (Amendment / Submission /
+// Decision / Effective dates) was also redundant: the header carries
+// the amendment picker, and DdmDecisionTile surfaces the same date
+// fields below.
 
 const ReviewDetailsTile: FC<{
   items: FspReviewItem[];
@@ -248,7 +245,7 @@ const ReviewDetailsTile: FC<{
             <TableRow>
               <TableHeader>Milestone</TableHeader>
               <TableHeader>Status</TableHeader>
-              <TableHeader>Reviewed By</TableHeader>
+              <TableHeader>Reviewed by</TableHeader>
               <TableHeader>Date</TableHeader>
               <TableHeader>Comment</TableHeader>
               {canEdit && (
@@ -363,8 +360,9 @@ const DdmDecisionTile: FC<{
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
+        {/* Status pill removed — the FSP-level status it surfaces is
+            already the canonical header pill in FspInformation. */}
         <h2 className="fsp-info__section-title">DDM Decision</h2>
-        {hasData && statusTag(decision.statusCode)}
       </header>
       {canEdit && (
         <div className="fsp-info__tab-actions">
@@ -380,14 +378,14 @@ const DdmDecisionTile: FC<{
       )}
       {hasData ? (
         <dl className="fsp-info__field-list">
-          <Field label="Decided By" value={dash(decision.name)} />
+          <Field label="Decided by" value={dash(decision.name)} />
           <Field
-            label="Submission Date"
+            label="Submission date"
             value={dash(decision.submissionDate)}
           />
-          <Field label="Decision Date" value={dash(decision.decisionDate)} />
+          <Field label="Decision date" value={dash(decision.decisionDate)} />
           <Field
-            label="Effective Date"
+            label="Effective date"
             value={dash(decision.effectiveDate)}
           />
           <Field label="Comment" value={dash(decision.comment)} />
@@ -426,17 +424,17 @@ const ExtensionRequestTile: FC<{
       )}
       <dl className="fsp-info__field-list">
         <Field
-          label="Extension Number"
+          label="Extension number"
           value={dash(extensionIds ?? decision.extensionId)}
         />
         <Field
-          label="Submission Date"
+          label="Submission date"
           value={dash(decision.submissionDate)}
         />
-        <Field label="Decision By" value={dash(decision.name)} />
-        <Field label="Decision Date" value={dash(decision.decisionDate)} />
+        <Field label="Decision by" value={dash(decision.name)} />
+        <Field label="Decision date" value={dash(decision.decisionDate)} />
         <Field
-          label="Effective Date"
+          label="Effective date"
           value={dash(decision.effectiveDate)}
         />
         <Field label="Comment" value={dash(decision.comment)} />
@@ -456,7 +454,7 @@ const ExtensionRequestTile: FC<{
  * Edit/Add buttons currently log + no-op (and the success path simply
  * re-fetches state).
  */
-const WorkflowDataTab: FC<Props> = ({ fspId }) => {
+const WorkflowDataTab: FC<Props> = ({ fspId, refreshKey, onWorkflowChanged }) => {
   const [state, setState] = useState<FspWorkflowState | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -487,7 +485,7 @@ const WorkflowDataTab: FC<Props> = ({ fspId }) => {
     return () => {
       cancelled = true;
     };
-  }, [fspId]);
+  }, [fspId, refreshKey]);
 
   if (loading && !state) {
     return (
@@ -521,14 +519,14 @@ const WorkflowDataTab: FC<Props> = ({ fspId }) => {
   const otbhRows: OtbhRow[] = [
     {
       key: 'offered',
-      label: 'OTBH Offered',
+      label: 'OTBH offered',
       completedInd: state.otbh.offeredDate ? 'Y' : 'N',
       date: state.otbh.offeredDate,
       comment: state.otbh.offeredComment,
     },
     {
       key: 'heard',
-      label: 'OTBH Heard',
+      label: 'OTBH heard',
       completedInd: state.otbh.heardDate ? 'Y' : 'N',
       date: state.otbh.heardDate,
       comment: state.otbh.heardComment,
@@ -550,6 +548,7 @@ const WorkflowDataTab: FC<Props> = ({ fspId }) => {
       comments: payload.comment,
     });
     setState(updated);
+    onWorkflowChanged?.();
     display({
       kind: 'success',
       title: 'Review milestone updated.',
@@ -580,6 +579,7 @@ const WorkflowDataTab: FC<Props> = ({ fspId }) => {
       comments: payload.comment,
     });
     setState(updated);
+    onWorkflowChanged?.();
     display({
       kind: 'success',
       title:
@@ -588,37 +588,6 @@ const WorkflowDataTab: FC<Props> = ({ fspId }) => {
           : payload.decision === 'DFT'
             ? 'Clarification requested.'
             : 'Decision recorded: Rejected.',
-      timeout: 6000,
-    });
-  };
-
-  /**
-   * Reverse path — proc accepts completed='N' for SAVE_DDM_* but the
-   * specific action it expects depends on the current status:
-   *   APP → SAVE_DDM_APP(N) → SUB
-   *   INE → SAVE_DDM_APP(N) → DFT
-   *   DFT → SAVE_DDM_DFT(N) → SUB
-   *   REJ → SAVE_DDM_REJ(N) → SUB
-   */
-  const handleDdmReverse = async (payload: DdmReversePayload) => {
-    const s = payload.currentStatusCode.toUpperCase();
-    const action =
-      s === 'APP' || s === 'INE'
-        ? 'SAVE_DDM_APP'
-        : s === 'DFT'
-          ? 'SAVE_DDM_DFT'
-          : 'SAVE_DDM_REJ';
-    const updated = await submitFspWorkflowAction(fspId, {
-      action,
-      fspAmendmentNumber: state.fspAmendmentNumber ?? undefined,
-      fspStatusCode: s,
-      fspAmendmentCode: state.fspAmendmentCode ?? undefined,
-      completed: 'N',
-    });
-    setState(updated);
-    display({
-      kind: 'success',
-      title: 'DDM decision reversed.',
       timeout: 6000,
     });
   };
@@ -646,6 +615,7 @@ const WorkflowDataTab: FC<Props> = ({ fspId }) => {
       comments: payload.comment,
     });
     setState(updated);
+    onWorkflowChanged?.();
     display({
       kind: 'success',
       title:
@@ -672,6 +642,7 @@ const WorkflowDataTab: FC<Props> = ({ fspId }) => {
       comments: payload.comment,
     });
     setState(updated);
+    onWorkflowChanged?.();
     display({
       kind: 'success',
       title:
@@ -684,8 +655,6 @@ const WorkflowDataTab: FC<Props> = ({ fspId }) => {
 
   return (
     <div className="fsp-info__tiles-grid">
-      <StatusSummaryTile state={state} />
-
       <ReviewDetailsTile
         items={state.reviewItems}
         canEdit={reviewEditable}
@@ -740,7 +709,6 @@ const WorkflowDataTab: FC<Props> = ({ fspId }) => {
         currentStatusCode={state.fspStatusCode}
         onClose={() => setDdmModalOpen(false)}
         onSubmit={handleDdmSave}
-        onReverse={handleDdmReverse}
       />
 
       <ExtensionDecisionEditModal

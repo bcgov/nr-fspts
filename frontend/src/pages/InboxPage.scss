@@ -1,10 +1,14 @@
-// Mirrors src/pages/SearchPage.scss almost verbatim — only the BEM
-// prefix differs (fsp-inbox__* vs fsp-search__*). Keeping them as
-// parallel files rather than a shared module makes future per-page
-// tweaks easier without one-page changes leaking into the other.
+// Mirrors src/pages/SearchPage.scss — flat page layout, white form
+// Tile with gray widget surfaces, full-bleed gray results panel, no
+// Carbon Grid/Column wrappers. See SearchPage.scss for the reasoning
+// behind each chunk; this file keeps the same structure with
+// fsp-inbox__* prefixes.
 
-.fsp-inbox-grid {
-  row-gap: 2rem;
+.fsp-inbox-page {
+  display: flex;
+  flex-direction: column;
+  padding-block-start: 1rem;
+  min-block-size: calc(100vh - 3rem);
 }
 
 .fsp-inbox__header {
@@ -19,21 +23,35 @@
   }
 }
 
+.fsp-inbox__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--cds-text-secondary);
+}
+
 .fsp-inbox__tile {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 
-  // Bump the field surface to layer-02 (white) so input widgets stand
-  // out against the Tile's default gray — same trick SearchPage uses.
-  --cds-field: var(--cds-field-02);
-  --cds-field-hover: var(--cds-field-hover-02);
+  // White tile surface, gray widgets — same inverted-panel pattern as
+  // .fsp-search__tile / .agreement-workspace-tabs.
+  --cds-layer: var(--cds-layer-02);
+  --cds-field: var(--cds-field-01);
+  --cds-field-hover: var(--cds-field-hover-01);
+  --cds-border-subtle: var(--cds-border-subtle-01);
+  background-color: var(--cds-layer-02);
+}
+
+// Trim the Tile's bottom padding so the gray banner can sit close to
+// the Search button row.
+.fsp-inbox__tile.cds--tile {
+  padding-block-end: 0.5rem;
 }
 
 .fsp-inbox__form {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0.75rem;
 }
 
 .fsp-inbox__field-grid {
@@ -66,7 +84,6 @@
 }
 
 // Agreement Holder field — flexbox for input + icon-button-trigger.
-// Same trick as fsp-search__holder-field.
 .fsp-inbox__holder-field {
   display: flex;
   gap: 0.25rem;
@@ -82,11 +99,7 @@
   flex: 0 0 auto;
 }
 
-// Map View trigger in the trailing actions column. Rendered as a
-// <button> (not an <a>) because the destination URL isn't known until
-// the user clicks — we fetch the per-row extent first, then open the
-// real arcmaps URL in a new tab. Strip the native button chrome so it
-// reads as a Carbon inline link.
+// Map View trigger in the trailing actions column.
 .fsp-inbox__map-link {
   appearance: none;
   background: none;
@@ -118,8 +131,7 @@
   min-block-size: calc(100vh - 3rem);
 }
 
-// Pagination-fetch in-flight overlay — dim the table, park a spinner
-// in the middle. Same pattern as fsp-search__table*.
+// Pagination-fetch in-flight overlay.
 .fsp-inbox__table-container {
   position: relative;
 }
@@ -138,4 +150,89 @@
   justify-content: center;
   background-color: rgba(255, 255, 255, 0.35);
   z-index: 1;
+}
+
+// Results section — banner + table + pagination as one connected
+// flex column block.
+.fsp-inbox__results {
+  display: flex;
+  flex-direction: column;
+}
+
+// Gray banner directly attached to the table top.
+.fsp-inbox__results-header {
+  background-color: var(--cds-layer-01);
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--cds-text-primary);
+}
+
+.fsp-inbox__results-count {
+  display: inline-block;
+}
+
+// Drop the table's outer border/rounded-corner wrapper — flat
+// full-width grid, no card chrome.
+.fsp-inbox__table .cds--data-table-container {
+  padding-block-start: 0;
+  background: transparent;
+}
+
+// Zebra striping — odd rows pure white, even rows light gray. We're
+// not using Carbon's `useZebraStyles` prop because its tint depends
+// on theme tokens that don't render as a strong-enough contrast in
+// this app's white-tile setup; explicit nth-child rules give us the
+// exact two values the user asked for.
+.fsp-inbox__table .cds--data-table tbody tr:nth-child(odd),
+.fsp-inbox__table .cds--data-table tbody tr:nth-child(odd) td {
+  background-color: #ffffff;
+}
+
+.fsp-inbox__table .cds--data-table tbody tr:nth-child(even),
+.fsp-inbox__table .cds--data-table tbody tr:nth-child(even) td {
+  background-color: var(--cds-layer-01);
+}
+
+// Footer / pagination bar — white surface with no internal dividers.
+.fsp-inbox__results .cds--pagination,
+.fsp-inbox__results .cds--pagination * {
+  border-color: transparent !important;
+}
+
+.fsp-inbox__results .cds--pagination {
+  background-color: var(--cds-layer-02);
+}
+
+// Pagination: Items per page sits left at its natural position;
+// "1-X of N items" range indicator pushes to the right edge of
+// .cds--pagination__left so it lands flush with the page-selector.
+.fsp-inbox__results .cds--pagination__left {
+  flex: 1 1 auto;
+}
+
+.fsp-inbox__results .cds--pagination__items-count {
+  margin-inline-start: auto;
+}
+
+// Full-bleed results section. A direct child of .fsp-inbox-page
+// (flex column), so the only horizontal inset is .cds--content's
+// 1.5rem padding — negative margin escapes it. Gray background
+// matches the banner so any empty viewport space below the
+// pagination footer reads as one continuous panel.
+.fsp-inbox__results-fullbleed {
+  background-color: var(--cds-layer-01);
+  margin-block-start: 1rem;
+  margin-inline: -1.5rem;
+  flex: 1 1 auto;
+}
+
+// Make .cds--content a flex column on the Inbox page so the gray
+// fullbleed panel can flex-grow to fill remaining viewport height
+// below the pagination footer. :has() scopes the change to this page
+// only.
+.cds--content:has(.fsp-inbox__results-fullbleed) {
+  display: flex;
+  flex-direction: column;
+  min-block-size: calc(100vh - 3rem);
 }

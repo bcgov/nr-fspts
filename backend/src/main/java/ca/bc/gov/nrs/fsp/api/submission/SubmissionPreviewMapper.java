@@ -155,22 +155,36 @@ public class SubmissionPreviewMapper {
     try {
       List<Map<String, Object>> rows = codeListsDao.getOrgUnitFiltered("");
       for (Map<String, Object> row : rows) {
-        // The cursor returns ORG_UNIT_CODE, ORG_UNIT_NO, ORG_UNIT_NAME
-        // — column names vary slightly between drivers (case + alias),
-        // so check both upper/lower and fall back on position via the
-        // LinkedHashMap order (matches how CodeListsService resolves
-        // CodeOption descriptions).
-        String code = firstNonBlank(row, "ORG_UNIT_CODE", "org_unit_code");
-        String no = firstNonBlank(row, "ORG_UNIT_NO", "org_unit_no");
-        String name = firstNonBlank(row, "ORG_UNIT_NAME", "org_unit_name");
-        if (code != null) {
-          out.put(code, new OrgUnitInfo(no, name));
-        }
+        // The cursor's column aliases are misleading: it returns
+        //   code        → ORG_UNIT_NO          (the numeric id, not the code)
+        //   description → ORG_UNIT_CODE ' - ' ORG_UNIT_NAME
+        //   effective_date, expiry_date
+        // — verified in FSP_CODE_LISTS.get_org_unit_filtered. Read by
+        // position (matches CodeListsService.toCodeOption's positional
+        // fallback) so a driver-side case / alias change can't break it,
+        // then split the description on " - " to recover the real code
+        // and the human name. Keep the full description as the name
+        // fallback so districts that don't follow the convention still
+        // render something useful.
+        List<Object> values = List.copyOf(row.values());
+        String orgUnitNo = values.size() > 0 ? blankToNull(values.get(0)) : null;
+        String description = values.size() > 1 ? blankToNull(values.get(1)) : null;
+        if (description == null) continue;
+        int sep = description.indexOf(" - ");
+        String code = sep > 0 ? description.substring(0, sep).trim() : description.trim();
+        String name = sep > 0 ? description.substring(sep + 3).trim() : description.trim();
+        out.put(code, new OrgUnitInfo(orgUnitNo, name));
       }
     } catch (RuntimeException e) {
       log.debug("Org-units lookup failed — districts will render with code only", e);
     }
     return out;
+  }
+
+  private static String blankToNull(Object o) {
+    if (o == null) return null;
+    String s = o.toString().trim();
+    return s.isEmpty() ? null : s;
   }
 
   private record OrgUnitInfo(String orgUnitNo, String orgUnitName) {}
@@ -238,9 +252,51 @@ public class SubmissionPreviewMapper {
   private static SubmissionPreview.StockingStandardSummary toStockingStandardSummary(
       FSPStandardsType s) {
     int layerCount = s.getStandardLayerList() == null ? 0 : s.getStandardLayerList().size();
+
+    // The XML carries a BGCAssociationListType per regime; each list
+    // wraps one or more BGCType entries. Flatten into a CSV of
+    // "Zone Subzone Variant" labels (matching the FSP Stocking
+    // Standards table's BGC column format) and surface the count
+    // alongside.
+    List<String> bgcLabels = new java.util.ArrayList<>();
+    if (s.getBgcList() != null) {
+      for (var assoc : s.getBgcList()) {
+        if (assoc == null || assoc.getBgc() == null) continue;
+        for (var bgc : assoc.getBgc()) {
+          if (bgc == null) continue;
+          String label = bgcLabel(bgc);
+          if (label != null && !label.isBlank()) bgcLabels.add(label);
+        }
+      }
+    }
+    String bgcSummary = bgcLabels.isEmpty() ? null : String.join(", ", bgcLabels);
+
+    String idText = s.getLicenseeStandardsRegimeID() == null
+        ? null : String.valueOf(s.getLicenseeStandardsRegimeID());
+
     return new SubmissionPreview.StockingStandardSummary(
+        idText,
         s.getStandardsRegimeName(),
+        s.getStandardsObjective(),
+        bgcSummary,
+        bgcLabels.size(),
         layerCount);
+  }
+
+  /** "CWH dm 1" or "IDFdk3" depending on which subfields are populated. */
+  private static String bgcLabel(
+      ca.bc.gov.nrs.fsp.api.submission.parser.generated.BGCType bgc) {
+    StringBuilder sb = new StringBuilder();
+    appendIfPresent(sb, bgc.getBgcZone(), null);
+    appendIfPresent(sb, bgc.getBgcSubzone(), null);
+    appendIfPresent(sb, bgc.getBgcVariant(), null);
+    return sb.length() == 0 ? null : sb.toString();
+  }
+
+  private static void appendIfPresent(StringBuilder sb, String value, String separator) {
+    if (value == null || value.isBlank()) return;
+    if (sb.length() > 0 && separator != null) sb.append(separator);
+    sb.append(value.trim());
   }
 
   // ── Helpers ──────────────────────────────────────────────────────
@@ -291,6 +347,7 @@ public class SubmissionPreviewMapper {
       case I -> "Initial submission";
       case U -> "Update (draft)";
       case A -> "Amendment";
+      case R -> "Replacement";
     };
   }
 }

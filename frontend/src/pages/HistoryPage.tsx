@@ -28,9 +28,9 @@ const dash = (value: string | null | undefined): string =>
 const HEADERS = [
   { key: 'amendmentNumber', header: 'Amnd #' },
   { key: 'extensionNumber', header: 'Ext #' },
-  { key: 'eventDateTime', header: 'Event Date / Time' },
+  { key: 'eventDateTime', header: 'Event date / time' },
   { key: 'userId', header: 'User ID' },
-  { key: 'approvalRequestIndicator', header: 'Appr Rqd' },
+  { key: 'approvalRequestIndicator', header: 'Appr rqd' },
   { key: 'event', header: 'Event' },
   { key: 'description', header: 'Description' },
   { key: 'submissionId', header: 'Submission ID' },
@@ -152,7 +152,7 @@ const HistoryPage: FC = () => {
               </RadioButtonGroup>
             </header>
             <div className="bordered-table">
-              <DataTable rows={tableRows} headers={HEADERS}>
+              <DataTable rows={tableRows} headers={HEADERS} isSortable>
                 {({ rows: r, headers, getTableProps, getHeaderProps, getRowProps }) => (
                   <TableContainer>
                     <Table {...getTableProps()} size="md" useZebraStyles>
