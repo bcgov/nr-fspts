@@ -868,6 +868,26 @@ export async function copyStandardRegime(
   return res.json() as Promise<StandardRegimeDetail>;
 }
 
+/**
+ * DELETE /api/v1/fsp/{fspId}/standards/{regimeId} — remove a standards
+ * regime from the FSP via FSP_500_STOCKING_STANDARDS.MAINLINE(DELETE).
+ * Mirrors the legacy FSP550 Delete button: the regime row must itself
+ * be in DFT (Draft) status — gated client-side, also enforced proc-side.
+ */
+export async function deleteStandardRegime(
+  fspId: string,
+  regimeId: string,
+): Promise<void> {
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Standards delete failed (${res.status})`);
+  }
+}
+
 export function getStandardRegimeDetail(
   fspId: string,
   regimeId: string,

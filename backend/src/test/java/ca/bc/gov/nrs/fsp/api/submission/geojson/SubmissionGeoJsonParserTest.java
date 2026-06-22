@@ -77,6 +77,59 @@ class SubmissionGeoJsonParserTest {
   }
 
   @Test
+  void accepts_replacement_action_code() {
+    // Regression guard: R (replacement) must be a valid actionCode for
+    // GeoJSON, at parity with the XML/XSD path (I/U/A/R). The shape
+    // validator's allow-list previously omitted R, so a replacement
+    // submitted as GeoJSON was wrongly rejected even though the rest of
+    // the pipeline (parseActionCode → ActionCodeType.R → RPL mapping →
+    // replace persistence) handles it.
+    String doc = """
+        {
+          "type": "FeatureCollection",
+          "fsp": {
+            "fspId": "96",
+            "planName": "Replacement Plan",
+            "actionCode": "R",
+            "planHolders": ["00001271"],
+            "districts": ["DMK"]
+          },
+          "features": []
+        }""";
+    SubmissionXmlParser.ParseOutcome outcome = parser.parse(doc.getBytes());
+
+    assertThat(outcome.errors())
+        .as("R is a valid actionCode and the rest of the header is complete")
+        .isEmpty();
+    ForestStewardshipPlanType plan =
+        outcome.submission().getSubmissionItem().getForestStewardshipPlan();
+    assertThat(plan.getActionCode()).isEqualTo(ActionCodeType.R);
+  }
+
+  @Test
+  void rejects_unknown_action_code() {
+    // The allow-list still rejects codes outside I/U/A/R — guards
+    // against accidentally widening it to anything fromValue() accepts.
+    String doc = """
+        {
+          "type": "FeatureCollection",
+          "fsp": {
+            "fspId": "96",
+            "planName": "X",
+            "actionCode": "Z",
+            "planHolders": ["00001271"],
+            "districts": ["DMK"]
+          },
+          "features": []
+        }""";
+    SubmissionXmlParser.ParseOutcome outcome = parser.parse(doc.getBytes());
+
+    assertThat(outcome.errors())
+        .extracting(SubmissionValidationError::code)
+        .contains("GEOJSON_SCHEMA");
+  }
+
+  @Test
   void rejects_non_feature_collection_root() {
     SubmissionXmlParser.ParseOutcome outcome =
         parser.parse("{\"type\":\"Feature\"}".getBytes());

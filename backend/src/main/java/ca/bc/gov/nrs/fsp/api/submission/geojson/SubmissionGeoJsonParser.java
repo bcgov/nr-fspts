@@ -105,7 +105,7 @@ public class SubmissionGeoJsonParser {
 
   // ── Schema-style shape validation ───────────────────────────────
 
-  private static final Set<String> VALID_ACTION_CODES = Set.of("I", "U", "A");
+  private static final Set<String> VALID_ACTION_CODES = Set.of("I", "U", "A", "R");
   private static final Set<String> VALID_ENTITY_TYPES =
       Set.of(ENTITY_FDU, ENTITY_IDENTIFIED_AREA);
 
@@ -125,7 +125,8 @@ public class SubmissionGeoJsonParser {
     if (h.actionCode() == null || h.actionCode().isBlank()) {
       errors.add(SubmissionValidationError.of(
           "fsp.actionCode", "GEOJSON_SCHEMA",
-          "actionCode is required (I = initial, U = update, A = amendment)"));
+          "actionCode is required (I = initial, U = update, A = amendment,"
+              + " R = replacement)"));
     } else if (!VALID_ACTION_CODES.contains(h.actionCode())) {
       errors.add(SubmissionValidationError.of(
           "fsp.actionCode", "GEOJSON_SCHEMA",
@@ -489,7 +490,7 @@ public class SubmissionGeoJsonParser {
     } catch (IllegalArgumentException e) {
       errors.add(SubmissionValidationError.of(
           "fsp.actionCode", "GEOJSON_FIELD",
-          "actionCode must be I, U, or A (got \"" + code + "\")"));
+          "actionCode must be I, U, A, or R (got \"" + code + "\")"));
       return null;
     }
   }

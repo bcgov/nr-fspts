@@ -799,6 +799,7 @@ const VALIDATION_CODE_LABELS: Record<string, string> = {
   // Header content rules
   PLAN_NAME_REQUIRED: 'planName required',
   AGREEMENT_HOLDER_REQUIRED: 'Agreement holder required',
+  AGREEMENT_HOLDER_NOT_FOUND: 'Unknown agreement holder client number',
   DUPLICATE_AGREEMENT_HOLDER: 'Duplicate agreement holder',
   DISTRICT_REQUIRED: 'District required',
   UNKNOWN_DISTRICT: 'Unknown district code',

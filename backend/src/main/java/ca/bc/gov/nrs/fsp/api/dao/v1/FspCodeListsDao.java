@@ -25,6 +25,15 @@ public interface FspCodeListsDao {
    */
   List<Map<String, Object>> getFspAttachmentTypeCodes();
 
+  /**
+   * Unfiltered {@code typeCode → description} map for every row in
+   * {@code FSP_ATTACHMENT_TYPE_CODE} (active AND retired). Backs the
+   * per-attachment category label so legacy rows carrying a retired
+   * code still resolve to their human-friendly description rather
+   * than falling back to the bare code. Cached server-side.
+   */
+  Map<String, String> getFspAttachmentTypeCodeMap();
+
   List<Map<String, Object>> getOrgUnitFiltered(String pOrgUnitFilter);
 
   List<Map<String, Object>> getDistrictNo();

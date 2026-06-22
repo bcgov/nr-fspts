@@ -1,13 +1,15 @@
-import {BrowserRouter, Navigate, Route, Routes} from 'react-router-dom';
-import type {ReactNode} from 'react';
+import {BrowserRouter, Navigate, Route, Routes, useLocation} from 'react-router-dom';
+import type {FC, ReactNode} from 'react';
 
 import Layout from './components/Layout';
 import {useAuth} from './context/auth/useAuth';
 import {useOrg} from './context/org/useOrg';
+import {defaultRouteForUser, isPathAllowedForUser} from './routes/access';
 
 // Pages
 import LandingPage from './pages/LandingPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
+import ForbiddenPage from './pages/ForbiddenPage';
 import SearchPage from './pages/SearchPage';
 import StandardsSearchPage from './pages/StandardsSearchPage';
 import InboxPage from './pages/InboxPage';
@@ -24,6 +26,26 @@ import './App.css';
 // Wraps a page in the Carbon UI Shell. Used inline so the route table reads
 // like REPT's — `element={withLayout(<Page />)}` — without a per-page edit.
 const withLayout = (node: ReactNode) => <Layout>{node}</Layout>;
+
+/**
+ * Per-role route guard. Wraps any authenticated route — if the user's
+ * role doesn't permit the current pathname, swap the page for
+ * {@link ForbiddenPage} (still inside the Carbon UI Shell so the
+ * SideNav lets them click to a page they DO have access to). Sits
+ * inside the BrowserRouter so it can read the resolved pathname via
+ * useLocation; an HOC that wrapped the routes array externally
+ * wouldn't have that hook context.
+ */
+const RoleGuarded: FC<{ children: ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  const location = useLocation();
+  if (!isPathAllowedForUser(user, location.pathname)) {
+    return <Layout><ForbiddenPage /></Layout>;
+  }
+  return <>{children}</>;
+};
+
+const guarded = (node: ReactNode) => <RoleGuarded>{node}</RoleGuarded>;
 
 // ── App ────────────────────────────────────────────────────
 export default function App() {
@@ -65,10 +87,11 @@ export default function App() {
         <Routes>
           {/* Login flow lands here after Amplify exchanges ?code=&state=;
               the LandingPage's IDIR/BCeID buttons go through Cognito and
-              return here. Forward straight to Search — Welcome page was
-              dropped. */}
-          <Route path="/auth/callback"          element={<Navigate to="/search" replace />} />
-          <Route path="/"                       element={<Navigate to="/search" replace />} />
+              return here. Default route is role-aware — BCeID submitters
+              don't have access to /search and would just bounce off the
+              guard if we hard-coded /search here. */}
+          <Route path="/auth/callback"          element={<Navigate to={defaultRouteForUser(user)} replace />} />
+          <Route path="/"                       element={<Navigate to={defaultRouteForUser(user)} replace />} />
           {/* The picker is reachable post-selection too in case the user
               wants to switch orgs without signing out. Rendered without
               Layout so the forest-image split-screen treatment matches
@@ -76,13 +99,13 @@ export default function App() {
           <Route path="/org-select"             element={<OrgSelectionPage />} />
 
           {/* Search */}
-          <Route path="/search"                 element={withLayout(<SearchPage />)} />
+          <Route path="/search"                 element={guarded(withLayout(<SearchPage />))} />
 
           {/* Stocking Standards Search (FSP501) */}
-          <Route path="/standards-search"       element={withLayout(<StandardsSearchPage />)} />
+          <Route path="/standards-search"       element={guarded(withLayout(<StandardsSearchPage />))} />
 
           {/* Inbox */}
-          <Route path="/inbox"                  element={withLayout(<InboxPage />)} />
+          <Route path="/inbox"                  element={guarded(withLayout(<InboxPage />))} />
 
           {/* FSP — Attachments / Standards / FDU / Identified Areas /
               Workflow used to be top-level routes; they're now mounted
@@ -90,30 +113,31 @@ export default function App() {
               stays inside one consolidated screen. Amend / Extension /
               Replace remain separate destinations (the legacy treats
               them as dedicated sub-pages, not tabs). */}
-          <Route path="/fsp/information"        element={withLayout(<FspInformationPage />)} />
+          <Route path="/fsp/information"        element={guarded(withLayout(<FspInformationPage />))} />
           {/* Amendment + Replacement Description, New Extension Request,
               and Extension Summary are all dialogs now — no standalone
               routes. */}
-          <Route path="/fsp/history"            element={withLayout(<HistoryPage />)} />
+          <Route path="/fsp/history"            element={guarded(withLayout(<HistoryPage />))} />
 
           {/* Data Submission — accepts both XML and GeoJSON. URL kept
               generic so it survives format additions. */}
-          <Route path="/data-submission"        element={withLayout(<XmlSubmissionPage />)} />
+          <Route path="/data-submission"        element={guarded(withLayout(<XmlSubmissionPage />))} />
           {/* BCeID-only read view: every FSP for the active forest-client.
               Routed for everyone so an IDIR support user can also view it
               when impersonating; the SideNav only surfaces it for BCeID. */}
-          <Route path="/submission-history"     element={withLayout(<SubmissionHistoryPage />)} />
+          <Route path="/submission-history"     element={guarded(withLayout(<SubmissionHistoryPage />))} />
           {/* Backwards-compat redirect for any stored /data-submission/xml link */}
           <Route path="/data-submission/xml"    element={<Navigate to="/data-submission" replace />} />
 
           {/* Admin */}
-          <Route path="/admin/district-notification" element={withLayout(<DistrictNotificationPage />)} />
+          <Route path="/admin/district-notification" element={guarded(withLayout(<DistrictNotificationPage />))} />
 
           {/* Reports */}
-          <Route path="/reports/jcrs"           element={withLayout(<JcrsReportsPage />)} />
+          <Route path="/reports/jcrs"           element={guarded(withLayout(<JcrsReportsPage />))} />
 
-          {/* Catch-all */}
-          <Route path="*"                       element={<Navigate to="/search" replace />} />
+          {/* Catch-all — route to whatever the user's role lands on by
+              default rather than blindly to /search. */}
+          <Route path="*"                       element={<Navigate to={defaultRouteForUser(user)} replace />} />
         </Routes>
       ) : (
         <Routes>

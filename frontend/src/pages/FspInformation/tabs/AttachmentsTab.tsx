@@ -19,7 +19,9 @@ import {
 import { Add, Download } from '@carbon/icons-react';
 import { type FC, useEffect, useState } from 'react';
 
+import { useAuth } from '@/context/auth/useAuth';
 import { useNotification } from '@/context/notification/useNotification';
+import { canEditFsp } from '@/routes/access';
 import {
   type CodeOption,
   downloadFspAttachment,
@@ -33,6 +35,12 @@ interface Props {
   fspId: string;
   /** Parent-bumped counter that forces a refetch on Submit/Extend/etc. */
   refreshKey?: number;
+  /**
+   * Current FSP status code — gates the Add Attachment button via
+   * canEditFsp. Submitter-only users on SUB and View-Only on any
+   * status get a read-only tab.
+   */
+  fspStatusCode?: string | null;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -65,7 +73,11 @@ import {
 // default full-viewport dim layer; `small` matches Button's icon area.
 const UploadingIcon = () => <Loading small withOverlay={false} description="" />;
 
-const AttachmentsTab: FC<Props> = ({ fspId, refreshKey }) => {
+const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
+  const { user } = useAuth();
+  // Submitter-only on SUB and View-Only never see add affordances.
+  // Other roles fall through to existing behaviour.
+  const canEdit = canEditFsp(user, fspStatusCode);
   const [rows, setRows] = useState<FspAttachmentRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -240,14 +252,16 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey }) => {
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
         <h2 className="fsp-info__section-title">Attachments</h2>
-        <Button
-          kind="tertiary"
-          size="sm"
-          renderIcon={Add}
-          onClick={openAddDialog}
-        >
-          Add Attachment
-        </Button>
+        {canEdit && (
+          <Button
+            kind="tertiary"
+            size="sm"
+            renderIcon={Add}
+            onClick={openAddDialog}
+          >
+            Add Attachment
+          </Button>
+        )}
       </header>
       {tableRows.length === 0 ? (
         <p className="fsp-info__placeholder">No attachments on this FSP.</p>

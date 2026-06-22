@@ -131,7 +131,7 @@ public class WorkflowService {
             r.pFnrCompletedInd(), r.pFnrEntryUserId(),
             r.pFnrEntryTimestamp(), r.pFnrComment()),
         new WorkflowState.ReviewItem(
-            "RS", "Results & strategies reviewed by C&E",
+            "RS", "Results & strategies reviewed",
             r.pRsCompletedInd(), r.pRsEntryUserId(),
             r.pRsEntryTimestamp(), r.pRsComment()),
         new WorkflowState.ReviewItem(

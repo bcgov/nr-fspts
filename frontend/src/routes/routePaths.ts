@@ -9,8 +9,6 @@ import {
 } from '@carbon/icons-react';
 import type {ComponentType} from 'react';
 
-import type {IdpProviderType} from '@/context/auth/types';
-
 // Each menu entry is either a leaf (renders as <SideNavLink>) or a parent
 // with children (renders as <SideNavMenu> + <SideNavMenuItem>s). Top-level
 // `roles` gate the whole branch; if absent, the entry is shown to every
@@ -103,36 +101,54 @@ const NAV: MenuItem[] = [
 ];
 
 /**
- * BCeID submitters get a deliberately narrow nav — they have no business
- * touching admin or DDM-side screens, and IDIR-flavoured pages like
- * Search/Inbox/Reports either don't apply or carry confusing extra
+ * Submitter-only users get a deliberately narrow nav — they have no
+ * business touching admin or DDM-side screens, and pages like Search /
+ * Inbox / Reports either don't apply or carry confusing extra
  * affordances. Restricting the menu to what they actually do prevents
  * support tickets and keeps the SPA's screen logic from having to gate
- * every IDIR-only widget by idpProvider.
+ * every privileged widget separately.
+ *
+ * <p>The "submitter-only" determination is made by the caller (via
+ * {@code isSubmitterOnly} in routes/access.ts) so this list stays
+ * declarative — IDP doesn't enter into it. An IDIR user with only the
+ * Submitter role sees the same minimal nav as a BCeID submitter.
  */
-const BCEID_ALLOWED_IDS = new Set(['Data Submission', 'Submission History']);
+const SUBMITTER_ONLY_ALLOWED_IDS = new Set(['Data Submission', 'Submission History']);
 
 /**
- * BCeID-only nav entries. IDIR users have the same data available via
- * the FSP Search / Inbox flows with richer affordances, so the per-org
- * Submission History view is hidden from their menu (the route itself
- * stays mounted so a support user can still link into it directly).
+ * Nav entries that only make sense when the user can submit on behalf
+ * of a forest-client org. Hidden from users without the Submitter role
+ * — the underlying route stays mounted so a support user can still
+ * link into it directly.
  */
-const BCEID_ONLY_IDS = new Set(['Submission History']);
+const SUBMITTER_ROLE_REQUIRED_IDS = new Set(['Submission History']);
 
 // Discourage tree-shaking of the unused icon. (TS otherwise complains.)
 void ChartLineData;
 
+/**
+ * @param userRoles  the user's canonical FSPTS role list.
+ * @param submitterOnly  true when the user has no privileged role
+ *     (e.g. Admin / Reviewer / DecisionMaker). Limits the menu to the
+ *     submitter-only short list. Determined by {@code isSubmitterOnly}
+ *     in routes/access.ts; passed in so this module stays free of
+ *     auth-context dependencies.
+ */
 export function getMenuEntries(
   userRoles: string[],
-  idpProvider?: IdpProviderType,
+  submitterOnly: boolean,
 ): MenuItem[] {
   const has = (required?: string[]) =>
     !required || required.length === 0 || required.some((r) => userRoles.includes(r));
   const roleFiltered = NAV.filter((item) => has(item.roles));
-  if (idpProvider === 'BCEIDBUSINESS') {
-    return roleFiltered.filter((item) => BCEID_ALLOWED_IDS.has(item.id));
+  if (submitterOnly) {
+    return roleFiltered.filter((item) => SUBMITTER_ONLY_ALLOWED_IDS.has(item.id));
   }
-  // IDIR / unknown provider: drop the BCeID-only entries.
-  return roleFiltered.filter((item) => !BCEID_ONLY_IDS.has(item.id));
+  // Privileged role holders: drop entries that only make sense for
+  // users who can act as a submitter.
+  const hasSubmitterRole = userRoles.includes('FSPTS_SUBMITTER');
+  return roleFiltered.filter(
+    (item) =>
+      hasSubmitterRole || !SUBMITTER_ROLE_REQUIRED_IDS.has(item.id),
+  );
 }

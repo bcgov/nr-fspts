@@ -78,7 +78,8 @@ public class DistrictCodeValidator {
         errors.add(SubmissionValidationError.of(
             "forestStewardshipPlan/districtCodeList/districtCode[" + i + "]",
             "UNKNOWN_DISTRICT",
-            "District code \"" + key + "\" does not match any ORG_UNIT row."));
+            "District code \"" + key + "\" is not a valid district -"
+                + " verify the district code."));
       }
     }
     return errors;

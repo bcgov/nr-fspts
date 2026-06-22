@@ -174,13 +174,18 @@ test.describe('FSP Inbox', () => {
     await expect(page.getByRole('cell', { name: 'Inbox Plan 0' })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'Inbox Plan 9' })).toBeVisible();
 
-    // Default sort is FSP ID desc per InboxPage's SORT_BY / SORT_DIR
-    // constants. Pinning this in the test means a future change that
-    // drops or flips the sort param fails loudly here.
+    // Default sort is the two-column status/submission-date sort the
+    // legacy inbox used — pinned via InboxPage's SORT_BY / SORT_DIR
+    // constants. The backend's InboxService.buildComparator parses
+    // these as comma-delimited lists. Status first puts the "live"
+    // statuses (Submitted, OHS, Rejected) near the top, and the
+    // submission date breaks ties so the most recent FSP in each
+    // status group leads. Pinning this in the test means a future
+    // change that drops or flips either column fails loudly here.
     expect(inboxCalls.length).toBeGreaterThan(0);
     const first = inboxCalls[0];
-    expect(first.get('sortBy')).toBe('fspId');
-    expect(first.get('sortDir')).toBe('desc');
+    expect(first.get('sortBy')).toBe('fspStatusDesc,planSubmissionDate');
+    expect(first.get('sortDir')).toBe('desc,desc');
     expect(first.get('page')).toBe('0');
     expect(first.get('size')).toBe('10');
   });

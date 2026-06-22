@@ -12,13 +12,21 @@ import {
   TableSelectRow,
   Tag,
 } from '@carbon/react';
-import {Add, Checkmark, Copy} from '@carbon/icons-react';
+import {Add, Checkmark, Copy, TrashCan} from '@carbon/icons-react';
 import {type FC, useCallback, useEffect, useState} from 'react';
 
+import AddExistingStandardModal from '@/components/AddExistingStandardModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import NewStandardModal from '@/components/NewStandardModal';
+import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
-import {copyStandardRegime, type FspStandardRow, getFspStandards} from '@/services/fspSearch';
+import {canEditFsp} from '@/routes/access';
+import {
+  copyStandardRegime,
+  deleteStandardRegime,
+  type FspStandardRow,
+  getFspStandards,
+} from '@/services/fspSearch';
 
 import StandardRegimeDetailPanel from './StandardRegimeDetailPanel';
 
@@ -84,7 +92,9 @@ const StockingStandardsTab: FC<Props> = ({
   // picked yet; setting it back to null collapses the panel.
   const [selectedRegimeId, setSelectedRegimeId] = useState<string | null>(null);
   const [newStandardOpen, setNewStandardOpen] = useState(false);
+  const [addExistingOpen, setAddExistingOpen] = useState(false);
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const { display } = useNotification();
 
   // Same gating shape the legacy FSP500.isAddNewEnabled used:
@@ -95,14 +105,21 @@ const StockingStandardsTab: FC<Props> = ({
   //     / REJ too — useful for fixing a mid-workflow gap.)
   // Statuses where nobody can add: CAN, RET, EXP, DEL — those are
   // end-of-life states with no editable amendment to attach to.
+  const { user } = useAuth();
+  // Master role gate — Submitter-only on SUB and View-Only never see
+  // mutation affordances. AND-ed with the existing per-status gates
+  // below so admins keep their broader capabilities on non-terminal
+  // statuses.
+  const canEdit = canEditFsp(user, fspStatusCode);
   const status = (fspStatusCode ?? '').toUpperCase();
   const TERMINAL_STATUSES = ['CAN', 'RET', 'EXP', 'DEL'];
   const canCreate =
-    status === 'DFT'
-    || (!!isAdmin && status !== '' && !TERMINAL_STATUSES.includes(status));
+    canEdit
+    && (status === 'DFT'
+      || (!!isAdmin && status !== '' && !TERMINAL_STATUSES.includes(status)));
   // Copy is strictly Draft-only — once an FSP has been submitted /
   // approved we don't let the user spawn a side-copy from this UI.
-  const canCopy = status === 'DFT';
+  const canCopy = canEdit && status === 'DFT';
 
   const refetch = useCallback(() => {
     if (!fspId) return;
@@ -155,12 +172,21 @@ const StockingStandardsTab: FC<Props> = ({
     }
   }, [rows, selectedRegimeId]);
 
-  // Selected regime is required for Copy — pull it off the rows list so
-  // we can disable the button (rather than hide it) when nothing's
-  // picked. Keeps the action discoverable.
+  // Selected regime is required for Copy / Delete — pull it off the
+  // rows list so we can disable the button (rather than hide it) when
+  // nothing's picked. Keeps the action discoverable.
   const selectedRow = selectedRegimeId
     ? (rows ?? []).find((r) => r.standardsRegimeId === selectedRegimeId) ?? null
     : null;
+
+  // Delete strictly follows the legacy FSP550 rule
+  // (StandardsButtonManager.getEnableDelete): the REGIME row's own
+  // status must be DFT. FSP-level status isn't checked — the proc
+  // re-validates anyway. Hide the button entirely while the FSP is
+  // in a terminal state so users can't even try.
+  const canDelete = canEdit && status !== '' && !TERMINAL_STATUSES.includes(status);
+  const selectedIsDraft =
+    selectedRow?.standardsRegimeStatus?.trim().toLowerCase() === 'draft';
 
   const performCopy = async () => {
     if (!selectedRegimeId) return;
@@ -180,9 +206,22 @@ const StockingStandardsTab: FC<Props> = ({
     });
   };
 
+  const performDelete = async () => {
+    if (!selectedRegimeId) return;
+    await deleteStandardRegime(fspId, selectedRegimeId);
+    setSelectedRegimeId(null);
+    refetch();
+    display({
+      kind: 'success',
+      title: 'Stocking standard deleted.',
+      timeout: 5000,
+    });
+  };
+
   // Shared header — same Section title + optional New Standard / Copy
-  // Standard buttons — rendered for loading / empty / loaded states so
-  // the user can always get to the create flow even on an empty FSP.
+  // Standard / Delete Standard buttons — rendered for loading / empty
+  // / loaded states so the user can always get to the create flow even
+  // on an empty FSP.
   const headerNode = (
     <header className="fsp-info__tile-header">
       <h2 className="fsp-info__section-title">Stocking Standards</h2>
@@ -196,6 +235,27 @@ const StockingStandardsTab: FC<Props> = ({
             disabled={!selectedRegimeId}
           >
             Copy Standard
+          </Button>
+        )}
+        {canDelete && (
+          <Button
+            kind="danger--tertiary"
+            size="sm"
+            renderIcon={TrashCan}
+            onClick={() => setDeleteConfirmOpen(true)}
+            disabled={!selectedRegimeId || !selectedIsDraft}
+          >
+            Delete Standard
+          </Button>
+        )}
+        {canCreate && (
+          <Button
+            kind="tertiary"
+            size="sm"
+            renderIcon={Add}
+            onClick={() => setAddExistingOpen(true)}
+          >
+            Add Existing Standard
           </Button>
         )}
         {canCreate && (
@@ -227,6 +287,19 @@ const StockingStandardsTab: FC<Props> = ({
     />
   );
 
+  const addExistingStandardModal = (
+    <AddExistingStandardModal
+      open={addExistingOpen}
+      fspId={fspId}
+      amendmentNumber={amendmentNumber}
+      onClose={() => setAddExistingOpen(false)}
+      onAdded={(newRegimeId) => {
+        refetch();
+        if (newRegimeId) setSelectedRegimeId(newRegimeId);
+      }}
+    />
+  );
+
   const copyConfirmModal = (
     <ConfirmationModal
       open={copyConfirmOpen}
@@ -249,6 +322,28 @@ const StockingStandardsTab: FC<Props> = ({
     </ConfirmationModal>
   );
 
+  const deleteConfirmModal = (
+    <ConfirmationModal
+      open={deleteConfirmOpen}
+      onClose={() => setDeleteConfirmOpen(false)}
+      heading="Delete Stocking Standard"
+      confirmLabel="Delete"
+      danger
+      errorTitle="Failed to delete standard"
+      onConfirm={performDelete}
+    >
+      <p>
+        Permanently remove{' '}
+        <strong>
+          {selectedRow?.standardsRegimeName?.trim()
+            || `Regime ${selectedRow?.standardsRegimeId ?? ''}`}
+        </strong>{' '}
+        from this FSP? All of its layers, species, and BGC site series
+        will be deleted. This cannot be undone.
+      </p>
+    </ConfirmationModal>
+  );
+
   if (loading && !rows) {
     return (
       <>
@@ -259,7 +354,9 @@ const StockingStandardsTab: FC<Props> = ({
           </div>
         </section>
         {newStandardModal}
+        {addExistingStandardModal}
         {copyConfirmModal}
+        {deleteConfirmModal}
       </>
     );
   }
@@ -271,7 +368,9 @@ const StockingStandardsTab: FC<Props> = ({
           <p className="fsp-info__error">{error}</p>
         </section>
         {newStandardModal}
+        {addExistingStandardModal}
         {copyConfirmModal}
+        {deleteConfirmModal}
       </>
     );
   }
@@ -285,7 +384,9 @@ const StockingStandardsTab: FC<Props> = ({
           </p>
         </section>
         {newStandardModal}
+        {addExistingStandardModal}
         {copyConfirmModal}
+        {deleteConfirmModal}
       </>
     );
   }
@@ -402,10 +503,17 @@ const StockingStandardsTab: FC<Props> = ({
           fspId={fspId}
           amendmentNumber={amendmentNumber}
           regimeId={selectedRegimeId}
+          // readOnly cuts every inline mutation in the panel (Overview
+          // Edit, Layers add/edit/delete, BGC add/edit/delete) when
+          // the user can't edit the FSP. !canEdit covers Submitter-on-
+          // SUB and View-Only across all statuses.
+          readOnly={!canEdit}
         />
       )}
       {newStandardModal}
+      {addExistingStandardModal}
       {copyConfirmModal}
+      {deleteConfirmModal}
     </>
   );
 };

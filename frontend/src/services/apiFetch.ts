@@ -62,21 +62,32 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 }
 
 /**
- * Pulls the user-facing message out of an error response body. The
- * backend's {@code RestExceptionHandler} returns
- * {@code {status, timestamp, message, ...}} JSON for handled errors —
- * we only want {@code message} on the wire to the toast subtitle.
- * Falls back to the raw text for non-JSON bodies (e.g. a plain 502 from
- * a proxy or an unhandled exception that surfaces as text).
+ * Pulls the user-facing message out of an error response body. Handles
+ * both shapes the backend emits:
+ * <ul>
+ *   <li>Spring's RFC7807 {@code ProblemDetail} —
+ *       {@code {type, title, status, detail, instance}} — where the
+ *       human-readable text is in {@code detail} (falling back to
+ *       {@code title}).</li>
+ *   <li>The legacy {@code RestExceptionHandler} shape —
+ *       {@code {status, timestamp, message, ...}}.</li>
+ * </ul>
+ * We try {@code detail}, then {@code message}, then {@code title} so the
+ * toast subtitle gets a clean sentence rather than the raw JSON. Falls
+ * back to the raw text for non-JSON bodies (e.g. a plain 502 from a
+ * proxy or an unhandled exception that surfaces as text).
  */
 export async function readErrorMessage(res: Response): Promise<string> {
   const raw = await res.text().catch(() => '');
   if (!raw) return '';
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === 'object' && 'message' in parsed) {
-      const msg = (parsed as { message: unknown }).message;
-      if (typeof msg === 'string' && msg.trim()) return msg.trim();
+    if (parsed && typeof parsed === 'object') {
+      const fields = parsed as Record<string, unknown>;
+      for (const key of ['detail', 'message', 'title'] as const) {
+        const val = fields[key];
+        if (typeof val === 'string' && val.trim()) return val.trim();
+      }
     }
   } catch {
     // Body wasn't JSON — fall through and surface the raw text.

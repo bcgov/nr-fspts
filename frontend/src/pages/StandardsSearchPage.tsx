@@ -15,6 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Tag,
   TextInput,
   Tile,
 } from '@carbon/react';
@@ -65,6 +66,22 @@ interface ResultRow {
   expiryDate: string;
   fspIdList: string;
 }
+
+// Carbon Tag colour by status description — matches the palette used
+// on the FSP Search / Inbox tables so a user crossing between screens
+// reads the same status the same way. Unknown values fall back to
+// gray via the lookup default.
+const STATUS_TAG_TYPE_BY_DESC: Record<
+  string,
+  'green' | 'blue' | 'gray' | 'red' | 'warm-gray' | 'purple'
+> = {
+  Approved: 'green',
+  Submitted: 'blue',
+  Draft: 'gray',
+  Rejected: 'red',
+  Expired: 'warm-gray',
+  Replaced: 'purple',
+};
 
 const HEADERS = [
   { key: 'standardsRegimeId', header: 'Standards ID' },
@@ -628,11 +645,26 @@ const StandardsSearchPage: FC = () => {
                                     className="fsp-search__row--selectable"
                                     onClick={() => source && openRegimeDetail(source)}
                                   >
-                                    {row.cells.map((cell) => (
-                                      <TableCell key={cell.id}>
-                                        {formatCellText(cell.value as string)}
-                                      </TableCell>
-                                    ))}
+                                    {row.cells.map((cell) => {
+                                      const value = cell.value as string | null | undefined;
+                                      if (cell.info.header === 'status' && value) {
+                                        return (
+                                          <TableCell key={cell.id}>
+                                            <Tag
+                                              type={STATUS_TAG_TYPE_BY_DESC[value] ?? 'gray'}
+                                              size="sm"
+                                            >
+                                              {value}
+                                            </Tag>
+                                          </TableCell>
+                                        );
+                                      }
+                                      return (
+                                        <TableCell key={cell.id}>
+                                          {formatCellText(value as string)}
+                                        </TableCell>
+                                      );
+                                    })}
                                   </TableRow>
                                 );
                               })}

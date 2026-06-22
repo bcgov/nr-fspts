@@ -1,6 +1,7 @@
 package ca.bc.gov.nrs.fsp.api.dao.v1.impl;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.FduWriteDao;
+import ca.bc.gov.nrs.fsp.api.dao.v1.Sil21ClientSearchDao;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -11,13 +12,16 @@ import org.springframework.stereotype.Repository;
 public class FduWriteDaoImpl implements FduWriteDao {
 
   private final JdbcTemplate jdbc;
+  private final Sil21ClientSearchDao sil21ClientSearchDao;
   private final Long configuredSkey;
   private volatile Long cachedFduFeatureClassSkey;
 
   public FduWriteDaoImpl(
       JdbcTemplate jdbc,
+      Sil21ClientSearchDao sil21ClientSearchDao,
       @Value("${fsp.feature-class.forest-development-unit-skey:#{null}}") Long configuredSkey) {
     this.jdbc = jdbc;
+    this.sil21ClientSearchDao = sil21ClientSearchDao;
     this.configuredSkey = configuredSkey;
   }
 
@@ -150,6 +154,20 @@ public class FduWriteDaoImpl implements FduWriteDao {
         "SELECT COUNT(*) FROM PROV_FOREST_USE WHERE FOREST_FILE_ID = ?",
         Integer.class, normaliseLicence(forestFileId));
     return count != null && count > 0;
+  }
+
+  @Override
+  public boolean clientExists(String clientNumber) {
+    if (clientNumber == null || clientNumber.isBlank()) return false;
+    // PROXY_FSA_FSP_READ_WRITE_USER doesn't have a direct SELECT grant
+    // on THE.FOREST_CLIENT — a bare query trips ORA-00942. Reuse the
+    // already-granted PKG_SIL21_CLIENT_SEARCH proc the SIL21 client
+    // picker drives. Filtering on just p_client_number returns 1 row
+    // for an exact match, 0 otherwise. The other four filters stay
+    // empty (the proc treats null = no filter).
+    return !sil21ClientSearchDao.getClientSearch(
+        clientNumber.trim(), "", "", "", ""
+    ).isEmpty();
   }
 
   /**
