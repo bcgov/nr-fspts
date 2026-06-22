@@ -531,3 +531,58 @@ nav.#{variables.$bcgov-prefix}--side-nav,
 .cds--icon-tooltip > .cds--popover {
   display: none;
 }
+
+/* ------------------ Dark-mode zebra striping ------------------
+Two zebra problems show up only under the g100 dark theme:
+
+1. Carbon's own `useZebraStyles` paints even rows with `$layer-accent`
+   (#393939), which sits a long way above the table base `$layer`
+   (#262626) — in dark mode that gap reads as a harsh, banded stripe
+   rather than the subtle alternation it is in light mode.
+2. A few pages (Search / Inbox / District Notification) roll their own
+   zebra with a hard-coded `#ffffff` on odd rows because Carbon's tint
+   wasn't strong enough on a white tile. In dark mode those rows glare
+   pure white.
+
+Fix both by retinting the stripe to a single subtle value that sits
+just above the dark table base. Scoping every rule under
+`:root[data-carbon-theme='g100']` keeps light mode untouched and adds
+the extra attribute-selector specificity needed to win over the
+page-level hand-rolled rules.
+--------------------------------------------------------------- */
+:root[data-carbon-theme='g100'] {
+  // Subtle lift over --cds-layer-01 (#262626); gentle enough to read as
+  // an alternation, not a band.
+  --fsp-zebra-stripe: #2c2c2c;
+
+  // 1 — Carbon's built-in zebra: soften the even-row fill and the
+  // borders Carbon also paints with $layer-accent (otherwise the
+  // horizontal divider lines stay bright even after the fill calms).
+  .cds--data-table--zebra
+    tbody
+    tr:not(.cds--parent-row):not(.cds--data-table--selected):nth-child(even) {
+    background-color: var(--fsp-zebra-stripe);
+  }
+  .cds--data-table--zebra
+    tbody
+    tr:not(.cds--parent-row):nth-child(even)
+    td {
+    border-block-start-color: var(--fsp-zebra-stripe);
+    border-block-end-color: var(--fsp-zebra-stripe);
+  }
+
+  // 2 — Hand-rolled page zebra: replace the pure-white odd rows with the
+  // dark table base, and align even rows to the shared subtle stripe.
+  .fsp-search__table,
+  .fsp-inbox__table,
+  .fsp-district__table {
+    .cds--data-table tbody tr:nth-child(odd),
+    .cds--data-table tbody tr:nth-child(odd) td {
+      background-color: var(--cds-layer-01);
+    }
+    .cds--data-table tbody tr:nth-child(even),
+    .cds--data-table tbody tr:nth-child(even) td {
+      background-color: var(--fsp-zebra-stripe);
+    }
+  }
+}

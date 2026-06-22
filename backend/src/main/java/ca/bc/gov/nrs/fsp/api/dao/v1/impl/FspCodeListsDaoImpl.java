@@ -7,6 +7,9 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,14 +60,81 @@ public class FspCodeListsDaoImpl extends AbstractStoredProcedureDao implements F
   }
 
   @Override public List<Map<String, Object>> getFspAttachmentTypeCodes() {
-    // SYSDATE BETWEEN effective_date AND expiry_date keeps the list to
-    // active codes only. ORDER BY description so the dropdown reads
-    // alphabetically rather than by an arbitrary insert order.
-    return jdbcTemplate.queryForList(
-        "SELECT fsp_attachment_type_code AS code, description "
+    // Active codes only (SYSDATE BETWEEN effective_date AND expiry_date).
+    // Derived from the cached full snapshot — see allAttachmentTypeRows()
+    // for the cache. Filter is done in-memory so the same cached result
+    // covers both this method (dropdown) and getFspAttachmentTypeCodeMap()
+    // (label lookup; needs ALL rows so retired codes still resolve their
+    // human-friendly description on legacy attachment rows).
+    Instant now = Instant.now();
+    return allAttachmentTypeRows().stream()
+        .filter(r -> withinEffectiveWindow(r, now))
+        .map(r -> {
+          Map<String, Object> out = new LinkedHashMap<>(2);
+          out.put("code", r.get("code"));
+          out.put("description", r.get("description"));
+          return out;
+        })
+        .toList();
+  }
+
+  /**
+   * Unfiltered {@code typeCode → description} map for every row in
+   * {@code FSP_ATTACHMENT_TYPE_CODE} (including retired ones). Used by
+   * the AttachmentsService to label each attachment row with the
+   * database description instead of a hardcoded string. Backed by the
+   * same 30-min cache as {@link #getFspAttachmentTypeCodes()} — one
+   * Oracle round-trip per pod every 30 minutes covers both flows.
+   */
+  public Map<String, String> getFspAttachmentTypeCodeMap() {
+    Map<String, String> out = new HashMap<>();
+    for (Map<String, Object> row : allAttachmentTypeRows()) {
+      Object code = row.get("code");
+      Object desc = row.get("description");
+      if (code != null) {
+        out.put(code.toString(), desc == null ? null : desc.toString());
+      }
+    }
+    return Map.copyOf(out);
+  }
+
+  // ── Cached attachment-type lookup ────────────────────────────────
+  // FSP_ATTACHMENT_TYPE_CODE is reference data that changes on the
+  // order of DBA-coordinated releases (i.e. essentially never). Cache
+  // the full row set for 30 minutes so neither the upload-dialog
+  // dropdown nor the per-attachment label render fires a query per
+  // call. List.copyOf snapshots are immutable, so concurrent readers
+  // are safe without locking.
+  private static final Duration ATTACHMENT_TYPE_TTL = Duration.ofMinutes(30);
+  private volatile List<Map<String, Object>> attachmentTypeRowsCache = null;
+  private volatile Instant attachmentTypeRowsCachedAt = Instant.EPOCH;
+
+  private List<Map<String, Object>> allAttachmentTypeRows() {
+    List<Map<String, Object>> cached = attachmentTypeRowsCache;
+    if (cached != null
+        && Duration.between(attachmentTypeRowsCachedAt, Instant.now())
+            .compareTo(ATTACHMENT_TYPE_TTL) < 0) {
+      return cached;
+    }
+    List<Map<String, Object>> fresh = jdbcTemplate.queryForList(
+        "SELECT fsp_attachment_type_code AS code, description, "
+            + "       effective_date, expiry_date "
             + "  FROM the.fsp_attachment_type_code "
-            + " WHERE SYSDATE BETWEEN effective_date AND expiry_date "
             + " ORDER BY description");
+    attachmentTypeRowsCache = List.copyOf(fresh);
+    attachmentTypeRowsCachedAt = Instant.now();
+    return attachmentTypeRowsCache;
+  }
+
+  private static boolean withinEffectiveWindow(Map<String, Object> row, Instant now) {
+    java.sql.Timestamp eff = (java.sql.Timestamp) row.get("EFFECTIVE_DATE");
+    java.sql.Timestamp exp = (java.sql.Timestamp) row.get("EXPIRY_DATE");
+    // Some Oracle drivers return uppercased aliased names — try both.
+    if (eff == null) eff = (java.sql.Timestamp) row.get("effective_date");
+    if (exp == null) exp = (java.sql.Timestamp) row.get("expiry_date");
+    boolean afterStart = eff == null || !now.isBefore(eff.toInstant());
+    boolean beforeEnd = exp == null || !now.isAfter(exp.toInstant());
+    return afterStart && beforeEnd;
   }
 
   @Override public List<Map<String, Object>> getOrgUnitFiltered(String pOrgUnitFilter) {

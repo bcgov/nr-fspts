@@ -56,6 +56,16 @@ public interface FduWriteDao {
   boolean licenceExists(String forestFileId);
 
   /**
+   * Existence check against {@code THE.FOREST_CLIENT}. Returns
+   * {@code true} when the {@code client_number} resolves to a row;
+   * used by the submission-validate path to flag unknown agreement
+   * holders up-front (so the SPA's validation pane lights up at
+   * upload time rather than the user discovering the bad value only
+   * after Submit trips the FAH_FC_FK FK on FSP_AGREEMENT_HOLDER).
+   */
+  boolean clientExists(String clientNumber);
+
+  /**
    * Returns the current {@code FSP_STATUS_CODE} for the given FSP +
    * amendment, or {@code null} if no row matches. The licence-edit
    * service uses this to gate by status (DFT writeable by submitter,

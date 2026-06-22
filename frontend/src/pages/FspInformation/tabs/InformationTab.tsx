@@ -23,7 +23,9 @@ import ClientSearchModal from '@/components/ClientSearchModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import DistrictPickerModal from '@/components/DistrictPickerModal';
 import ExtensionSummaryModal from '@/components/ExtensionSummaryModal';
+import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
+import {canEditFsp} from '@/routes/access';
 import type {ClientSearchResult} from '@/services/clientSearch';
 import {
   type CodeOption,
@@ -194,6 +196,12 @@ const toPayload = (form: EditFormState): Partial<FspInformation> => ({
 
 const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
   const { display } = useNotification();
+  const { user } = useAuth();
+  // Master edit gate — View-Only never edits; Submitter-only is locked
+  // out while the FSP is in SUB (submitted-for-review). Other roles
+  // get the existing behaviour. Drives the Edit button visibility and
+  // the Agreement Holder / District add + remove affordances below.
+  const canEdit = canEditFsp(user, fsp?.fspStatusCode);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<EditFormState | null>(
     fsp ? createFormState(fsp) : null,
@@ -431,7 +439,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
 
   return (
     <div>
-      {!editing && (
+      {!editing && canEdit && (
         <div className="fsp-info__tab-actions">
           <Button kind="tertiary" size="sm" renderIcon={Edit} onClick={handleEdit}>
             Edit
@@ -774,14 +782,16 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
         <section className="fsp-info__tile fsp-info__tile--full">
           <header className="fsp-info__tile-header">
             <h2 className="fsp-info__section-title">Agreement Holders</h2>
-            <Button
-              kind="tertiary"
-              size="sm"
-              renderIcon={Add}
-              onClick={() => setClientPickerOpen(true)}
-            >
-              Add Agreement Holder
-            </Button>
+            {canEdit && (
+              <Button
+                kind="tertiary"
+                size="sm"
+                renderIcon={Add}
+                onClick={() => setClientPickerOpen(true)}
+              >
+                Add Agreement Holder
+              </Button>
+            )}
           </header>
           {agreementHolderRows.length === 0 ? (
             <p>No agreement holders linked to this FSP.</p>
@@ -830,14 +840,16 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
         <section className="fsp-info__tile fsp-info__tile--full">
           <header className="fsp-info__tile-header">
             <h2 className="fsp-info__section-title">Districts</h2>
-            <Button
-              kind="tertiary"
-              size="sm"
-              renderIcon={Add}
-              onClick={() => setDistrictPickerOpen(true)}
-            >
-              Add District
-            </Button>
+            {canEdit && (
+              <Button
+                kind="tertiary"
+                size="sm"
+                renderIcon={Add}
+                onClick={() => setDistrictPickerOpen(true)}
+              >
+                Add District
+              </Button>
+            )}
           </header>
           {districts.length === 0 ? (
             <p>No districts linked to this FSP.</p>
@@ -860,15 +872,17 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                         <TableCell>{dash(d.orgUnitCode)}</TableCell>
                         <TableCell>{dash(d.orgUnitName)}</TableCell>
                         <TableCell>
-                          <Button
-                            kind="ghost"
-                            size="sm"
-                            renderIcon={TrashCan}
-                            iconDescription="Remove"
-                            hasIconOnly
-                            disabled={!d.orgUnitNo}
-                            onClick={() => setDistrictDeleteTarget(d)}
-                          />
+                          {canEdit && (
+                            <Button
+                              kind="ghost"
+                              size="sm"
+                              renderIcon={TrashCan}
+                              iconDescription="Remove"
+                              hasIconOnly
+                              disabled={!d.orgUnitNo}
+                              onClick={() => setDistrictDeleteTarget(d)}
+                            />
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

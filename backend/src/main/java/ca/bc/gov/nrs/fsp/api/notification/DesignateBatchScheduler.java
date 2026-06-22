@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -45,6 +47,7 @@ public class DesignateBatchScheduler {
   private static final String LOCK_NAME = "designateBatch";
 
   private final DesignateBatchService service;
+  private final JdbcTemplate jdbcTemplate;
 
   @Scheduled(
       cron = "${fsp.notification.designate.cron}",
@@ -55,12 +58,41 @@ public class DesignateBatchScheduler {
       lockAtLeastFor = "PT2M")
   public void runScheduled() {
     log.info("Designate batch trigger firing (lock acquired on this pod)");
+    // Echo the actual SHEDLOCK row state right after acquisition so we
+    // can confirm — without dropping into sqlplus — that ShedLock is
+    // touching THE.FSPTS_SHEDLOCK and that the values look sane.
+    // Temporary observability for the OpenShift 3-pod test; safe to
+    // keep once verified (one cheap SELECT per cron tick).
+    logShedLockRow();
     try {
       service.runOnce();
     } catch (RuntimeException ex) {
       // Don't let one bad run kill the next scheduled trigger — @Scheduled
       // skips subsequent firings if the method propagates.
       log.error("Designate batch run threw — will retry on next cron tick", ex);
+    }
+  }
+
+  private void logShedLockRow() {
+    try {
+      jdbcTemplate.query(
+          "SELECT name, lock_until, locked_at, locked_by "
+              + "FROM the.fspts_shedlock WHERE name = ?",
+          rs -> {
+            log.info(
+                "ShedLock row: name={} lock_until={} locked_at={} locked_by={}",
+                rs.getString("name"),
+                rs.getTimestamp("lock_until"),
+                rs.getTimestamp("locked_at"),
+                rs.getString("locked_by"));
+          },
+          LOCK_NAME);
+    } catch (EmptyResultDataAccessException e) {
+      log.warn("ShedLock row for '{}' not found right after acquisition — "
+          + "ShedLock may not have written the row; check schema/grants.",
+          LOCK_NAME);
+    } catch (RuntimeException e) {
+      log.warn("ShedLock row lookup failed: {}", e.getMessage());
     }
   }
 }

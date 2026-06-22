@@ -1,12 +1,13 @@
 import {
   Button,
   InlineNotification,
+  Loading,
   Modal,
   Stack,
   Tag,
   TextInput,
 } from '@carbon/react';
-import { Add, TrashCan } from '@carbon/icons-react';
+import { Add } from '@carbon/icons-react';
 import { useEffect, useMemo, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
@@ -129,25 +130,23 @@ const FduLicencesModal: FC<Props> = ({
     }
   };
 
+  const closeIfIdle = () => {
+    if (submitting) return;
+    onClose();
+  };
+
   return (
     <Modal
       open={open}
-      modalHeading={`Edit licences — ${fduName}`}
+      modalHeading={`Edit Licences — ${fduName}`}
       modalLabel="FDU"
-      primaryButtonText={submitting ? 'Saving…' : 'Save changes'}
-      secondaryButtonText="Cancel"
-      primaryButtonDisabled={submitting || !dirty}
-      onRequestClose={() => {
-        if (submitting) return;
-        onClose();
-      }}
-      onRequestSubmit={() => {
-        void submit();
-      }}
+      passiveModal
       size="sm"
       className="fsp-species-modal fdu-licences-modal"
+      onRequestClose={closeIfIdle}
+      preventCloseOnClickOutside
     >
-      <Stack gap={5}>
+      <Stack gap={5} className="fsp-species-modal__form">
         <p className="fdu-licences-modal__hint">
           Add or remove licence numbers attached to this FDU. New licence
           numbers must already exist in the provincial forest-use registry.
@@ -225,16 +224,25 @@ const FduLicencesModal: FC<Props> = ({
             Add
           </Button>
         </div>
-
-        {dirty && (
-          <p className="fdu-licences-modal__hint">
-            <TrashCan size={14} aria-hidden /> Pending changes — click Save
-            changes to apply.
-          </p>
-        )}
       </Stack>
+
+      <div className="fsp-species-modal__actions">
+        <Button kind="secondary" disabled={submitting} onClick={closeIfIdle}>
+          Cancel
+        </Button>
+        <Button
+          kind="primary"
+          disabled={submitting || !dirty}
+          renderIcon={submitting ? BusyIcon : undefined}
+          onClick={() => void submit()}
+        >
+          {submitting ? 'Saving…' : 'Save changes'}
+        </Button>
+      </div>
     </Modal>
   );
 };
+
+const BusyIcon = () => <Loading small withOverlay={false} description="" />;
 
 export default FduLicencesModal;
