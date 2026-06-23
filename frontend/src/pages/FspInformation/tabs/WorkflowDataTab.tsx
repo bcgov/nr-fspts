@@ -52,6 +52,14 @@ interface Props {
    * dropdown, and sibling tabs would stay stale until manual reload.
    */
   onWorkflowChanged?: () => void;
+  /**
+   * Read-only role (Reviewer / View-Only). The tab still renders so they
+   * can see workflow state, but every action (review pencils, OTBH, DDM
+   * decision, extension decision) is suppressed. The backend also
+   * rejects their writes (FspAuthorities.WORKFLOW_DECISION), so this is
+   * the UI half of that gate.
+   */
+  readOnly?: boolean;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -150,8 +158,9 @@ const enableOtbhOfferedEdit = (
   const s = (status ?? '').toUpperCase();
   if (s === 'DFT' || s === 'OHS') return false;
   if (!roles.isDecisionMaker && !roles.isAdministrator) return false;
-  // Enabled when SUB OR canUpdateApproved (Admin always, or DDM in INE).
-  return s === 'SUB' || canUpdateApproved(status, roles);
+  // SUB for everyone; after that only Administrators (canUpdateApproved).
+  // Decision Makers get Submitted only.
+  return s === 'SUB' || canUpdateApproved(roles);
 };
 
 const enableOtbhHeardEdit = (
@@ -169,13 +178,11 @@ const enableDdmEdit = (
 ): boolean => {
   const s = (status ?? '').toUpperCase();
   if (!roles.isDecisionMaker && !roles.isAdministrator) return false;
-  // DDM Decision tile is editable only when the FSP is awaiting a
-  // decision (SUB) or has already been approved (APP). The rule
-  // applies to BOTH DecisionMaker and Administrator — Admin no longer
-  // gets a blanket override that would let them edit in DFT / OHS /
-  // INE / REJ. Reverse-decision flows that previously relied on
-  // opening the tile in INE / DFT are blocked by this change.
-  return s === 'SUB' || s === 'APP';
+  // Administrators may record a decision while Submitted and amend it
+  // after approval (APP). Decision Makers act only during the review
+  // phase — Submitted — and never re-open a decided plan.
+  if (roles.isAdministrator) return s === 'SUB' || s === 'APP';
+  return s === 'SUB';
 };
 
 const enableExtensionEdit = (
@@ -184,27 +191,17 @@ const enableExtensionEdit = (
   roles: FspWorkflowRoles,
 ): boolean => {
   if (isBlank(extension.statusCode)) return false;
-  if (!roles.isDecisionMaker && !roles.isAdministrator) return false;
-  const extStatus = (extension.statusCode ?? '').toUpperCase();
-  // Once APP/REJ, only Administrator can edit (legacy: canUpdateApproved
-  // applied per-extension here mirrors the per-FSP rule).
-  if (extStatus === 'APP' || extStatus === 'REJ') {
-    return roles.isAdministrator;
-  }
-  return true;
+  // Extension decisions act on already-approved (In-Effect) plans, which
+  // is outside the Decision Maker's review-phase scope — Administrator
+  // only.
+  return roles.isAdministrator;
 };
 
-// Legacy canUpdateApproved(): Admin can always edit a saved decision;
-// DDM can only edit when status is INE (in effect).
-const canUpdateApproved = (
-  status: string | null | undefined,
-  roles: FspWorkflowRoles,
-): boolean => {
-  const s = (status ?? '').toUpperCase();
-  if (roles.isAdministrator) return true;
-  if (roles.isDecisionMaker && s === 'INE') return true;
-  return false;
-};
+// Admin-only: edits to a decision (or OTBH) after the review phase.
+// Decision Makers act only while a plan is Submitted, never after, so
+// they no longer get the post-approval (INE) window they once did.
+const canUpdateApproved = (roles: FspWorkflowRoles): boolean =>
+  roles.isAdministrator;
 
 const ddmHasData = (ddm: FspDdmDecision): boolean =>
   !isBlank(ddm.statusCode) ||
@@ -454,7 +451,12 @@ const ExtensionRequestTile: FC<{
  * Edit/Add buttons currently log + no-op (and the success path simply
  * re-fetches state).
  */
-const WorkflowDataTab: FC<Props> = ({ fspId, refreshKey, onWorkflowChanged }) => {
+const WorkflowDataTab: FC<Props> = ({
+  fspId,
+  refreshKey,
+  onWorkflowChanged,
+  readOnly = false,
+}) => {
   const [state, setState] = useState<FspWorkflowState | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -502,15 +504,15 @@ const WorkflowDataTab: FC<Props> = ({ fspId, refreshKey, onWorkflowChanged }) =>
   }
 
   const { roles, fspStatusCode } = state;
-  const reviewEditable = enableReviewEdits(fspStatusCode, roles);
-  const otbhOfferedEditable = enableOtbhOfferedEdit(fspStatusCode, roles);
-  const otbhHeardEditable = enableOtbhHeardEdit(fspStatusCode, roles);
-  const ddmEditable = enableDdmEdit(fspStatusCode, roles);
-  const extensionEditable = enableExtensionEdit(
-    fspStatusCode,
-    state.extensionDecision,
-    roles,
-  );
+  // Read-only roles see the tab but take no action — force every edit
+  // gate off regardless of the backend-projected workflow roles.
+  const reviewEditable = !readOnly && enableReviewEdits(fspStatusCode, roles);
+  const otbhOfferedEditable = !readOnly && enableOtbhOfferedEdit(fspStatusCode, roles);
+  const otbhHeardEditable = !readOnly && enableOtbhHeardEdit(fspStatusCode, roles);
+  const ddmEditable = !readOnly && enableDdmEdit(fspStatusCode, roles);
+  const extensionEditable =
+    !readOnly &&
+    enableExtensionEdit(fspStatusCode, state.extensionDecision, roles);
   const extensionIsPresent = extensionExists(
     state.extensionDecision,
     state.extensionIds,

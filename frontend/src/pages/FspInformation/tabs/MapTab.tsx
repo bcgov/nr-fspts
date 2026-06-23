@@ -30,6 +30,11 @@ interface Props {
   fspStatusCode?: string | null;
   /** Whether the signed-in user has the FSPTS_ADMINISTRATOR role. */
   isAdmin?: boolean;
+  /**
+   * Read-only role (Reviewer / View-Only) — suppresses the "Edit
+   * licences" affordance entirely, regardless of status or admin.
+   */
+  readOnly?: boolean;
   /** Parent-bumped counter that forces a refetch on Submit/Extend/etc. */
   refreshKey?: number;
 }
@@ -57,6 +62,7 @@ const MapTab: FC<Props> = ({
   variant,
   fspStatusCode,
   isAdmin,
+  readOnly,
   refreshKey,
 }) => {
   const [extent, setExtent] = useState<string | null>(null);
@@ -83,6 +89,7 @@ const MapTab: FC<Props> = ({
   // this user a submitter" on the client — the read path's tombstone
   // gate already rejected unauthorised users before the table loaded.
   const canEditLicences =
+    !readOnly &&
     variant === 'fdu' &&
     (fspStatusCode === 'DFT' ||
       (fspStatusCode === 'APP' && !!isAdmin));

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal *Initial* FSP submission used by the e2e lifecycle spec.
+     Derived from backend/src/test/resources/fixtures/submissions/
+     valid-mackenzie-96-amend6.xml but stripped to the smallest shape the
+     submission pipeline accepts, with a deliberately tiny single-FDU
+     polygon so each run writes only a few rows of geometry to the DB.
+
+     Differences from the backend fixture, on purpose:
+       * actionCode = I (Initial) and NO <fspID> — the proc assigns a
+         fresh FSP id, so every run is self-contained and disposable.
+       * One FDU with a ~1 km square (5 closed points) instead of the
+         multi-thousand-vertex Mackenzie geometry.
+       * __PLAN_NAME__ / __FDU_NAME__ tokens the test replaces at runtime
+         with a unique suffix so concurrent runs and leftover rows don't
+         collide.
+
+     Reference data (client numbers, district, licence, SRS) is copied
+     verbatim from the proven backend fixture so it resolves against the
+     same DEV/TEST reference tables. -->
+<fsp:fspSubmission xmlns:esf="http://www.for.gov.bc.ca/schema/esf"
+                   xmlns:mof="http://www.for.gov.bc.ca/schema/base"
+                   xmlns:fsp="http://www.for.gov.bc.ca/schema/fsp"
+                   xmlns:gml="http://www.opengis.net/gml"
+                   xmlns:xlink="http://www.w3.org/1999/xlink"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <gml:boundedBy>
+    <gml:null>inapplicable</gml:null>
+  </gml:boundedBy>
+  <fsp:fspSubmissionMetadata>
+    <fsp:licenseeContact>E2E Test Contact</fsp:licenseeContact>
+    <fsp:telephoneNumber>2505550000</fsp:telephoneNumber>
+    <fsp:emailAddress>e2e.contact@example.com</fsp:emailAddress>
+    <fsp:attachmentCount>0</fsp:attachmentCount>
+  </fsp:fspSubmissionMetadata>
+  <fsp:submissionItem>
+    <fsp:forestStewardshipPlan>
+      <gml:boundedBy>
+        <gml:null>inapplicable</gml:null>
+      </gml:boundedBy>
+      <fsp:planName>__PLAN_NAME__</fsp:planName>
+      <fsp:actionCode>I</fsp:actionCode>
+      <!-- Element order below is the mof-fsp.xsd sequence: planTerm* sit
+           between planHolderList and districtCodeList, and amendmentInd
+           (required) follows districtCodeList. A single agreement holder
+           — 00161366 isn't a valid holder in every environment. -->
+      <fsp:planHolderList>
+        <fsp:clientCode>00001271</fsp:clientCode>
+      </fsp:planHolderList>
+      <fsp:planTermYears>5</fsp:planTermYears>
+      <fsp:planTermMonths>0</fsp:planTermMonths>
+      <fsp:districtCodeList>
+        <fsp:districtCode>DMK</fsp:districtCode>
+      </fsp:districtCodeList>
+      <fsp:amendmentInd>false</fsp:amendmentInd>
+      <fsp:amendmentApprovalRequiredInd>true</fsp:amendmentApprovalRequiredInd>
+      <fsp:legalDocConsolidatedInd>false</fsp:legalDocConsolidatedInd>
+      <fsp:fduUpdateInd>true</fsp:fduUpdateInd>
+      <fsp:identifiedAreasUpdateInd>false</fsp:identifiedAreasUpdateInd>
+      <fsp:stockingStandardUpdateInd>false</fsp:stockingStandardUpdateInd>
+      <fsp:frpa197Ind>false</fsp:frpa197Ind>
+      <fsp:transitionalInd>false</fsp:transitionalInd>
+      <fsp:fduList>
+        <fsp:fdu>
+          <fsp:fduName>__FDU_NAME__</fsp:fduName>
+          <fsp:licenceList>
+            <fsp:licenceNumber>A15384</fsp:licenceNumber>
+          </fsp:licenceList>
+          <fsp:extentOf>
+            <gml:MultiPolygon srsName="EPSG:3005">
+              <gml:polygonMember>
+                <gml:Polygon>
+                  <gml:outerBoundaryIs>
+                    <gml:LinearRing>
+                      <gml:coordinates>1189000.0,1122000.0 1190000.0,1122000.0 1190000.0,1123000.0 1189000.0,1123000.0 1189000.0,1122000.0</gml:coordinates>
+                    </gml:LinearRing>
+                  </gml:outerBoundaryIs>
+                </gml:Polygon>
+              </gml:polygonMember>
+            </gml:MultiPolygon>
+          </fsp:extentOf>
+        </fsp:fdu>
+      </fsp:fduList>
+    </fsp:forestStewardshipPlan>
+  </fsp:submissionItem>
+</fsp:fspSubmission>
