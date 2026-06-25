@@ -7,6 +7,10 @@ the legacy FSP app used. The application **does not** define tables, run
 migrations, or contain an ORM. Instead it calls **legacy PL/SQL packages**, and
 those packages own the schema, the business rules, and the transitions.
 
+> **One exception:** JasperReports fills templates **directly against a raw
+> Oracle connection** — the SQL lives in the `.jrxml`, not in a proc or a DAO.
+> See [reports.md](reports.md).
+
 There is **no DB container** for local dev. The backend connects directly to
 the shared Oracle (`nrcdb03.bcgov:1543`) over the BC Gov VPN, using a truststore
 and credentials supplied via the gitignored `application-local.yml`.

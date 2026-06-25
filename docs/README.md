@@ -10,6 +10,9 @@ start. These docs go deeper:
 | [database.md](database.md) | Work with the legacy Oracle packages (`nr-mof-db`), the ownership fence, or the status state machine |
 | [submissions.md](submissions.md) | Touch the XML / GeoJSON submission pipeline |
 | [submission-geojson-spec.md](submission-geojson-spec.md) | Hand a client the GeoJSON upload format spec |
+| [reports.md](reports.md) | Work on the JasperReports PDF/CSV reporting (the one part that bypasses the proc layer) |
+| [notifications.md](notifications.md) | Touch email — the workflow event emails or the scheduled district-designate digest |
+| [fam-integration.md](fam-integration.md) | Work with the FAM IDIR identity-lookup (user picker or the digest's email resolution) |
 
 Module-level docs:
 
