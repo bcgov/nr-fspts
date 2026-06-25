@@ -34,6 +34,26 @@ WorkflowService (inside @Transactional)
   `extension_decision_email`, `opportunity_to_be_heard_email`,
   `request_clarification_email`.
 
+```mermaid
+sequenceDiagram
+    participant Svc as WorkflowService
+    participant Tx as DB transaction
+    participant Disp as EmailEventDispatcher
+    participant Mail as SMTP
+
+    rect rgb(238, 245, 255)
+    Note over Svc,Tx: inside @Transactional
+    Svc->>Tx: write workflow change (proc)
+    Svc->>Disp: publish WorkflowEmailEvent (JWT still on thread)
+    end
+    alt transaction commits
+        Tx-->>Disp: AFTER_COMMIT fires
+        Disp->>Mail: render template + send (on emailExecutor)
+    else transaction rolls back
+        Note over Disp,Mail: event dropped — no email
+    end
+```
+
 ## 2. District-designate digest (scheduled batch)
 
 District administrators can register IDIR **designates** to be CC'd on FSP

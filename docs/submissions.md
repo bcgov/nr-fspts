@@ -34,6 +34,25 @@ envelope (it strips the `<esf:…>` wrappers and re-declares the namespaces on t
 bare root). Everything downstream is identical, so old ESF-format XML still
 uploads cleanly.
 
+```mermaid
+flowchart LR
+    subgraph old["Before — external ESF"]
+        direction LR
+        L1["Licensee"] --> ESF["ESF product"]
+        ESF --> Q[("MOF_QUEUES.ESF_STATUS_Q")]
+        Q --> Agent["ESF agent (poll)"]
+        Agent --> LegacyApp["Legacy FSP app"]
+    end
+
+    subgraph new["Now — direct upload"]
+        direction LR
+        L2["Licensee / SPA"] -- "multipart POST" --> API["Spring Boot API"]
+        API --> Pipe["validate → preview → persist"]
+    end
+
+    old -. "replaced by" .-> new
+```
+
 ## Pipeline
 
 ```

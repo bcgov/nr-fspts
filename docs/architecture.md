@@ -21,6 +21,35 @@ Consequences that shape the whole codebase:
 - **Errors are proc-driven.** Procs raise `FSP.*` / `fsp.web.error.*` codes;
   the API maps them to HTTP statuses and curated messages.
 
+## System context
+
+```mermaid
+flowchart LR
+    idir["IDIR staff<br/>(ministry)"]
+    bceid["BCeID licensees"]
+
+    subgraph fsp["FSPTS — this repo"]
+        spa["React SPA<br/>Vite · Carbon"]
+        api["Spring Boot API<br/>OAuth2 resource server"]
+    end
+
+    cognito["Cognito<br/>(IDIR / BCeID federation)"]
+    oracle[("Oracle THE<br/>legacy data + PL/SQL<br/>= nr-mof-db")]
+    fam["FAM<br/>IDIR identity lookup"]
+    smtp["SMTP"]
+
+    idir & bceid --> spa
+    spa -- "JSON + Bearer JWT" --> api
+    spa -. "login" .-> cognito
+    api -- "validate JWT" --> cognito
+    api -- "stored procs (JDBC)" --> oracle
+    api -- "user lookup" --> fam
+    api -- "email" --> smtp
+```
+
+Submissions used to arrive over a sixth dependency — the external **ESF** queue
+— now replaced by direct upload (see [submissions.md](submissions.md#background-bringing-esf-in-house)).
+
 ## Layers
 
 ```
@@ -76,6 +105,33 @@ Supporting packages (`backend/src/main/java/ca/bc/gov/nrs/fsp/api/`):
 8. **Error mapping**: a proc error surfaces as `StoredProcedureException`;
    `RestExceptionHandler` + `ProcErrorMessages` map the code to an HTTP status
    (e.g. `no_access_right` → 403) and a curated message.
+
+```mermaid
+sequenceDiagram
+    participant SPA
+    participant Sec as Security filter
+    participant Ctl as Controller
+    participant Svc as Service
+    participant Guard as FspAccessGuard
+    participant DAO
+    participant Proc as Oracle proc
+
+    SPA->>Sec: request + Bearer JWT
+    Sec->>Sec: validate token + map cognito:groups → ROLE_FSPTS_*
+    Sec->>Ctl: authenticated request
+    Ctl->>Ctl: @PreAuthorize capability check
+    Note over Ctl: 403 if the role lacks the capability
+    Ctl->>Svc: invoke
+    Svc->>Guard: assertWritable(fspId, amendment)
+    Guard->>Proc: user_may_access(...)
+    Proc-->>Guard: 'Y' / 'N'
+    Note over Guard: 403 (no_access_right) on 'N'
+    Svc->>DAO: call with client number + roles
+    DAO->>Proc: CallableStatement (positional)
+    Proc-->>DAO: cursor / OUT params, or FSP.* error
+    DAO-->>Svc: result / StoredProcedureException
+    Svc-->>SPA: JSON, or mapped HTTP error
+```
 
 See [roles-and-security.md](roles-and-security.md) for steps 2–5 and
 [database.md](database.md) for steps 6–8.
