@@ -49,10 +49,11 @@ Supporting packages (`backend/src/main/java/ca/bc/gov/nrs/fsp/api/`):
 | `dao` | Stored-procedure wrappers (`*Dao` interface + `*DaoImpl`); `AbstractStoredProcedureDao` holds shared call plumbing |
 | `struct` | Request/response DTOs |
 | `security` | Cognito JWT validation, role authorities, the capability matrix (`FspAuthorities`), the ownership fence (`FspAccessGuard`) |
-| `submission` | XML / GeoJSON parsing, validation, preview, and persistence |
-| `notification` | Email + the district-designate digest scheduler |
+| `submission` | XML / GeoJSON parsing, validation, preview, and persistence — the in-house replacement for the external **ESF** intake ([submissions.md](submissions.md#background-bringing-esf-in-house)) |
+| `notification` | Two email flows — transactional workflow events and the scheduled district-designate digest ([notifications.md](notifications.md)) |
 | `exception` | Exception → HTTP mapping; `ProcErrorMessages` curates `FSP.*` proc codes |
 | `util` | `RequestUtil` — pulls audit user, roles, and active-org client number off the JWT/request |
+| `service/v1/report` | JasperReports PDF/CSV generation — **bypasses the DAO layer** and fills templates directly against Oracle; see [reports.md](reports.md) |
 
 ## Request flow (a write, end to end)
 
@@ -100,6 +101,20 @@ See [roles-and-security.md](roles-and-security.md) for steps 2–5 and
 - **Services** (`src/services/`): typed fetch wrappers per domain;
   `apiFetch.ts` centralizes auth + error-body parsing.
 - **Context** (`src/context/`): auth, active org, theme, notifications.
+
+## External integrations
+
+The API depends on four BC Gov services:
+
+| System | Used for | Doc |
+|--------|----------|-----|
+| **Oracle `THE`** | All FSP data + business logic (legacy PL/SQL) | [database.md](database.md) |
+| **Cognito** | Authentication (IDIR / BCeID Business JWTs) | [roles-and-security.md](roles-and-security.md) |
+| **FAM** | IDIR identity lookup (user picker + digest email resolution) | [fam-integration.md](fam-integration.md) |
+| **SMTP** | Outgoing email (workflow events + designate digest) | [notifications.md](notifications.md) |
+
+Submissions used to arrive via a fifth — the external **ESF** queue — now
+replaced by direct upload ([submissions.md](submissions.md#background-bringing-esf-in-house)).
 
 ## Deployment
 

@@ -54,6 +54,9 @@ OpenAPI/Swagger at `/swagger-ui`.
 | [docs/roles-and-security.md](docs/roles-and-security.md) | The six FSPTS roles, the capability matrix, and how authorization is enforced front-to-back |
 | [docs/database.md](docs/database.md) | How the API talks to the legacy Oracle packages, the ownership fence, and the FSP status state machine |
 | [docs/submissions.md](docs/submissions.md) | The XML / GeoJSON submission pipeline (validate → preview → persist) |
+| [docs/reports.md](docs/reports.md) | JasperReports PDF/CSV reporting (fills directly against Oracle, bypassing the procs) |
+| [docs/notifications.md](docs/notifications.md) | Email: transactional workflow events + the scheduled district-designate digest |
+| [docs/fam-integration.md](docs/fam-integration.md) | FAM IDIR identity-lookup (in-request user picker + scheduler email resolution) |
 | [docs/submission-geojson-spec.md](docs/submission-geojson-spec.md) | Client-facing GeoJSON upload format specification |
 | [frontend/e2e/README.md](frontend/e2e/README.md) | The Playwright end-to-end suite |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Branching, PRs, local setup, testing |

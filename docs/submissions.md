@@ -12,6 +12,28 @@ two formats:
 Both formats parse into the **same** JAXB tree (`FSPSubmissionType`), so all
 downstream validation, preview, and persistence run identically.
 
+## Background: bringing ESF in-house
+
+Historically, FSP submissions did **not** arrive over HTTP. Licensees submitted
+XML through **ESF** — the BC Gov *Electronic Submission Framework*, an external
+shared product that queued submissions on Oracle (`MOF_QUEUES.ESF_STATUS_Q`). A
+separate ESF agent pulled XML off that queue and fed it to the legacy FSP app.
+Submissions were wrapped in an `<esf:ESFSubmission>` / `<esf:submissionContent>`
+envelope.
+
+This system **replaces that intake.** The Spring Boot backend accepts the
+submission **directly** as a multipart upload (`POST /submissions/validate` and
+`POST /submissions`), validates and persists it itself — **no external ESF
+product, no Oracle queue, no agent.** Bringing the intake in-house removes a
+shared external dependency and lets validation feedback be **synchronous** (the
+SPA shows errors immediately) instead of the old fire-and-forget queue model.
+
+Backward compatibility: `submission/parser/SubmissionEnvelopeStripper` accepts
+**either** the new bare `<fsp:fspSubmission>` document **or** a legacy ESF
+envelope (it strips the `<esf:…>` wrappers and re-declares the namespaces on the
+bare root). Everything downstream is identical, so old ESF-format XML still
+uploads cleanly.
+
 ## Pipeline
 
 ```
