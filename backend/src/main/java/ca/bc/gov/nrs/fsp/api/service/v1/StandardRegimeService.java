@@ -3,6 +3,7 @@ package ca.bc.gov.nrs.fsp.api.service.v1;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550StdsProposalDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubLayersDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubSpeciesDao;
+import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeBgcZoneUpsert;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeCreate;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail;
@@ -32,6 +33,7 @@ public class StandardRegimeService {
   private final Fsp550StdsProposalDao dao;
   private final Fsp550SubLayersDao layersDao;
   private final Fsp550SubSpeciesDao speciesDao;
+  private final FspAccessGuard accessGuard;
 
   public StandardRegimeDetail getDetail(String fspId, String amendmentNumber, String regimeId) {
     return getDetailInternal(fspId, amendmentNumber, regimeId, "Y");
@@ -141,6 +143,7 @@ public class StandardRegimeService {
   public StandardRegimeDetail saveOverview(
       String fspId, String regimeId, String amendmentNumber,
       StandardRegimeOverviewUpdate edits) {
+    accessGuard.assertWritable(fspId, amendmentNumber);
     StandardRegimeDetail current = getDetail(fspId, amendmentNumber, regimeId);
     if (current == null) {
       throw new IllegalStateException(
@@ -203,6 +206,7 @@ public class StandardRegimeService {
    */
   @Transactional
   public StandardRegimeDetail createRegime(String fspId, StandardRegimeCreate body) {
+    accessGuard.assertWritable(fspId, null);
     String userId = RequestUtil.getCurrentAuditUserId();
     // STANDARDS_REGIME.SILV_STATUTE_CODE is VARCHAR2(3) and is a FK
     // to THE.SILV_STATUTE_CODE — the actual codes vary by deployment
@@ -252,6 +256,7 @@ public class StandardRegimeService {
   @Transactional
   public StandardRegimeDetail copyRegime(
       String fspId, String amendmentNumber, String sourceRegimeId) {
+    accessGuard.assertWritable(fspId, amendmentNumber);
     String userId = RequestUtil.getCurrentAuditUserId();
     String revisionCount = dao.getRevisionCount(sourceRegimeId);
     if (revisionCount == null) {
@@ -326,6 +331,7 @@ public class StandardRegimeService {
   public StandardRegimeLayerDetail saveLayer(
       String fspId, String regimeId, String layerCode, String layerId,
       StandardRegimeLayerUpdate edits) {
+    accessGuard.assertWritable(fspId, null);
     // Blank layerId = ADD path. The legacy SAVE proc routes to ADD when
     // P_REVISION_COUNT is null, so we skip the current-detail fetch (no
     // current exists) and pass nulls for both the layer id and revision.
@@ -391,6 +397,7 @@ public class StandardRegimeService {
   @Transactional
   public StandardRegimeDetail convertLayers(
       String fspId, String amendmentNumber, String regimeId) {
+    accessGuard.assertWritable(fspId, amendmentNumber);
     String regimeRev = dao.getRevisionCount(regimeId);
     if (regimeRev == null) {
       throw new IllegalStateException(
@@ -438,6 +445,7 @@ public class StandardRegimeService {
   public StandardRegimeLayerDetail addLayerSpecies(
       String fspId, String regimeId, String layerCode, String layerId,
       String speciesCode, String minHeight, boolean preferred) {
+    accessGuard.assertWritable(fspId, null);
     // Cheaper than the full GET proc (5 cursors) and avoids the
     // proc's FSP+amendment-scope check, which trips noRecord when
     // we don't have those in hand.
@@ -471,6 +479,7 @@ public class StandardRegimeService {
   public StandardRegimeLayerDetail deleteLayerSpecies(
       String fspId, String regimeId, String layerCode, String layerId,
       String speciesCode, boolean preferred, String revisionCount) {
+    accessGuard.assertWritable(fspId, null);
     String regimeRev = dao.getRevisionCount(regimeId);
     if (regimeRev == null) {
       throw new IllegalStateException(
@@ -507,6 +516,7 @@ public class StandardRegimeService {
       String fspId, String amendmentNumber, String regimeId,
       String siteSeriesId, String rowRevisionCount,
       StandardRegimeBgcZoneUpsert edits) {
+    accessGuard.assertWritable(fspId, amendmentNumber);
     String regimeRev = dao.getRevisionCount(regimeId);
     if (regimeRev == null) {
       throw new IllegalStateException(
@@ -544,6 +554,7 @@ public class StandardRegimeService {
   public StandardRegimeDetail deleteBgcItem(
       String fspId, String amendmentNumber, String regimeId,
       String siteSeriesId, String rowRevisionCount) {
+    accessGuard.assertWritable(fspId, amendmentNumber);
     String regimeRev = dao.getRevisionCount(regimeId);
     if (regimeRev == null) {
       throw new IllegalStateException(

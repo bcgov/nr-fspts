@@ -1,65 +1,80 @@
-# Forest Stewardship Plan — React + OpenShift
+# FSPTS Frontend (SPA)
 
-A minimal React app wired for CI/CD to OpenShift via GitHub Actions.
+The Forest Stewardship Plan Tracking System single-page app.
+
+- **React 19** + **TypeScript**, built with **Vite 6**
+- **BC Gov Carbon Design System** (`@carbon/react`) — the BCGov theme is
+  inlined under `src/styles/bcgov/`
+- **AWS Amplify** for Cognito auth (IDIR / BCeID Business)
+- `react-router-dom` for routing
+
+It talks to the [backend API](../backend/README.md) with a Cognito access token;
+see [../docs/architecture.md](../docs/architecture.md) for the big picture.
 
 ## Local development
 
 ```bash
 npm install
-npm start        # http://localhost:3000
+npm run dev          # Vite dev server → http://localhost:3000
 ```
 
-## Project structure
+Requires `frontend/.env` (copy `.env.example` and fill in the Cognito client
+IDs and API base). Vite proxies `/api/*` to the backend at `:8080`
+(see `vite.config.ts`). Or run the whole stack from the repo root with
+`docker compose up`.
+
+## Scripts
+
+| Command | What it does |
+|---------|--------------|
+| `npm run dev` / `start` | Vite dev server (HMR) |
+| `npm run build` | Production build |
+| `npm run preview` | Serve the production build locally |
+| `npm run typecheck` | `tsc --noEmit` (the real type gate — CI runs this) |
+| `npm run e2e` | Playwright end-to-end suite (see [e2e/README.md](e2e/README.md)) |
+| `npm run lint` | placeholder (no ESLint config yet) |
+| `npm test` | placeholder (no unit tests yet — coverage is e2e) |
+
+> There is no unit-test or lint setup yet; `typecheck` + the Playwright e2e
+> suite are the current quality gates.
+
+## Structure
 
 ```
-.
-├── public/                   # Static HTML shell
-├── src/
-│   ├── App.js / App.css      # Main component
-│   └── index.js / index.css  # Entry point
-├── openshift/
-│   └── deployment.yaml       # Deployment, Service, Route
-├── .github/workflows/
-│   └── deploy.yml            # CI/CD pipeline
-├── Dockerfile                # Multi-stage build (non-root nginx)
-├── nginx.conf                # SPA routing + health check
-└── package.json
+src/
+├── main.tsx, App.tsx       entry + top-level router
+├── pages/                  one folder/file per screen (Search, Inbox, Reports,
+│                           DistrictNotification, XmlSubmission, FspInformation, …)
+├── components/             shared UI (modals, layout, pickers)
+├── routes/                 routePaths.ts (nav model) + access.ts (role capabilities)
+├── services/               typed fetch wrappers per domain; apiFetch.ts (auth + errors)
+├── context/                auth, active org, theme, notifications
+├── styles/                 Carbon + inlined BCGov theme
+├── lib/, utils/, config/   helpers, env, constants
+└── env.ts                  typed environment access (VITE_* vars)
 ```
 
-## GitHub Secrets required
+## Routing & access
 
-Set these in **Settings → Secrets and variables → Actions**:
+- `routes/routePaths.ts` is the **nav model** — entries carry optional `roles`
+  gates (e.g. Data Submission → Administrator/Submitter).
+- `routes/access.ts` holds the **capability predicates** (`canEditFspContent`,
+  `canActionWorkflow`, `isAdministrator`, `canEditFsp`, `canSeeWorkflowTab`,
+  `isPathAllowedForUser`) that mirror the backend authorization matrix.
 
-| Secret | Description |
-|---|---|
-| `REGISTRY` | Container registry hostname (e.g. `quay.io`) |
-| `REGISTRY_NS` | Image namespace/repository (e.g. `myorg/fsp-frontend`) |
-| `REGISTRY_USER` | Registry login username |
-| `REGISTRY_PASSWORD` | Registry login password or token |
-| `OPENSHIFT_URL` | API server URL (e.g. `https://api.mycluster.example.com:6443`) |
-| `OPENSHIFT_TOKEN` | Service account token with `edit` role in the namespace |
-| `OCP_NAMESPACE` | Target OpenShift project/namespace |
+Whatever the UI hides, the backend independently enforces — see
+[../docs/roles-and-security.md](../docs/roles-and-security.md).
 
-## OpenShift service account setup
+## Auth
 
-```bash
-# Create a dedicated service account for GitHub Actions
-oc create sa github-actions -n <your-namespace>
-oc policy add-role-to-user edit \
-  system:serviceaccount:<your-namespace>:github-actions \
-  -n <your-namespace>
+`context/auth` wraps Amplify. `services/apiFetch.ts` reads the current Cognito
+access token from the Amplify session and attaches it as a `Bearer` header on
+every API call, and normalizes error bodies (RFC 7807 `ProblemDetail` →
+`detail`/`message`/`title`) into a clean message for toasts.
 
-# Get the token (OpenShift 4.11+)
-oc create token github-actions -n <your-namespace> --duration=8760h
-```
+## Deployment
 
-## Pipeline flow
-
-```
-push to main
-  └─► test          (npm test)
-        └─► build   (docker build → push to registry)
-              └─► deploy (oc apply → rollout)
-```
-
-Pull requests run the `test` job only — no image push or deploy.
+Built to a static bundle and served by **Caddy**, which reverse-proxies
+`/api/*` to the backend Service on OpenShift (CI/CD in
+[`.github/workflows/`](../.github/workflows/)). Cognito redirect-URI slots are
+managed per PR preview — see the CI workflows.
