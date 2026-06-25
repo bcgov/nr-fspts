@@ -1,6 +1,7 @@
 package ca.bc.gov.nrs.fsp.api.endpoint.v1;
 
 import ca.bc.gov.nrs.fsp.api.constants.v1.URL;
+import ca.bc.gov.nrs.fsp.api.security.FspAuthorities;
 import ca.bc.gov.nrs.fsp.api.struct.v1.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -8,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -15,11 +17,15 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Authorization is enforced at the JWT validation layer: every authenticated
- * request is guaranteed to carry at least one FSPTS role (see
- * {@code FsptsRoleValidator}). For now any FSPTS role can hit any endpoint;
- * per-role {@code @PreAuthorize("hasRole('FSPTS_*')")} checks will be added
- * when role-scoped access is finalized.
+ * Authentication is enforced at the JWT validation layer: every request is
+ * guaranteed to carry at least one FSPTS role (see {@code FsptsRoleValidator}).
+ *
+ * <p>Authorization is role-scoped per endpoint. Read (GET) endpoints stay open
+ * to any authenticated FSPTS role. Write endpoints (POST/PUT/DELETE) carry a
+ * {@code @PreAuthorize} drawn from the capability matrix in
+ * {@link FspAuthorities} — read-only roles (Reviewer, View-All, View-Only) are
+ * denied with 403. Per-FSP ownership is enforced beneath this by the proc
+ * tombstone fence.
  */
 @RequestMapping(URL.BASE_URL)
 @Tag(name = "FSP API", description = "Forest Stewardship Plan operations")
@@ -74,11 +80,13 @@ public interface FspApiEndpoint {
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
     @PutMapping(URL.FSP_BY_ID)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Update FSP via fsp_300_information.MAINLINE")
     ResponseEntity<FspRequest> updateFsp(
             @PathVariable String fspId, @Valid @RequestBody FspRequest fspRequest);
 
     @org.springframework.web.bind.annotation.DeleteMapping(URL.FSP_BY_ID)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary =
             "Delete a draft FSP via fsp_300_information.MAINLINE (P_ACTION=REMOVE). "
                     + "Proc rejects anything not in DFT or REJ status.")
@@ -87,6 +95,7 @@ public interface FspApiEndpoint {
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
     @PostMapping(URL.SUBMIT)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary =
             "Submit a draft FSP via fsp_300_information.MAINLINE (P_ACTION=SUBMIT). "
                     + "Proc runs validate_fsp first; missing required fields surface as "
@@ -107,6 +116,7 @@ public interface FspApiEndpoint {
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
     @PostMapping(URL.AMEND)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary =
             "Create a new amendment row on an existing FSP via "
                     + "fsp_300_information.MAINLINE(P_ACTION=AMEND). Returns the "
@@ -115,6 +125,7 @@ public interface FspApiEndpoint {
     ResponseEntity<FspRequest> amendFsp(@PathVariable String fspId);
 
     @PostMapping(URL.REPLACE)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary =
             "Create a new replacement amendment row on an existing FSP via "
                     + "fsp_300_information.MAINLINE(P_ACTION=REPLACE). Proc stamps "
@@ -132,6 +143,7 @@ public interface FspApiEndpoint {
     ResponseEntity<WorkflowState> getWorkflowState(@PathVariable String fspId);
 
     @PostMapping(URL.WORKFLOW_ACTION)
+    @PreAuthorize(FspAuthorities.WORKFLOW_DECISION)
     @Operation(summary = "Submit a workflow action via FSP_700_WORKFLOW.MAINLINE; returns the refreshed state")
     ResponseEntity<WorkflowState> submitWorkflowAction(
             @PathVariable String fspId, @Valid @RequestBody WorkflowRequest workflowRequest);
@@ -143,11 +155,13 @@ public interface FspApiEndpoint {
     ResponseEntity<List<StandardRequest>> getStandards(@PathVariable String fspId);
 
     @PutMapping(URL.STANDARDS)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Replace stocking standards (currently a no-op pending DBA confirmation)")
     ResponseEntity<List<StandardRequest>> saveStandards(
             @PathVariable String fspId, @Valid @RequestBody List<StandardRequest> standards);
 
     @PostMapping(URL.STANDARDS)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary =
             "Create a new stocking-standards regime against the given FSP + "
                     + "amendment via FSP_550_STDS_PROPOSAL.SAVE (insert branch). "
@@ -158,6 +172,7 @@ public interface FspApiEndpoint {
             @Valid @RequestBody ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeCreate body);
 
     @PostMapping(URL.STANDARD_COPY)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary =
             "Duplicate an existing stocking-standards regime on the same "
                     + "FSP + amendment via FSP_550_STDS_PROPOSAL.COPY. "
@@ -168,6 +183,7 @@ public interface FspApiEndpoint {
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
     @DeleteMapping(URL.STANDARD_BY_ID)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Delete a stocking standard")
     ResponseEntity<Void> deleteStandard(
             @PathVariable String fspId, @PathVariable String standardId);
@@ -183,6 +199,7 @@ public interface FspApiEndpoint {
     ResponseEntity<List<CodeOption>> getAttachmentCategories(@PathVariable String fspId);
 
     @PostMapping(value = URL.ATTACHMENTS, consumes = "multipart/form-data")
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Upload an attachment via FSP_400_ATTACHMENTS.CREATE_ATTACHMENT + SAVE_ATTACHMENT_CONTENT")
     ResponseEntity<AttachmentResponse> uploadAttachment(
             @PathVariable String fspId,
@@ -197,6 +214,7 @@ public interface FspApiEndpoint {
             @PathVariable String fspId, @PathVariable Long attachmentId);
 
     @DeleteMapping(URL.ATTACHMENT_BY_ID)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Delete an attachment via FSP_400_ATTACHMENTS.REMOVE_ATTACHMENT")
     ResponseEntity<Void> deleteAttachment(
             @PathVariable String fspId, @PathVariable Long attachmentId);
@@ -220,6 +238,7 @@ public interface FspApiEndpoint {
     ResponseEntity<ExtensionSummary> getExtensions(@PathVariable String fspId);
 
     @PostMapping(URL.EXTENSIONS)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Create a new extension request via FSP_302_EXTENSION_REQUEST.SAVE")
     ResponseEntity<ExtensionRequestSaved> createExtension(
             @PathVariable String fspId,
@@ -232,6 +251,7 @@ public interface FspApiEndpoint {
     ResponseEntity<FduList> getFduList(@PathVariable String fspId);
 
     @PutMapping(URL.FDU_LICENCES)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary =
             "Apply licence additions/removals to an FDU. Status-gated: "
                     + "DFT writable by submitters, APP writable by administrators only.")
@@ -259,6 +279,7 @@ public interface FspApiEndpoint {
             @PathVariable String regimeId);
 
     @PutMapping(URL.STANDARD_OVERVIEW)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Save standards regime Overview-tab edits via FSP_550_STDS_PROPOSAL.SAVE")
     ResponseEntity<StandardRegimeDetail> updateStandardRegimeOverview(
             @PathVariable String fspId,
@@ -282,6 +303,7 @@ public interface FspApiEndpoint {
             @RequestParam(name = "layerId") String layerId);
 
     @PutMapping(URL.STANDARD_LAYER_DETAIL)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Save layer scalar fields via FSP_550_SUB_LAYERS.MAINLINE(SAVE); omit layerId to ADD a brand-new layer")
     ResponseEntity<StandardRegimeLayerDetail> updateStandardRegimeLayer(
             @PathVariable String fspId,
@@ -291,6 +313,7 @@ public interface FspApiEndpoint {
             @Valid @RequestBody StandardRegimeLayerUpdate body);
 
     @PostMapping(URL.STANDARD_LAYER_SPECIES)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Add a species row to a layer (preferred or acceptable) via FSP_550_SUB_SPECIES.MAINLINE(SAVE)")
     ResponseEntity<StandardRegimeLayerDetail> addStandardRegimeLayerSpecies(
             @PathVariable String fspId,
@@ -300,6 +323,7 @@ public interface FspApiEndpoint {
             @Valid @RequestBody StandardRegimeLayerSpeciesAdd body);
 
     @DeleteMapping(URL.STANDARD_LAYER_SPECIES_BY_CODE)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Delete a species row from a layer via FSP_550_SUB_SPECIES.MAINLINE(DELETE)")
     ResponseEntity<StandardRegimeLayerDetail> deleteStandardRegimeLayerSpecies(
             @PathVariable String fspId,
@@ -311,6 +335,7 @@ public interface FspApiEndpoint {
             @RequestParam(name = "revisionCount") String revisionCount);
 
     @PostMapping(URL.STANDARD_LAYERS_CONVERT)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Toggle between single-layer and multi-layer via FSP_550_SUB_LAYERS.MAINLINE(CONVERT_LAYERS)")
     ResponseEntity<StandardRegimeDetail> convertStandardRegimeLayers(
             @PathVariable String fspId,
@@ -318,6 +343,7 @@ public interface FspApiEndpoint {
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
     @PostMapping(URL.STANDARD_BGC_ZONES)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Add a BGC site-series row via FSP_550_STDS_PROPOSAL.SAVE_BGC_ITEM")
     ResponseEntity<StandardRegimeDetail> addStandardRegimeBgcZone(
             @PathVariable String fspId,
@@ -329,6 +355,7 @@ public interface FspApiEndpoint {
             @Valid @RequestBody StandardRegimeBgcZoneUpsert body);
 
     @DeleteMapping(URL.STANDARD_BGC_ZONE_BY_ID)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Delete a BGC site-series row via FSP_550_STDS_PROPOSAL.REMOVE_BGC_ITEM")
     ResponseEntity<StandardRegimeDetail> deleteStandardRegimeBgcZone(
             @PathVariable String fspId,
@@ -338,6 +365,7 @@ public interface FspApiEndpoint {
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
     @PutMapping(URL.STANDARD_BGC_ZONE_BY_ID)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
     @Operation(summary = "Update a BGC site-series row via FSP_550_STDS_PROPOSAL.SAVE_BGC_ITEM")
     ResponseEntity<StandardRegimeDetail> updateStandardRegimeBgcZone(
             @PathVariable String fspId,
@@ -362,10 +390,12 @@ public interface FspApiEndpoint {
             @RequestParam(name = "orgUnitNo") String orgUnitNo);
 
     @PostMapping(URL.DISTRICT_DESIGNATES)
+    @PreAuthorize(FspAuthorities.ADMINISTRATOR)
     @Operation(summary = "Add an IDIR designate to an org unit's notification list")
     ResponseEntity<Void> addDistrictDesignate(@Valid @RequestBody NotificationDesignate body);
 
     @DeleteMapping(URL.DISTRICT_DESIGNATE_BY_ID)
+    @PreAuthorize(FspAuthorities.ADMINISTRATOR)
     @Operation(summary = "Remove a district notification designate by id")
     ResponseEntity<Void> removeDistrictDesignate(@PathVariable String designateId);
 

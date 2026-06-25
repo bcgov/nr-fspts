@@ -47,11 +47,13 @@ export function isMenuParent(item: MenuItem): item is MenuParent {
 const NAV: MenuItem[] = [
   {
     // Single-entry top-level leaf; if more submission flows land
-    // later, re-introduce a parent submenu.
+    // later, re-introduce a parent submenu. Only content-editing roles
+    // submit FSPs — Decision Makers and read-only roles never see it.
     id: 'Data Submission',
     label: 'Data Submission',
     path: '/data-submission',
     icon: Catalog,
+    roles: ['FSPTS_ADMINISTRATOR', 'FSPTS_SUBMITTER'],
   },
   {
     id: 'District Notification',
@@ -133,6 +135,11 @@ void ChartLineData;
  *     submitter-only short list. Determined by {@code isSubmitterOnly}
  *     in routes/access.ts; passed in so this module stays free of
  *     auth-context dependencies.
+ *
+ * <p>Per-entry {@code roles} gates (e.g. Data Submission →
+ * Admin/Submitter, District Notification → Admin) handle role-scoped
+ * visibility, so read-only and Decision-Maker users simply don't match
+ * those entries.
  */
 export function getMenuEntries(
   userRoles: string[],
@@ -148,7 +155,6 @@ export function getMenuEntries(
   // users who can act as a submitter.
   const hasSubmitterRole = userRoles.includes('FSPTS_SUBMITTER');
   return roleFiltered.filter(
-    (item) =>
-      hasSubmitterRole || !SUBMITTER_ROLE_REQUIRED_IDS.has(item.id),
+    (item) => hasSubmitterRole || !SUBMITTER_ROLE_REQUIRED_IDS.has(item.id),
   );
 }

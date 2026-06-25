@@ -1,6 +1,7 @@
 package ca.bc.gov.nrs.fsp.api.controller.v1;
 
 import ca.bc.gov.nrs.fsp.api.constants.v1.URL;
+import ca.bc.gov.nrs.fsp.api.security.FspAuthorities;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspRequest;
 import ca.bc.gov.nrs.fsp.api.submission.SubmissionValidationError;
 import ca.bc.gov.nrs.fsp.api.submission.SubmissionValidationResult;
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -45,6 +47,7 @@ public class FspSubmissionController {
   private final SubmissionPersistenceService persistenceService;
 
   @PostMapping(value = URL.SUBMISSIONS_VALIDATE, consumes = "multipart/form-data")
+  @PreAuthorize(FspAuthorities.CONTENT_EDIT)
   @Operation(summary = "Validate an FSP submission XML against schema + geometry rules")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Submission is valid"),
@@ -90,6 +93,7 @@ public class FspSubmissionController {
    * submission.
    */
   @PostMapping(value = URL.SUBMISSIONS, consumes = "multipart/form-data")
+  @PreAuthorize(FspAuthorities.CONTENT_EDIT)
   @Operation(summary = "Upload, validate, and persist an FSP submission XML with optional attachments")
   @ApiResponses({
       @ApiResponse(responseCode = "201", description = "Submission persisted"),

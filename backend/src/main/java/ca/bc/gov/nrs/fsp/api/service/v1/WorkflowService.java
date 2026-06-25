@@ -213,6 +213,28 @@ public class WorkflowService {
     String userId = RequestUtil.getCurrentAuditUserId();
     String amendment = nz(request.getFspAmendmentNumber());
 
+    // Decision Makers act only during the review phase (Submitted / OHS):
+    // they cannot touch the workflow once a plan is Draft, Approved, In
+    // Effect, or Rejected. Administrators have no such restriction, and
+    // Submitters / read-only roles never reach here (the endpoint is gated
+    // by FspAuthorities.WORKFLOW_DECISION). Defense-in-depth mirror of the
+    // UI gates in WorkflowDataTab; fail-closed if the status can't be read.
+    if (RequestUtil.isCurrentUserDecisionMaker() && !RequestUtil.isCurrentUserAdmin()) {
+      String status = "";
+      try {
+        FspRequest current = fspService.getById(fspId, amendment);
+        if (current != null) status = nz(current.getFspStatusCode());
+      } catch (RuntimeException e) {
+        log.warn("DDM review-phase check could not read FSP {} status: {}", fspId, e.getMessage());
+      }
+      String s = status.toUpperCase();
+      if (!"SUB".equals(s) && !"OHS".equals(s)) {
+        throw new IllegalArgumentException(
+            "Decision Makers can only action the workflow while a plan is under "
+                + "review (Submitted).");
+      }
+    }
+
     // Capture the PRE-save status code so publishEmailFor can apply the
     // legacy "DDM/admin just adjusting dates → don't email" guard. Done
     // here (inside the transaction, before the mutation) because after

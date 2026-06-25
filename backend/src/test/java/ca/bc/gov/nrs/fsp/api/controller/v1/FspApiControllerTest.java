@@ -26,8 +26,11 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.List;
 
@@ -36,7 +39,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -239,6 +244,87 @@ class FspApiControllerTest {
     mvc.perform(get("/api/v1/fsp/42/amendments/0/extent").with(jwt()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.extent").doesNotExist());
+  }
+
+  // ── Role-based authorization on write endpoints ──────────────────
+  //
+  // Mock services return null/void, so an allowed write lands 2xx; a
+  // denied one is short-circuited by @PreAuthorize at 403 before the
+  // controller body runs. Authorities mirror what
+  // CognitoGroupsAuthoritiesConverter emits: ROLE_FSPTS_<role>.
+
+  /** A jwt() post-processor carrying exactly one FSPTS role authority. */
+  private static RequestPostProcessor asRole(String role) {
+    return jwt().authorities(new SimpleGrantedAuthority("ROLE_" + role));
+  }
+
+  @Test
+  void submitFsp_forbiddenForNonContentEditors() throws Exception {
+    // CONTENT_EDIT excludes Decision Maker (workflow-only) and the
+    // read-only roles (Reviewer / View-Only / View-All).
+    for (String role : List.of(
+        "FSPTS_DECISION_MAKER", "FSPTS_REVIEWER", "FSPTS_VIEW_ONLY", "FSPTS_VIEW_ALL")) {
+      mvc.perform(post("/api/v1/fsp/1/submit").with(asRole(role)))
+          .andExpect(status().isForbidden());
+    }
+  }
+
+  @Test
+  void submitFsp_allowedForContentEditors() throws Exception {
+    for (String role : List.of("FSPTS_SUBMITTER", "FSPTS_ADMINISTRATOR")) {
+      mvc.perform(post("/api/v1/fsp/1/submit").with(asRole(role)))
+          .andExpect(status().isOk());
+    }
+  }
+
+  @Test
+  void workflowAction_forbiddenForSubmitterAndReviewer() throws Exception {
+    // WORKFLOW_DECISION excludes Submitter and all read-only roles —
+    // only Administrator / Decision Maker may act. Body is valid so the
+    // 403 comes from authorization, not bean validation.
+    for (String role : List.of("FSPTS_SUBMITTER", "FSPTS_REVIEWER", "FSPTS_VIEW_ALL")) {
+      mvc.perform(post("/api/v1/fsp/1/workflow/action")
+              .contentType(MediaType.APPLICATION_JSON)
+              .content("{\"action\":\"SAVE_REVIEW\"}")
+              .with(asRole(role)))
+          .andExpect(status().isForbidden());
+    }
+  }
+
+  @Test
+  void workflowAction_allowedForDecisionMaker() throws Exception {
+    mvc.perform(post("/api/v1/fsp/1/workflow/action")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"action\":\"SAVE_DDM_APP\"}")
+            .with(asRole("FSPTS_DECISION_MAKER")))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void districtDesignateDelete_forbiddenForNonAdministrators() throws Exception {
+    // ADMINISTRATOR-only. Even an editor (Submitter / Decision Maker)
+    // can't touch district notification config.
+    for (String role : List.of("FSPTS_REVIEWER", "FSPTS_SUBMITTER", "FSPTS_DECISION_MAKER")) {
+      mvc.perform(delete("/api/v1/fsp/admin/district-notifications/5").with(asRole(role)))
+          .andExpect(status().isForbidden());
+    }
+  }
+
+  @Test
+  void districtDesignateDelete_allowedForAdministrator() throws Exception {
+    mvc.perform(delete("/api/v1/fsp/admin/district-notifications/5")
+            .with(asRole("FSPTS_ADMINISTRATOR")))
+        .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void readEndpoint_allowedForReadOnlyRole() throws Exception {
+    // GET endpoints stay open to any authenticated FSPTS role — a
+    // Reviewer can still read.
+    when(fspService.search(any(FspSearchRequest.class)))
+        .thenReturn(PageableResponse.of(List.of(), 0, 10));
+    mvc.perform(get("/api/v1/fsp/search").with(asRole("FSPTS_REVIEWER")))
+        .andExpect(status().isOk());
   }
 
   @Test

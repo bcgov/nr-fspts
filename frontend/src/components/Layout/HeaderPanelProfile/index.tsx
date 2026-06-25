@@ -2,6 +2,7 @@ import { Asleep, Light, Logout } from '@carbon/icons-react';
 import { SideNavLink } from '@carbon/react';
 import { useEffect, useState, type FC } from 'react';
 import AvatarImage from '@/components/Layout/AvatarImage';
+import type { ROLE_TYPE } from '@/context/auth/types';
 import { useAuth } from '@/context/auth/useAuth';
 import { useOrg } from '@/context/org/useOrg';
 import { useTheme } from '@/context/theme/useTheme';
@@ -16,6 +17,28 @@ const PROVIDER_LABEL: Record<string, string> = {
   IDIR: 'IDIR',
   BCEIDBUSINESS: 'Business BCeID',
 };
+
+// Friendly labels for the FSPTS roles shown beside the user's name.
+const ROLE_LABEL: Record<ROLE_TYPE, string> = {
+  FSPTS_ADMINISTRATOR: 'Administrator',
+  FSPTS_DECISION_MAKER: 'Decision Maker',
+  FSPTS_REVIEWER: 'Reviewer',
+  FSPTS_VIEW_ALL: 'View All',
+  FSPTS_VIEW_ONLY: 'View Only',
+  FSPTS_SUBMITTER: 'Submitter',
+};
+
+// A user can hold several roles; show the most privileged one as their
+// "current role" (most-privileged first). Mirrors the app's access
+// model where any privileged role outranks Submitter.
+const ROLE_PRIORITY: ROLE_TYPE[] = [
+  'FSPTS_ADMINISTRATOR',
+  'FSPTS_DECISION_MAKER',
+  'FSPTS_REVIEWER',
+  'FSPTS_VIEW_ALL',
+  'FSPTS_VIEW_ONLY',
+  'FSPTS_SUBMITTER',
+];
 
 const HeaderPanelProfile: FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -55,6 +78,12 @@ const HeaderPanelProfile: FC = () => {
     ? PROVIDER_LABEL[user.idpProvider] ?? user.idpProvider
     : 'IDIR';
 
+  const primaryRole = ROLE_PRIORITY.find((r) => user?.roles?.includes(r));
+  const roleLabel = primaryRole ? ROLE_LABEL[primaryRole] : null;
+  const nameWithRole = roleLabel
+    ? `${fullName || 'User'} (${roleLabel})`
+    : fullName || 'User';
+
   return (
     <div className="my-profile-container">
       <div className="user-info-section">
@@ -62,7 +91,7 @@ const HeaderPanelProfile: FC = () => {
           <AvatarImage userName={fullName} size="large" />
         </div>
         <div className="user-data">
-          <p className="user-name">{fullName || 'User'}</p>
+          <p className="user-name">{nameWithRole}</p>
           {user?.userName ? <p>{`${providerLabel}: ${user.userName}`}</p> : null}
           {activeOrgClientNumber ? (
             <p>

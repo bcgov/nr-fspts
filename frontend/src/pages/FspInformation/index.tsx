@@ -9,7 +9,12 @@ import ExtensionRequestModal from '@/components/ExtensionRequestModal';
 import SubmitFspModal from '@/components/SubmitFspModal';
 import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
-import {canSeeWorkflowTab, defaultRouteForUser} from '@/routes/access';
+import {
+  canActionWorkflow,
+  canEditFspContent,
+  canSeeWorkflowTab,
+  defaultRouteForUser,
+} from '@/routes/access';
 import {type CodeOption, type FspInformation, deleteFsp, getFspAmendmentNumbers, getFspById,} from '@/services/fspSearch';
 
 import AttachmentsTab from './tabs/AttachmentsTab';
@@ -42,6 +47,11 @@ const FspInformationPage: FC = () => {
   const { display } = useNotification();
   const { user } = useAuth();
   const isAdmin = !!user?.roles?.includes('FSPTS_ADMINISTRATOR');
+  // The Submit / Amend / Replace / Extend / Delete header actions are
+  // FSP-content mutations — only content-editing roles (Administrator /
+  // Submitter) get them. Decision Makers and read-only roles do not,
+  // regardless of FSP status.
+  const canModify = canEditFspContent(user);
 
   const fspId = searchParams.get('fspId') ?? '';
   const amendmentNumber = searchParams.get('amendmentNumber') ?? '';
@@ -152,7 +162,7 @@ const FspInformationPage: FC = () => {
   // since the description varies by locale / future renames. DFT is the
   // only state the UI exposes — the proc itself also accepts REJ, but
   // hiding that here matches the product spec ("draft only").
-  const canDelete = fsp?.fspStatusCode === 'DFT';
+  const canDelete = canModify && fsp?.fspStatusCode === 'DFT';
   // Amendment vs base-FSP detection drives both the button label and
   // the post-delete routing. Amendment number > 0 = an amendment; 0 /
   // missing = the original FSP. Treat NaN as 0 so a bad URL doesn't
@@ -167,21 +177,21 @@ const FspInformationPage: FC = () => {
   // action — matches the legacy Fsp300InformationForm.isSubmitEnabled
   // which also gated on DFT status (the proc itself accepts SUB→DFT
   // and other transitions but Submit-from-the-header is draft-only).
-  const canSubmit = fsp?.fspStatusCode === 'DFT';
+  const canSubmit = canModify && fsp?.fspStatusCode === 'DFT';
   // Extending an FSP only makes sense once it's been approved (FSP302's
   // legacy isExtendFSPEnabled gates on APP / INE statuses). Replicating
   // that here so the button doesn't show for drafts or rejections.
   const isApprovedOrInEffect =
     fsp?.fspStatusCode === 'APP' || fsp?.fspStatusCode === 'INE';
-  const canExtend = isApprovedOrInEffect;
+  const canExtend = canModify && isApprovedOrInEffect;
   // Amend: legacy isAmendFSPEnabled also blocks while a previous
   // amendment is still unapproved (DFT/SUB/OHS) — kicking off another
   // would leave two open amendments in flight at the same time.
   const hasUnapprovedAmend = fsp?.fspUnapprovedAmendsInd === 'Y';
-  const canAmend = isApprovedOrInEffect && !hasUnapprovedAmend;
+  const canAmend = canModify && isApprovedOrInEffect && !hasUnapprovedAmend;
   // Replace: legacy isReplaceFSPEnabled gates on APP/INE only — no
   // unapproved-amends check (a Replacement is a hard cut-over).
-  const canReplace = isApprovedOrInEffect;
+  const canReplace = canModify && isApprovedOrInEffect;
   // Workflow tab is hidden for Submitter-only and View-Only roles —
   // nothing on it (DDM decision / OTBH / extension review) applies to
   // them. History (read-only audit) stays visible regardless.
@@ -460,6 +470,7 @@ const FspInformationPage: FC = () => {
                     variant="fdu"
                     fspStatusCode={fsp?.fspStatusCode}
                     isAdmin={isAdmin}
+                    readOnly={!canModify}
                     refreshKey={refreshKey}
                   />
                 </div>
@@ -486,6 +497,10 @@ const FspInformationPage: FC = () => {
                     <WorkflowDataTab
                       fspId={fspId}
                       refreshKey={refreshKey}
+                      // Workflow read-only is decided by workflow-action
+                      // capability, NOT content-edit: Decision Makers can
+                      // act here (status-gated) but can't edit content.
+                      readOnly={!canActionWorkflow(user)}
                       // Any workflow action (review milestone, DDM
                       // decision, OTBH offered/heard, extension decision,
                       // DDM reverse) mutates the FSP's status server-side.

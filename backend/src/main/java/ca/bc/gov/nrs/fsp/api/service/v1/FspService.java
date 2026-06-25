@@ -74,6 +74,7 @@ public class FspService {
   private final Fsp100SearchDao searchDao;
   private final Fsp300InformationDao informationDao;
   private final ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao validationDao;
+  private final ca.bc.gov.nrs.fsp.api.security.FspAccessGuard accessGuard;
 
   // Allow-listed sort keys. Maps the JSON field name the front-end sends
   // (sortBy) onto a Comparator over FspSearchResult. Kept narrow so
@@ -368,6 +369,7 @@ public class FspService {
    */
   @Transactional
   public void delete(String fspId, String amendmentNumber) {
+    accessGuard.assertWritable(fspId, nz(amendmentNumber));
     callInformation(ACTION_REMOVE, fspId, nz(amendmentNumber), null);
   }
 
@@ -444,6 +446,7 @@ public class FspService {
 
   @Transactional
   public FspRequest amend(String fspId, FspRequest request) {
+    accessGuard.assertWritable(fspId, null);
     Fsp300InformationDao.Result r = callInformation(ACTION_AMEND, fspId, "", request);
     return toFspDto(r);
   }
@@ -467,6 +470,7 @@ public class FspService {
     // route a Replacement through the AMD lookup. Mirrors the legacy
     // Fsp304ReplaceInformationAction.handleSave hard-set.
     request.setFspAmendmentCode("RPL");
+    accessGuard.assertWritable(fspId, null);
     Fsp300InformationDao.Result r = callInformation(ACTION_REPLACE, fspId, "", request);
     return toFspDto(r);
   }

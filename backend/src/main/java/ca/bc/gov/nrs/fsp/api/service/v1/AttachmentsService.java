@@ -2,6 +2,7 @@ package ca.bc.gov.nrs.fsp.api.service.v1;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp400AttachmentsDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao;
+import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
 import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentBlob;
 import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentResponse;
 import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
@@ -49,14 +50,17 @@ public class AttachmentsService {
   private final Fsp400AttachmentsDao attachmentsDao;
   private final FspCodeListsDao codeListsDao;
   private final JdbcTemplate jdbcTemplate;
+  private final FspAccessGuard accessGuard;
 
   public AttachmentsService(
       Fsp400AttachmentsDao attachmentsDao,
       FspCodeListsDao codeListsDao,
-      JdbcTemplate jdbcTemplate) {
+      JdbcTemplate jdbcTemplate,
+      FspAccessGuard accessGuard) {
     this.attachmentsDao = attachmentsDao;
     this.codeListsDao = codeListsDao;
     this.jdbcTemplate = jdbcTemplate;
+    this.accessGuard = accessGuard;
   }
 
   public List<AttachmentResponse> getByFspId(String fspId) {
@@ -118,6 +122,10 @@ public class AttachmentsService {
   public AttachmentResponse upload(
       String fspId, MultipartFile file, String typeCode, String description)
       throws IOException {
+    // Ownership fence: the attachment proc doesn't thread the caller's
+    // client number, so without this a submitter could attach to any
+    // org's FSP. Resolves the latest amendment internally.
+    accessGuard.assertWritable(fspId, null);
     // Resolve the FSP's current latest amendment number — the old
     // hardcoded "1" tripped FAX_FSP_FK whenever the FSP's amendments
     // didn't include 1 (e.g. original-only FSPs sitting at amendment 0).
@@ -148,6 +156,7 @@ public class AttachmentsService {
 
   @Transactional
   public void delete(String fspId, Long attachmentId) {
+    accessGuard.assertWritable(fspId, null);
     attachmentsDao.removeAttachment(
         Long.valueOf(fspId), findLatestAmendmentNumber(fspId), attachmentId);
   }
