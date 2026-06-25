@@ -1,4 +1,4 @@
-# nr-fsp — Forest Stewardship Plan Tracking System (FSPTS)
+# nr-fspts — Forest Stewardship Plan Tracking System (FSPTS)
 
 A web application for submitting, reviewing, and tracking **Forest Stewardship
 Plans (FSPs)** under BC's *Forest and Range Practices Act*. It replaces the
