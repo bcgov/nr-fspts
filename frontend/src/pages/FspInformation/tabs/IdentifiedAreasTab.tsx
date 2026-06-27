@@ -147,7 +147,7 @@ const IdentifiedAreasTab: FC<Props> = ({ fspId, amendmentNumber, refreshKey }) =
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
-        <h2 className="fsp-info__section-title">Identified Areas / Map</h2>
+        <h2 className="fsp-info__section-title">Identified areas / Map</h2>
       </header>
       {areas.length === 0 ? (
         <p>No identified or declared areas on this FSP/amendment.</p>
@@ -180,7 +180,7 @@ const IdentifiedAreasTab: FC<Props> = ({ fspId, amendmentNumber, refreshKey }) =
                                   onClick={openMapView}
                                   disabled={!extent || opening}
                                 >
-                                  Map View
+                                  Map view
                                 </Button>
                               </TableCell>
                             );

@@ -18,6 +18,7 @@ import { TrashCan } from '@carbon/icons-react';
 import { useCallback, useEffect, useRef, useState, type FC } from 'react';
 
 import { DestructiveModal } from '@/components/core/DestructiveModal';
+import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { UserSearchModal } from '@/components/UserSearchModal';
 import { useNotification } from '@/context/notification/useNotification';
 import {
@@ -405,9 +406,16 @@ const DistrictNotificationPage: FC = () => {
             )}
 
             {!hasResults && !loading && (
-              <p className="fsp-district__summary">
-                No designates configured for this district yet.
-              </p>
+              <EmptyState
+                title="No designates yet"
+                body={
+                  <>
+                    No designates are configured for this district.
+                    <br />
+                    Use “Add user…” above to designate notification recipients.
+                  </>
+                }
+              />
             )}
           </div>
         </div>

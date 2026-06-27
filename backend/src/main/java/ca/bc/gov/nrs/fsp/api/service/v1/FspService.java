@@ -72,9 +72,17 @@ public class FspService {
   private static final String ACTION_REMOVE = "REMOVE";
 
   private final Fsp100SearchDao searchDao;
+  private final ca.bc.gov.nrs.fsp.api.dao.v1.FspSearchDirectDao searchDirectDao;
   private final Fsp300InformationDao informationDao;
   private final ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao validationDao;
   private final ca.bc.gov.nrs.fsp.api.security.FspAccessGuard accessGuard;
+
+  // When true (default), FSP search runs as a direct table query
+  // (FspSearchDirectDao) instead of FSP_100_SEARCH.MAINLINE — see the
+  // search-perf-investigation note. Flip to false to fall back to the
+  // proc for instant rollback if the direct query ever diverges.
+  @org.springframework.beans.factory.annotation.Value("${fsp.search.direct:true}")
+  private boolean searchDirect;
 
   // Allow-listed sort keys. Maps the JSON field name the front-end sends
   // (sortBy) onto a Comparator over FspSearchResult. Kept narrow so
@@ -107,30 +115,47 @@ public class FspService {
     // view-only gates to APP, etc.). Map our canonical FSPTS_* roles
     // onto the legacy FSP_* names the proc expects.
     String userRoles = RequestUtil.getCurrentLegacyRoles();
+    String userClientNumber = RequestUtil.getCurrentClientNumber();
+    int page = request.getPage() == null ? 0 : Math.max(0, request.getPage());
+    int size = request.getSize() == null || request.getSize() <= 0 ? 10 : request.getSize();
 
-    // Drain the full cursor with maxRows=0 (unbounded). Matches InboxService:
-    // pagination + sort happen in-memory after the read so Carbon's
-    // Pagination has an accurate totalElements to compute "page X of Y"
-    // from. An earlier bounded-probe variant returned a lower-bound
-    // total which made the counter unreliable for the user.
-    //
-    // Caveat: FSP_100_SEARCH for high-volume org units (e.g. 1908) can
-    // take ~3 minutes server-side because the proc's first row is slow
-    // regardless of read size; the bounded probe didn't actually help.
-    // Real fix lives DB-side (plan / RLS / proxy-user issue, see the
-    // search-perf-investigation memory note).
-    Fsp100SearchDao.Result result = searchDao.mainline(
+    if (searchDirect) {
+      // Direct table query — same row shape + visibility rules as the
+      // proc, but pagination, ordering, and the count are pushed into SQL
+      // so only the page's rows materialise their LISTAGG subqueries and
+      // cross the VPN. See FspSearchDirectDao.
+      var criteria = new ca.bc.gov.nrs.fsp.api.dao.v1.FspSearchDirectDao.SearchCriteria(
+          nz(request.getFspId()),
+          nz(request.getFspPlanName()),
+          nz(request.getOrgUnitNo()),
+          nz(request.getAhClientNumber()),
+          nz(request.getFspAmendmentName()),
+          nz(request.getFspDateStart()),
+          nz(request.getFspDateEnd()),
+          nz(request.getFspDateType()),
+          nz(request.getFspStatusCode()),
+          nz(request.getApprovalRequired()),
+          userClientNumber,
+          userRoles);
+      var pageResult = searchDirectDao.searchPage(
+          criteria, page, size, request.getSortBy(), request.getSortDir());
+      List<FspSearchResult> content = pageResult.rows().stream()
+          .map(FspService::toSearchDto)
+          .toList();
+      return PageableResponse.ofPage(content, page, size, pageResult.total());
+    }
+
+    // Legacy proc path (rollback). The proc returns the whole cursor, so
+    // sort + paginate in memory. P_ENTRY_USER_CLIENT_NUMBER comes from the
+    // FAM role suffix (e.g. FSPTS_ADMINISTRATOR_00012797 → "00012797").
+    List<Fsp100SearchDao.Row> rows = searchDao.mainline(
         ACTION_GET,
         nz(request.getFspId()),
         nz(request.getFspPlanName()),
         nz(request.getOrgUnitNo()),
         nz(request.getAhClientNumber()),
         nz(request.getFspAmendmentName()),
-        // P_ENTRY_USER_CLIENT_NUMBER — pulled from the FAM role suffix
-        // (e.g. FSPTS_ADMINISTRATOR_00012797 → "00012797"). Legacy
-        // SilUser populated the same value via setUser_client() from
-        // WebADE. Empty for users in unqualified roles.
-        RequestUtil.getCurrentClientNumber(),
+        userClientNumber,
         RequestUtil.getCurrentIdir(),
         userRoles,
         nz(request.getFspDateStart()),
@@ -139,15 +164,12 @@ public class FspService {
         nz(request.getFspStatusCode()),
         nz(request.getApprovalRequired()),
         0
-    );
+    ).rows();
 
-    List<FspSearchResult> all = result.rows().stream()
+    List<FspSearchResult> all = rows.stream()
         .map(FspService::toSearchDto)
         .sorted(buildComparator(request.getSortBy(), request.getSortDir()))
         .toList();
-
-    int page = request.getPage() == null ? 0 : Math.max(0, request.getPage());
-    int size = request.getSize() == null || request.getSize() <= 0 ? 10 : request.getSize();
     return PageableResponse.of(all, page, size);
   }
 

@@ -139,7 +139,7 @@ const HistoryPage: FC = () => {
         ) : (
           <section className="fsp-info__tile fsp-info__tile--full">
             <header className="fsp-info__tile-header">
-              <h2 className="fsp-info__section-title">Audit Trail ({rows.length})</h2>
+              <h2 className="fsp-info__section-title">Audit trail ({rows.length})</h2>
               <RadioButtonGroup
                 legendText="Sort by"
                 name="history-sort"

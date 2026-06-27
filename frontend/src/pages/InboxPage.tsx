@@ -1,6 +1,8 @@
 import {
   Button,
+  ComboBox,
   DataTable,
+  DataTableSkeleton,
   Loading,
   Pagination,
   Select,
@@ -12,7 +14,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tag,
   TextInput,
   Tile,
 } from '@carbon/react';
@@ -20,8 +21,11 @@ import { Search as SearchIcon } from '@carbon/icons-react';
 import { useCallback, useEffect, useRef, useState, type FC, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import ClientSearchModal from '@/components/ClientSearchModal';
+import { EmptyState } from '@/components/EmptyState/EmptyState';
+import { StatusTag } from '@/components/StatusTag/StatusTag';
 import { useNotification } from '@/context/notification/useNotification';
+import { type ClientSearchResult, searchClientsAuto } from '@/services/clientSearch';
+import { formatDate } from '@/utils/formatDate';
 import { env } from '@/env';
 import {
   getFspExtent,
@@ -37,6 +41,21 @@ import './InboxPage.scss';
 // for the icon slot of a Button. Renders as the renderIcon while a
 // request is in flight.
 const SearchingIcon = () => <Loading small withOverlay={false} description="" />;
+
+// Label for a client suggestion in the Agreement Holder autocomplete:
+// "Name (ACRONYM) · #number", with absent parts dropped. Kept identical to
+// SearchPage so the two fields behave the same.
+const clientLabel = (c: ClientSearchResult): string => {
+  const parts: string[] = [];
+  const name = c.clientName?.trim();
+  if (name) parts.push(name);
+  const acronym = c.clientAcronym?.trim();
+  if (acronym) parts.push(`(${acronym})`);
+  const number = c.clientNumber?.trim();
+  const label = parts.join(' ');
+  if (number) return label ? `${label} · ${number}` : number;
+  return label;
+};
 
 // Inbox uses a narrower status list than the global search (the proc
 // returns only SUB/OHS/DFT rows by design). Hardcoded here per the
@@ -95,18 +114,6 @@ const HEADERS = [
   { key: 'hasMapView', header: '' },
 ];
 
-// Same description-keyed Tag color mapping as SearchPage. The inbox
-// cursor returns the human label in fspStatusDesc; unknown values
-// fall back to gray.
-const STATUS_TAG_TYPE_BY_DESC: Record<string, 'green' | 'blue' | 'gray' | 'red' | 'warm-gray' | 'purple'> = {
-  Approved: 'green',
-  Submitted: 'blue',
-  Draft: 'gray',
-  Rejected: 'red',
-  Expired: 'warm-gray',
-  'Opportunity to be Heard Sent': 'purple',
-};
-
 const mapToInboxRow = (r: FspSearchResult, index: number): InboxRow => ({
   // Same row-id pattern as SearchPage: fspId is unique within a page
   // but may collide across paginated requests; appending the index
@@ -117,7 +124,7 @@ const mapToInboxRow = (r: FspSearchResult, index: number): InboxRow => ({
   extNo: r.extensionNumber ?? '',
   name: r.planName ?? '',
   status: r.fspStatusDesc ?? '',
-  submitted: r.planSubmissionDate ?? '',
+  submitted: formatDate(r.planSubmissionDate),
   submittedBy: r.updateUserid ?? '',
   holder: r.agreementHolder ?? '',
   hasMapView: r.numberOfFdu && r.numberOfFdu > 0 ? '1' : '0',
@@ -204,7 +211,13 @@ const InboxPage: FC = () => {
   // (see STATUS_OPTIONS comment). No separate status fetch on mount.
   const [orgUnits, setOrgUnits] = useState<CodeOption[]>([]);
   const [codeListsLoading, setCodeListsLoading] = useState(true);
-  const [clientPickerOpen, setClientPickerOpen] = useState(false);
+  // Agreement Holder autocomplete (replaces the old client-search modal),
+  // matching SearchPage. form.holder still carries the resolved client
+  // *number* — the actual filter; these track the typed term, fetched
+  // suggestions, and the picked client for the ComboBox's display.
+  const [holderTerm, setHolderTerm] = useState('');
+  const [holderItems, setHolderItems] = useState<ClientSearchResult[]>([]);
+  const [holderSelected, setHolderSelected] = useState<ClientSearchResult | null>(null);
 
   // Tracks which row's Map View extent fetch is currently in flight.
   // Single value rather than a per-row map: the legacy UX opened one
@@ -259,6 +272,39 @@ const InboxPage: FC = () => {
   const setDigitsOnly = <K extends keyof InboxForm>(key: K) =>
     (e: React.ChangeEvent<HTMLInputElement>) =>
       set(key, e.target.value.replace(/\D/g, '') as InboxForm[K]);
+
+  // Debounced Agreement Holder lookup — identical to SearchPage: wait 300ms
+  // after the last keystroke, skip terms under 3 chars, tolerate a failed
+  // fetch by clearing the list.
+  useEffect(() => {
+    const term = holderTerm.trim();
+    if (term.length < 3) {
+      setHolderItems([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchClientsAuto(term)
+        .then(setHolderItems)
+        .catch(() => setHolderItems([]));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [holderTerm]);
+
+  // Typing replaces any prior selection and clears the holder filter (until
+  // a new client is picked). Ignore the synthetic input change Carbon fires
+  // when it sets the input to the selected item's label.
+  const handleHolderInput = (text: string) => {
+    if (holderSelected && clientLabel(holderSelected) === text) return;
+    setHolderSelected(null);
+    if (form.holder) set('holder', '');
+    setHolderTerm(text);
+  };
+
+  const handleHolderSelect = (data: { selectedItem?: ClientSearchResult | null }) => {
+    const client = data.selectedItem ?? null;
+    setHolderSelected(client);
+    set('holder', client?.clientNumber?.trim() ?? '');
+  };
 
   const runSearch = useCallback(
     async (nextPage: number, nextSize: number) => {
@@ -412,7 +458,7 @@ const InboxPage: FC = () => {
             <div className="fsp-inbox__field-grid">
               <Select
                 id="inbox-orgUnit"
-                labelText="Organization Unit"
+                labelText="Organization unit"
                 value={form.orgUnit}
                 onChange={(e) => set('orgUnit', e.target.value)}
               >
@@ -438,7 +484,7 @@ const InboxPage: FC = () => {
 
               <TextInput
                 id="inbox-fspName"
-                labelText="FSP Name"
+                labelText="FSP name"
                 value={form.fspName}
                 onChange={(e) => set('fspName', e.target.value)}
                 maxLength={120}
@@ -457,28 +503,21 @@ const InboxPage: FC = () => {
                 ))}
               </Select>
 
-              {/* Same picker pattern as SearchPage's Agreement Holder
-                  field — TextInput + a ghost-Button icon that opens
-                  the SIL21 client modal. */}
-              <div className="fsp-inbox__holder-field">
-                <TextInput
+              {/* Agreement Holder autocomplete (SIL21 client search) — same
+                  field as SearchPage. Type a name, acronym, or client number
+                  → pick a client → form.holder is set to its client number
+                  (the actual filter, ahClientNumber). Spans two grid columns
+                  (see SCSS). */}
+              <div className="fsp-inbox__holder-cell">
+                <ComboBox
                   id="inbox-holder"
-                  labelText="Agreement Holder"
-                  value={form.holder}
-                  onChange={setDigitsOnly('holder')}
-                  maxLength={8}
-                  inputMode="numeric"
-                  autoComplete="off"
-                />
-                <Button
-                  kind="ghost"
-                  size="md"
-                  hasIconOnly
-                  renderIcon={SearchIcon}
-                  iconDescription="Search for client"
-                  tooltipPosition="left"
-                  onClick={() => setClientPickerOpen(true)}
-                  className="fsp-inbox__holder-trigger"
+                  titleText="Agreement holder"
+                  helperText="Enter name, acronym, or client number (min. 3 characters)"
+                  items={holderItems}
+                  itemToString={(item) => (item ? clientLabel(item) : '')}
+                  selectedItem={holderSelected}
+                  onInputChange={handleHolderInput}
+                  onChange={handleHolderSelect}
                 />
               </div>
             </div>
@@ -505,10 +544,34 @@ const InboxPage: FC = () => {
           </form>
         </Tile>
 
-      {results !== null && (
+      {(loading || results !== null) && (
         <div className="fsp-inbox__results-fullbleed">
           <div className="fsp-inbox__results">
-            {hasResults && (
+            {loading ? (
+              // In-flight: the banner shows "Searching" + a spinner in place
+              // of the result count, and the table is a skeleton. Covers the
+              // first search (results still null) and any pagination fetch —
+              // same pattern as SearchPage.
+              <>
+                <div className="fsp-inbox__results-header">
+                  <span className="fsp-inbox__results-count fsp-inbox__results-count--searching">
+                    Searching
+                    <span className="fsp-inbox__searching-spinner" aria-hidden="true" />
+                  </span>
+                </div>
+                <div className="fsp-inbox__table-container">
+                  <div className="fsp-inbox__table">
+                    <DataTableSkeleton
+                      headers={HEADERS}
+                      rowCount={Math.min(pageSize, 10)}
+                      showHeader={false}
+                      showToolbar={false}
+                      aria-label="Loading inbox results"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : hasResults ? (
               <>
                 {/* Gray banner directly attached to the table top —
                     holds the total inbox count flush-left, mirrors the
@@ -520,9 +583,8 @@ const InboxPage: FC = () => {
                   </span>
                 </div>
                   <div className="fsp-inbox__table-container">
-                    <div className={loading ? 'fsp-inbox__table--loading' : undefined}>
-                      <div className="fsp-inbox__table">
-                        <DataTable rows={results!} headers={HEADERS}>
+                    <div className="fsp-inbox__table">
+                      <DataTable rows={results!} headers={HEADERS}>
                           {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
                             <TableContainer>
                               <Table {...getTableProps()} size="md">
@@ -575,12 +637,17 @@ const InboxPage: FC = () => {
                                         if (cell.info.header === 'status' && value) {
                                           return (
                                             <TableCell key={cell.id}>
-                                              <Tag
-                                                type={STATUS_TAG_TYPE_BY_DESC[value] ?? 'gray'}
-                                                size="sm"
-                                              >
-                                                {value}
-                                              </Tag>
+                                              <StatusTag status={value} />
+                                            </TableCell>
+                                          );
+                                        }
+                                        // Amendment 0 is the original plan — display
+                                        // "Original FSP" but keep the raw "0" value
+                                        // (the nav URL reads it from the cell value).
+                                        if (cell.info.header === 'amendNo') {
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              {value === '0' ? 'Original FSP' : formatCellText(value)}
                                             </TableCell>
                                           );
                                         }
@@ -636,16 +703,6 @@ const InboxPage: FC = () => {
                           )}
                         </DataTable>
                       </div>
-                    </div>
-                    {loading && (
-                      <div
-                        className="fsp-inbox__table-overlay"
-                        role="status"
-                        aria-live="polite"
-                      >
-                        <Loading description="Loading…" withOverlay={false} />
-                      </div>
-                    )}
                   </div>
 
                 <Pagination
@@ -657,22 +714,25 @@ const InboxPage: FC = () => {
                   size="md"
                 />
               </>
-            )}
-
-            {!hasResults && results !== null && !error && (
-              <p className="fsp-inbox__summary">No inbox items match your criteria.</p>
+            ) : (
+              // Not loading and the search came back empty.
+              results !== null &&
+              !error && (
+                <EmptyState
+                  title="No results found"
+                  body={
+                    <>
+                      No inbox items match your search criteria.
+                      <br />
+                      Try adjusting your filters and searching again.
+                    </>
+                  }
+                />
+              )
             )}
           </div>
         </div>
       )}
-
-      <ClientSearchModal
-        open={clientPickerOpen}
-        onClose={() => setClientPickerOpen(false)}
-        onSelect={(client) => {
-          set('holder', client.clientNumber?.trim() ?? '');
-        }}
-      />
     </div>
   );
 };

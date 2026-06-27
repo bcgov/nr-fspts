@@ -451,13 +451,13 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
         {/* Plan Details */}
         <section className="fsp-info__tile">
           <header className="fsp-info__tile-header">
-            <h2 className="fsp-info__section-title">Plan Details</h2>
+            <h2 className="fsp-info__section-title">Plan details</h2>
           </header>
           {editing ? (
             <div className="fsp-info__edit-grid">
               <TextInput
                 id="edit-fspPlanName"
-                labelText="FSP Name"
+                labelText="FSP name"
                 value={form.fspPlanName}
                 maxLength={MAX.fspPlanName}
                 invalid={!!errors.fspPlanName}
@@ -467,7 +467,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
               />
               <TextInput
                 id="edit-amendmentName"
-                labelText="Amendment Name"
+                labelText="Amendment name"
                 value={form.amendmentName}
                 maxLength={MAX.amendmentName}
                 invalid={!!errors.amendmentName}
@@ -477,7 +477,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
               />
               <TextInput
                 id="edit-amendmentAuthority"
-                labelText="Amendment Authority"
+                labelText="Amendment authority"
                 value={form.amendmentAuthority}
                 maxLength={MAX.amendmentAuthority}
                 invalid={!!errors.amendmentAuthority}
@@ -487,7 +487,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
               />
               <TextArea
                 id="edit-amendmentReason"
-                labelText="Amendment Reason"
+                labelText="Amendment reason"
                 value={form.amendmentReason}
                 maxLength={MAX.amendmentReason}
                 rows={3}
@@ -513,7 +513,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
         {!editing && (
           <section className="fsp-info__tile">
             <header className="fsp-info__tile-header">
-              <h2 className="fsp-info__section-title">Related Forms</h2>
+              <h2 className="fsp-info__section-title">Related forms</h2>
             </header>
             <dl className="fsp-info__field-list">
               <div className="fsp-info__field">
@@ -574,7 +574,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
         {/* Term & Dates */}
         <section className="fsp-info__tile">
           <header className="fsp-info__tile-header">
-            <h2 className="fsp-info__section-title">Term &amp; Dates</h2>
+            <h2 className="fsp-info__section-title">Term &amp; dates</h2>
           </header>
           {editing ? (
             <div className="fsp-info__edit-grid">
@@ -589,7 +589,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                 <DatePickerInput
                   id="edit-fspPlanStartDate"
                   placeholder="YYYY-MM-DD"
-                  labelText="Effective Date"
+                  labelText="Effective date"
                   disabled={saving}
                 />
               </DatePicker>
@@ -604,7 +604,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                 <DatePickerInput
                   id="edit-fspExpiryDate"
                   placeholder="YYYY-MM-DD"
-                  labelText="Expiry Date"
+                  labelText="Expiry date"
                   disabled={saving}
                 />
               </DatePicker>
@@ -676,7 +676,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                   <DatePickerInput
                     id="edit-fspPlanEndDate"
                     placeholder="YYYY-MM-DD"
-                    labelText="Plan End Date"
+                    labelText="Plan end date"
                     disabled={saving}
                   />
                 </DatePicker>
@@ -700,7 +700,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
             <div className="fsp-info__edit-grid">
               <TextInput
                 id="edit-fspContactName"
-                labelText="Contact Name"
+                labelText="Contact name"
                 value={form.fspContactName}
                 maxLength={MAX.fspContactName}
                 invalid={!!errors.fspContactName}
@@ -723,7 +723,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
               />
               <TextInput
                 id="edit-fspEmailAddress"
-                labelText="E-mail Address"
+                labelText="E-mail address"
                 value={form.fspEmailAddress}
                 maxLength={MAX.fspEmailAddress}
                 invalid={!!errors.fspEmailAddress}
@@ -759,7 +759,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
               />
               <Toggle
                 id="edit-frpa197electionInd"
-                labelText="FRPA 197 Election"
+                labelText="FRPA 197 election"
                 labelA="No"
                 labelB="Yes"
                 toggled={form.frpa197electionInd}
@@ -781,7 +781,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
             and persisted without going through the scalar edit mode. */}
         <section className="fsp-info__tile fsp-info__tile--full">
           <header className="fsp-info__tile-header">
-            <h2 className="fsp-info__section-title">Agreement Holders</h2>
+            <h2 className="fsp-info__section-title">Agreement holders</h2>
             {canEdit && (
               <Button
                 kind="tertiary"
@@ -789,7 +789,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                 renderIcon={Add}
                 onClick={() => setClientPickerOpen(true)}
               >
-                Add Agreement Holder
+                Add agreement holder
               </Button>
             )}
           </header>
@@ -847,7 +847,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                 renderIcon={Add}
                 onClick={() => setDistrictPickerOpen(true)}
               >
-                Add District
+                Add district
               </Button>
             )}
           </header>
@@ -932,7 +932,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
       <ConfirmationModal
         open={districtDeleteTarget != null}
         onClose={() => setDistrictDeleteTarget(null)}
-        heading="Remove District"
+        heading="Remove district"
         confirmLabel="Remove"
         danger
         errorTitle="Failed to remove district"

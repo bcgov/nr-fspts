@@ -39,6 +39,26 @@ public class PageableResponse<T> {
     private int totalPages;
   }
 
+  /**
+   * Build a page envelope when the data source already paginated and
+   * returned just this page's {@code content} plus the exact
+   * {@code totalElements} (e.g. a SQL {@code OFFSET/FETCH} query + a
+   * {@code COUNT(*)}). No in-memory slicing — {@code content} is emitted
+   * verbatim.
+   */
+  public static <T> PageableResponse<T> ofPage(List<T> content, int page, int size, long totalElements) {
+    int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
+    return PageableResponse.<T>builder()
+        .content(content)
+        .page(PageInfo.builder()
+            .size(size)
+            .number(page)
+            .totalElements(totalElements)
+            .totalPages(totalPages)
+            .build())
+        .build();
+  }
+
   public static <T> PageableResponse<T> of(List<T> fullList, int page, int size) {
     int total = fullList.size();
     int totalPages = size > 0 ? (int) Math.ceil((double) total / size) : 0;

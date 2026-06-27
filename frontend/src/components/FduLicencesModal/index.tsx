@@ -138,7 +138,7 @@ const FduLicencesModal: FC<Props> = ({
   return (
     <Modal
       open={open}
-      modalHeading={`Edit Licences — ${fduName}`}
+      modalHeading={`Edit licences — ${fduName}`}
       modalLabel="FDU"
       passiveModal
       size="sm"

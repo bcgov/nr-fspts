@@ -102,7 +102,7 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
   return (
     <Modal
       open={open}
-      modalHeading="Add District"
+      modalHeading="Add district"
       passiveModal
       size="sm"
       className="fsp-species-modal"

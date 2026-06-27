@@ -156,8 +156,8 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
       open={open}
       modalHeading={
         prevDecision
-          ? 'Edit Extension Decision'
-          : 'Record Extension Decision'
+          ? 'Edit extension decision'
+          : 'Record extension decision'
       }
       passiveModal
       size="sm"
@@ -210,7 +210,7 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
           <DatePickerInput
             id="ext-submission-date"
             placeholder="YYYY-MM-DD"
-            labelText="Submission Date *"
+            labelText="Submission date *"
             disabled={saving}
             invalid={submissionMissing}
             invalidText="Submission date is required."
@@ -228,7 +228,7 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
           <DatePickerInput
             id="ext-decision-date"
             placeholder="YYYY-MM-DD"
-            labelText="Decision Date *"
+            labelText="Decision date *"
             disabled={saving}
             invalid={decisionDateMissing}
             invalidText="Decision date is required."
@@ -247,7 +247,7 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
             <DatePickerInput
               id="ext-effective-date"
               placeholder="YYYY-MM-DD"
-              labelText="Effective Date *"
+              labelText="Effective date *"
               disabled={saving}
               invalid={effectiveMissing}
               invalidText="Effective date is required for Approve."

@@ -14,7 +14,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tag,
   TextInput,
   Tile,
 } from '@carbon/react';
@@ -37,6 +36,9 @@ import {
   getFspStatusCodes,
   searchFsp,
 } from '@/services/fspSearch';
+import { EmptyState } from '@/components/EmptyState/EmptyState';
+import { StatusTag } from '@/components/StatusTag/StatusTag';
+import { formatDate } from '@/utils/formatDate';
 import './SearchPage.scss';
 
 // Same icon shim SearchPage uses — small Loading sized for a Button
@@ -60,22 +62,6 @@ const APPROVAL_OPTIONS = [
   { value: 'N', label: 'No' },
 ];
 
-// Tag colour palette mirrors the FSP Search / Inbox tables so a user
-// reads the same status the same way across screens. The submission-
-// history-only "Effective" status doubles up on green (Approved colour).
-type TagType = 'green' | 'blue' | 'gray' | 'red' | 'warm-gray';
-const STATUS_TAG_TYPE_BY_DESC: Record<string, TagType> = {
-  Approved: 'green',
-  Effective: 'green',
-  Rejected: 'red',
-  Submitted: 'blue',
-  Draft: 'gray',
-  'Clarification Requested': 'gray',
-  'Opportunity to be Heard': 'warm-gray',
-  Expired: 'warm-gray',
-  Cancelled: 'warm-gray',
-  Retired: 'warm-gray',
-};
 
 interface SearchResult {
   id: string;
@@ -115,9 +101,9 @@ const mapToSearchResult = (r: FspSearchResult, index: number): SearchResult => (
   name: r.planName ?? '',
   amendName: r.fspAmendmentName ?? '',
   status: r.fspStatusDesc ?? '',
-  effectiveDate: r.planStartDate ?? '',
-  expiryDate: r.planEndDate ?? '',
-  submittedDate: r.planSubmissionDate ?? '',
+  effectiveDate: formatDate(r.planStartDate),
+  expiryDate: formatDate(r.planEndDate),
+  submittedDate: formatDate(r.planSubmissionDate),
   approvalRequired: formatApprovalRequired(r.amendmentApprovalRequirdInd),
 });
 
@@ -444,7 +430,7 @@ const SubmissionHistoryPage: FC = () => {
 
             <TextInput
               id="submhist-fspName"
-              labelText="FSP Name"
+              labelText="FSP name"
               value={form.fspName}
               onChange={(e) => set('fspName', e.target.value)}
               maxLength={120}
@@ -452,7 +438,7 @@ const SubmissionHistoryPage: FC = () => {
 
             <TextInput
               id="submhist-amendName"
-              labelText="Amendment Name"
+              labelText="Amendment name"
               value={form.amendName}
               onChange={(e) => set('amendName', e.target.value)}
               maxLength={30}
@@ -460,7 +446,7 @@ const SubmissionHistoryPage: FC = () => {
 
             <Select
               id="submhist-approval"
-              labelText="Approval Required"
+              labelText="Approval required"
               value={form.approval}
               onChange={(e) => set('approval', e.target.value)}
             >
@@ -469,14 +455,17 @@ const SubmissionHistoryPage: FC = () => {
               ))}
             </Select>
 
-            {/* fsp-search__row-start forces the Date Type select onto
-                a fresh row so it sits next to the date-range picker
-                instead of getting tucked into the empty cell after
-                Approval Required. */}
+            {/* Section heading that groups the date fields below; spans the
+                full grid width (see SCSS) so it also forces the Date Type
+                select onto a fresh row. */}
+            <h2 className="fsp-search__group-heading">Date range</h2>
+
+            {/* fsp-search__row-start forces the Date Type select to start in
+                column 1 of the row below the heading. */}
             <Select
               id="submhist-dateType"
               className="fsp-search__row-start"
-              labelText="Date Type"
+              labelText="Date type"
               value={form.dateType}
               onChange={(e) => set('dateType', e.target.value)}
             >
@@ -485,31 +474,36 @@ const SubmissionHistoryPage: FC = () => {
               ))}
             </Select>
 
+            {/* Two INDEPENDENT single date pickers — not a connected range.
+                Each has its own calendar, updates only its own field, and
+                fills its grid column (see SearchPage.scss). */}
             <DatePicker
-              className="fsp-search__date-range"
-              datePickerType="range"
+              datePickerType="single"
               dateFormat="Y-m-d"
-              value={
-                form.dateFrom || form.dateTo
-                  ? [form.dateFrom, form.dateTo].filter(Boolean)
-                  : []
+              value={form.dateFrom ? [form.dateFrom] : []}
+              onChange={(dates) =>
+                set('dateFrom', dates[0] ? dates[0].toISOString().slice(0, 10) : '')
               }
-              onChange={(dates) => {
-                const fmt = (d: Date | undefined) =>
-                  d ? d.toISOString().slice(0, 10) : '';
-                set('dateFrom', fmt(dates[0]));
-                set('dateTo', fmt(dates[1]));
-              }}
             >
               <DatePickerInput
                 id="submhist-dateFrom"
-                labelText="Date From"
+                labelText="Date from"
                 placeholder="YYYY-MM-DD"
                 pattern="\d{4}-\d{2}-\d{2}"
               />
+            </DatePicker>
+
+            <DatePicker
+              datePickerType="single"
+              dateFormat="Y-m-d"
+              value={form.dateTo ? [form.dateTo] : []}
+              onChange={(dates) =>
+                set('dateTo', dates[0] ? dates[0].toISOString().slice(0, 10) : '')
+              }
+            >
               <DatePickerInput
                 id="submhist-dateTo"
-                labelText="Date To"
+                labelText="Date to"
                 placeholder="YYYY-MM-DD"
                 pattern="\d{4}-\d{2}-\d{2}"
               />
@@ -603,12 +597,19 @@ const SubmissionHistoryPage: FC = () => {
                                         if (cell.info.header === 'status' && value) {
                                           return (
                                             <TableCell key={cell.id}>
-                                              <Tag
-                                                type={STATUS_TAG_TYPE_BY_DESC[value] ?? 'gray'}
-                                                size="sm"
-                                              >
-                                                {value}
-                                              </Tag>
+                                              <StatusTag status={value} />
+                                            </TableCell>
+                                          );
+                                        }
+                                        // Amendment 0 is the original plan — display
+                                        // "Original FSP" but keep the raw "0" value
+                                        // (the nav URL reads it from the cell value).
+                                        if (cell.info.header === 'amendNo') {
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              {value === '0'
+                                                ? 'Original FSP'
+                                                : formatCellText(value as string)}
                                             </TableCell>
                                           );
                                         }
@@ -649,13 +650,26 @@ const SubmissionHistoryPage: FC = () => {
               </>
             )}
 
-            {!hasResults && results !== null && !error && (
-              <p className="fsp-search__summary">
-                {activeOrgClientNumber
-                  ? 'No submissions match your search.'
-                  : 'Select an active organization to see its submission history.'}
-              </p>
-            )}
+            {!hasResults &&
+              results !== null &&
+              !error &&
+              (activeOrgClientNumber ? (
+                <EmptyState
+                  title="No results found"
+                  body={
+                    <>
+                      No submissions match your search criteria.
+                      <br />
+                      Try adjusting your filters and searching again.
+                    </>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  title="Select an organization"
+                  body="Choose an active organization to see its submission history."
+                />
+              ))}
           </div>
         </div>
       )}

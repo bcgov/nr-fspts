@@ -41,7 +41,7 @@ interface Props {
 
 const VARIANT_TITLE: Record<Props['variant'], string> = {
   fdu: 'FDU / Map',
-  'identified-areas': 'Identified Areas / Map',
+  'identified-areas': 'Identified areas / Map',
 };
 
 const MAP_VIEWER_URL = env.VITE_MAP_VIEWER_URL ?? '';
@@ -263,7 +263,7 @@ const MapTab: FC<Props> = ({
                                       onClick={() => openMapView()}
                                       disabled={!extent || opening}
                                     >
-                                      Map View
+                                      Map view
                                     </Button>
                                     {canEditLicences && sourceRow?.fduId && (
                                       <Button

@@ -344,7 +344,7 @@ const FspInformationPage: FC = () => {
                     renderIcon={TrashCan}
                     onClick={() => setConfirmDeleteOpen(true)}
                   >
-                    {isAmendment ? 'Delete Amendment' : 'Delete FSP'}
+                    {isAmendment ? 'Delete amendment' : 'Delete FSP'}
                   </Button>
                 )}
               </div>
@@ -426,9 +426,9 @@ const FspInformationPage: FC = () => {
             <TabList aria-label="FSP sections" contained>
               <Tab>Information</Tab>
               <Tab>Attachments</Tab>
-              <Tab>Stocking Standards</Tab>
-              <Tab>FDU / Map</Tab>
-              <Tab>Identified Areas</Tab>
+              <Tab>Stocking standards</Tab>
+              <Tab>FDU / map</Tab>
+              <Tab>Identified areas</Tab>
               <Tab>History</Tab>
               {showWorkflowTab && <Tab>Workflow</Tab>}
             </TabList>

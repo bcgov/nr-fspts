@@ -197,7 +197,7 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
           >
             <DatePickerInput
               id={`report-${definition.id}-start-date`}
-              labelText="Date From"
+              labelText="Date from"
               placeholder="YYYY-MM-DD"
               pattern="\d{4}-\d{2}-\d{2}"
             />
@@ -217,7 +217,7 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
           >
             <DatePickerInput
               id={`report-${definition.id}-end-date`}
-              labelText="Date To"
+              labelText="Date to"
               placeholder="YYYY-MM-DD"
               pattern="\d{4}-\d{2}-\d{2}"
             />
@@ -229,7 +229,7 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
           <Select
             key="orgUnit"
             id={`report-${definition.id}-orgUnit`}
-            labelText="Organization Unit"
+            labelText="Organization unit"
             value={formState.orgUnitNo}
             onChange={handleSelectChange('orgUnitNo')}
             disabled={orgUnitsLoading}
@@ -253,7 +253,7 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
           <TextInput
             key="ahClientNumber"
             id={`report-${definition.id}-ahClientNumber`}
-            labelText="Agreement Holder Client #"
+            labelText="Agreement holder client #"
             value={formState.ahClientNumber}
             onChange={handleTextChange('ahClientNumber')}
             maxLength={8}

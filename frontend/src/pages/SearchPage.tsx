@@ -1,6 +1,8 @@
 import {
   Button,
+  ComboBox,
   DataTable,
+  DataTableSkeleton,
   DatePicker,
   DatePickerInput,
   Loading,
@@ -14,17 +16,19 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tag,
   TextInput,
   Tile,
 } from '@carbon/react';
-import {Search as SearchIcon} from '@carbon/icons-react';
+import {CheckmarkFilled, Search as SearchIcon, SubtractAlt} from '@carbon/icons-react';
 import {type FC, type FormEvent, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 
-import ClientSearchModal from '@/components/ClientSearchModal';
+import {type ClientSearchResult, searchClientsAuto} from '@/services/clientSearch';
 import {useNotification} from '@/context/notification/useNotification';
-import {type CodeOption, type FspSearchResult, getFspStatusCodes, getOrgUnitCodes, getOrgUnits, searchFsp,} from '@/services/fspSearch';
+import {type CodeOption, type FspSearchResult, getFspStatusCodes, getOrgUnits, searchFsp,} from '@/services/fspSearch';
+import { EmptyState } from '@/components/EmptyState/EmptyState';
+import { StatusTag } from '@/components/StatusTag/StatusTag';
+import { formatDate } from '@/utils/formatDate';
 import './SearchPage.scss';
 
 // Renders Carbon's small inline spinner sized to fit inside a Button's
@@ -82,17 +86,6 @@ const HEADERS = [
   { key: 'approvalRequired', header: 'Approval required' },
 ];
 
-// Carbon Tag color by FSP status description as returned in fspStatusDesc.
-// Backend's FSP_100_SEARCH cursor returns the status as a human label
-// (e.g. "Approved"), not the code, so we key by description. Unknown
-// values fall back to gray via the lookup default.
-const STATUS_TAG_TYPE_BY_DESC: Record<string, 'green' | 'blue' | 'gray' | 'red' | 'warm-gray'> = {
-  Approved: 'green',
-  Submitted: 'blue',
-  Draft: 'gray',
-  Rejected: 'red',
-  Expired: 'warm-gray',
-};
 
 // Y/N indicator → readable cell text. Anything else (null, empty, unexpected
 // value) falls through to the em-dash placeholder via formatCellText.
@@ -100,6 +93,23 @@ const formatApprovalRequired = (value: string | null | undefined): string => {
   if (value === 'Y') return 'Yes';
   if (value === 'N') return 'No';
   return '';
+};
+
+// Backend returns dates as YYYY-MM-DD; the table renders them in the
+// design's "MMM D, YYYY" form (e.g. "Apr 10, 2021") via the shared util.
+
+// Label for a client suggestion in the Agreement Holder autocomplete:
+// "Name (ACRONYM) · #number", with absent parts dropped.
+const clientLabel = (c: ClientSearchResult): string => {
+  const parts: string[] = [];
+  const name = c.clientName?.trim();
+  if (name) parts.push(name);
+  const acronym = c.clientAcronym?.trim();
+  if (acronym) parts.push(`(${acronym})`);
+  const number = c.clientNumber?.trim();
+  const label = parts.join(' ');
+  if (number) return label ? `${label} · ${number}` : number;
+  return label;
 };
 
 const mapToSearchResult = (r: FspSearchResult, index: number): SearchResult => ({
@@ -116,8 +126,8 @@ const mapToSearchResult = (r: FspSearchResult, index: number): SearchResult => (
   amendName: r.fspAmendmentName ?? '',
   status: r.fspStatusDesc ?? '',
   orgUnit: r.orgUnitCode ?? '',
-  effectiveDate: r.planStartDate ?? '',
-  expiryDate: r.planEndDate ?? '',
+  effectiveDate: formatDate(r.planStartDate),
+  expiryDate: formatDate(r.planEndDate),
   holder: r.agreementHolder ?? '',
   approvalRequired: formatApprovalRequired(r.amendmentApprovalRequirdInd),
 });
@@ -225,7 +235,13 @@ const SearchPage: FC = () => {
   const [error, setError] = useState<string | null>(null);
   // Client-search modal open/close. The modal owns its own search state;
   // we only care here whether it's visible and what client gets picked.
-  const [clientPickerOpen, setClientPickerOpen] = useState(false);
+  // Agreement Holder autocomplete (replaces the old client-search modal).
+  // form.holder still carries the resolved client *number* — the actual
+  // search filter; these track the typed term, fetched suggestions, and
+  // the picked client for the ComboBox's controlled display.
+  const [holderTerm, setHolderTerm] = useState('');
+  const [holderItems, setHolderItems] = useState<ClientSearchResult[]>([]);
+  const [holderSelected, setHolderSelected] = useState<ClientSearchResult | null>(null);
 
   // Errors render as a slide-in toast (top-right corner), not an
   // inline notification in the results area. The `error` state still
@@ -246,33 +262,29 @@ const SearchPage: FC = () => {
   // status doesn't need its own loading flag because the page works fine
   // with an empty status list (the user can submit the search anyway).
   const [orgUnits, setOrgUnits] = useState<CodeOption[]>([]);
-  const [orgUnitCodes, setOrgUnitCodes] = useState<CodeOption[]>([]);
   const [statusOptions, setStatusOptions] = useState<CodeOption[]>([]);
   const [codeListsLoading, setCodeListsLoading] = useState(true);
 
   useEffect(() => {
-    // Parallel load — all endpoints are independent. We deliberately do
-    // NOT bail on a single failure: one might 404 while the others
-    // succeed, and partial availability is better than empty dropdowns.
-    // org-unit-codes is the abbreviation→name lookup used to expand
-    // the Org Unit cell into a stacked list of full names; getOrgUnits
-    // returns the numeric-keyed list used by the dropdown filter.
+    // Parallel load — both endpoints are independent. We deliberately do
+    // NOT bail on a single failure: one might 404 while the other
+    // succeeds, and partial availability is better than empty dropdowns.
+    // getOrgUnits returns the numeric-keyed list used by the dropdown
+    // filter (the Org Unit cell renders the codes verbatim, no lookup).
     let cancelled = false;
     setCodeListsLoading(true);
     Promise.allSettled([
       getOrgUnits(),
       getFspStatusCodes(),
-      getOrgUnitCodes(),
     ]).then((results) => {
       if (cancelled) return;
-      const [orgRes, statusRes, orgCodeRes] = results;
+      const [orgRes, statusRes] = results;
       if (orgRes.status === 'fulfilled') setOrgUnits(orgRes.value);
       if (statusRes.status === 'fulfilled') setStatusOptions(statusRes.value);
-      if (orgCodeRes.status === 'fulfilled') setOrgUnitCodes(orgCodeRes.value);
       const failures = results
         .map((r, i) => {
           if (r.status !== 'rejected') return null;
-          const label = ['org units', 'status codes', 'org unit codes'][i] ?? 'lookup';
+          const label = ['org units', 'status codes'][i] ?? 'lookup';
           return `${label}: ${r.reason}`;
         })
         .filter(Boolean);
@@ -415,30 +427,61 @@ const SearchPage: FC = () => {
     setTotalElements(0);
     setPage(0);
     setError(null);
+    setHolderTerm('');
+    setHolderItems([]);
+    setHolderSelected(null);
   }, []);
 
-  // Expand the Org Unit comma-separated 3-letter codes (e.g. "DCC,
-  // DKM, HRE") into the full district names via the org-unit-codes
-  // lookup (keyed by org_unit_code, not the numeric org_unit_no the
-  // dropdown filter uses — that's why we have TWO endpoints). Joined
-  // with newlines so the cell can render one per line via
-  // white-space: pre-line on .fsp-search__table body td. Done at
-  // display time rather than in mapToSearchResult so results loaded
-  // from sessionStorage also get the expansion.
+  // Debounced Agreement Holder lookup — same shape as nr-silva's
+  // ForestClientInput: wait 300ms after the last keystroke, skip terms
+  // under 3 chars, and tolerate a failed fetch by clearing the list.
+  useEffect(() => {
+    const term = holderTerm.trim();
+    if (term.length < 3) {
+      setHolderItems([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchClientsAuto(term)
+        .then(setHolderItems)
+        .catch(() => setHolderItems([]));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [holderTerm]);
+
+  // Typing replaces any prior selection and clears the holder filter
+  // (until a new client is picked). Ignore the synthetic input change
+  // Carbon fires when it sets the input to the selected item's label.
+  const handleHolderInput = (text: string) => {
+    if (holderSelected && clientLabel(holderSelected) === text) return;
+    setHolderSelected(null);
+    if (form.holder) set('holder', '');
+    setHolderTerm(text);
+  };
+
+  const handleHolderSelect = (data: { selectedItem?: ClientSearchResult | null }) => {
+    const client = data.selectedItem ?? null;
+    setHolderSelected(client);
+    set('holder', client?.clientNumber?.trim() ?? '');
+  };
+
+  // Render the Org Unit cell as the 3-letter org_unit_code values (e.g.
+  // "DCC", "DKM") — business wants the code, not the full district name.
+  // The search row already returns the codes comma-separated; we just
+  // split + re-join with newlines so multiple districts render one per
+  // line via white-space: pre-line on .fsp-search__table body td. Done
+  // at display time so results restored from sessionStorage stack too.
   const displayResults = useMemo(() => {
     if (!results) return null;
-    if (orgUnitCodes.length === 0) return results;
-    const lookup = new Map(orgUnitCodes.map((o) => [o.code, o.description]));
     return results.map((r) => ({
       ...r,
       orgUnit: r.orgUnit
         .split(',')
         .map((c) => c.trim())
         .filter(Boolean)
-        .map((c) => lookup.get(c) ?? c)
         .join('\n'),
     }));
-  }, [results, orgUnitCodes]);
+  }, [results]);
 
   const hasResults = displayResults !== null && displayResults.length > 0;
 
@@ -472,7 +515,7 @@ const SearchPage: FC = () => {
             <div className="fsp-search__field-grid">
               <Select
                 id="search-orgUnit"
-                labelText="Organization Unit"
+                labelText="Organization unit"
                 value={form.orgUnit}
                 onChange={(e) => set('orgUnit', e.target.value)}
               >
@@ -517,7 +560,7 @@ const SearchPage: FC = () => {
 
               <TextInput
                 id="search-fspName"
-                labelText="FSP Name"
+                labelText="FSP name"
                 value={form.fspName}
                 onChange={(e) => set('fspName', e.target.value)}
                 maxLength={120}
@@ -525,45 +568,15 @@ const SearchPage: FC = () => {
 
               <TextInput
                 id="search-amendName"
-                labelText="Amendment Name"
+                labelText="Amendment name"
                 value={form.amendName}
                 onChange={(e) => set('amendName', e.target.value)}
                 maxLength={30}
               />
 
-              {/* DB column FSP_AGREEMENT_HOLDER.CLIENT_NUMBER is
-                  VARCHAR2(8 BYTE) but BCGov client numbers are numeric
-                  (padded with leading zeros), so same digits-only
-                  sanitizer as FSP ID with the smaller max. The search
-                  icon button beside the input opens the SIL21 client
-                  picker modal — mirrors the legacy fsp100Search.jsp
-                  "<img src='search.gif'>" trigger next to its holder
-                  text input. */}
-              <div className="fsp-search__holder-field">
-                <TextInput
-                  id="search-holder"
-                  labelText="Agreement Holder"
-                  value={form.holder}
-                  onChange={setDigitsOnly('holder')}
-                  maxLength={8}
-                  inputMode="numeric"
-                  autoComplete="off"
-                />
-                <Button
-                  kind="ghost"
-                  size="md"
-                  hasIconOnly
-                  renderIcon={SearchIcon}
-                  iconDescription="Search for client"
-                  tooltipPosition="left"
-                  onClick={() => setClientPickerOpen(true)}
-                  className="fsp-search__holder-trigger"
-                />
-              </div>
-
               <Select
                 id="search-approval"
-                labelText="Approval Required"
+                labelText="Approval required"
                 value={form.approval}
                 onChange={(e) => set('approval', e.target.value)}
               >
@@ -572,15 +585,39 @@ const SearchPage: FC = () => {
                 ))}
               </Select>
 
+              {/* Agreement Holder autocomplete (SIL21 client search).
+                  Type a name, acronym, or client number → pick a client →
+                  form.holder is set to its client number, which is the
+                  actual FSP search filter (ahClientNumber). Replaces the
+                  old magnifying-glass-opens-a-modal picker. Wrapped in a
+                  cell that spans two grid columns (see SCSS). */}
+              <div className="fsp-search__holder-cell">
+                <ComboBox
+                  id="search-holder"
+                  titleText="Agreement holder"
+                  helperText="Enter name, acronym, or client number (min. 3 characters)"
+                  items={holderItems}
+                  itemToString={(item) => (item ? clientLabel(item) : '')}
+                  selectedItem={holderSelected}
+                  onInputChange={handleHolderInput}
+                  onChange={handleHolderSelect}
+                />
+              </div>
+
+              {/* Section heading that groups the date fields below. Spans
+                  the full grid width (see SCSS), so it also forces the
+                  Date Type select onto a fresh row. */}
+              <h2 className="fsp-search__group-heading">Date range</h2>
+
               {/* fsp-search__row-start forces the Date Type select to start
                   in column 1 at the lg breakpoint, dropping it (and the
                   Date From / Date To range picker that follows) onto a
-                  fresh row 3. Without it the auto-flow grid would tuck
+                  fresh row. Without it the auto-flow grid would tuck
                   Date Type into the empty cell after Approval Required. */}
               <Select
                 id="search-dateType"
                 className="fsp-search__row-start"
-                labelText="Date Type"
+                labelText="Date type"
                 value={form.dateType}
                 onChange={(e) => set('dateType', e.target.value)}
               >
@@ -589,41 +626,38 @@ const SearchPage: FC = () => {
                 ))}
               </Select>
 
-              {/* See SearchPage.scss for the flex rules that make Date From
-                  and Date To split this single grid cell 50/50 horizontally.
-                  className="fsp-search__date-range" lands on the outer
-                  .cds--form-item wrapper Carbon emits around the picker. */}
+              {/* Two INDEPENDENT single date pickers — not a connected
+                  range. Each has its own calendar and updates only its own
+                  field. dateFormat="Y-m-d" + the dashed pattern keep
+                  HTML5 constraint validation happy (Carbon's default
+                  pattern is M/D/Y and would reject our YYYY-MM-DD). */}
               <DatePicker
-                className="fsp-search__date-range"
-                datePickerType="range"
+                datePickerType="single"
                 dateFormat="Y-m-d"
-                value={
-                  form.dateFrom || form.dateTo
-                    ? [form.dateFrom, form.dateTo].filter(Boolean)
-                    : []
+                value={form.dateFrom ? [form.dateFrom] : []}
+                onChange={(dates) =>
+                  set('dateFrom', dates[0] ? dates[0].toISOString().slice(0, 10) : '')
                 }
-                onChange={(dates) => {
-                  const fmt = (d: Date | undefined) =>
-                    d ? d.toISOString().slice(0, 10) : '';
-                  set('dateFrom', fmt(dates[0]));
-                  set('dateTo', fmt(dates[1]));
-                }}
               >
-                {/* Carbon's default `pattern` on DatePickerInput is
-                    `\d{1,4}/\d{1,2}/\d{1,2}` (M/D/Y). Since we render
-                    dates as YYYY-MM-DD via dateFormat="Y-m-d", that
-                    default pattern fails HTML5 constraint validation on
-                    submit ("Please match the requested format"). Override
-                    with the matching dashed pattern. */}
                 <DatePickerInput
                   id="search-dateFrom"
-                  labelText="Date From"
+                  labelText="Date from"
                   placeholder="YYYY-MM-DD"
                   pattern="\d{4}-\d{2}-\d{2}"
                 />
+              </DatePicker>
+
+              <DatePicker
+                datePickerType="single"
+                dateFormat="Y-m-d"
+                value={form.dateTo ? [form.dateTo] : []}
+                onChange={(dates) =>
+                  set('dateTo', dates[0] ? dates[0].toISOString().slice(0, 10) : '')
+                }
+              >
                 <DatePickerInput
                   id="search-dateTo"
-                  labelText="Date To"
+                  labelText="Date to"
                   placeholder="YYYY-MM-DD"
                   pattern="\d{4}-\d{2}-\d{2}"
                 />
@@ -638,7 +672,7 @@ const SearchPage: FC = () => {
                 onClick={handleClear}
                 disabled={loading}
               >
-                Clear
+                Clear all
               </Button>
 
               {/* The Search button stays mounted; only its label and
@@ -664,32 +698,46 @@ const SearchPage: FC = () => {
           no Grid / Column padding between them. Only .cds--content's
           own 1.5rem horizontal padding has to be negated (see
           SearchPage.scss). */}
-      {results !== null && (
+      {(loading || results !== null) && (
         <div className="fsp-search__results-fullbleed">
           <div className="fsp-search__results">
-            {hasResults && (
+            {loading ? (
+              // In-flight: the banner shows "Searching" + a spinner in
+              // place of the result count, and the table is a skeleton.
+              // Covers the first search (results still null) and any
+              // pagination fetch.
               <>
-                {/* Gray banner directly attached to the top of the
-                    table. Holds the total result count flush-left so
-                    the user has the figure in their eyeline as they
-                    scroll. No Stack gap between banner / table /
-                    pagination — they read as one connected block. */}
+                <div className="fsp-search__results-header">
+                  <span className="fsp-search__results-count fsp-search__results-count--searching">
+                    Searching
+                    <span className="fsp-search__searching-spinner" aria-hidden="true" />
+                  </span>
+                </div>
+                <div className="fsp-search__table-container">
+                  <div className="fsp-search__table">
+                    <DataTableSkeleton
+                      headers={HEADERS}
+                      rowCount={Math.min(pageSize, 10)}
+                      showHeader={false}
+                      showToolbar={false}
+                      aria-label="Loading search results"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : hasResults ? (
+              <>
+                {/* Gray banner with the total result count flush-left so
+                    the user has the figure in their eyeline. Banner /
+                    table / pagination read as one connected block. */}
                 <div className="fsp-search__results-header">
                   <span className="fsp-search__results-count">
                     {totalElements.toLocaleString()}{' '}
                     {totalElements === 1 ? 'result' : 'results'} found
                   </span>
                 </div>
-                {/* Position-relative wrapper so the loading overlay
-                    can absolutely-position itself inside the table
-                    bounds. While loading, the inner wrapper gets
-                    .fsp-search__table--loading which dims the table
-                    and disables pointer-events; the overlay parks a
-                    centered spinner on top. Both come off together
-                    when the next page lands. */}
                 <div className="fsp-search__table-container">
-                  <div className={loading ? 'fsp-search__table--loading' : undefined}>
-                    <div className="fsp-search__table">
+                  <div className="fsp-search__table">
                       <DataTable rows={displayResults!} headers={HEADERS}>
                           {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
                             <TableContainer>
@@ -746,13 +794,43 @@ const SearchPage: FC = () => {
                                         if (cell.info.header === 'status' && value) {
                                           return (
                                             <TableCell key={cell.id}>
-                                              <Tag
-                                                type={STATUS_TAG_TYPE_BY_DESC[value] ?? 'gray'}
-                                                size="sm"
-                                              >
-                                                {value}
-                                              </Tag>
+                                              <StatusTag status={value} />
                                             </TableCell>
+                                          );
+                                        }
+                                        // Amendment 0 is the original plan — display "Original
+                                        // FSP" but keep the raw "0" value (the nav URL above
+                                        // reads it from the cell value).
+                                        if (cell.info.header === 'amendNo') {
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              {value === '0' ? 'Original FSP' : formatCellText(value)}
+                                            </TableCell>
+                                          );
+                                        }
+                                        if (cell.info.header === 'approvalRequired') {
+                                          if (value === 'Yes') {
+                                            return (
+                                              <TableCell key={cell.id}>
+                                                <span className="fsp-search__bool fsp-search__bool--yes">
+                                                  <CheckmarkFilled size={16} />
+                                                  Yes
+                                                </span>
+                                              </TableCell>
+                                            );
+                                          }
+                                          if (value === 'No') {
+                                            return (
+                                              <TableCell key={cell.id}>
+                                                <span className="fsp-search__bool fsp-search__bool--no">
+                                                  <SubtractAlt size={16} />
+                                                  No
+                                                </span>
+                                              </TableCell>
+                                            );
+                                          }
+                                          return (
+                                            <TableCell key={cell.id}>{formatCellText(value)}</TableCell>
                                           );
                                         }
                                         return (
@@ -766,63 +844,43 @@ const SearchPage: FC = () => {
                               </Table>
                             </TableContainer>
                           )}
-                        </DataTable>
-                      </div>
-                    </div>
-
-                    {loading && (
-                      <div
-                        className="fsp-search__table-overlay"
-                        role="status"
-                        aria-live="polite"
-                      >
-                        <Loading description="Loading…" withOverlay={false} />
-                      </div>
-                    )}
+                      </DataTable>
                   </div>
+                </div>
 
-                  {/* Carbon Pagination is 1-indexed; handlePagination
-                      converts to the 0-indexed backend convention. The
-                      cross-app pagination styling (rounded corners, no
-                      borders on inline selects, etc.) is set globally in
-                      src/styles/_overrides.scss — same rules REPT uses. */}
-                  <Pagination
-                    page={page + 1}
-                    pageSize={pageSize}
-                    pageSizes={[10, 25, 50, 100]}
-                    totalItems={totalElements}
-                    onChange={handlePagination}
-                    size="md"
-                  />
-                </>
-              )}
-
-            {!hasResults && results !== null && !error && (
-              // No-results state still gets a one-line message — the
-              // empty area would otherwise leave the user wondering
-              // whether the search ran at all.
-              <p className="fsp-search__summary">No results match your search.</p>
+                {/* Carbon Pagination is 1-indexed; handlePagination
+                    converts to the 0-indexed backend convention. The
+                    cross-app pagination styling (rounded corners, no
+                    borders on inline selects, etc.) is set globally in
+                    src/styles/_overrides.scss — same rules REPT uses. */}
+                <Pagination
+                  page={page + 1}
+                  pageSize={pageSize}
+                  pageSizes={[10, 25, 50, 100]}
+                  totalItems={totalElements}
+                  onChange={handlePagination}
+                  size="md"
+                />
+              </>
+            ) : (
+              // Not loading and the search came back empty — a centered
+              // empty state (pictogram + title + body) matching the design.
+              results !== null && !error && (
+                <EmptyState
+                  title="No results found"
+                  body={
+                    <>
+                      No records match your search criteria.
+                      <br />
+                      Try adjusting your filters and searching again.
+                    </>
+                  }
+                />
+              )
             )}
           </div>
         </div>
       )}
-
-      {/* Modal lives at the Grid root so it portals/positions over the
-          whole page. Mounted unconditionally; ClientSearchModal handles
-          its own open/closed visibility and resets internal state on
-          each open so stale criteria from a previous picker session
-          don't leak across. */}
-      <ClientSearchModal
-        open={clientPickerOpen}
-        onClose={() => setClientPickerOpen(false)}
-        onSelect={(client) => {
-          // Backend CLIENT_NUMBER is the legacy Agreement Holder
-          // identifier on FSP_AGREEMENT_HOLDER. Empty/null guards via
-          // the empty-string fallback so the field's `value` prop
-          // never goes undefined.
-          set('holder', client.clientNumber?.trim() ?? '');
-        }}
-      />
     </div>
   );
 };

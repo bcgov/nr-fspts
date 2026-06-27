@@ -28,7 +28,7 @@ const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
 
 const HEADERS = [
-  { key: 'eventDateTime', header: 'Date / Time' },
+  { key: 'eventDateTime', header: 'Date / time' },
   { key: 'event', header: 'Event' },
   { key: 'description', header: 'Description' },
   { key: 'userId', header: 'User' },

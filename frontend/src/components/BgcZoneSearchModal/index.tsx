@@ -212,7 +212,7 @@ const BgcZoneSearchModal: FC<BgcZoneSearchModalProps> = ({ open, onClose, onSele
       // Carbon "lg" — the results table is 7 visible columns plus the
       // Select button so wider is better.
       size="lg"
-      modalHeading="BGC Zone Search"
+      modalHeading="BGC zone search"
       passiveModal
       className="bgc-search-modal"
     >

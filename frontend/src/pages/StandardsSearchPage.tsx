@@ -15,7 +15,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tag,
   TextInput,
   Tile,
 } from '@carbon/react';
@@ -35,6 +34,9 @@ import {
   searchStandards,
   type StandardsSearchResult,
 } from '@/services/standardsSearch';
+import { EmptyState } from '@/components/EmptyState/EmptyState';
+import { StatusTag } from '@/components/StatusTag/StatusTag';
+import { formatDate } from '@/utils/formatDate';
 import './SearchPage.scss';
 import './StandardsSearchPage.scss';
 
@@ -66,22 +68,6 @@ interface ResultRow {
   expiryDate: string;
   fspIdList: string;
 }
-
-// Carbon Tag colour by status description — matches the palette used
-// on the FSP Search / Inbox tables so a user crossing between screens
-// reads the same status the same way. Unknown values fall back to
-// gray via the lookup default.
-const STATUS_TAG_TYPE_BY_DESC: Record<
-  string,
-  'green' | 'blue' | 'gray' | 'red' | 'warm-gray' | 'purple'
-> = {
-  Approved: 'green',
-  Submitted: 'blue',
-  Draft: 'gray',
-  Rejected: 'red',
-  Expired: 'warm-gray',
-  Replaced: 'purple',
-};
 
 const HEADERS = [
   { key: 'standardsRegimeId', header: 'Standards ID' },
@@ -144,7 +130,7 @@ const mapResult = (r: StandardsSearchResult, index: number): ResultRow => ({
   bgc: r.bgc ?? '',
   clientNumber: r.clientNumber ?? '',
   status: r.status ?? '',
-  expiryDate: r.expiryDate ?? '',
+  expiryDate: formatDate(r.expiryDate),
   fspIdList: r.fspIdList ?? '',
 });
 
@@ -377,7 +363,7 @@ const StandardsSearchPage: FC = () => {
               {/* Row 1: regime metadata */}
               <Select
                 id="ss-defaultStandard"
-                labelText="Default Standards"
+                labelText="Default standards"
                 value={form.defaultStandard}
                 onChange={(e) => set('defaultStandard', e.target.value)}
               >
@@ -388,7 +374,7 @@ const StandardsSearchPage: FC = () => {
 
               <Select
                 id="ss-statusCode"
-                labelText="Regime Status"
+                labelText="Regime status"
                 value={form.statusCode}
                 onChange={(e) => set('statusCode', e.target.value)}
               >
@@ -405,7 +391,7 @@ const StandardsSearchPage: FC = () => {
               {/* Row 2: containing context */}
               <Select
                 id="ss-orgUnitNo"
-                labelText="Organization Unit"
+                labelText="Organization unit"
                 value={form.orgUnitNo}
                 onChange={(e) => set('orgUnitNo', e.target.value)}
               >
@@ -442,7 +428,7 @@ const StandardsSearchPage: FC = () => {
 
               <TextInput
                 id="ss-clientName"
-                labelText="Client Name"
+                labelText="Client name"
                 value={form.clientName}
                 onChange={(e) => set('clientName', e.target.value)}
                 maxLength={60}
@@ -460,7 +446,7 @@ const StandardsSearchPage: FC = () => {
 
               <TextInput
                 id="ss-standardsRegimeName"
-                labelText="Standards Name"
+                labelText="Standards name"
                 value={form.standardsRegimeName}
                 onChange={(e) => set('standardsRegimeName', e.target.value)}
                 maxLength={50}
@@ -479,7 +465,7 @@ const StandardsSearchPage: FC = () => {
 
               <Select
                 id="ss-preferredSpecies"
-                labelText="Preferred Species"
+                labelText="Preferred species"
                 value={form.preferredSpecies}
                 onChange={(e) => set('preferredSpecies', e.target.value)}
               >
@@ -495,7 +481,7 @@ const StandardsSearchPage: FC = () => {
 
               <Select
                 id="ss-acceptableSpecies"
-                labelText="Acceptable Species"
+                labelText="Acceptable species"
                 value={form.acceptableSpecies}
                 onChange={(e) => set('acceptableSpecies', e.target.value)}
               >
@@ -526,7 +512,7 @@ const StandardsSearchPage: FC = () => {
                 <DatePickerInput
                   id="ss-expiryDateFrom"
                   placeholder="YYYY-MM-DD"
-                  labelText="Expiry Date From"
+                  labelText="Expiry date from"
                 />
               </DatePicker>
 
@@ -541,7 +527,7 @@ const StandardsSearchPage: FC = () => {
                 <DatePickerInput
                   id="ss-expiryDateTo"
                   placeholder="YYYY-MM-DD"
-                  labelText="Expiry Date To"
+                  labelText="Expiry date to"
                 />
               </DatePicker>
             </div>
@@ -583,7 +569,7 @@ const StandardsSearchPage: FC = () => {
         className="standards-search__detail-modal"
         modalHeading={
           selectedRegime
-            ? `Standards View — ${selectedRegime.regimeName || selectedRegime.regimeId}`
+            ? `Standards view — ${selectedRegime.regimeName || selectedRegime.regimeId}`
             : ''
         }
         onRequestClose={() => setSelectedRegime(null)}
@@ -650,12 +636,7 @@ const StandardsSearchPage: FC = () => {
                                       if (cell.info.header === 'status' && value) {
                                         return (
                                           <TableCell key={cell.id}>
-                                            <Tag
-                                              type={STATUS_TAG_TYPE_BY_DESC[value] ?? 'gray'}
-                                              size="sm"
-                                            >
-                                              {value}
-                                            </Tag>
+                                            <StatusTag status={value} />
                                           </TableCell>
                                         );
                                       }
@@ -685,9 +666,16 @@ const StandardsSearchPage: FC = () => {
                 />
               </>
             ) : (
-              <p className="fsp-search__summary">
-                No standards regimes matched. Adjust your search criteria and try again.
-              </p>
+              <EmptyState
+                title="No results found"
+                body={
+                  <>
+                    No standards regimes match your search criteria.
+                    <br />
+                    Try adjusting your filters and searching again.
+                  </>
+                }
+              />
             )}
           </div>
         </div>

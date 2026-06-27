@@ -73,7 +73,7 @@ const decisionFromStatus = (
 
 const DECISION_LABEL: Record<DdmDecisionChoice, string> = {
   APP: 'Approve',
-  DFT: 'Request Clarification',
+  DFT: 'Request clarification',
   REJ: 'Reject',
 };
 
@@ -180,7 +180,7 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
     <>
       <Modal
         open={open}
-        modalHeading={prevDecision ? 'Edit DDM Decision' : 'Record DDM Decision'}
+        modalHeading={prevDecision ? 'Edit DDM decision' : 'Record DDM decision'}
         passiveModal
         size="sm"
         className="fsp-species-modal"
@@ -253,7 +253,7 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
             <DatePickerInput
               id="ddm-decision-date"
               placeholder="YYYY-MM-DD"
-              labelText="Decision Date *"
+              labelText="Decision date *"
               disabled={saving}
               invalid={decisionDateMissing}
               invalidText="Decision date is required."
@@ -272,7 +272,7 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
               <DatePickerInput
                 id="ddm-effective-date"
                 placeholder="YYYY-MM-DD"
-                labelText="Effective Date *"
+                labelText="Effective date *"
                 disabled={saving}
                 invalid={effectiveMissing}
                 invalidText="Effective date is required for Approve."

@@ -26,15 +26,48 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 1rem;
+  // Extra breathing room between the page sub-title and the criteria Tile.
+  margin-block-end: 1.5rem;
 
   h1 {
     margin: 0;
+    // Design spec: 32px / regular / 40px line-height. Colour stays on the
+    // Carbon token so dark mode is unaffected.
+    font-size: 2rem;
+    font-weight: 400;
+    line-height: 2.5rem;
   }
 }
 
 .fsp-search__subtitle {
   margin: 0.25rem 0 0;
   color: var(--cds-text-secondary);
+  // Design spec: 16px / 24px line-height subtitle.
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+// ── Criteria (filter) area — label + input type to match the spec ──
+// Field labels at 14px in the primary text colour (Carbon default is a
+// 12px secondary caption); input / select / date text at 16px (Carbon
+// default 14px). Scoped to the search Tile so other forms are unaffected.
+.fsp-search__tile {
+  // Match the design's field label exactly: 14px / 18px line-height /
+  // 0.16px tracking / 4px gap below (Carbon's label is 16px line-height,
+  // 8px below). Colour comes from --cds-text-primary, now #131315.
+  .cds--label {
+    font-size: 14px;
+    line-height: 1.125rem;
+    letter-spacing: 0.16px;
+    margin-block-end: 0.25rem;
+    color: var(--cds-text-primary);
+  }
+
+  .cds--text-input,
+  .cds--select-input,
+  .cds--date-picker__input {
+    font-size: 16px;
+  }
 }
 
 .fsp-search__tile {
@@ -67,10 +100,36 @@
   gap: 1rem;
 }
 
+// "Date range" section heading inside the criteria grid. Spans the full
+// width so it sits on its own row above the date fields (and pushes them
+// to a fresh row). Styled like the design's field label — 14px, regular
+// weight, secondary grey. Negative top AND bottom margins tighten the gap
+// on both sides (offsetting most of the 1rem grid row gaps) so the heading
+// sits snug with the date fields below it.
+.fsp-search__field-grid .fsp-search__group-heading {
+  grid-column: 1 / -1;
+  margin: -0.5rem 0 -0.5rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.125rem;
+  letter-spacing: 0.16px;
+  color: var(--cds-text-secondary);
+}
+
 // Breakpoints chosen to match Carbon's md / lg, same as REPT.
 @media (min-width: 672px) {
   .fsp-search__field-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  // Agreement Holder spans two columns (full width at md's 2-col, half
+  // the row at lg's 4-col). The ComboBox fills the wider cell.
+  .fsp-search__field-grid .fsp-search__holder-cell {
+    grid-column: span 2;
+  }
+
+  .fsp-search__field-grid .fsp-search__holder-cell .cds--list-box__wrapper {
+    inline-size: 100%;
   }
 }
 
@@ -90,30 +149,25 @@
   }
 }
 
-// The range DatePicker occupies a single grid cell (under Status, since the
-// JSX order places it at slot 7 = row 2 col 3). Inside that cell, lay the
-// two DatePickerInputs out as 50/50 flex children so Date From and Date To
-// evenly split the column's width.
+// Date from / Date to are two INDEPENDENT single date pickers, each in its
+// own grid cell — make each fill its column to match the other fields
+// (e.g. the Approval required select directly above).
 //
-// Carbon's default for .cds--date-picker--range uses fixed-width input
-// containers (~8.5rem each) that don't fill the parent; we override to
-// flex: 1 so they grow with the grid cell instead. width: 100% on the
-// inner input element pushes the actual <input> out to its container's
-// full width.
-.fsp-search__field-grid .fsp-search__date-range .cds--date-picker--range {
-  display: flex;
-  gap: 0.5rem;
-  inline-size: 100%;
-}
-
-.fsp-search__field-grid .fsp-search__date-range .cds--date-picker-container {
-  flex: 1 1 0;
-  inline-size: auto;
-  min-inline-size: 0;
-}
-
-.fsp-search__field-grid .fsp-search__date-range .cds--date-picker__input {
-  inline-size: 100%;
+// Carbon nests the input four levels deep, and several of those levels
+// resist stretching: the grid item is .cds--form-item (flex column,
+// align-items: flex-start, so children don't stretch), the picker is a
+// flex ROW, and the input has a fixed 18rem width. Rather than chase each
+// rule's specificity, force the whole subtree to 100% with !important so
+// nothing — alignment, the fixed input width, or any inline width Carbon
+// sets — can cap it.
+.fsp-search__field-grid .cds--date-picker,
+.fsp-search__field-grid .cds--date-picker-container,
+.fsp-search__field-grid .cds--date-picker-input__wrapper,
+.fsp-search__field-grid .cds--date-picker-input__wrapper > span,
+.fsp-search__field-grid .cds--date-picker__input {
+  inline-size: 100% !important;
+  min-inline-size: 0 !important;
+  max-inline-size: 100% !important;
 }
 
 .fsp-search__actions {
@@ -128,30 +182,9 @@
   font-weight: 600;
 }
 
-// Agreement Holder field = TextInput + a magnifying-glass icon button
-// that opens the client-search modal. Carbon's TextInput stretches to
-// fill its container by default, so we flex the wrapper and let the
-// input take all remaining width while the icon button sits flush to
-// the right at its natural icon-only size. The align-items: end pin
-// lines the button up with the input baseline rather than the label
-// baseline above it.
-.fsp-search__holder-field {
-  display: flex;
-  gap: 0.25rem;
-  align-items: end;
-
-  // The TextInput's outer .cds--form-item wrapper is the flex item we
-  // want to grow; targeting it directly avoids relying on the
-  // less-specific input element.
-  .cds--form-item {
-    flex: 1 1 auto;
-    min-inline-size: 0;
-  }
-}
-
-.fsp-search__holder-trigger.cds--btn {
-  flex: 0 0 auto;
-}
+// The centered "no results found" empty state now lives in the shared
+// <EmptyState> component (src/components/EmptyState) so every search/list
+// page renders it identically.
 
 // Full-Content-area centering for the initial code-table load. Sized
 // to the available viewport minus the Carbon header (3rem) so the
@@ -163,24 +196,6 @@
   align-items: center;
   justify-content: center;
   min-block-size: calc(100vh - 3rem);
-}
-
-// Pagination-fetch in-flight overlay. The container is the relative
-// anchor; the inner wrapper dims and disables the existing table; the
-// overlay sibling parks a centred spinner over the dimmed table area.
-// The user sees their current page fade slightly, the spinner appear
-// in the middle, and the new page snap in when the response lands —
-// no layout shift, no flash of empty content.
-.fsp-search__table-container {
-  position: relative;
-}
-
-.fsp-search__table--loading {
-  opacity: 0.45;
-  pointer-events: none;
-  // user-select prevents accidental text-highlighting while the table
-  // is in its "frozen" state.
-  user-select: none;
 }
 
 // Search-result rows act as a navigation control — clicking opens the
@@ -196,21 +211,6 @@
   }
 }
 
-.fsp-search__table-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  // Very subtle wash so the spinner reads cleanly against zebra rows
-  // without obscuring the underlying content the user is waiting on.
-  background-color: rgba(255, 255, 255, 0.35);
-  // The dimmed table below sits at z-index auto; this overlay needs
-  // to be above it but stay scoped — fixed positioning would escape
-  // the container. position:absolute + inset:0 already handles that.
-  z-index: 1;
-}
-
 // Results section — sits outside the search-form Tile so the table
 // can fill the column edge-to-edge. Banner / table / pagination read
 // as a single connected block (no gap between siblings).
@@ -219,18 +219,49 @@
   flex-direction: column;
 }
 
-// Gray banner directly attached to the top of the table — holds the
-// total result count flush-left and visually anchors the table below.
+// Result-count banner directly attached to the top of the table — holds
+// the total result count flush-left and visually anchors the table below.
+// Grey surface (layer-01) so the banner + the panel below the footer read
+// as one connected grey block around the white table.
 .fsp-search__results-header {
   background-color: var(--cds-layer-01);
   padding: 0.75rem 1rem;
   font-weight: 600;
-  font-size: 0.875rem;
+  // Design spec: 16px result count. Colour stays on the Carbon token.
+  font-size: 1rem;
   color: var(--cds-text-primary);
 }
 
 .fsp-search__results-count {
   display: inline-block;
+}
+
+// In-flight state: the banner shows "Searching" + a small spinner in place
+// of the result count — regular weight, secondary grey (matches the design
+// loading state).
+.fsp-search__results-count--searching {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+  color: var(--cds-text-secondary);
+}
+
+.fsp-search__searching-spinner {
+  display: inline-block;
+  inline-size: 16px;
+  block-size: 16px;
+  flex-shrink: 0;
+  border: 2px solid #c6c6c8;
+  border-top-color: var(--cds-interactive, #0073e6);
+  border-radius: 50%;
+  animation: fsp-search-spin 0.7s linear infinite;
+}
+
+@keyframes fsp-search-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 // Drop the table's outer border/rounded-corner wrapper — the user wants
@@ -251,6 +282,14 @@
   white-space: pre-line;
 }
 
+// Keep the Effective date (col 7) and Expiry date (col 8) values on one
+// line — they'd otherwise wrap ("Apr 10," / "2021") under the pre-line
+// rule above when the column is narrow.
+.fsp-search__table .cds--data-table tbody td:nth-child(7),
+.fsp-search__table .cds--data-table tbody td:nth-child(8) {
+  white-space: nowrap;
+}
+
 // Zebra striping — odd rows pure white, even rows light gray. We're
 // not using Carbon's `useZebraStyles` prop because its tint depends
 // on theme tokens that don't render as a strong-enough contrast in
@@ -263,7 +302,72 @@
 
 .fsp-search__table .cds--data-table tbody tr:nth-child(even),
 .fsp-search__table .cds--data-table tbody tr:nth-child(even) td {
-  background-color: var(--cds-layer-01);
+  background-color: #f3f3f5;
+}
+
+// ── Search table styling to match the FSP search design spec ──
+// The table is already light-biased (odd rows hard-coded white above), so
+// these literal colours are consistent with that. Header: light-grey fill,
+// 14px bold dark label. Body cells: 16px. Row hover: a light-blue wash that
+// overrides the zebra td background.
+// Carbon renders body cells in --cds-text-secondary (#525252, a medium
+// grey) by default — noticeably lighter than the design's near-black
+// #131315. Repoint the token within the table so even Carbon's own
+// `color: var(--cds-text-secondary)` rule resolves dark; the explicit
+// cell colour below is then belt-and-suspenders. (The "No" approval cell
+// keeps its own #525252 via .fsp-search__bool--no, so it's unaffected.)
+.fsp-search__table .cds--data-table {
+  --cds-text-secondary: #131315;
+}
+
+.fsp-search__table .cds--data-table thead th,
+.fsp-search__table .cds--data-table thead th .cds--table-header-label {
+  background-color: #dfdfe1;
+  color: #131315;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.16px;
+  // Keep every column heading on a single line (e.g. the narrow "FSP ID"
+  // column would otherwise wrap to "FSP" / "ID"), matching the design.
+  white-space: nowrap;
+}
+
+.fsp-search__table .cds--data-table tbody td,
+.fsp-search__table .cds--data-table tbody td .cds--table-cell {
+  color: #131315;
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: 0.16px;
+}
+
+.fsp-search__table .cds--data-table tbody tr.fsp-search__row--selectable:hover td,
+.fsp-search__table .cds--data-table tbody tr.fsp-search__row--selectable:focus-visible td {
+  background-color: #dfeaf8;
+}
+
+// Status pills now live in the shared <StatusTag> component
+// (src/components/StatusTag) so every list page renders them identically.
+
+// ── Approval required — icon + label ──
+// Yes: green filled check. No: grey minus-in-circle with muted grey text.
+.fsp-search__bool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  line-height: 1;
+  white-space: nowrap;
+
+  svg { flex-shrink: 0; }
+}
+
+.fsp-search__bool--yes svg { fill: #007b00; }
+
+.fsp-search__bool--no {
+  color: #525252;
+
+  svg { fill: #858585; }
 }
 
 // Footer/pagination bar — white surface with no internal vertical
@@ -271,13 +375,29 @@
 // (items-count, page select, nav buttons); neutralize them inside
 // the search results scope only so global pagination styling stays
 // intact elsewhere.
-.fsp-search__results .cds--pagination,
 .fsp-search__results .cds--pagination * {
   border-color: transparent !important;
 }
 
+// Gray footer surface (design's --fds-table-footer #dfdfe1) with a subtle
+// top border and 14px secondary text. Kill only the inner dividers above so
+// the container keeps its own top border.
 .fsp-search__results .cds--pagination {
-  background-color: var(--cds-layer-02);
+  background-color: #dfdfe1;
+  border: none;
+  border-block-start: 1px solid #c6c6c8;
+  color: #606062;
+  font-size: 14px;
+}
+
+// Let the gray show through Carbon's inner select / button / text surfaces
+// (which otherwise paint their own white background).
+.fsp-search__results .cds--pagination .cds--select-input,
+.fsp-search__results .cds--pagination .cds--pagination__button,
+.fsp-search__results .cds--pagination .cds--pagination__text,
+.fsp-search__results .cds--pagination .cds--pagination__pages-text {
+  background-color: transparent;
+  color: #606062;
 }
 
 // Pagination bar layout: Items per page sits on the far left at its
@@ -318,10 +438,15 @@
 // flex: 1 1 auto stretches the panel to fill remaining viewport
 // height when results are short.
 .fsp-search__results-fullbleed {
+  // Grey panel (layer-01) so the empty viewport space below the pagination
+  // footer reads grey, matching the result-count banner above the table.
   background-color: var(--cds-layer-01);
   margin-block-start: 2rem;
   margin-inline: -1.5rem;
   flex: 1 1 auto;
+  // 1px divider between the criteria and the grey results zone — matches
+  // the design's .filter-zone--has-content bottom border (#dfdfe1).
+  border-block-start: 1px solid #dfdfe1;
 }
 
 // Trim the Tile's bottom padding so the Search button row sits

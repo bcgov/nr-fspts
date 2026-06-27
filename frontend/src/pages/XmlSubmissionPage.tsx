@@ -242,7 +242,7 @@ export default function XmlSubmissionPage() {
       <Column sm={4} md={8} lg={16}>
         <section className="fsp-submit__panel">
           <header className="fsp-submit__panel-header">
-            <h2>Upload Submission File</h2>
+            <h2>Upload submission file</h2>
           </header>
           <div className="fsp-submit__panel-body">
             <FileUploader
@@ -272,7 +272,7 @@ export default function XmlSubmissionPage() {
         <Column sm={4} md={8} lg={16}>
           <section className="fsp-submit__panel">
             <header className="fsp-submit__panel-header">
-              <h2>Validation Issues</h2>
+              <h2>Validation issues</h2>
             </header>
             <div className="fsp-submit__panel-body">
               <ErrorTable errors={view.result.errors} />
@@ -476,7 +476,7 @@ function PreviewSections({
 
   return (
     <Stack gap={6}>
-      <Panel title="Submission Metadata">
+      <Panel title="Submission metadata">
         <dl className="fsp-submit__fields">
           <Field label="Contact name" value={dash(preview.metadata?.contactName)} />
           <Field label="Telephone number" value={dash(preview.metadata?.telephoneNumber)} />
@@ -488,7 +488,7 @@ function PreviewSections({
         </dl>
       </Panel>
 
-      <Panel title="Plan Details">
+      <Panel title="Plan details">
         <dl className="fsp-submit__fields">
           <Field label="FSP ID" value={dash(preview.plan?.fspId)} />
           <Field label="Plan name" value={dash(preview.plan?.planName)} />
@@ -520,7 +520,7 @@ function PreviewSections({
         </dl>
       </Panel>
 
-      <Panel title="Term & Dates">
+      <Panel title="Term & dates">
         <dl className="fsp-submit__fields fsp-submit__fields--3col">
           {/*
             Effective Date | Term | Expiry Date on a single row — same
@@ -552,7 +552,7 @@ function PreviewSections({
         </dl>
       </Panel>
 
-      <Panel title="Agreement Holders">
+      <Panel title="Agreement holders">
         {preview.agreementHolders.length === 0 ? (
           <p className="fsp-submit__empty">No agreement holders declared.</p>
         ) : (
@@ -588,7 +588,7 @@ function PreviewSections({
         )}
       </Panel>
 
-      <Panel title={`Forest Development Units (${preview.fdus.length})`}>
+      <Panel title={`Forest development units (${preview.fdus.length})`}>
         {preview.fdus.length === 0 ? (
           <p className="fsp-submit__empty">No FDUs in this submission.</p>
         ) : (
@@ -610,7 +610,7 @@ function PreviewSections({
         )}
       </Panel>
 
-      <Panel title={`Identified Areas (${preview.identifiedAreas.length})`}>
+      <Panel title={`Identified areas (${preview.identifiedAreas.length})`}>
         {preview.identifiedAreas.length === 0 ? (
           <p className="fsp-submit__empty">No identified areas in this submission.</p>
         ) : (
@@ -632,7 +632,7 @@ function PreviewSections({
         )}
       </Panel>
 
-      <Panel title={`Stocking Standards (${preview.stockingStandards.length})`}>
+      <Panel title={`Stocking standards (${preview.stockingStandards.length})`}>
         {preview.stockingStandards.length === 0 ? (
           <p className="fsp-submit__empty">No new stocking standards regimes declared.</p>
         ) : (
@@ -665,7 +665,7 @@ function PreviewSections({
         )}
       </Panel>
 
-      <Panel title={`Staged Attachments (${attachments.length})`}>
+      <Panel title={`Staged attachments (${attachments.length})`}>
         <AttachmentList attachments={attachments} />
       </Panel>
     </Stack>

@@ -273,7 +273,7 @@ const NewStandardModal: FC<Props> = ({
           <div className="new-std-modal__offset-grid">
             <NumberInput
               id="new-std-regen-delay"
-              label="Regen Delay (yrs)"
+              label="Regen delay (yrs)"
               min={0}
               max={99}
               allowEmpty
@@ -286,7 +286,7 @@ const NewStandardModal: FC<Props> = ({
             />
             <NumberInput
               id="new-std-fg-early"
-              label="Free Growing — Early (yrs)"
+              label="Free growing — early (yrs)"
               min={0}
               max={99}
               allowEmpty
@@ -299,7 +299,7 @@ const NewStandardModal: FC<Props> = ({
             />
             <NumberInput
               id="new-std-fg-late"
-              label="Free Growing — Late (yrs) *"
+              label="Free growing — late (yrs) *"
               min={0}
               max={99}
               allowEmpty
