@@ -20,7 +20,9 @@ export const LayoutHeader: FC = () => {
         isActive={isSideNavExpanded}
         onClick={toggleSideNav}
       />
-      <HeaderName as={Link} to="/search" prefix="">
+      {/* "FSPTS" renders in Carbon's prefix style (regular weight) ahead of
+          the bold app name — matches the design's header treatment. */}
+      <HeaderName as={Link} to="/search" prefix="FSPTS">
         {APP_NAME}
       </HeaderName>
 

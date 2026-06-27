@@ -1,0 +1,40 @@
+/* Centered empty state — pictogram + title + body, stacked and centered.
+   Mirrors the FSP design's .empty-state-centered (fsp_search_v1.html): a
+   generous min-height + padding so an empty results pane never feels
+   cramped, regardless of which page renders it. */
+.bc-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 320px;
+  padding: 64px 32px;
+  text-align: center;
+}
+
+/* The pictogram svg uses fill="currentColor", so colour it via the wrapper
+   (the design's interactive blue). */
+.bc-empty-state__pictogram {
+  margin-block-end: 20px;
+  color: var(--cds-link-primary);
+}
+
+.bc-empty-state__pictogram svg {
+  display: block;
+}
+
+.bc-empty-state__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--cds-text-primary);
+}
+
+.bc-empty-state__body {
+  margin: 0;
+  max-inline-size: 360px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--cds-text-secondary);
+}

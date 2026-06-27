@@ -152,10 +152,10 @@ const formatSpeciesLabel = (
 // Pretty labels by proc layer code. Matches the legacy sub-tab text.
 const LAYER_LABEL: Record<string, string> = {
   I: 'Single',
-  '1': 'Layer 1 - Mature',
-  '2': 'Layer 2 - Pole',
-  '3': 'Layer 3 - Sapling',
-  '4': 'Layer 4 - Regen',
+  '1': 'Layer 1 - mature',
+  '2': 'Layer 2 - pole',
+  '3': 'Layer 3 - sapling',
+  '4': 'Layer 4 - regen',
 };
 
 // Synthetic "no data yet" detail used when LayerDetailPanel renders a
@@ -431,7 +431,7 @@ const LayerDetailPanel: FC<{
           <div className="fsp-info__edit-grid">
             <Select
               id={`edit-layer-treeUnit-${layer.layerCode}`}
-              labelText="Tree Size Unit"
+              labelText="Tree size unit"
               value={form.treeSizeUnitCode}
               disabled={saving}
               onChange={(e) => setField('treeSizeUnitCode', e.target.value)}
@@ -441,7 +441,7 @@ const LayerDetailPanel: FC<{
             </Select>
             <NumberInput
               id={`edit-layer-targetStocking-${layer.layerCode}`}
-              label="Target Stocking"
+              label="Target stocking"
               min={0}
               allowEmpty
               hideSteppers
@@ -455,7 +455,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-minHoriz-${layer.layerCode}`}
-              label="Min Horizontal Distance"
+              label="Min horizontal distance"
               min={0}
               allowEmpty
               hideSteppers
@@ -469,7 +469,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-minPref-${layer.layerCode}`}
-              label="Min Preferred Stocking"
+              label="Min preferred stocking"
               min={0}
               allowEmpty
               hideSteppers
@@ -483,7 +483,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-minStocking-${layer.layerCode}`}
-              label="Min Stocking"
+              label="Min stocking"
               min={0}
               allowEmpty
               hideSteppers
@@ -497,7 +497,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-basalArea-${layer.layerCode}`}
-              label="Residual Basal Area"
+              label="Residual basal area"
               min={0}
               allowEmpty
               hideSteppers
@@ -511,7 +511,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-minPost-${layer.layerCode}`}
-              label="Min Post Spacing"
+              label="Min post spacing"
               min={0}
               allowEmpty
               hideSteppers
@@ -525,7 +525,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-maxPost-${layer.layerCode}`}
-              label="Max Post Spacing"
+              label="Max post spacing"
               min={0}
               allowEmpty
               hideSteppers
@@ -539,7 +539,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-maxConifer-${layer.layerCode}`}
-              label="Max Coniferous"
+              label="Max coniferous"
               min={0}
               allowEmpty
               hideSteppers
@@ -553,7 +553,7 @@ const LayerDetailPanel: FC<{
             />
             <NumberInput
               id={`edit-layer-heightRel-${layer.layerCode}`}
-              label="Height Relative to Comp"
+              label="Height relative to comp"
               min={0}
               allowEmpty
               hideSteppers
@@ -637,7 +637,7 @@ const LayerDetailPanel: FC<{
       )}
 
       <SpeciesEditor
-        title="Preferred Species"
+        title="Preferred species"
         rows={detail.preferredSpecies}
         idPrefix={`pref-${layer.layerCode}`}
         preferred
@@ -650,7 +650,7 @@ const LayerDetailPanel: FC<{
       />
 
       <SpeciesEditor
-        title="Acceptable Species"
+        title="Acceptable species"
         rows={detail.acceptableSpecies}
         idPrefix={`acc-${layer.layerCode}`}
         preferred={false}
@@ -807,7 +807,7 @@ const SpeciesEditor: FC<{
                     className="fsp-info__cell--numeric"
                     style={{ width: '8rem' }}
                   >
-                    Min Height
+                    Min height
                   </TableHeader>
                   {!readOnly && (
                     <TableHeader style={{ width: '4rem' }} aria-label="Actions" />
@@ -885,7 +885,7 @@ const SpeciesEditor: FC<{
           </Select>
           <NumberInput
             id={`${idPrefix}-modal-minHeight`}
-            label="Min Height *"
+            label="Min height *"
             min={0}
             allowEmpty
             hideSteppers
@@ -995,8 +995,8 @@ const StandardRegimeLayersPanel: FC<Props> = ({
     }
   }, [fspId, regimeId, amendmentNumber, onDetailRefreshed, display]);
   const convertLabel = isSingleLayer
-    ? 'Convert to Multi-Layer'
-    : 'Convert to Single Layer';
+    ? 'Convert to multi-layer'
+    : 'Convert to single layer';
   const convertConfirm = isSingleLayer
     ? 'Convert this regime to multi-layer? The current layer becomes Layer 4, and empty layers 1, 2, 3 are added.'
     : 'Convert this regime to single layer? Layers 1, 2, and 3 (and their species) will be deleted; layer 4 becomes the single layer.';

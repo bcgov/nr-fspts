@@ -351,7 +351,7 @@ const AddExistingStandardModal: FC<Props> = ({
         passiveModal
         size="lg"
         className="add-std-modal"
-        modalHeading="Add Existing Stocking Standard"
+        modalHeading="Add existing stocking standard"
         onRequestClose={onClose}
       >
         <div className="add-std-modal__loading" role="status" aria-live="polite">
@@ -367,7 +367,7 @@ const AddExistingStandardModal: FC<Props> = ({
       passiveModal
       size="lg"
       className="add-std-modal"
-      modalHeading="Add Existing Stocking Standard"
+      modalHeading="Add existing stocking standard"
       onRequestClose={onClose}
       preventCloseOnClickOutside
     >
@@ -381,7 +381,7 @@ const AddExistingStandardModal: FC<Props> = ({
         <div className="add-std-modal__field-grid">
           <Select
             id="add-std-defaultStandard"
-            labelText="Default Standards"
+            labelText="Default standards"
             value={form.defaultStandard}
             onChange={(e) => set('defaultStandard', e.target.value)}
           >
@@ -392,7 +392,7 @@ const AddExistingStandardModal: FC<Props> = ({
 
           <Select
             id="add-std-statusCode"
-            labelText="Regime Status"
+            labelText="Regime status"
             value={form.statusCode}
             onChange={(e) => set('statusCode', e.target.value)}
           >
@@ -408,7 +408,7 @@ const AddExistingStandardModal: FC<Props> = ({
 
           <Select
             id="add-std-orgUnitNo"
-            labelText="Organization Unit"
+            labelText="Organization unit"
             value={form.orgUnitNo}
             onChange={(e) => set('orgUnitNo', e.target.value)}
           >
@@ -444,7 +444,7 @@ const AddExistingStandardModal: FC<Props> = ({
 
           <TextInput
             id="add-std-clientName"
-            labelText="Client Name"
+            labelText="Client name"
             value={form.clientName}
             onChange={(e) => set('clientName', e.target.value)}
             maxLength={60}
@@ -462,7 +462,7 @@ const AddExistingStandardModal: FC<Props> = ({
 
           <TextInput
             id="add-std-standardsRegimeName"
-            labelText="Standards Name"
+            labelText="Standards name"
             value={form.standardsRegimeName}
             onChange={(e) => set('standardsRegimeName', e.target.value)}
             maxLength={50}
@@ -478,7 +478,7 @@ const AddExistingStandardModal: FC<Props> = ({
 
           <Select
             id="add-std-preferredSpecies"
-            labelText="Preferred Species"
+            labelText="Preferred species"
             value={form.preferredSpecies}
             onChange={(e) => set('preferredSpecies', e.target.value)}
           >
@@ -494,7 +494,7 @@ const AddExistingStandardModal: FC<Props> = ({
 
           <Select
             id="add-std-acceptableSpecies"
-            labelText="Acceptable Species"
+            labelText="Acceptable species"
             value={form.acceptableSpecies}
             onChange={(e) => set('acceptableSpecies', e.target.value)}
           >
@@ -519,7 +519,7 @@ const AddExistingStandardModal: FC<Props> = ({
             <DatePickerInput
               id="add-std-expiryDateFrom"
               placeholder="YYYY-MM-DD"
-              labelText="Expiry Date From"
+              labelText="Expiry date from"
             />
           </DatePicker>
 
@@ -534,7 +534,7 @@ const AddExistingStandardModal: FC<Props> = ({
             <DatePickerInput
               id="add-std-expiryDateTo"
               placeholder="YYYY-MM-DD"
-              labelText="Expiry Date To"
+              labelText="Expiry date to"
             />
           </DatePicker>
         </div>

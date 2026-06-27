@@ -233,7 +233,7 @@ const ReviewDetailsTile: FC<{
 }> = ({ items, canEdit, onEdit }) => (
   <section className="fsp-info__tile fsp-info__tile--full">
     <header className="fsp-info__tile-header">
-      <h2 className="fsp-info__section-title">Review Details</h2>
+      <h2 className="fsp-info__section-title">Review details</h2>
     </header>
     <div className="bordered-table">
       <TableContainer>
@@ -359,7 +359,7 @@ const DdmDecisionTile: FC<{
       <header className="fsp-info__tile-header">
         {/* Status pill removed — the FSP-level status it surfaces is
             already the canonical header pill in FspInformation. */}
-        <h2 className="fsp-info__section-title">DDM Decision</h2>
+        <h2 className="fsp-info__section-title">DDM decision</h2>
       </header>
       {canEdit && (
         <div className="fsp-info__tab-actions">
@@ -404,7 +404,7 @@ const ExtensionRequestTile: FC<{
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
-        <h2 className="fsp-info__section-title">Extension Request</h2>
+        <h2 className="fsp-info__section-title">Extension request</h2>
         {hasDecision && statusTag(decision.statusCode)}
       </header>
       {canEdit && (

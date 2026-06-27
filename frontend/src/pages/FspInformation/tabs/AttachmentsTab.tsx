@@ -259,7 +259,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
             renderIcon={Add}
             onClick={openAddDialog}
           >
-            Add Attachment
+            Add attachment
           </Button>
         )}
       </header>
@@ -330,7 +330,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
           beneath a vertically stacked form. */}
       <Modal
         open={modalOpen}
-        modalHeading="Add Attachment"
+        modalHeading="Add attachment"
         passiveModal
         size="sm"
         className="fsp-species-modal"

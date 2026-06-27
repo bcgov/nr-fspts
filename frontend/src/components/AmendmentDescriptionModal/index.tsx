@@ -181,7 +181,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
       <Stack gap={5} className="fsp-species-modal__form">
         <Toggle
           id="amend-fdu"
-          labelText="FDU Changes"
+          labelText="FDU changes"
           labelA="No"
           labelB="Yes"
           toggled={fduUpdate}
@@ -190,7 +190,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
         />
         <Toggle
           id="amend-identified-areas"
-          labelText="Identified / Declared Area Changes"
+          labelText="Identified / declared area changes"
           labelA="No"
           labelB="Yes"
           toggled={identifiedAreasUpdate}
@@ -199,7 +199,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
         />
         <Toggle
           id="amend-stocking"
-          labelText="Stocking Standard Changes"
+          labelText="Stocking standard changes"
           labelA="No"
           labelB="Yes"
           toggled={stockingStandardUpdate}
@@ -224,7 +224,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
         />
         <TextArea
           id="amend-reason"
-          labelText="Summary of Changes *"
+          labelText="Summary of changes *"
           placeholder="Describe the changes being made…"
           maxLength={AMENDMENT_REASON_MAX}
           rows={5}

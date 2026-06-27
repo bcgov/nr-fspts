@@ -224,7 +224,7 @@ const StockingStandardsTab: FC<Props> = ({
   // on an empty FSP.
   const headerNode = (
     <header className="fsp-info__tile-header">
-      <h2 className="fsp-info__section-title">Stocking Standards</h2>
+      <h2 className="fsp-info__section-title">Stocking standards</h2>
       <div className="fsp-info__tile-header-actions">
         {canCopy && (
           <Button
@@ -234,7 +234,7 @@ const StockingStandardsTab: FC<Props> = ({
             onClick={() => setCopyConfirmOpen(true)}
             disabled={!selectedRegimeId}
           >
-            Copy Standard
+            Copy standard
           </Button>
         )}
         {canDelete && (
@@ -245,7 +245,7 @@ const StockingStandardsTab: FC<Props> = ({
             onClick={() => setDeleteConfirmOpen(true)}
             disabled={!selectedRegimeId || !selectedIsDraft}
           >
-            Delete Standard
+            Delete standard
           </Button>
         )}
         {canCreate && (
@@ -255,7 +255,7 @@ const StockingStandardsTab: FC<Props> = ({
             renderIcon={Add}
             onClick={() => setAddExistingOpen(true)}
           >
-            Add Existing Standard
+            Add existing standard
           </Button>
         )}
         {canCreate && (
@@ -265,7 +265,7 @@ const StockingStandardsTab: FC<Props> = ({
             renderIcon={Add}
             onClick={() => setNewStandardOpen(true)}
           >
-            New Standard
+            New standard
           </Button>
         )}
       </div>
@@ -304,7 +304,7 @@ const StockingStandardsTab: FC<Props> = ({
     <ConfirmationModal
       open={copyConfirmOpen}
       onClose={() => setCopyConfirmOpen(false)}
-      heading="Copy Stocking Standard"
+      heading="Copy stocking standard"
       confirmLabel="Copy"
       errorTitle="Failed to copy standard"
       onConfirm={performCopy}
@@ -326,7 +326,7 @@ const StockingStandardsTab: FC<Props> = ({
     <ConfirmationModal
       open={deleteConfirmOpen}
       onClose={() => setDeleteConfirmOpen(false)}
-      heading="Delete Stocking Standard"
+      heading="Delete stocking standard"
       confirmLabel="Delete"
       danger
       errorTitle="Failed to delete standard"

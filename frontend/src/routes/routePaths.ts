@@ -1,12 +1,12 @@
 import {
-  Catalog,
-  ChartLineData,
-  Notification,
-  Report,
-  Search,
-  Time,
-  UserAdmin,
-} from '@carbon/icons-react';
+  DistrictNotificationIcon,
+  FspSearchIcon,
+  InboxIcon,
+  ReportsIcon,
+  StandardsSearchIcon,
+  SubmissionHistoryIcon,
+  SubmitFspIcon,
+} from '@/components/Layout/navIcons';
 import type {ComponentType} from 'react';
 
 // Each menu entry is either a leaf (renders as <SideNavLink>) or a parent
@@ -42,43 +42,46 @@ export function isMenuParent(item: MenuItem): item is MenuParent {
 // NavBar.tsx; the deeply-nested "Search > Links > FTA" branch was flattened
 // to a single level because Carbon's SideNav supports only one level of
 // nesting.
-// Sorted alphabetically by label. New entries should slot in by name to
-// keep the SideNav scannable — don't append to the end.
+// Ordered to match the FSP design's side nav (fsp_search_v1.html):
+// FSP Search, Inbox, Data Submission, District Notification, Reports,
+// Standards Search, Submission History.
 const NAV: MenuItem[] = [
+  {
+    id: 'FSP Search',
+    label: 'FSP Search',
+    path: '/search',
+    icon: FspSearchIcon,
+  },
+  {
+    id: 'Inbox',
+    label: 'Inbox',
+    path: '/inbox',
+    icon: InboxIcon,
+  },
   {
     // Single-entry top-level leaf; if more submission flows land
     // later, re-introduce a parent submenu. Only content-editing roles
     // submit FSPs — Decision Makers and read-only roles never see it.
+    // id stays 'Data Submission' (keys the role-filter sets + test ids);
+    // only the visible label matches the design's "Submit FSP".
     id: 'Data Submission',
-    label: 'Data Submission',
+    label: 'Submit FSP',
     path: '/data-submission',
-    icon: Catalog,
+    icon: SubmitFspIcon,
     roles: ['FSPTS_ADMINISTRATOR', 'FSPTS_SUBMITTER'],
   },
   {
     id: 'District Notification',
     label: 'District Notification',
     path: '/admin/district-notification',
-    icon: UserAdmin,
+    icon: DistrictNotificationIcon,
     roles: ['FSPTS_ADMINISTRATOR'],
-  },
-  {
-    id: 'FSP Search',
-    label: 'FSP Search',
-    path: '/search',
-    icon: Search,
-  },
-  {
-    id: 'Inbox',
-    label: 'Inbox',
-    path: '/inbox',
-    icon: Notification,
   },
   {
     id: 'Reports',
     label: 'Reports',
     path: '/reports/jcrs',
-    icon: Report,
+    icon: ReportsIcon,
   },
   {
     // FSP501 — Stocking Standards Search. Separate from FSP Search
@@ -86,7 +89,7 @@ const NAV: MenuItem[] = [
     id: 'Standards Search',
     label: 'Standards Search',
     path: '/standards-search',
-    icon: Search,
+    icon: StandardsSearchIcon,
   },
   {
     // BCeID submitters' read-only audit of their org's submissions.
@@ -95,7 +98,7 @@ const NAV: MenuItem[] = [
     id: 'Submission History',
     label: 'Submission History',
     path: '/submission-history',
-    icon: Time,
+    icon: SubmissionHistoryIcon,
   },
   // Kept commented so the icon import doesn't tree-shake — wire in if we
   // ever add a dashboard route. Removing for now keeps the SideNav focused.
@@ -125,8 +128,6 @@ const SUBMITTER_ONLY_ALLOWED_IDS = new Set(['Data Submission', 'Submission Histo
  */
 const SUBMITTER_ROLE_REQUIRED_IDS = new Set(['Submission History']);
 
-// Discourage tree-shaking of the unused icon. (TS otherwise complains.)
-void ChartLineData;
 
 /**
  * @param userRoles  the user's canonical FSPTS role list.

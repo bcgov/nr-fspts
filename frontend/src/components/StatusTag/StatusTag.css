@@ -1,0 +1,29 @@
+/* FSP status pills — flat, fully-rounded chips, one background/text pair per
+   status, replacing Carbon's limited Tag palette. Colours from the design
+   spec; self-contained light pastels with dark text so they read on any row.
+   Shared across every list page so the pills are identical everywhere. */
+.bc-status-tag {
+  display: inline-flex;
+  align-items: center;
+  block-size: 24px;
+  padding-inline: 10px;
+  border: none;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.16px;
+  white-space: nowrap;
+}
+
+.bc-status-tag--approved,
+.bc-status-tag--in-effect { background: #cce5cc; color: #005500; }
+.bc-status-tag--submitted   { background: #b4d3ff; color: #00478f; }
+.bc-status-tag--draft       { background: #e2ccf8; color: #5702af; }
+.bc-status-tag--cancelled   { background: #ffc0b3; color: #801701; }
+.bc-status-tag--rejected    { background: #ffe5f2; color: #800241; }
+.bc-status-tag--expired     { background: #ebdacb; color: #492708; }
+.bc-status-tag--opportunity { background: #f2e8b5; color: #443904; }
+.bc-status-tag--update      { background: #b3fef1; color: #004c3f; }
+.bc-status-tag--retired     { background: #d5d8e7; color: #151d47; }
+.bc-status-tag--deleted     { background: #dfcddf; color: #3f123f; }
+.bc-status-tag--default     { background: #e0e0e0; color: #393939; }

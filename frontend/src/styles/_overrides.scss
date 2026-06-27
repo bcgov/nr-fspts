@@ -586,3 +586,63 @@ page-level hand-rolled rules.
     }
   }
 }
+
+/* ---------------------------------------------------------------
+Tertiary (outline) buttons — hover wash.
+
+Carbon floods tertiary buttons with a dark-blue background + white text
+on hover. The FSP design instead uses a light-blue wash that keeps the
+blue text/border (the mock-up's `.btn--ghost-neutral:hover`, #ebf2fc).
+Carbon ships two hover rules (background AND colour), so both are
+overridden here. Applies app-wide to every `kind="tertiary"` button.
+--------------------------------------------------------------- */
+.cds--btn--tertiary:hover {
+  background-color: #ebf2fc;
+  border-color: var(--cds-button-tertiary);
+  color: var(--cds-button-tertiary);
+}
+
+/* ---------------------------------------------------------------
+Text rendering — crispness.
+
+Carbon's reset sets `text-rendering: optimizeLegibility` on <body>, which
+forces a heavier kerning/ligature rasterization path that reads slightly
+fuzzier than the design (the mock-up uses the browser default). Reverting
+to `optimizeSpeed` restores the crisper default. text-rendering is
+inherited, so setting it on <body> covers every descendant.
+--------------------------------------------------------------- */
+body {
+  text-rendering: optimizeSpeed;
+  // Match the design: drop Carbon's reset `font-feature-settings: 'liga' 1`.
+  font-feature-settings: normal;
+  // Carbon's reset forces `-webkit-font-smoothing: antialiased` (and
+  // `-moz-osx-font-smoothing: grayscale`), which renders text noticeably
+  // THINNER / lighter than the OS default — the real reason our text looked
+  // less crisp/dark than the mock-up (color was a red herring; #161616 vs
+  // #131315 is imperceptible). Revert to the browser default so strokes
+  // render at full weight. Inherited, so it applies to all text.
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+}
+
+/* ---------------------------------------------------------------
+Text colours — align Carbon's neutral greys to the BC Gov FDS palette the
+design (and the HTML mock-ups) use, so text renders the exact same shade.
+
+Carbon sets these tokens on the light THEME selectors (not bare :root) —
+`:root[data-carbon-theme=white]` (0,1,1), `.cds--white`, `.cds--g10` — so
+a plain `:root` override loses the cascade. We override the same selectors
+here (equal specificity, loaded after Carbon → wins). The dark themes
+(g90/g100) are deliberately left untouched.
+
+  --cds-text-primary    #161616 → #131315  (--fds-text-primary)
+  --cds-text-secondary  #525252 → #606062  (--fds-text-secondary)
+--------------------------------------------------------------- */
+:root,
+:root[data-carbon-theme='white'],
+:root[data-carbon-theme='g10'],
+.cds--white,
+.cds--g10 {
+  --cds-text-primary: #131315;
+  --cds-text-secondary: #606062;
+}

@@ -113,7 +113,7 @@ const BgcZoneEditModal: FC<BgcZoneEditModalProps> = ({
   return (
     <Modal
       open={open}
-      modalHeading={editing ? 'Edit BGC Zone' : 'Add BGC Zone'}
+      modalHeading={editing ? 'Edit BGC zone' : 'Add BGC zone'}
       passiveModal
       size="sm"
       className="fsp-species-modal"
@@ -155,7 +155,7 @@ const BgcZoneEditModal: FC<BgcZoneEditModalProps> = ({
         />
         <TextInput
           id="bgc-site-series"
-          labelText="Site Series"
+          labelText="Site series"
           maxLength={4}
           value={siteSeries}
           disabled={saving}
@@ -163,7 +163,7 @@ const BgcZoneEditModal: FC<BgcZoneEditModalProps> = ({
         />
         <TextInput
           id="bgc-site-phase"
-          labelText="Site Series Phase"
+          labelText="Site series phase"
           maxLength={3}
           value={sitePhase}
           disabled={saving}

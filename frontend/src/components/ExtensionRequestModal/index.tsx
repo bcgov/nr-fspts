@@ -124,7 +124,7 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
   return (
     <Modal
       open={open}
-      modalHeading="New Extension Request"
+      modalHeading="New extension request"
       passiveModal
       size="sm"
       className="fsp-species-modal"
@@ -138,18 +138,18 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
             changing from. */}
         <dl className="ext-modal__context">
           <div className="ext-modal__context-row">
-            <dt>Current FSP Expiry Date</dt>
+            <dt>Current FSP expiry date</dt>
             <dd>{fsp?.fspExpiryDate || fsp?.fspPlanEndDate || '—'}</dd>
           </div>
           <div className="ext-modal__context-row">
-            <dt>Current Term</dt>
+            <dt>Current term</dt>
             <dd>
               {(fsp?.fspPlanTermYears && `${fsp.fspPlanTermYears} yr`) || '0 yr'}{' '}
               {(fsp?.fspPlanTermMonths && `${fsp.fspPlanTermMonths} mo`) || '0 mo'}
             </dd>
           </div>
           <div className="ext-modal__context-row">
-            <dt>FSP Effective Date</dt>
+            <dt>FSP effective date</dt>
             <dd>{fsp?.fspPlanStartDate || '—'}</dd>
           </div>
         </dl>
@@ -166,7 +166,7 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
         <div className="ext-modal__term-grid">
           <NumberInput
             id="ext-years"
-            label="New Term — Years"
+            label="New term — years"
             min={0}
             max={99}
             allowEmpty
@@ -181,7 +181,7 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
           />
           <NumberInput
             id="ext-months"
-            label="New Term — Months"
+            label="New term — months"
             min={0}
             max={11}
             allowEmpty
@@ -204,7 +204,7 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
           <DatePickerInput
             id="ext-expiry"
             placeholder="YYYY-MM-DD"
-            labelText="New Expiry Date"
+            labelText="New expiry date"
             invalid={!!errors.expiry}
             invalidText={errors.expiry ?? ''}
             disabled={busy}
@@ -212,7 +212,7 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
         </DatePicker>
         <TextArea
           id="ext-comment"
-          labelText="Status Comment"
+          labelText="Status comment"
           placeholder="Optional — describe why the extension is being requested."
           maxLength={COMMENT_MAX}
           rows={4}

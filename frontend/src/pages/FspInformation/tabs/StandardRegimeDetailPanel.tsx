@@ -461,8 +461,8 @@ const StandardRegimeDetailPanel: FC<Props> = ({
           <Tab>Overview</Tab>
           <Tab>Layers</Tab>
           <Tab>Districts</Tab>
-          <Tab>Agreement Holders</Tab>
-          <Tab>BGC Zones</Tab>
+          <Tab>Agreement holders</Tab>
+          <Tab>BGC zones</Tab>
         </TabList>
         <TabPanels>
           <TabPanel>
@@ -485,7 +485,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                   <div className="fsp-info__edit-grid">
                     <TextInput
                       id="edit-ssRegimeName"
-                      labelText="Standards Name"
+                      labelText="Standards name"
                       value={overviewForm.standardsRegimeName}
                       maxLength={OVERVIEW_MAX.standardsRegimeName}
                       invalid={!!overviewErrors.standardsRegimeName}
@@ -509,7 +509,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                       <DatePickerInput
                         id="edit-ssEffectiveDate"
                         placeholder="YYYY-MM-DD"
-                        labelText="Effective Date"
+                        labelText="Effective date"
                         disabled={savingOverview}
                       />
                     </DatePicker>
@@ -527,13 +527,13 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                       <DatePickerInput
                         id="edit-ssExpiryDate"
                         placeholder="YYYY-MM-DD"
-                        labelText="Expiry Date"
+                        labelText="Expiry date"
                         disabled={savingOverview}
                       />
                     </DatePicker>
                     <Toggle
                       id="edit-ssRegenObligation"
-                      labelText="Regen Obligation"
+                      labelText="Regen obligation"
                       labelA="No"
                       labelB="Yes"
                       toggled={overviewForm.regenObligation}
@@ -546,7 +546,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                       // required-field markers — added conditionally
                       // because Regen Delay is only required when the
                       // Regen Obligation toggle is on.
-                      label={overviewForm.regenObligation ? 'Regen Delay *' : 'Regen Delay'}
+                      label={overviewForm.regenObligation ? 'Regen delay *' : 'Regen delay'}
                       min={0}
                       max={99}
                       allowEmpty
@@ -568,7 +568,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     />
                     <NumberInput
                       id="edit-ssFgEarlyYrs"
-                      label="Free Growing Early"
+                      label="Free growing early"
                       min={0}
                       max={99}
                       allowEmpty
@@ -590,7 +590,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     />
                     <NumberInput
                       id="edit-ssFgLateYrs"
-                      label="Free Growing Late *"
+                      label="Free growing late *"
                       min={0}
                       max={99}
                       allowEmpty
@@ -627,7 +627,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                   />
                   <TextArea
                     id="edit-ssGeoDesc"
-                    labelText="Geographic Description"
+                    labelText="Geographic description"
                     value={overviewForm.geographicDescription}
                     maxLength={OVERVIEW_MAX.geographicDescription}
                     rows={3}
@@ -640,7 +640,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                   />
                   <TextArea
                     id="edit-ssAdditional"
-                    labelText="Additional Standards"
+                    labelText="Additional standards"
                     value={overviewForm.additionalStandards}
                     maxLength={OVERVIEW_MAX.additionalStandards}
                     rows={4}
@@ -689,13 +689,13 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                   )}
                   {detail.geographicDescription && (
                     <div>
-                      <h3 className="fsp-info__section-title">Geographic Description</h3>
+                      <h3 className="fsp-info__section-title">Geographic description</h3>
                       <p>{detail.geographicDescription}</p>
                     </div>
                   )}
                   {detail.additionalStandards && (
                     <div>
-                      <h3 className="fsp-info__section-title">Additional Standards</h3>
+                      <h3 className="fsp-info__section-title">Additional standards</h3>
                       <p>{detail.additionalStandards}</p>
                     </div>
                   )}
@@ -825,7 +825,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     renderIcon={Add}
                     onClick={openBgcSearch}
                   >
-                    Add BGC Zone
+                    Add BGC zone
                   </Button>
                 </div>
               )}
@@ -911,7 +911,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
       <ConfirmationModal
         open={bgcDeleteTarget != null}
         onClose={() => setBgcDeleteTarget(null)}
-        heading="Delete BGC Zone"
+        heading="Delete BGC zone"
         confirmLabel="Delete"
         danger
         errorTitle="Failed to remove BGC zone"

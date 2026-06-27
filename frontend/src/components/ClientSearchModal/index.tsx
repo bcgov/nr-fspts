@@ -184,7 +184,7 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
       // Carbon's "lg" passes the standard breakpoint; the table needs
       // room for 7+ columns plus the Select button so wider is better.
       size="lg"
-      modalHeading="Client Search"
+      modalHeading="Client search"
       passiveModal
       className="client-search-modal"
     >
@@ -192,7 +192,7 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
         <div className="client-search__field-grid">
           <TextInput
             id="client-search-acronym"
-            labelText="Client Acronym"
+            labelText="Client acronym"
             value={criteria.clientAcronym}
             onChange={(e) => set('clientAcronym', e.target.value)}
             maxLength={FIELD_LENGTHS.clientAcronym}
@@ -200,7 +200,7 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
           />
           <TextInput
             id="client-search-number"
-            labelText="Client Number"
+            labelText="Client number"
             value={criteria.clientNumber}
             onChange={(e) => set('clientNumber', e.target.value.replace(/\D/g, ''))}
             maxLength={FIELD_LENGTHS.clientNumber}
@@ -209,7 +209,7 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
           />
           <TextInput
             id="client-search-lastName"
-            labelText="Last Name"
+            labelText="Last name"
             value={criteria.clientName}
             onChange={(e) => set('clientName', e.target.value)}
             maxLength={FIELD_LENGTHS.clientName}
@@ -217,7 +217,7 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
           />
           <TextInput
             id="client-search-firstName"
-            labelText="First Name"
+            labelText="First name"
             value={criteria.legalFirstName}
             onChange={(e) => set('legalFirstName', e.target.value)}
             maxLength={FIELD_LENGTHS.legalFirstName}
@@ -225,7 +225,7 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
           />
           <TextInput
             id="client-search-middleName"
-            labelText="Middle Name"
+            labelText="Middle name"
             value={criteria.legalMiddleName}
             onChange={(e) => set('legalMiddleName', e.target.value)}
             maxLength={FIELD_LENGTHS.legalMiddleName}

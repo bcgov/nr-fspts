@@ -164,6 +164,9 @@
   margin-block-start: 1rem;
   margin-inline: -1.5rem;
   flex: 1 1 auto;
+  // 1px divider where the form meets the grey results zone — matches the
+  // design's #dfdfe1 line (see SearchPage's results panel).
+  border-block-start: 1px solid #dfdfe1;
 }
 
 // Make .cds--content a flex column on the District Notification page

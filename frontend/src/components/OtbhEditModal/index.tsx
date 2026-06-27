@@ -153,7 +153,7 @@ const OtbhEditModal: FC<OtbhEditModalProps> = ({
             <DatePickerInput
               id="otbh-date"
               placeholder="YYYY-MM-DD"
-              labelText={`${value.label} Date *`}
+              labelText={`${value.label} date *`}
               disabled={saving}
               invalid={dateInFuture}
               invalidText="OTBH date cannot be in the future."

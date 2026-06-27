@@ -63,3 +63,40 @@ export async function searchClients(
   }
   return res.json() as Promise<PageableResponse<ClientSearchResult>>;
 }
+
+/**
+ * Autocomplete lookup for the Agreement Holder field. PKG_SIL21 ANDs its
+ * criteria and matches each field differently (name = prefix LIKE,
+ * number = exact, acronym = LIKE), so they can't be OR'd in a single
+ * call: a purely numeric term searches by client number (zero-padded to
+ * the 8-char column width); anything else fires a name search and an
+ * acronym search in parallel and merges them. Results are deduped by
+ * client number and capped. Returns [] for terms shorter than 3 chars.
+ */
+export async function searchClientsAuto(term: string): Promise<ClientSearchResult[]> {
+  const t = term.trim();
+  if (t.length < 3) return [];
+
+  const requests = /^\d+$/.test(t)
+    ? [searchClients({ clientNumber: t.padStart(8, '0'), size: 10 })]
+    : [
+        searchClients({ clientName: t, size: 10 }),
+        searchClients({ clientAcronym: `${t}%`, size: 10 }),
+      ];
+
+  // One failing arm (e.g. acronym) shouldn't sink the whole lookup.
+  const pages = await Promise.all(requests.map((p) => p.catch(() => null)));
+
+  const seen = new Set<string>();
+  const unique: ClientSearchResult[] = [];
+  for (const page of pages) {
+    for (const row of page?.content ?? []) {
+      const key = row.clientNumber?.trim() ?? '';
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        unique.push(row);
+      }
+    }
+  }
+  return unique.slice(0, 15);
+}

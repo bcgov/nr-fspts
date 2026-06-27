@@ -13,10 +13,28 @@
 .cds--header .cds--header__menu-toggle__hidden {
   display: flex;
   color: #ffffff;
+  background-color: transparent;
+}
+/* The blue header bar never changes colour — the button only darkens (to a
+   darker brand blue) on hover. The icon stays white in every state,
+   including active (nav open), instead of Carbon's white-background +
+   dark-icon active treatment. */
+.cds--header .cds--header__menu-toggle:hover,
+.cds--header .cds--header__menu-toggle__hidden:hover,
+.cds--header .cds--header__menu-toggle:active,
+.cds--header .cds--header__menu-toggle__hidden:active,
+.cds--header .cds--header__menu-toggle.cds--header__action--active:hover,
+.cds--header .cds--header__menu-toggle__hidden.cds--header__action--active:hover {
+  background-color: #0050e6;
 }
 .cds--header .cds--header__menu-toggle.cds--header__action--active,
 .cds--header .cds--header__menu-toggle__hidden.cds--header__action--active {
-  color: var(--cds-layer-selected-inverse);
+  color: #ffffff;
+  background-color: transparent;
+  /* When the nav is open the button is marked --active, and Carbon adds
+     1px #e0e0e0 inline (left/right) borders — the light vertical lines that
+     showed against the blue header. Keep them transparent. */
+  border-color: transparent;
 }
 .cds--header .cds--header__menu-toggle:focus:not(:focus-visible),
 .cds--header .cds--header__menu-toggle__hidden:focus:not(:focus-visible) {

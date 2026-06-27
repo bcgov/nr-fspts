@@ -17,15 +17,25 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 1rem;
+  // Extra breathing room between the page sub-title and the criteria Tile,
+  // matching SearchPage.
+  margin-block-end: 1.5rem;
 
   h1 {
     margin: 0;
+    // Design spec: 32px / regular / 40px line-height (same as SearchPage).
+    font-size: 2rem;
+    font-weight: 400;
+    line-height: 2.5rem;
   }
 }
 
 .fsp-inbox__subtitle {
   margin: 0.25rem 0 0;
   color: var(--cds-text-secondary);
+  // Design spec: 16px / 24px line-height subtitle.
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
 .fsp-inbox__tile {
@@ -40,6 +50,25 @@
   --cds-field-hover: var(--cds-field-hover-01);
   --cds-border-subtle: var(--cds-border-subtle-01);
   background-color: var(--cds-layer-02);
+
+  // Criteria fonts — match SearchPage exactly. Field labels at 14px /
+  // 18px line-height / 0.16px tracking / 4px gap in the primary colour
+  // (Carbon default is a 12px secondary caption); input / select / combo /
+  // date text at 16px (Carbon default 14px).
+  .cds--label {
+    font-size: 14px;
+    line-height: 1.125rem;
+    letter-spacing: 0.16px;
+    margin-block-end: 0.25rem;
+    color: var(--cds-text-primary);
+  }
+
+  .cds--text-input,
+  .cds--select-input,
+  .cds--list-box__field,
+  .cds--date-picker__input {
+    font-size: 16px;
+  }
 }
 
 // Trim the Tile's bottom padding so the gray banner can sit close to
@@ -63,6 +92,16 @@
   .fsp-inbox__field-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  // Agreement Holder spans two columns and its ComboBox fills the wider
+  // cell — same treatment as SearchPage's holder field.
+  .fsp-inbox__field-grid .fsp-inbox__holder-cell {
+    grid-column: span 2;
+  }
+
+  .fsp-inbox__field-grid .fsp-inbox__holder-cell .cds--list-box__wrapper {
+    inline-size: 100%;
+  }
 }
 
 @media (min-width: 1056px) {
@@ -83,21 +122,6 @@
   font-weight: 600;
 }
 
-// Agreement Holder field — flexbox for input + icon-button-trigger.
-.fsp-inbox__holder-field {
-  display: flex;
-  gap: 0.25rem;
-  align-items: end;
-
-  .cds--form-item {
-    flex: 1 1 auto;
-    min-inline-size: 0;
-  }
-}
-
-.fsp-inbox__holder-trigger.cds--btn {
-  flex: 0 0 auto;
-}
 
 // Map View trigger in the trailing actions column.
 .fsp-inbox__map-link {
@@ -136,22 +160,6 @@
   position: relative;
 }
 
-.fsp-inbox__table--loading {
-  opacity: 0.45;
-  pointer-events: none;
-  user-select: none;
-}
-
-.fsp-inbox__table-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: rgba(255, 255, 255, 0.35);
-  z-index: 1;
-}
-
 // Results section — banner + table + pagination as one connected
 // flex column block.
 .fsp-inbox__results {
@@ -164,12 +172,40 @@
   background-color: var(--cds-layer-01);
   padding: 0.75rem 1rem;
   font-weight: 600;
-  font-size: 0.875rem;
+  // Design spec: 16px result count (was 14px) — matches SearchPage.
+  font-size: 1rem;
   color: var(--cds-text-primary);
 }
 
 .fsp-inbox__results-count {
   display: inline-block;
+}
+
+// In-flight state: the banner shows "Searching" + a small spinner in place
+// of the result count — regular weight, secondary grey. Mirrors SearchPage.
+.fsp-inbox__results-count--searching {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+  color: var(--cds-text-secondary);
+}
+
+.fsp-inbox__searching-spinner {
+  display: inline-block;
+  inline-size: 16px;
+  block-size: 16px;
+  flex-shrink: 0;
+  border: 2px solid #c6c6c8;
+  border-top-color: var(--cds-interactive, #0073e6);
+  border-radius: 50%;
+  animation: fsp-inbox-spin 0.7s linear infinite;
+}
+
+@keyframes fsp-inbox-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 // Drop the table's outer border/rounded-corner wrapper — flat
@@ -194,14 +230,70 @@
   background-color: var(--cds-layer-01);
 }
 
-// Footer / pagination bar — white surface with no internal dividers.
-.fsp-inbox__results .cds--pagination,
+// ── Table font styling to match the FSP search design spec (kept in sync
+// with SearchPage.scss so every list page reads identically). Header:
+// light-grey fill, 14px bold near-black label on a single line. Body cells:
+// 16px near-black. Carbon renders body cells in --cds-text-secondary
+// (#525252) by default; repoint the token inside the table so they resolve
+// to the design's #131315 (the explicit cell colour is belt-and-braces).
+.fsp-inbox__table .cds--data-table {
+  --cds-text-secondary: #131315;
+}
+
+.fsp-inbox__table .cds--data-table thead th,
+.fsp-inbox__table .cds--data-table thead th .cds--table-header-label {
+  background-color: #dfdfe1;
+  color: #131315;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.16px;
+  white-space: nowrap;
+}
+
+.fsp-inbox__table .cds--data-table tbody td,
+.fsp-inbox__table .cds--data-table tbody td .cds--table-cell {
+  color: #131315;
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: 0.16px;
+}
+
+// Row hover/focus — a light-blue wash that overrides the zebra td
+// background. The wash rule on SearchPage is scoped to .fsp-search__table,
+// so it never reached the inbox; repeat it for .fsp-inbox__table. (Rows
+// carry the shared .fsp-search__row--selectable class for the pointer
+// cursor.)
+.fsp-inbox__table .cds--data-table tbody tr.fsp-search__row--selectable:hover td,
+.fsp-inbox__table
+  .cds--data-table
+  tbody
+  tr.fsp-search__row--selectable:focus-visible
+  td {
+  background-color: #dfeaf8;
+}
+
+// Footer / pagination bar — kept in sync with SearchPage.scss: a grey
+// surface (design's --fds-table-footer #dfdfe1) with a subtle top divider
+// and #606062 14px text, no internal vertical dividers.
 .fsp-inbox__results .cds--pagination * {
   border-color: transparent !important;
 }
 
 .fsp-inbox__results .cds--pagination {
-  background-color: var(--cds-layer-02);
+  background-color: #dfdfe1;
+  border: none;
+  border-block-start: 1px solid #c6c6c8;
+  color: #606062;
+  font-size: 14px;
+}
+
+.fsp-inbox__results .cds--pagination .cds--select-input,
+.fsp-inbox__results .cds--pagination .cds--pagination__button,
+.fsp-inbox__results .cds--pagination .cds--pagination__text,
+.fsp-inbox__results .cds--pagination .cds--pagination__pages-text {
+  background-color: transparent;
+  color: #606062;
 }
 
 // Pagination: Items per page sits left at its natural position;
@@ -225,6 +317,9 @@
   margin-block-start: 1rem;
   margin-inline: -1.5rem;
   flex: 1 1 auto;
+  // 1px divider where the criteria meets the grey results zone — matches
+  // the design's #dfdfe1 line (see SearchPage's results panel).
+  border-block-start: 1px solid #dfdfe1;
 }
 
 // Make .cds--content a flex column on the Inbox page so the gray

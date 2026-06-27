@@ -1,48 +1,126 @@
-/* Size the side nav to the widest visible label. Carbon's default ux side
-   nav is a fixed 16rem; FSP has labels like "Identified Areas/Map" and
-   "District Notification" that don't fit and get clipped. `max-content`
-   grows the column to the longest line currently in the layout; when the
-   user expands a SideNavMenu, the children become layout-contributing
-   and the column widens to fit them. `min-inline-size` keeps short
-   collapsed states from looking too narrow; `max-inline-size` caps any
-   pathological label length so the drawer never eats more than a third
-   of a typical viewport. */
-.cds--side-nav--ux {
-  inline-size: max-content;
-  min-inline-size: 12rem;
-  max-inline-size: 24rem;
+/* Side-nav sizing. Expanded = a fixed 16rem panel (icons + labels);
+   collapsed = a 3rem (48px) icon-only rail. Fixed widths keep the matching
+   content margin (Layout.css) in lock-step with the nav. */
+:root {
+  --bc-sidenav-width: 16rem;
+  --bc-sidenav-rail: 3rem;
+}
+
+/* We drive the nav as an always-visible rail/panel, not a modal drawer.
+   Carbon still renders its dimming overlay (because isPersistent={false}),
+   and because `expanded` is hardcoded true the overlay is stuck "active" —
+   a full-viewport fixed element that contributes nothing here and produces
+   stray edges when the page is clicked. Suppress it entirely. */
+.cds--side-nav__overlay,
+.cds--side-nav__overlay-active {
+  display: none !important;
 }
 
 /* Pad each visible link/menu-item so the longest label has breathing room
-   on the right edge instead of butting against the chevron or drawer
-   border. Carbon's defaults leave space for a fixed-width column; with a
-   max-content column we have to add the padding ourselves. */
+   on the right edge instead of butting against the drawer border. */
 .cds--side-nav__link,
 .cds--side-nav__submenu,
 .cds--side-nav__menu-item {
   padding-inline-end: 1rem;
 }
 
+/* Nav icons render in the interactive blue (matches the design). Our custom
+   icons use fill="currentColor", so set the colour on the icon container
+   and the svg; sized to 20px like the mock-up. */
+.cds--side-nav__icon,
+.cds--side-nav__icon svg,
 .cds--side-nav__link-text svg {
-  margin-inline-end: 0.75rem;
+  color: var(--cds-link-primary);
   fill: var(--cds-link-primary);
 }
 
-
-/* Drawer behavior: slides on/off-screen via transform. Width is fixed
-   while open so the matching margin push on .cds--content can rely on
-   a known value (--bc-sidenav-width). */
-:root {
-  --bc-sidenav-width: 16rem;
+.cds--side-nav__icon svg {
+  inline-size: 20px;
+  block-size: 20px;
 }
 
+/* The drawer is always on-screen now; its width animates between the rail
+   and the full panel. overflow: visible lets the collapsed-state tooltips
+   escape the narrow rail. */
 .side-nav-drawer.cds--side-nav {
   inline-size: var(--bc-sidenav-width);
-  transform: translateX(-100%);
-  transition: transform 320ms cubic-bezier(0.4, 0.14, 0.3, 1);
-  will-change: transform;
+  min-inline-size: var(--bc-sidenav-width);
+  max-inline-size: var(--bc-sidenav-width);
+  transform: none;
+  transition:
+    inline-size 320ms cubic-bezier(0.4, 0.14, 0.3, 1),
+    min-inline-size 320ms cubic-bezier(0.4, 0.14, 0.3, 1),
+    max-inline-size 320ms cubic-bezier(0.4, 0.14, 0.3, 1);
 }
 
-.side-nav-drawer--open.cds--side-nav {
-  transform: translateX(0);
+/* Collapsed = icon-only rail (the --open class is absent). overflow: visible
+   only here so the hover tooltips can escape the 48px rail; the EXPANDED
+   nav keeps Carbon's overflow (the unconditional override was leaking the
+   nav internals as stray white lines). */
+.side-nav-drawer.cds--side-nav:not(.side-nav-drawer--open) {
+  inline-size: var(--bc-sidenav-rail);
+  min-inline-size: var(--bc-sidenav-rail);
+  max-inline-size: var(--bc-sidenav-rail);
+  overflow: visible;
+}
+
+/* In the rail, the link is the positioning anchor and centres its icon. */
+.side-nav-drawer:not(.side-nav-drawer--open) .cds--side-nav__link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Carbon indents the link (padding-inline-start: 2rem) to make room for
+     the label; force it flush so the icon can centre in the 48px rail.
+     !important beats Carbon's more specific longhand padding rule. */
+  padding-inline: 0 !important;
+}
+
+/* Zero the icon→label gap (margin-inline-end: 1.5rem) so the lone icon
+   sits dead-centre. */
+.side-nav-drawer:not(.side-nav-drawer--open) .cds--side-nav__icon {
+  margin-inline: 0 !important;
+}
+
+/* Carbon clips the list (ul) and items (li), which would cut off the
+   tooltip that sticks out to the right of the 48px rail. Let them overflow
+   while collapsed (no vertical scroll needed for the short icon rail).
+   !important is required: Carbon's `.cds--side-nav:hover .cds--side-nav__items`
+   sets overflow-y: auto and ties this rule on specificity but wins on source
+   order — and it fires exactly on hover, the moment the tooltip appears.
+   overflow-y: auto also forces overflow-x to auto, clipping the tooltip. */
+.side-nav-drawer:not(.side-nav-drawer--open) .cds--side-nav__items,
+.side-nav-drawer:not(.side-nav-drawer--open) .cds--side-nav__item {
+  overflow: visible !important;
+}
+
+/* Tooltip = the link's own label, repurposed. Rather than rely on a
+   data-attribute reaching the DOM, we take the real .cds--side-nav__link-text
+   (always rendered by Carbon) out of flow and float it to the right of the
+   icon as a dark pill, hidden until the link is hovered. Guaranteed to have
+   text and to match the design. */
+.side-nav-drawer:not(.side-nav-drawer--open) .cds--side-nav__link-text {
+  position: absolute;
+  inset-inline-start: calc(100% + 8px);
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: #131315;
+  /* !important beats Carbon's `.cds--side-nav__link:hover .cds--side-nav__link-text`
+     colour (0,3,1), which on hover would paint the text the dark primary
+     colour — invisible against the dark pill. */
+  color: #fff !important;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  z-index: 9500;
+}
+
+.side-nav-drawer:not(.side-nav-drawer--open) .cds--side-nav__link:hover .cds--side-nav__link-text {
+  opacity: 1;
 }
