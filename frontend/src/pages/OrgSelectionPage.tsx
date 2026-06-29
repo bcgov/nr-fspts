@@ -6,12 +6,15 @@ import {
   RadioButton,
   RadioButtonGroup,
 } from '@carbon/react';
-import { useEffect, useRef, useState, type FC } from 'react';
+import { useEffect, useMemo, useRef, useState, type FC } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import { listClientOrgs } from '@/context/auth/authUtils';
+import type { ROLE_TYPE } from '@/context/auth/types';
 import { useAuth } from '@/context/auth/useAuth';
 import { useOrg } from '@/context/org/useOrg';
 import { useTheme } from '@/context/theme/useTheme';
+import { canEditFspContent, defaultRouteForUser } from '@/routes/access';
 import { searchClients } from '@/services/clientSearch';
 
 // Reuses the Landing/Unauthorized split-screen stylesheet so all three
@@ -19,10 +22,18 @@ import { searchClients } from '@/services/clientSearch';
 // side treatment.
 import './LandingPage.scss';
 
+/** Human label for the client-tied roles shown next to each org. */
+const ROLE_LABEL: Partial<Record<ROLE_TYPE, string>> = {
+  FSPTS_SUBMITTER: 'Submitter',
+  FSPTS_VIEW_ONLY: 'View Only',
+};
+
 interface OrgRow {
   clientNumber: string;
   /** Display label — name when we manage to fetch it, "Client #…" otherwise. */
   label: string;
+  /** The role the user holds for this org (Submitter / View Only). */
+  role: ROLE_TYPE;
 }
 
 const buildFallbackLabel = (cn: string) => `Client #${cn}`;
@@ -59,6 +70,20 @@ const OrgSelectionPage: FC = () => {
   );
   const [loading, setLoading] = useState(false);
 
+  // clientNumber → the role the user holds for that org.
+  const rolesByClient = useMemo(() => {
+    const map = new Map<string, ROLE_TYPE>();
+    if (user?.privileges) {
+      for (const o of listClientOrgs(user.privileges)) map.set(o.clientNumber, o.role);
+    }
+    return map;
+  }, [user?.privileges]);
+
+  // Post-pick landing: Submitters go to the upload flow; read-only client
+  // users (View Only) can't reach /data-submission, so send them to their
+  // default page instead.
+  const landingRoute = canEditFspContent(user) ? '/data-submission' : defaultRouteForUser(user);
+
   const logoSrc = theme === 'g100' ? '/bc-gov-logo-rev.png' : '/bc-gov-logo.png';
 
   // Enrich each client number with its forest-client name in parallel.
@@ -71,6 +96,7 @@ const OrgSelectionPage: FC = () => {
     setLoading(true);
     Promise.all(
       availableOrgClientNumbers.map(async (cn): Promise<OrgRow> => {
+        const role = rolesByClient.get(cn) ?? 'FSPTS_VIEW_ONLY';
         try {
           const res = await searchClients({ clientNumber: cn, size: 1 });
           const r = res.content[0];
@@ -79,9 +105,10 @@ const OrgSelectionPage: FC = () => {
             label: r?.clientName
               ? `${r.clientName.trim()} (${cn})`
               : buildFallbackLabel(cn),
+            role,
           };
         } catch {
-          return { clientNumber: cn, label: buildFallbackLabel(cn) };
+          return { clientNumber: cn, label: buildFallbackLabel(cn), role };
         }
       }),
     )
@@ -94,13 +121,13 @@ const OrgSelectionPage: FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [availableOrgClientNumbers]);
+  }, [availableOrgClientNumbers, rolesByClient]);
 
   const onContinue = () => {
     if (!selected) return;
     continueClicked.current = true;
     setActiveOrgClientNumber(selected);
-    navigate('/data-submission', { replace: true });
+    navigate(landingRoute, { replace: true });
   };
 
   // When the gate flips from true→false the App.tsx route branch
@@ -118,9 +145,9 @@ const OrgSelectionPage: FC = () => {
       !needsOrgSelection &&
       location.pathname === '/org-select'
     ) {
-      navigate('/data-submission', { replace: true });
+      navigate(landingRoute, { replace: true });
     }
-  }, [activeOrgClientNumber, needsOrgSelection, location.pathname, navigate]);
+  }, [activeOrgClientNumber, needsOrgSelection, location.pathname, navigate, landingRoute]);
 
   return (
     <div className="landing-grid-container">
@@ -153,9 +180,9 @@ const OrgSelectionPage: FC = () => {
               </h1>
               <p style={{ margin: 0, color: 'var(--cds-text-secondary)' }}>
                 {user?.displayName ? `${user.displayName} — y` : 'Y'}ou are
-                registered as a submitter for more than one forest-client
-                organization. Pick which one you want to work under for this
-                session. You can sign out and back in to switch later.
+                registered with more than one forest-client organization. Pick
+                which one you want to work under for this session — your role for
+                each is shown below. You can sign out and back in to switch later.
               </p>
             </div>
 
@@ -192,7 +219,7 @@ const OrgSelectionPage: FC = () => {
                     <RadioButton
                       key={r.clientNumber}
                       id={`org-pick-${r.clientNumber}`}
-                      labelText={r.label}
+                      labelText={`${r.label} — ${ROLE_LABEL[r.role] ?? r.role}`}
                       value={r.clientNumber}
                     />
                   ))}

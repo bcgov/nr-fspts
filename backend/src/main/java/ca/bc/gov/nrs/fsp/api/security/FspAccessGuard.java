@@ -83,6 +83,77 @@ public class FspAccessGuard {
     }
   }
 
+  /**
+   * Assert the current user may EDIT FSP content (Information / Attachments /
+   * Stocking Standards / FDU) in the FSP's current status — the status layer on
+   * top of {@link #assertWritable}'s ownership fence:
+   *
+   * <ul>
+   *   <li><b>Administrator</b> — editable in any status <em>except</em>
+   *       Approved (APP), In-Effect (INE) or Submitted (SUB).</li>
+   *   <li><b>Submitter</b> — editable only while Draft (DFT).</li>
+   *   <li>any other effective role — never (defense-in-depth; the endpoint is
+   *       already gated by {@code FspAuthorities.CONTENT_EDIT}).</li>
+   * </ul>
+   *
+   * <p>Amend / Extend / Replace are a separate flow and must NOT call this —
+   * they are valid for Administrator / Submitter on Approved / In-Effect plans
+   * even though direct editing is locked there. Mirrors the frontend
+   * {@code canEditFsp}. Throws a 403-mapped {@link StoredProcedureException} on
+   * violation; fails closed if the status can't be read.
+   */
+  public void assertContentEditable(String fspId, String amendmentNumber) {
+    // Ownership fence first (same as a plain write), then the status layer.
+    assertWritable(fspId, amendmentNumber);
+
+    final long fspIdLong;
+    try {
+      fspIdLong = Long.parseLong(fspId);
+    } catch (NumberFormatException e) {
+      throw deny(fspId, "non-numeric fsp id");
+    }
+
+    Long amendment = parseAmendment(amendmentNumber);
+    if (amendment == null) {
+      amendment = latestAmendment(fspIdLong);
+    }
+
+    String status = currentStatus(fspIdLong, amendment);
+    if (status.isEmpty()) {
+      throw deny(fspId, "status unavailable");
+    }
+
+    String role = RequestUtil.getEffectiveRole();
+    boolean editable;
+    if (FsptsRoles.ADMINISTRATOR.equals(role)) {
+      editable = !"APP".equals(status) && !"INE".equals(status) && !"SUB".equals(status);
+    } else if (FsptsRoles.SUBMITTER.equals(role)) {
+      editable = "DFT".equals(status);
+    } else {
+      editable = false;
+    }
+
+    if (!editable) {
+      log.info("Content edit to FSP {} amd {} denied: role={} status={}",
+          fspIdLong, amendment, role, status);
+      throw deny(fspId, "not editable in status " + status + " for role " + role);
+    }
+  }
+
+  private String currentStatus(long fspId, Long amendment) {
+    try {
+      String s = jdbcTemplate.queryForObject(
+          "SELECT fsp_status_code FROM the.forest_stewardship_plan"
+              + " WHERE fsp_id = ? AND fsp_amendment_number = ?",
+          String.class, fspId, amendment);
+      return s == null ? "" : s.trim().toUpperCase();
+    } catch (DataAccessException e) {
+      log.warn("status lookup failed for FSP {} amd {} (denying edit): {}",
+          fspId, amendment, e.getMessage());
+      return ""; // fail closed
+    }
+  }
+
   private Long parseAmendment(String amendmentNumber) {
     if (amendmentNumber == null || amendmentNumber.isBlank()) return null;
     try {

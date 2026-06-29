@@ -77,4 +77,72 @@ class FspAccessGuardTest {
     assertThatThrownBy(() -> guard.assertWritable("123", "0"))
         .isInstanceOf(StoredProcedureException.class);
   }
+
+  // ── assertContentEditable: the status layer on top of the ownership fence ──
+
+  private void authAs(String group) {
+    Jwt jwt = Jwt.withTokenValue("token")
+        .header("alg", "none")
+        .claim("cognito:groups", List.of(group))
+        .build();
+    SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+  }
+
+  private void stubStatus(String status) {
+    when(jdbc.queryForObject(contains("fsp_status_code"), eq(String.class), any(), any()))
+        .thenReturn(status);
+  }
+
+  @Test
+  void submitterMayEditDraft() {
+    stubUserMayAccess("Y"); // default auth is Submitter
+    stubStatus("DFT");
+    assertThatCode(() -> guard.assertContentEditable("123", "0")).doesNotThrowAnyException();
+  }
+
+  @Test
+  void submitterMayNotEditApproved() {
+    stubUserMayAccess("Y");
+    stubStatus("APP");
+    assertThatThrownBy(() -> guard.assertContentEditable("123", "0"))
+        .isInstanceOf(StoredProcedureException.class);
+  }
+
+  @Test
+  void adminMayEditDraft() {
+    authAs("FSPTS_ADMINISTRATOR");
+    stubUserMayAccess("Y");
+    stubStatus("DFT");
+    assertThatCode(() -> guard.assertContentEditable("123", "0")).doesNotThrowAnyException();
+  }
+
+  @Test
+  void adminMayNotEditApprovedInEffectOrSubmitted() {
+    authAs("FSPTS_ADMINISTRATOR");
+    stubUserMayAccess("Y");
+    for (String s : List.of("APP", "INE", "SUB")) {
+      stubStatus(s);
+      assertThatThrownBy(() -> guard.assertContentEditable("123", "0"))
+          .as("admin edit blocked in %s", s)
+          .isInstanceOf(StoredProcedureException.class);
+    }
+  }
+
+  @Test
+  void adminMayEditRejected() {
+    authAs("FSPTS_ADMINISTRATOR");
+    stubUserMayAccess("Y");
+    stubStatus("REJ");
+    assertThatCode(() -> guard.assertContentEditable("123", "0")).doesNotThrowAnyException();
+  }
+
+  @Test
+  void contentEditFailsClosedWhenStatusUnreadable() {
+    authAs("FSPTS_ADMINISTRATOR");
+    stubUserMayAccess("Y");
+    when(jdbc.queryForObject(contains("fsp_status_code"), eq(String.class), any(), any()))
+        .thenThrow(new DataAccessResourceFailureException("db down"));
+    assertThatThrownBy(() -> guard.assertContentEditable("123", "0"))
+        .isInstanceOf(StoredProcedureException.class);
+  }
 }

@@ -47,16 +47,29 @@ export function isMenuParent(item: MenuItem): item is MenuParent {
 // Standards Search, Submission History.
 const NAV: MenuItem[] = [
   {
+    // Internal (ministry) roles only — Submitter / View-Only never search.
     id: 'FSP Search',
     label: 'FSP Search',
     path: '/search',
     icon: FspSearchIcon,
+    roles: [
+      'FSPTS_ADMINISTRATOR',
+      'FSPTS_DECISION_MAKER',
+      'FSPTS_REVIEWER',
+      'FSPTS_VIEW_ALL',
+    ],
   },
   {
     id: 'Inbox',
     label: 'Inbox',
     path: '/inbox',
     icon: InboxIcon,
+    roles: [
+      'FSPTS_ADMINISTRATOR',
+      'FSPTS_DECISION_MAKER',
+      'FSPTS_REVIEWER',
+      'FSPTS_VIEW_ALL',
+    ],
   },
   {
     // Single-entry top-level leaf; if more submission flows land
@@ -82,6 +95,12 @@ const NAV: MenuItem[] = [
     label: 'Reports',
     path: '/reports/jcrs',
     icon: ReportsIcon,
+    roles: [
+      'FSPTS_ADMINISTRATOR',
+      'FSPTS_DECISION_MAKER',
+      'FSPTS_REVIEWER',
+      'FSPTS_VIEW_ALL',
+    ],
   },
   {
     // FSP501 — Stocking Standards Search. Separate from FSP Search
@@ -92,13 +111,13 @@ const NAV: MenuItem[] = [
     icon: StandardsSearchIcon,
   },
   {
-    // BCeID submitters' read-only audit of their org's submissions.
-    // Hidden from IDIR users — they have Inbox / Search / Reports for
-    // the same info.
+    // Client-tied roles only — their read-only audit of their org's
+    // submissions. Internal roles use Inbox / Search / Reports instead.
     id: 'Submission History',
     label: 'Submission History',
     path: '/submission-history',
     icon: SubmissionHistoryIcon,
+    roles: ['FSPTS_SUBMITTER', 'FSPTS_VIEW_ONLY'],
   },
   // Kept commented so the icon import doesn't tree-shake — wire in if we
   // ever add a dashboard route. Removing for now keeps the SideNav focused.
@@ -106,56 +125,16 @@ const NAV: MenuItem[] = [
 ];
 
 /**
- * Submitter-only users get a deliberately narrow nav — they have no
- * business touching admin or DDM-side screens, and pages like Search /
- * Inbox / Reports either don't apply or carry confusing extra
- * affordances. Restricting the menu to what they actually do prevents
- * support tickets and keeps the SPA's screen logic from having to gate
- * every privileged widget separately.
+ * The visible nav for the user's single effective role. Every entry carries
+ * an explicit {@code roles} allow-list (except Standards Search, open to all),
+ * so role-scoped visibility is fully declarative — no submitter-only special
+ * casing. With the no-stacking model {@code userRoles} is a single-element
+ * array, so an entry shows iff its allow-list contains that role.
  *
- * <p>The "submitter-only" determination is made by the caller (via
- * {@code isSubmitterOnly} in routes/access.ts) so this list stays
- * declarative — IDP doesn't enter into it. An IDIR user with only the
- * Submitter role sees the same minimal nav as a BCeID submitter.
+ * @param userRoles  the user's canonical FSPTS role(s).
  */
-const SUBMITTER_ONLY_ALLOWED_IDS = new Set(['Data Submission', 'Submission History']);
-
-/**
- * Nav entries that only make sense when the user can submit on behalf
- * of a forest-client org. Hidden from users without the Submitter role
- * — the underlying route stays mounted so a support user can still
- * link into it directly.
- */
-const SUBMITTER_ROLE_REQUIRED_IDS = new Set(['Submission History']);
-
-
-/**
- * @param userRoles  the user's canonical FSPTS role list.
- * @param submitterOnly  true when the user has no privileged role
- *     (e.g. Admin / Reviewer / DecisionMaker). Limits the menu to the
- *     submitter-only short list. Determined by {@code isSubmitterOnly}
- *     in routes/access.ts; passed in so this module stays free of
- *     auth-context dependencies.
- *
- * <p>Per-entry {@code roles} gates (e.g. Data Submission →
- * Admin/Submitter, District Notification → Admin) handle role-scoped
- * visibility, so read-only and Decision-Maker users simply don't match
- * those entries.
- */
-export function getMenuEntries(
-  userRoles: string[],
-  submitterOnly: boolean,
-): MenuItem[] {
+export function getMenuEntries(userRoles: string[]): MenuItem[] {
   const has = (required?: string[]) =>
     !required || required.length === 0 || required.some((r) => userRoles.includes(r));
-  const roleFiltered = NAV.filter((item) => has(item.roles));
-  if (submitterOnly) {
-    return roleFiltered.filter((item) => SUBMITTER_ONLY_ALLOWED_IDS.has(item.id));
-  }
-  // Privileged role holders: drop entries that only make sense for
-  // users who can act as a submitter.
-  const hasSubmitterRole = userRoles.includes('FSPTS_SUBMITTER');
-  return roleFiltered.filter(
-    (item) => hasSubmitterRole || !SUBMITTER_ROLE_REQUIRED_IDS.has(item.id),
-  );
+  return NAV.filter((item) => has(item.roles));
 }

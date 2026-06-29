@@ -10,79 +10,82 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * The converter collapses a user's groups to a single effective authority (no
+ * role stacking): only {@code ROLE_<highest canonical role>} is emitted.
+ */
 class CognitoGroupsAuthoritiesConverterTest {
 
   private final CognitoGroupsAuthoritiesConverter converter = new CognitoGroupsAuthoritiesConverter();
 
   @Test
-  void canonicalRole_emitsSingleAuthority() {
+  void canonicalRole_emitsSingleEffectiveAuthority() {
     Jwt jwt = baseJwtBuilder()
         .claim("cognito:groups", List.of("FSPTS_ADMINISTRATOR"))
         .build();
 
     assertThat(authorityNames(converter.convert(jwt)))
-        .containsExactlyInAnyOrder("ROLE_FSPTS_ADMINISTRATOR");
+        .containsExactly("ROLE_FSPTS_ADMINISTRATOR");
   }
 
   @Test
-  void orgSuffixedRole_emitsBothRawAndCanonical() {
+  void orgSuffixedRole_emitsCanonicalOnly() {
     Jwt jwt = baseJwtBuilder()
         .claim("cognito:groups", List.of("FSPTS_ADMINISTRATOR_DPG"))
         .build();
 
+    // The org-suffixed raw authority is no longer emitted — only the canonical.
     assertThat(authorityNames(converter.convert(jwt)))
-        .containsExactlyInAnyOrder(
-            "ROLE_FSPTS_ADMINISTRATOR_DPG",
-            "ROLE_FSPTS_ADMINISTRATOR"
-        );
+        .containsExactly("ROLE_FSPTS_ADMINISTRATOR");
   }
 
   @Test
-  void unknownGroup_emitsOnlyRawAuthority() {
+  void unknownGroup_emitsNoAuthorities() {
     Jwt jwt = baseJwtBuilder()
         .claim("cognito:groups", List.of("OTHER_GROUP"))
         .build();
 
-    assertThat(authorityNames(converter.convert(jwt)))
-        .containsExactlyInAnyOrder("ROLE_OTHER_GROUP");
+    assertThat(converter.convert(jwt)).isEmpty();
   }
 
   @Test
-  void multipleGroups_areAllConverted() {
+  void multipleRoles_collapseToHighestPrecedence() {
     Jwt jwt = baseJwtBuilder()
         .claim("cognito:groups", List.of(
-            "FSPTS_ADMINISTRATOR_DPG",
             "FSPTS_REVIEWER",
+            "FSPTS_ADMINISTRATOR_DPG",
             "OTHER_GROUP"
         ))
         .build();
 
+    // Administrator outranks Reviewer; unknown groups are ignored.
     assertThat(authorityNames(converter.convert(jwt)))
-        .containsExactlyInAnyOrder(
-            "ROLE_FSPTS_ADMINISTRATOR_DPG",
-            "ROLE_FSPTS_ADMINISTRATOR",
-            "ROLE_FSPTS_REVIEWER",
-            "ROLE_OTHER_GROUP"
-        );
+        .containsExactly("ROLE_FSPTS_ADMINISTRATOR");
   }
 
   @Test
-  void duplicateGroups_areDeduplicated() {
+  void reviewerBeatsViewAll() {
+    Jwt jwt = baseJwtBuilder()
+        .claim("cognito:groups", List.of("FSPTS_VIEW_ALL", "FSPTS_REVIEWER"))
+        .build();
+
+    assertThat(authorityNames(converter.convert(jwt)))
+        .containsExactly("ROLE_FSPTS_REVIEWER");
+  }
+
+  @Test
+  void clientRoles_collapseToHighest() {
     Jwt jwt = baseJwtBuilder()
         .claim("cognito:groups", List.of(
-            "FSPTS_ADMINISTRATOR_DPG",
-            "FSPTS_ADMINISTRATOR_DSE"
+            "FSPTS_VIEW_ONLY_00067890",
+            "FSPTS_SUBMITTER_00012345"
         ))
         .build();
 
-    // Both org-suffixed groups emit the same canonical ROLE_FSPTS_ADMINISTRATOR;
-    // the converter must not duplicate it.
+    // Submitter outranks View Only; both org-suffixed groups collapse to the
+    // single canonical authority.
     assertThat(authorityNames(converter.convert(jwt)))
-        .containsExactlyInAnyOrder(
-            "ROLE_FSPTS_ADMINISTRATOR_DPG",
-            "ROLE_FSPTS_ADMINISTRATOR_DSE",
-            "ROLE_FSPTS_ADMINISTRATOR"
-        );
+        .containsExactly("ROLE_FSPTS_SUBMITTER");
   }
 
   @Test

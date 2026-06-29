@@ -19,18 +19,71 @@ Roles are Cognito groups, canonical name `FSPTS_*` (an org suffix like
 `_DPG` is allowed and matched). Defined in
 `backend/.../security/FsptsRoles.java` and `frontend/src/context/auth/types.ts`.
 
-| Role | Content edit | Data Submission | Workflow actions | Administration | FSP visibility |
+| Role | Content edit | Amend / Extend / Replace | Workflow actions | Administration | FSP visibility |
 |------|:---:|:---:|:---:|:---:|---|
-| **Administrator** | ✅ | ✅ | ✅ (any status) | ✅ | all |
-| **Decision Maker** | ❌ | ❌ | ✅ (review phase only — `SUB`/`OHS`) | ❌ | all |
-| **Submitter** | ✅ *(own org)* | ✅ | ❌ | ❌ | own org's FSPs |
+| **Administrator** | ✅ — except `APP`/`INE`/`SUB` | ✅ | ✅ (any status) | ✅ | all |
+| **Decision Maker** | ❌ | ❌ | ✅ (`SUB`/`OHS` only) | ❌ | all |
+| **Submitter** | ✅ *(own org)* — `DFT` only | ✅ *(own org)* — `APP`/`INE` | ❌ | ❌ | own org's FSPs |
 | **Reviewer** | ❌ | ❌ | ❌ (sees Workflow tab read-only) | ❌ | all |
 | **View All** | ❌ | ❌ | ❌ | ❌ | all approved / in-effect |
 | **View Only** | ❌ | ❌ | ❌ | ❌ | own org's approved |
 
+### Menu / page access
+
+| Menu | Admin | Decision Maker | Reviewer | View All | Submitter | View Only |
+|------|:--:|:--:|:--:|:--:|:--:|:--:|
+| FSP Search · Inbox · Reports | ✅ | ✅ | ✅ | ✅ | — | — |
+| Submit FSP (Data Submission) | ✅ | — | — | — | ✅ | — |
+| District Notification | ✅ | — | — | — | — | — |
+| Standards Search | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Submission History | — | — | — | — | ✅ | ✅ |
+
+Menu visibility is declared per-entry in `routePaths.ts` (`roles`); the same map
+gates direct page loads via `access.isPathAllowedForUser`. The per-status edit
+rules live in `access.canEditFsp` (frontend) and are enforced server-side by
+`FspAccessGuard.assertContentEditable` on the content-write paths (FSP info,
+attachments, stocking standards, FDU) — Amend/Extend/Replace are a separate
+flow and are intentionally **not** gated by it.
+
 "Content edit" = plan information, attachments, stocking standards, FDU
 licences, extension requests, and the Submit / Amend / Replace / Delete header
-actions. A user holding several roles gets the union of their capabilities.
+actions.
+
+## No role stacking — one effective role
+
+A user resolves to a **single effective role**; capabilities are never the
+union of several roles. Precedence, highest first:
+
+```
+Administrator > Decision Maker > Reviewer > View All > Submitter > View Only
+```
+
+- The four **internal** roles (Administrator / Decision Maker / Reviewer /
+  View All) are mutually exclusive, and a user is never both an internal role
+  and a client-tied one.
+- The two **client-tied** roles (Submitter / View Only) are held per forest
+  client. A user party to multiple clients selects one **active client** (the
+  org picker / `X-FSPTS-Active-Org-Client-Number` header) and is scoped to the
+  role they hold *for that client*.
+
+This is resolved once in **`RequestUtil.getEffectiveRole()`** (backend) and
+mirrored by **`authUtils.highestRole()`** (frontend). Every downstream check
+derives from it:
+
+- **`CognitoGroupsAuthoritiesConverter`** grants only `ROLE_FSPTS_<effective>`,
+  so the `@PreAuthorize` matrix sees one role.
+- **`RequestUtil.getCurrentLegacyRoles()`** emits one `FSP_*` role to the
+  legacy procs — removing the `INSTR`-substring stacking ambiguity (e.g. the
+  View-All vs Reviewer disagreement between `get_search_criteria` and
+  `user_may_access`).
+- `isCurrentUser*` predicates and the frontend `user.roles` are single-valued.
+
+> **Legacy caveat.** In the search proc `FSP_100_SEARCH.get_search_criteria`,
+> the `FSP_VIEW_ALL` branch restricts to `APP/INE`, while Reviewer / Decision
+> Maker fall through to the `1 = 1` (all-status) branch — the proc's comment
+> ("VIEW_ALL, REVIEWER, DECISION MAKER → only approved") describes intent, not
+> the code. With a single effective role this is now unambiguous: **Reviewer
+> sees all statuses; View All sees only approved/in-effect.**
 
 ## Layer 2 — role capability (the matrix in code)
 

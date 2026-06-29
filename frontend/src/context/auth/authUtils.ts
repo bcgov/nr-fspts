@@ -70,6 +70,32 @@ function canonicalRoleFor(group: string): ROLE_TYPE | undefined {
 }
 
 /**
+ * Role precedence, highest first — mirrors the backend
+ * {@code FsptsRoles.PRECEDENCE}. The four internal roles outrank the two
+ * client-tied roles.
+ */
+const ROLE_PRECEDENCE: ROLE_TYPE[] = [
+  'FSPTS_ADMINISTRATOR',
+  'FSPTS_DECISION_MAKER',
+  'FSPTS_REVIEWER',
+  'FSPTS_VIEW_ALL',
+  'FSPTS_SUBMITTER',
+  'FSPTS_VIEW_ONLY',
+];
+
+/**
+ * Collapses a user's granted roles to their single effective role (no
+ * stacking). Internal roles win by precedence; since a user is never both
+ * internal and client-tied, and client-tied users hold one role type, this
+ * resolves to the right role. Per-client role scoping (the rare Submitter-on-A
+ * / View-Only-on-B case) is enforced authoritatively on the backend via the
+ * active-org client number. Returns undefined when no role is held.
+ */
+export function highestRole(roles: ROLE_TYPE[]): ROLE_TYPE | undefined {
+  return ROLE_PRECEDENCE.find((role) => roles.includes(role));
+}
+
+/**
  * Parses a Cognito ID token JWT into FSP's FamLoginUser shape. Extracts
  * display name, IDP provider, and rolls up Cognito groups into the
  * AVAILABLE_ROLES set.
@@ -94,14 +120,18 @@ export const parseToken = (idToken: JWT | undefined): FamLoginUser | undefined =
   const email = (decodedIdToken?.['email'] as string) || '';
   const cognitoGroups = extractGroups(decodedIdToken);
   const privileges = parsePrivileges(cognitoGroups);
+  // No role stacking: collapse to the single highest effective role. The full
+  // `privileges` map is kept (it's how client numbers are enumerated), but the
+  // user's *capability* role list is exactly one entry.
   const derivedRoles = Object.keys(privileges) as ROLE_TYPE[];
+  const effectiveRole = highestRole(derivedRoles);
   return {
     userName,
     displayName,
     email,
     idpProvider,
     privileges,
-    roles: derivedRoles,
+    roles: effectiveRole ? [effectiveRole] : [],
     firstName: sanitizedFirstName,
     lastName,
     providerUsername: idpProvider ? `${idpProvider}\\${userName}` : undefined,
@@ -151,6 +181,35 @@ export function listSubmitterClientNumbers(
   const v = privileges.FSPTS_SUBMITTER;
   if (!Array.isArray(v)) return [];
   return [...v].sort();
+}
+
+/** Client-tied roles, highest-precedence first (Submitter wins a same-client tie). */
+const CLIENT_ROLES: ROLE_TYPE[] = ['FSPTS_SUBMITTER', 'FSPTS_VIEW_ONLY'];
+
+export interface ClientOrg {
+  clientNumber: string;
+  /** The client-tied role the user holds for this org (Submitter beats View Only). */
+  role: ROLE_TYPE;
+}
+
+/**
+ * Every forest-client org the user is party to through a client-tied role
+ * (Submitter / View Only), each paired with the role they hold there, sorted
+ * by client number. Drives the org picker (so a multi-client Submitter *or*
+ * View-Only user is gated) and the per-org role labels on the selection page.
+ */
+export function listClientOrgs(privileges: USER_PRIVILEGE_TYPE): ClientOrg[] {
+  const byClient = new Map<string, ROLE_TYPE>();
+  for (const role of CLIENT_ROLES) {
+    const clientNumbers = privileges[role];
+    if (!Array.isArray(clientNumbers)) continue;
+    for (const cn of clientNumbers) {
+      if (!byClient.has(cn)) byClient.set(cn, role); // first match = highest role
+    }
+  }
+  return [...byClient.entries()]
+    .map(([clientNumber, role]) => ({ clientNumber, role }))
+    .sort((a, b) => a.clientNumber.localeCompare(b.clientNumber));
 }
 
 /**

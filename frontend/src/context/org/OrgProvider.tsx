@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { listSubmitterClientNumbers } from '@/context/auth/authUtils';
+import { listClientOrgs } from '@/context/auth/authUtils';
 import { useAuth } from '@/context/auth/useAuth';
 
 import { OrgContext, type OrgContextShape } from './OrgContext';
@@ -50,12 +50,15 @@ interface Props {
  * </ul>
  */
 const OrgProvider = ({ children }: Props) => {
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, isLoading } = useAuth();
   const [activeOrgClientNumber, setActiveOrgClientNumberState] =
     useState<string | null>(() => readPersisted());
 
   const availableOrgClientNumbers = useMemo(
-    () => (user?.privileges ? listSubmitterClientNumbers(user.privileges) : []),
+    () =>
+      user?.privileges
+        ? listClientOrgs(user.privileges).map((o) => o.clientNumber)
+        : [],
     [user?.privileges],
   );
 
@@ -66,6 +69,12 @@ const OrgProvider = ({ children }: Props) => {
   //   - persisted value is in the list → keep it
   //   - persisted value isn't in the list → drop it (forces a re-pick)
   useEffect(() => {
+    // On a page refresh AuthProvider re-resolves the session asynchronously,
+    // so `isLoggedIn` is transiently false (and the org list empty) before the
+    // user hydrates. Reconciling in that window would wipe the persisted choice
+    // from sessionStorage and bounce the user back to the picker. Wait until
+    // auth has settled before touching the selection.
+    if (isLoading) return;
     if (!isLoggedIn) {
       if (activeOrgClientNumber !== null) {
         setActiveOrgClientNumberState(null);
@@ -88,7 +97,7 @@ const OrgProvider = ({ children }: Props) => {
       setActiveOrgClientNumberState(null);
       writePersisted(null);
     }
-  }, [isLoggedIn, availableOrgClientNumbers, activeOrgClientNumber]);
+  }, [isLoading, isLoggedIn, availableOrgClientNumbers, activeOrgClientNumber]);
 
   const setActiveOrgClientNumber = useCallback((clientNumber: string) => {
     setActiveOrgClientNumberState(clientNumber);

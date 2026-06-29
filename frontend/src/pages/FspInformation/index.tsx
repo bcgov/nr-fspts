@@ -11,6 +11,7 @@ import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
 import {
   canActionWorkflow,
+  canEditFsp,
   canEditFspContent,
   canSeeWorkflowTab,
   defaultRouteForUser,
@@ -470,7 +471,7 @@ const FspInformationPage: FC = () => {
                     variant="fdu"
                     fspStatusCode={fsp?.fspStatusCode}
                     isAdmin={isAdmin}
-                    readOnly={!canModify}
+                    readOnly={!canEditFsp(user, fsp?.fspStatusCode)}
                     refreshKey={refreshKey}
                   />
                 </div>

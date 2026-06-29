@@ -3,7 +3,6 @@ import { type FC } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/auth/useAuth';
 import { useLayout } from '@/context/layout/useLayout';
-import { isSubmitterOnly } from '@/routes/access';
 import { getMenuEntries, isMenuParent, type MenuItem, type MenuLeaf } from '@/routes/routePaths';
 import './LayoutSideNav.css';
 
@@ -66,7 +65,7 @@ export const LayoutSideNav: FC = () => {
       aria-label="Main navigation"
     >
       <SideNavItems>
-        {getMenuEntries(roles, isSubmitterOnly(user)).map(renderParent)}
+        {getMenuEntries(roles).map(renderParent)}
       </SideNavItems>
     </SideNav>
   );
