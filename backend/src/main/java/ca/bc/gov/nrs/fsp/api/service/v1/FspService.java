@@ -257,6 +257,10 @@ public class FspService {
     // current row, overlay the editable fields from the request, then
     // call SAVE with the merged DTO.
     String amendmentNumber = request == null ? null : request.getFspAmendmentNumber();
+    // Ownership + status fence: Administrators can't edit APP/INE/SUB plans,
+    // Submitters can only edit Drafts. (Amend/Extend/Replace are separate and
+    // not gated here.)
+    accessGuard.assertContentEditable(fspId, amendmentNumber);
     FspRequest merged = getById(fspId, amendmentNumber);
     applyEdits(merged, request);
     Fsp300InformationDao.Result r = callInformation(ACTION_SAVE, fspId, null, merged);

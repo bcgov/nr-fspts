@@ -13,14 +13,18 @@ import java.util.Set;
 /**
  * Maps {@code cognito:groups} entries to Spring Security authorities.
  *
- * <p>For each group:</p>
- * <ul>
- *   <li>The raw group is exposed as {@code ROLE_<GROUP>} so callers can check
- *   organization-specific roles like {@code ROLE_FSPTS_ADMINISTRATOR_DPG}.</li>
- *   <li>If the group matches a canonical FSPTS role (with optional org suffix),
- *   the canonical role is also exposed as {@code ROLE_<CANONICAL>} so
- *   {@code hasRole("FSPTS_ADMINISTRATOR")} matches every org-suffixed variant.</li>
- * </ul>
+ * <p><b>No role stacking.</b> A user's groups are collapsed to their single
+ * highest-precedence canonical role (see {@link FsptsRoles#highest}), and only
+ * that role is exposed as {@code ROLE_<CANONICAL>} (e.g.
+ * {@code ROLE_FSPTS_ADMINISTRATOR}). The {@code @PreAuthorize} matrix uses the
+ * bare {@code FSPTS_*} names, so it sees exactly one role and capabilities can
+ * never be the union of several roles.
+ *
+ * <p>Method security is intentionally coarse here (does this role perform this
+ * kind of write at all). Per-FSP / per-client scoping — including a client-tied
+ * user who is, say, a Submitter for one client but View-Only for another — is
+ * enforced by the legacy {@code user_may_access} fence using the active-org
+ * client number, which {@code RequestUtil.getEffectiveRole()} resolves.
  */
 public class CognitoGroupsAuthoritiesConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
 
@@ -33,14 +37,17 @@ public class CognitoGroupsAuthoritiesConverter implements Converter<Jwt, Collect
     if (groups == null || groups.isEmpty()) {
       return List.of();
     }
-    Set<GrantedAuthority> authorities = new LinkedHashSet<>();
+    Set<String> canonicalRoles = new LinkedHashSet<>();
     for (String group : groups) {
-      authorities.add(new SimpleGrantedAuthority(AUTHORITY_PREFIX + group));
       String canonical = FsptsRoles.canonicalRoleFor(group);
       if (canonical != null) {
-        authorities.add(new SimpleGrantedAuthority(AUTHORITY_PREFIX + canonical));
+        canonicalRoles.add(canonical);
       }
     }
-    return authorities;
+    String effective = FsptsRoles.highest(canonicalRoles);
+    if (effective == null) {
+      return List.of();
+    }
+    return List.of(new SimpleGrantedAuthority(AUTHORITY_PREFIX + effective));
   }
 }

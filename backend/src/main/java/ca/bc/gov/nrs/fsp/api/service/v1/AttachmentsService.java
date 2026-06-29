@@ -125,7 +125,7 @@ public class AttachmentsService {
     // Ownership fence: the attachment proc doesn't thread the caller's
     // client number, so without this a submitter could attach to any
     // org's FSP. Resolves the latest amendment internally.
-    accessGuard.assertWritable(fspId, null);
+    accessGuard.assertContentEditable(fspId, null);
     // Resolve the FSP's current latest amendment number — the old
     // hardcoded "1" tripped FAX_FSP_FK whenever the FSP's amendments
     // didn't include 1 (e.g. original-only FSPs sitting at amendment 0).
@@ -156,7 +156,7 @@ public class AttachmentsService {
 
   @Transactional
   public void delete(String fspId, Long attachmentId) {
-    accessGuard.assertWritable(fspId, null);
+    accessGuard.assertContentEditable(fspId, null);
     attachmentsDao.removeAttachment(
         Long.valueOf(fspId), findLatestAmendmentNumber(fspId), attachmentId);
   }

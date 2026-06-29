@@ -1,168 +1,131 @@
 import type { FamLoginUser, ROLE_TYPE } from '@/context/auth/types';
 
 /**
- * Roles that grant broader access than the Submitter floor. Holders
- * see the full IDIR-style nav (Search / Inbox / Reports / etc.); their
- * Submitter role, if any, doesn't restrict them.
+ * Access rules, single-effective-role model (no stacking — a user resolves to
+ * exactly one role; see authUtils.highestRole). Mirrored on the backend by
+ * FspAuthorities (@PreAuthorize) + the WorkflowService / FspAccessGuard status
+ * checks. Menu, page, and capability gating all derive from the one role.
  *
- * <p>Driven by FSPTS role assignments only — the user's IDP (IDIR vs
- * BCeID) is intentionally NOT part of the decision. IDIR users can be
- * Submitters; BCeID users can theoretically be granted any role. The
- * boundary is the role grant, not the login provider.
+ *   Role            Menus                                         Edit / action
+ *   Administrator   all except Submission History                 edit unless APP/INE/SUB; amend/extend/replace; workflow (any)
+ *   Decision Maker  FSP Search, Inbox, Reports, Standards Search  workflow on Submitted only; no edits
+ *   Reviewer        FSP Search, Inbox, Reports, Standards Search  read-only
+ *   View All        FSP Search, Inbox, Reports, Standards Search  read-only
+ *   Submitter       Submit FSP, Standards Search, Submission Hist edit only while Draft; amend/extend/replace when APP/INE; own org
+ *   View Only       Standards Search, Submission History          read-only; own org
  */
-const PRIVILEGED_ROLES: ROLE_TYPE[] = [
+
+/** Internal (ministry) roles — share a menu set, never client-tied. */
+const INTERNAL_ROLES: ROLE_TYPE[] = [
   'FSPTS_ADMINISTRATOR',
   'FSPTS_DECISION_MAKER',
   'FSPTS_REVIEWER',
   'FSPTS_VIEW_ALL',
-  'FSPTS_VIEW_ONLY',
 ];
 
-/**
- * @return true when the user's only FSPTS role is {@code FSPTS_SUBMITTER}
- *     (or none of the recognised roles, which collapses to the same
- *     restricted experience). Holding ANY {@link PRIVILEGED_ROLES}
- *     short-circuits to false so an IDIR admin who also happens to
- *     hold the Submitter role keeps full access.
- */
-export function isSubmitterOnly(user: FamLoginUser | null | undefined): boolean {
-  const roles = user?.roles ?? [];
-  if (roles.some((r) => PRIVILEGED_ROLES.includes(r))) return false;
-  return true;
-}
-
-/**
- * @return true when the user has any submitter privilege at all (alone
- *     or alongside a privileged role). Drives nav-menu visibility for
- *     entries like Submission History that only make sense when the
- *     user can act on behalf of a forest-client org.
- */
-export function hasSubmitterRole(
+/** The user's single effective role (or undefined when none). */
+export function effectiveRole(
   user: FamLoginUser | null | undefined,
-): boolean {
-  return (user?.roles ?? []).includes('FSPTS_SUBMITTER');
+): ROLE_TYPE | undefined {
+  return user?.roles?.[0];
 }
 
-/**
- * Roles permitted to create or modify FSP content — plan information,
- * attachments, stocking standards, FDU licences, extension *requests*,
- * the Amend / Submit / Replace / Delete header actions, and the Data
- * Submission upload. Mirrors the backend {@code FspAuthorities.CONTENT_EDIT}
- * allow-list.
- *
- * <p>Decision Makers are intentionally excluded: they action the workflow
- * (decisions), they don't edit licensee content. Reviewer / View-All /
- * View-Only hold no edit role, so they're read-only here too.
- */
-const CONTENT_EDIT_ROLES: ROLE_TYPE[] = ['FSPTS_ADMINISTRATOR', 'FSPTS_SUBMITTER'];
-
-/** @return true when the user may create / modify FSP content. */
-export function canEditFspContent(user: FamLoginUser | null | undefined): boolean {
-  return (user?.roles ?? []).some((r) => CONTENT_EDIT_ROLES.includes(r));
-}
-
-/**
- * Roles permitted to take workflow actions (DDM decision, OTBH, review
- * milestones, extension decisions). Mirrors backend
- * {@code FspAuthorities.WORKFLOW_DECISION}. Per-action status scoping
- * (e.g. Decision Makers only while a plan is in review) is applied in
- * {@code WorkflowDataTab}.
- */
-const WORKFLOW_ROLES: ROLE_TYPE[] = ['FSPTS_ADMINISTRATOR', 'FSPTS_DECISION_MAKER'];
-
-/** @return true when the user may take any workflow action. */
-export function canActionWorkflow(user: FamLoginUser | null | undefined): boolean {
-  return (user?.roles ?? []).some((r) => WORKFLOW_ROLES.includes(r));
-}
-
-/** @return true when the user holds the Administrator role. */
+/** @return true when the user's effective role is Administrator. */
 export function isAdministrator(user: FamLoginUser | null | undefined): boolean {
-  return (user?.roles ?? []).includes('FSPTS_ADMINISTRATOR');
+  return effectiveRole(user) === 'FSPTS_ADMINISTRATOR';
 }
 
 /**
- * Path prefixes a submitter-only user is allowed to load directly.
- * Anything not on this list collapses to {@link ForbiddenPage} via the
- * route guard in App.tsx. Matched by exact path OR `path + "/"` prefix
- * so a future `/data-submission/foo` sub-path stays inside the gate
- * without extra entries.
+ * Roles permitted to create / modify FSP content (Administrator, Submitter).
+ * Role-level only — the per-status rule is {@link canEditFsp}. Mirrors backend
+ * {@code FspAuthorities.CONTENT_EDIT}.
  */
-const SUBMITTER_ALLOWED_PATHS = [
-  '/auth/callback',
-  '/org-select',
-  '/data-submission',
-  '/submission-history',
-  '/fsp/information',
-  '/fsp/history',
+export function canEditFspContent(user: FamLoginUser | null | undefined): boolean {
+  const r = effectiveRole(user);
+  return r === 'FSPTS_ADMINISTRATOR' || r === 'FSPTS_SUBMITTER';
+}
+
+/**
+ * Roles permitted to take workflow actions (Administrator, Decision Maker).
+ * Per-status scoping (Decision Makers only while a plan is in review) is
+ * applied in {@code WorkflowDataTab} and enforced in the backend
+ * {@code WorkflowService}. Mirrors backend {@code FspAuthorities.WORKFLOW_DECISION}.
+ */
+export function canActionWorkflow(user: FamLoginUser | null | undefined): boolean {
+  const r = effectiveRole(user);
+  return r === 'FSPTS_ADMINISTRATOR' || r === 'FSPTS_DECISION_MAKER';
+}
+
+/**
+ * Per-FSP content-edit gate (Information / Attachments / Stocking Standards /
+ * FDU). Status rules:
+ *
+ * <ul>
+ *   <li><b>Administrator</b> — editable in every status <em>except</em>
+ *       Approved, In-Effect, or Submitted.</li>
+ *   <li><b>Submitter</b> — editable only while the plan is a Draft.</li>
+ *   <li>everyone else — never editable.</li>
+ * </ul>
+ *
+ * The Amend / Extend / Replace header actions are a separate flow (see
+ * {@code FspInformation}); they're allowed for Administrator / Submitter on
+ * Approved / In-Effect plans even though direct editing is locked there.
+ */
+export function canEditFsp(
+  user: FamLoginUser | null | undefined,
+  fspStatusCode: string | null | undefined,
+): boolean {
+  const r = effectiveRole(user);
+  const s = (fspStatusCode ?? '').toUpperCase();
+  if (r === 'FSPTS_ADMINISTRATOR') return !['APP', 'INE', 'SUB'].includes(s);
+  if (r === 'FSPTS_SUBMITTER') return s === 'DFT';
+  return false;
+}
+
+/**
+ * @return true when the user should see the Workflow Data tab. It's for the
+ *     internal roles — Administrator / Decision Maker action it (status-gated),
+ *     Reviewer / View-All read it. Submitter / View-Only never see it.
+ */
+export function canSeeWorkflowTab(user: FamLoginUser | null | undefined): boolean {
+  const r = effectiveRole(user);
+  return !!r && INTERNAL_ROLES.includes(r);
+}
+
+/**
+ * Page access by role — the source of truth for both the route guard
+ * (App.tsx) and which paths a role may load. Prefix-matched (exact or
+ * `prefix + "/"`). Pages NOT listed — FSP detail (`/fsp/*`), `/org-select`,
+ * `/auth/callback`, `/standards-search` — are open to any authenticated role.
+ */
+const PAGE_ROLES: ReadonlyArray<{ prefix: string; roles: ROLE_TYPE[] }> = [
+  { prefix: '/search', roles: INTERNAL_ROLES },
+  { prefix: '/inbox', roles: INTERNAL_ROLES },
+  { prefix: '/reports', roles: INTERNAL_ROLES },
+  { prefix: '/data-submission', roles: ['FSPTS_ADMINISTRATOR', 'FSPTS_SUBMITTER'] },
+  { prefix: '/admin', roles: ['FSPTS_ADMINISTRATOR'] },
+  { prefix: '/submission-history', roles: ['FSPTS_SUBMITTER', 'FSPTS_VIEW_ONLY'] },
 ];
 
 export function isPathAllowedForUser(
   user: FamLoginUser | null | undefined,
   pathname: string,
 ): boolean {
-  if (isSubmitterOnly(user)) {
-    return SUBMITTER_ALLOWED_PATHS.some(
-      (p) => pathname === p || pathname.startsWith(`${p}/`),
-    );
-  }
-  // Privileged (non-submitter-only) roles: gate the data-entry and admin
-  // areas by capability — Decision Makers and read-only roles can't reach
-  // Data Submission; only Administrators reach /admin. Everything else
-  // (search / inbox / reports / FSP detail) stays open, with each page's
-  // own affordance gates deciding read vs write.
-  const matches = (p: string) => pathname === p || pathname.startsWith(`${p}/`);
-  if (matches('/data-submission') && !canEditFspContent(user)) return false;
-  if (matches('/admin') && !isAdministrator(user)) return false;
-  return true;
+  const r = effectiveRole(user);
+  const match = PAGE_ROLES.find(
+    (p) => pathname === p.prefix || pathname.startsWith(`${p.prefix}/`),
+  );
+  if (!match) return true; // open page (FSP detail, standards search, infra)
+  return !!r && match.roles.includes(r);
 }
 
 /**
- * Where to land the user when they hit `/`, `/auth/callback`, or any
- * page that's been removed out from under them (e.g. after deleting an
- * FSP). Submitter-only → /submission-history; anyone with a privileged
- * role → /search. Route-guard fallbacks and the FspInformation
- * back-button both call this so the user never ends up on a screen
- * they can't load.
+ * Where to land the user on `/`, `/auth/callback`, or any page pulled out from
+ * under them. Internal roles → /search; client-tied roles (Submitter / View
+ * Only) → /submission-history (a page both can load). Callers rely on this so
+ * the user never lands on a screen their role can't open.
  */
 export function defaultRouteForUser(user: FamLoginUser | null | undefined): string {
-  return isSubmitterOnly(user) ? '/submission-history' : '/search';
-}
-
-/**
- * Per-FSP content-edit gate. Drives the visibility / disabled state of
- * every mutation affordance across the FSP Information page tabs
- * (Information, Attachments, Stocking Standards, FDU licences). Rules:
- *
- * <ul>
- *   <li>No content-edit role (Decision Maker, Reviewer, View-All,
- *       View-Only) → never editable.</li>
- *   <li>Submitter-only role + FSP status = SUB → locked out while the
- *       FSP is under review. They can still edit Drafts (their primary
- *       workflow) and read everything else without affordances.</li>
- *   <li>Administrator / Submitter otherwise → defers to the existing
- *       per-status / per-tab logic.</li>
- * </ul>
- */
-export function canEditFsp(
-  user: FamLoginUser | null | undefined,
-  fspStatusCode: string | null | undefined,
-): boolean {
-  if (!canEditFspContent(user)) return false;
-  if (isSubmitterOnly(user) && fspStatusCode === 'SUB') return false;
-  return true;
-}
-
-/**
- * @return true when the user should see the Workflow tab on the FSP
- *     Information page (DDM decision, OTBH, extension, review milestones).
- *     Visible to every non-submitter role. Reviewers / View-All /
- *     View-Only see the workflow state but take no action (the tab
- *     renders read-only for anyone without {@link canActionWorkflow}).
- *     Hidden only from Submitter-only users, for whom nothing on the tab
- *     applies.
- */
-export function canSeeWorkflowTab(
-  user: FamLoginUser | null | undefined,
-): boolean {
-  return !isSubmitterOnly(user);
+  const r = effectiveRole(user);
+  return r && INTERNAL_ROLES.includes(r) ? '/search' : '/submission-history';
 }

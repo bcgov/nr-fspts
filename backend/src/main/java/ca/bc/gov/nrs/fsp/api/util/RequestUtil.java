@@ -1,5 +1,6 @@
 package ca.bc.gov.nrs.fsp.api.util;
 
+import ca.bc.gov.nrs.fsp.api.security.FsptsRoles;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -148,33 +149,77 @@ public class RequestUtil {
   };
 
   /**
-   * Returns the current JWT's cognito:groups mapped onto legacy
-   * FSP_* role names in the comma-delimited-with-trailing-comma format
-   * legacy procs expect. Returns "" if no FSPTS roles are present.
+   * The single effective FSPTS role for the current request (canonical
+   * {@code FSPTS_*} name), honouring the no-stacking policy:
+   *
+   * <ul>
+   *   <li>If the user holds an <b>internal</b> role (Administrator / Decision
+   *       Maker / Reviewer / View All) it wins. Internal roles are mutually
+   *       exclusive and a user is never both internal and client-tied, so any
+   *       internal role present means the user is internal.</li>
+   *   <li>Otherwise the user is <b>client-tied</b>: their role is scoped to the
+   *       active-org client number ({@link #getCurrentClientNumber()}) — the
+   *       highest role they hold <em>for that client</em> (Submitter beats View
+   *       Only). Falls back to their highest client-tied role overall if the
+   *       active client can't be matched to a grant.</li>
+   * </ul>
+   *
+   * Returns {@code null} when the JWT carries no FSPTS role. This is the single
+   * source of truth for "which role is this caller acting as" — the legacy proc
+   * string, the {@code isCurrentUser*} predicates, and (via the authorities
+   * converter) method security all derive from it, so capabilities are never
+   * the union of several roles.
    */
-  public static String getCurrentLegacyRoles() {
+  public static String getEffectiveRole() {
     try {
       var groups = getCurrentJwt().getClaimAsStringList("cognito:groups");
-      if (groups == null || groups.isEmpty()) return "";
-      String joined = groups.stream()
-          .map(RequestUtil::canonicalLegacyRole)
-          .filter(java.util.Objects::nonNull)
-          .distinct()
-          .collect(java.util.stream.Collectors.joining(","));
-      return joined.isEmpty() ? "" : joined + ",";
+      if (groups == null || groups.isEmpty()) return null;
+
+      var canonical = new java.util.LinkedHashSet<String>();
+      for (String group : groups) {
+        String c = FsptsRoles.canonicalRoleFor(group);
+        if (c != null) canonical.add(c);
+      }
+      if (canonical.isEmpty()) return null;
+
+      // Internal role wins outright (mutually exclusive; never mixed with
+      // client-tied roles).
+      var internal = canonical.stream().filter(FsptsRoles::isInternal).toList();
+      if (!internal.isEmpty()) return FsptsRoles.highest(internal);
+
+      // Client-tied: scope to the active client. A grant for the active client
+      // looks like CANONICAL_<8-digit client>, e.g. FSPTS_SUBMITTER_00012345.
+      String activeClient = getCurrentClientNumber();
+      if (activeClient != null && !activeClient.isEmpty()) {
+        var rolesForClient = new java.util.LinkedHashSet<String>();
+        for (String group : groups) {
+          String c = FsptsRoles.canonicalRoleFor(group);
+          if (c != null && group.equals(c + "_" + activeClient)) {
+            rolesForClient.add(c);
+          }
+        }
+        String scoped = FsptsRoles.highest(rolesForClient);
+        if (scoped != null) return scoped;
+      }
+      // Active client didn't resolve to a grant — fall back to the highest
+      // client-tied role the user holds.
+      return FsptsRoles.highest(canonical);
     } catch (RuntimeException ex) {
-      return "";
+      return null;
     }
   }
 
-  /** Strip role suffix (org code or client number) and rewrite FSPTS_ → FSP_. */
-  private static String canonicalLegacyRole(String group) {
-    for (String role : CANONICAL_FSPTS_ROLES) {
-      if (group.equals(role) || group.startsWith(role + "_")) {
-        return role.replaceFirst("^FSPTS_", "FSP_");
-      }
-    }
-    return null;
+  /**
+   * The caller's single effective role mapped onto the legacy {@code FSP_*}
+   * name in the comma-delimited-with-trailing-comma format the legacy procs
+   * expect (e.g. {@code "FSP_REVIEWER,"}). Returns "" if no FSPTS role is
+   * present. Emitting one role removes the legacy {@code INSTR}-substring
+   * stacking ambiguity (e.g. View-All vs Reviewer).
+   */
+  public static String getCurrentLegacyRoles() {
+    String role = getEffectiveRole();
+    if (role == null) return "";
+    return role.replaceFirst("^FSPTS_", "FSP_") + ",";
   }
 
   /**
@@ -248,41 +293,21 @@ public class RequestUtil {
   }
 
   /**
-   * True when the current JWT carries {@code FSPTS_ADMINISTRATOR} as
-   * one of its cognito groups (with or without an org/client suffix).
+   * True when the caller's single {@link #getEffectiveRole() effective role}
+   * is Administrator. (Holding the role alongside others no longer matters —
+   * a higher role would have won; a lower one never grants Administrator.)
    */
   public static boolean isCurrentUserAdmin() {
-    return hasFsptsRole("FSPTS_ADMINISTRATOR");
+    return FsptsRoles.ADMINISTRATOR.equals(getEffectiveRole());
   }
 
-  /** True when the JWT carries {@code FSPTS_DECISION_MAKER} (with or without suffix). */
+  /** True when the caller's effective role is Decision Maker. */
   public static boolean isCurrentUserDecisionMaker() {
-    return hasFsptsRole("FSPTS_DECISION_MAKER");
+    return FsptsRoles.DECISION_MAKER.equals(getEffectiveRole());
   }
 
-  /** True when the JWT carries {@code FSPTS_REVIEWER} (with or without suffix). */
+  /** True when the caller's effective role is Reviewer. */
   public static boolean isCurrentUserReviewer() {
-    return hasFsptsRole("FSPTS_REVIEWER");
-  }
-
-  /**
-   * Shared FSPTS-role match. A role is "present" if the JWT carries it
-   * exactly or as an org/client-suffixed variant (e.g.
-   * {@code FSPTS_ADMINISTRATOR_00012797}).
-   */
-  private static boolean hasFsptsRole(String role) {
-    try {
-      var groups = getCurrentJwt().getClaimAsStringList("cognito:groups");
-      if (groups == null || groups.isEmpty()) return false;
-      String prefix = role + "_";
-      for (String group : groups) {
-        if (role.equals(group) || group.startsWith(prefix)) {
-          return true;
-        }
-      }
-      return false;
-    } catch (RuntimeException ex) {
-      return false;
-    }
+    return FsptsRoles.REVIEWER.equals(getEffectiveRole());
   }
 }

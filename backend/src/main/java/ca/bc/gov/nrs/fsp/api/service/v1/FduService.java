@@ -2,6 +2,7 @@ package ca.bc.gov.nrs.fsp.api.service.v1;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.FduWriteDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp600MapDao;
+import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FduLicencesUpdate;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FduLicencesUpdated;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FduList;
@@ -32,6 +33,7 @@ public class FduService {
 
   private final Fsp600MapDao dao;
   private final FduWriteDao writeDao;
+  private final FspAccessGuard accessGuard;
 
   public FduList getFdus(String fspId) {
     Fsp600MapDao.Result r = dao.get(
@@ -45,13 +47,10 @@ public class FduService {
   }
 
   /**
-   * Apply additions / removals to an FDU's licence list. Status-gated:
-   * <ul>
-   *   <li>DFT — any caller the read path allows (i.e. agreement holders
-   *       via {@code fsp_tombstone.user_may_access}, plus admins).</li>
-   *   <li>APP — {@code FSP_ADMINISTRATOR} only; everyone else gets 403.</li>
-   *   <li>Other statuses — rejected; status freezes the FDU list.</li>
-   * </ul>
+   * Apply additions / removals to an FDU's licence list. Gated by the shared
+   * content-edit fence ({@code FspAccessGuard.assertContentEditable}):
+   * Administrators may edit in any status except Approved / In-Effect /
+   * Submitted; Submitters only while Draft; everyone else is denied.
    *
    * <p>Every id in {@code add} is validated against {@code PROV_FOREST_USE}
    * before any insert runs; an invalid id rejects the whole batch with
@@ -76,20 +75,10 @@ public class FduService {
         ? 0L
         : Long.parseLong(current.fduAmendmentNumber());
 
-    String statusCode = writeDao.findFspStatus(fspIdLong, amendmentNumber);
-    if (statusCode == null) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND,
-          "FSP " + fspId + " amendment " + amendmentNumber + " not found");
-    }
-    if ("APP".equals(statusCode)) {
-      if (!RequestUtil.isCurrentUserAdmin()) {
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-            "Only administrators can edit FDU licences on an approved FSP.");
-      }
-    } else if (!"DFT".equals(statusCode)) {
-      throw new ResponseStatusException(HttpStatus.CONFLICT,
-          "FDU licences can only be edited while the FSP is in Draft or Approved status.");
-    }
+    // Content-edit fence (ownership + status), the same rule as every other
+    // FSP edit: Administrators can't edit APP/INE/SUB plans; Submitters only
+    // Drafts. Replaces FDU's former DFT-or-APP-admin exception.
+    accessGuard.assertContentEditable(fspId, String.valueOf(amendmentNumber));
 
     Set<String> addSet = normalise(payload == null ? null : payload.getAdd());
     Set<String> removeSet = normalise(payload == null ? null : payload.getRemove());
