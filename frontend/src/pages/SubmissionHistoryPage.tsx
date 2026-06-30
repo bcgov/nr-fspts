@@ -1,8 +1,6 @@
 import {
   Button,
   DataTable,
-  DatePicker,
-  DatePickerInput,
   Loading,
   Pagination,
   Select,
@@ -17,7 +15,7 @@ import {
   TextInput,
   Tile,
 } from '@carbon/react';
-import { Search as SearchIcon } from '@carbon/icons-react';
+import { CheckmarkFilled, Search as SearchIcon, SubtractAlt } from '@carbon/icons-react';
 import {
   type FC,
   type FormEvent,
@@ -45,23 +43,6 @@ import './SearchPage.scss';
 // renderIcon slot. Shown in place of the magnifying glass while the
 // request is in flight.
 const SearchingIcon = () => <Loading small withOverlay={false} description="" />;
-
-// Date Type + Approval Required are static (no code-list table backs
-// them), same as FSP Search.
-const DATE_TYPE_OPTIONS = [
-  { value: 'INITIATION', label: 'Initiation' },
-  { value: 'DECISION', label: 'Decision' },
-  { value: 'EFFECTIVE', label: 'Effective' },
-  { value: 'EXPIRY', label: 'Expiry' },
-  { value: 'SUBMITTED', label: 'Submitted' },
-];
-
-const APPROVAL_OPTIONS = [
-  { value: '', label: 'Any' },
-  { value: 'Y', label: 'Yes' },
-  { value: 'N', label: 'No' },
-];
-
 
 interface SearchResult {
   id: string;
@@ -112,10 +93,6 @@ interface SearchForm {
   status: string;
   fspName: string;
   amendName: string;
-  approval: string;
-  dateType: string;
-  dateFrom: string;
-  dateTo: string;
 }
 
 const EMPTY_FORM: SearchForm = {
@@ -123,10 +100,6 @@ const EMPTY_FORM: SearchForm = {
   status: '',
   fspName: '',
   amendName: '',
-  approval: '',
-  dateType: 'INITIATION',
-  dateFrom: '',
-  dateTo: '',
 };
 
 // Versioned storage key — bump when SearchResult's shape changes so a
@@ -291,12 +264,6 @@ const SubmissionHistoryPage: FC = () => {
         setTotalElements(0);
         return;
       }
-      if (form.dateFrom && form.dateTo && form.dateFrom > form.dateTo) {
-        setError('Date From must be on or before Date To.');
-        setResults([]);
-        setTotalElements(0);
-        return;
-      }
       setLoading(true);
       setError(null);
       try {
@@ -308,13 +275,7 @@ const SubmissionHistoryPage: FC = () => {
           // can't bypass the org scope.
           ahClientNumber: activeOrgClientNumber,
           fspAmendmentName: form.amendName,
-          fspDateStart: form.dateFrom,
-          fspDateEnd: form.dateTo,
-          // Date Type is only meaningful with at least one date — drop
-          // it otherwise so the proc doesn't scan an extra dimension.
-          fspDateType: form.dateFrom || form.dateTo ? form.dateType : '',
           fspStatusCode: form.status,
-          approvalRequired: form.approval,
           page: nextPage,
           size: nextSize,
           sortBy: SORT_BY,
@@ -443,71 +404,6 @@ const SubmissionHistoryPage: FC = () => {
               onChange={(e) => set('amendName', e.target.value)}
               maxLength={30}
             />
-
-            <Select
-              id="submhist-approval"
-              labelText="Approval required"
-              value={form.approval}
-              onChange={(e) => set('approval', e.target.value)}
-            >
-              {APPROVAL_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value} text={o.label} />
-              ))}
-            </Select>
-
-            {/* Section heading that groups the date fields below; spans the
-                full grid width (see SCSS) so it also forces the Date Type
-                select onto a fresh row. */}
-            <h2 className="fsp-search__group-heading">Date range</h2>
-
-            {/* fsp-search__row-start forces the Date Type select to start in
-                column 1 of the row below the heading. */}
-            <Select
-              id="submhist-dateType"
-              className="fsp-search__row-start"
-              labelText="Date type"
-              value={form.dateType}
-              onChange={(e) => set('dateType', e.target.value)}
-            >
-              {DATE_TYPE_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value} text={o.label} />
-              ))}
-            </Select>
-
-            {/* Two INDEPENDENT single date pickers — not a connected range.
-                Each has its own calendar, updates only its own field, and
-                fills its grid column (see SearchPage.scss). */}
-            <DatePicker
-              datePickerType="single"
-              dateFormat="Y-m-d"
-              value={form.dateFrom ? [form.dateFrom] : []}
-              onChange={(dates) =>
-                set('dateFrom', dates[0] ? dates[0].toISOString().slice(0, 10) : '')
-              }
-            >
-              <DatePickerInput
-                id="submhist-dateFrom"
-                labelText="Date from"
-                placeholder="YYYY-MM-DD"
-                pattern="\d{4}-\d{2}-\d{2}"
-              />
-            </DatePicker>
-
-            <DatePicker
-              datePickerType="single"
-              dateFormat="Y-m-d"
-              value={form.dateTo ? [form.dateTo] : []}
-              onChange={(dates) =>
-                set('dateTo', dates[0] ? dates[0].toISOString().slice(0, 10) : '')
-              }
-            >
-              <DatePickerInput
-                id="submhist-dateTo"
-                labelText="Date to"
-                placeholder="YYYY-MM-DD"
-                pattern="\d{4}-\d{2}-\d{2}"
-              />
-            </DatePicker>
           </div>
 
           <div className="fsp-search__actions">
@@ -612,6 +508,30 @@ const SubmissionHistoryPage: FC = () => {
                                                 : formatCellText(value as string)}
                                             </TableCell>
                                           );
+                                        }
+                                        // Approval required → check / minus icon,
+                                        // same treatment as FSP Search.
+                                        if (cell.info.header === 'approvalRequired') {
+                                          if (value === 'Yes') {
+                                            return (
+                                              <TableCell key={cell.id}>
+                                                <span className="fsp-search__bool fsp-search__bool--yes">
+                                                  <CheckmarkFilled size={16} />
+                                                  Yes
+                                                </span>
+                                              </TableCell>
+                                            );
+                                          }
+                                          if (value === 'No') {
+                                            return (
+                                              <TableCell key={cell.id}>
+                                                <span className="fsp-search__bool fsp-search__bool--no">
+                                                  <SubtractAlt size={16} />
+                                                  No
+                                                </span>
+                                              </TableCell>
+                                            );
+                                          }
                                         }
                                         return (
                                           <TableCell key={cell.id}>

@@ -75,10 +75,8 @@ const NAV: MenuItem[] = [
     // Single-entry top-level leaf; if more submission flows land
     // later, re-introduce a parent submenu. Only content-editing roles
     // submit FSPs — Decision Makers and read-only roles never see it.
-    // id stays 'Data Submission' (keys the role-filter sets + test ids);
-    // only the visible label matches the design's "Submit FSP".
     id: 'Data Submission',
-    label: 'Submit FSP',
+    label: 'Data Submission',
     path: '/data-submission',
     icon: SubmitFspIcon,
     roles: ['FSPTS_ADMINISTRATOR', 'FSPTS_SUBMITTER'],

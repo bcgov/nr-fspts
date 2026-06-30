@@ -14,7 +14,7 @@ import type { ROLE_TYPE } from '@/context/auth/types';
 import { useAuth } from '@/context/auth/useAuth';
 import { useOrg } from '@/context/org/useOrg';
 import { useTheme } from '@/context/theme/useTheme';
-import { canEditFspContent, defaultRouteForUser } from '@/routes/access';
+import { defaultRouteForUser } from '@/routes/access';
 import { searchClients } from '@/services/clientSearch';
 
 // Reuses the Landing/Unauthorized split-screen stylesheet so all three
@@ -79,10 +79,9 @@ const OrgSelectionPage: FC = () => {
     return map;
   }, [user?.privileges]);
 
-  // Post-pick landing: Submitters go to the upload flow; read-only client
-  // users (View Only) can't reach /data-submission, so send them to their
-  // default page instead.
-  const landingRoute = canEditFspContent(user) ? '/data-submission' : defaultRouteForUser(user);
+  // Post-pick landing is the user's default page — Submitter / View Only both
+  // land on Submission History.
+  const landingRoute = defaultRouteForUser(user);
 
   const logoSrc = theme === 'g100' ? '/bc-gov-logo-rev.png' : '/bc-gov-logo.png';
 

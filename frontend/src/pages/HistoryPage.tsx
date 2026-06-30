@@ -33,7 +33,6 @@ const HEADERS = [
   { key: 'approvalRequestIndicator', header: 'Appr rqd' },
   { key: 'event', header: 'Event' },
   { key: 'description', header: 'Description' },
-  { key: 'submissionId', header: 'Submission ID' },
 ];
 
 type SortKey = 'EVENT' | 'AMEND';
@@ -100,7 +99,6 @@ const HistoryPage: FC = () => {
     approvalRequestIndicator: r.approvalRequestIndicator === 'Y' ? 'Yes' : 'No',
     event: dash(r.event),
     description: dash(r.description),
-    submissionId: dash(r.submissionId),
   }));
 
   const backToFsp = () => {
