@@ -1,4 +1,4 @@
-import {apiFetch} from '@/services/apiFetch';
+import {apiFetch, readErrorMessage} from '@/services/apiFetch';
 import type {FspInformation} from '@/services/fspSearch';
 
 /**
@@ -174,12 +174,13 @@ export const submitSubmission = async (
     const result = (await res.json()) as SubmissionValidationResult;
     return { kind: 'invalid', result };
   }
-  const detail = await res.text().catch(() => '');
+  // Pull just the human-readable message out of the error body (Spring
+  // ProblemDetail `detail` / legacy `message`) rather than dumping the raw
+  // JSON into the toast.
+  const detail = await readErrorMessage(res);
   return {
     kind: 'error',
     status: res.status,
-    message:
-      detail ||
-      `Submission request failed (${res.status})`,
+    message: detail || `Submission request failed (${res.status})`,
   };
 };

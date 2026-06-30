@@ -75,9 +75,34 @@ export default function XmlSubmissionPage() {
 
   const onXmlDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    // The whole page is also a drop target (see the .fsp-submit handlers);
+    // stop here so a drop on the zone isn't processed twice.
+    e.stopPropagation();
     setDragOver(false);
     const file = e.dataTransfer.files?.[0] ?? null;
     acceptXmlFile(file);
+  };
+
+  // Page-wide drag/drop: users can drop the file anywhere on the Upload step,
+  // not just in the dnd-zone. preventDefault on dragover is required for the
+  // drop event to fire; we reuse the dnd-zone's drag highlight as the cue
+  // (no layout change). dragleave only clears when the cursor actually leaves
+  // the page container (relatedTarget check) so the highlight doesn't flicker
+  // as it crosses child elements.
+  const onPageDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (step !== 'upload') return;
+    e.preventDefault();
+    setDragOver(true);
+  };
+  const onPageDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (step !== 'upload') return;
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+  };
+  const onPageDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (step !== 'upload') return;
+    e.preventDefault();
+    setDragOver(false);
+    acceptXmlFile(e.dataTransfer.files?.[0] ?? null);
   };
 
   const removeXmlFile = () => {
@@ -187,7 +212,12 @@ export default function XmlSubmissionPage() {
   }
 
   return (
-    <div className="fsp-submit">
+    <div
+      className="fsp-submit"
+      onDragOver={onPageDragOver}
+      onDragLeave={onPageDragLeave}
+      onDrop={onPageDrop}
+    >
       <div className="screen">
         {/* ── Page header + stepper ── */}
         <div className="page-header">
@@ -556,6 +586,7 @@ const VALIDATION_CODE_LABELS: Record<string, string> = {
   FSP_NO_APPROVED_AMENDMENT: 'FSP has no Approved or In-Effect amendment',
   LICENCE_NOT_FOUND: 'Unknown licence number',
   PLAN_TERM_OR_EXPIRY_EXCLUSIVE: 'Plan term and expiry both supplied',
+  PLAN_TERM_OR_END_DATE_REQUIRED: 'Plan term or end date required',
   PLAN_NAME_REQUIRED: 'planName required',
   AGREEMENT_HOLDER_REQUIRED: 'Agreement holder required',
   AGREEMENT_HOLDER_NOT_FOUND: 'Unknown agreement holder client number',
