@@ -34,7 +34,6 @@ const HEADERS = [
   { key: 'userId', header: 'User' },
   { key: 'amendmentNumber', header: 'Amendment' },
   { key: 'extensionNumber', header: 'Extension' },
-  { key: 'submissionId', header: 'Submission ID' },
 ];
 
 const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
@@ -82,7 +81,6 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
     userId: dash(r.userId),
     amendmentNumber: dash(r.amendmentNumber),
     extensionNumber: dash(r.extensionNumber),
-    submissionId: dash(r.submissionId),
   }));
 
   return (

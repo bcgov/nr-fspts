@@ -1,149 +1,661 @@
-// XmlSubmissionPage — vertical section layout. Mirrors the screenshot
-// reference: each entity block renders as its own tile with a gray
-// header bar above a 2-column field grid. Empty fields show "—".
+// XmlSubmissionPage — two-step wizard (Upload → Review) ported from
+// the client HTML mockup (data_submission.html). Every rule is scoped
+// under the `.fsp-submit` page root so the FDS design tokens and
+// component styles can't leak into other pages. Declarations are
+// copied verbatim from the mockup's <style> block; only the selector
+// scoping differs.
 
-.fsp-submit-grid {
-  row-gap: 2rem;
-}
+.fsp-submit {
+  // ── Design tokens (mockup :root → page-scoped custom properties) ──
+  --fds-interactive:        #0073e6;
+  --fds-interactive-hover:  #005db5;
+  --fds-interactive-light:  #ebf2fc;
+  --fds-text-primary:       #131315;
+  --fds-text-secondary:     #606062;
+  --fds-background:         #f3f3f5;
+  --fds-layer-01:           #ffffff;
+  --fds-border-subtle:      #dfdfe1;
+  --fds-border-strong:      #8d8d8f;
+  --fds-support-error:      #da1e28;
+  --fds-support-error-bg:   #fff0f1;
+  --fds-support-success:    #198038;
+  --fds-support-success-bg: #defbe6;
+  --fds-support-info-bg:    #edf5ff;
+  --fds-notif-info-border:  #a8c8f0;
+  --fds-notif-error-border: #e8a0a5;
+  --fds-notif-success-border:#82c48a;
+  --fds-table-header:       #dfdfe1;
+  --fds-table-zebra:        #f3f3f5;
 
-.fsp-submit__header {
+  // The Carbon <Content> wrapper supplies its own padding; the page
+  // header/stepper bleed to the content edges via the layout below,
+  // so we reset the surrounding padding and lay the page out as a
+  // column matching the mockup's .cds--content.
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  flex: 1;
+  // Gray page background (mockup body) — the white .page-header band sits on
+  // top, and .page-content is transparent so the gray shows behind the card.
+  background: var(--fds-background);
+  color: var(--fds-text-primary);
+  // The app's <Content> wrapper adds `padding: 0 1.5rem`. Cancel it so
+  // everything below the title/subtitle (stepper, cards, button row) sits
+  // flush to the content edges with no left/right gutter; the title and
+  // subtitle re-apply the inset themselves (below).
+  margin-inline: -1.5rem;
+  // Fill the viewport below the 3rem app header so the gray background
+  // covers the area under the button row instead of cutting to white.
+  min-block-size: calc(100vh - 3rem);
+  // Anchor for the submit overlay (absolute, inset 0).
+  position: relative;
+  font-family: 'BCSans', 'IBM Plex Sans', -apple-system, sans-serif;
 
-  h1 {
-    margin: 0;
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
   }
 
-  p {
-    margin: 0;
-    color: var(--cds-text-secondary);
+  // ── Page header (title + stepper) ──
+  .page-header {
+    background: var(--fds-layer-01);
+    border-bottom: 1px solid var(--fds-border-subtle);
+    padding: 40px 40px 0;
+    flex-shrink: 0;
   }
-}
+  .page-header__title {
+    font-size: 32px;
+    font-weight: 400;
+    line-height: 40px;
+    color: var(--fds-text-primary);
+    margin-bottom: 8px;
+  }
+  .page-header__subtitle {
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 24px;
+    color: var(--fds-text-secondary);
+    margin-bottom: 24px;
+  }
 
-// Outer section "tile" — single bordered container with a gray header
-// strip and a white-ish body. Body padding chosen so the field grid
-// has consistent left/right margin matching the header text.
-.fsp-submit__panel {
-  background: var(--cds-layer-01);
-  border: 1px solid var(--cds-border-subtle-01);
-  display: flex;
-  flex-direction: column;
-}
+  // Stepper
+  // Bleeds back over the header's 40px so the step top-borders span full
+  // width; .step re-insets the dot/label 40px on the left.
+  .stepper {
+    display: flex;
+    padding: 0;
+    margin: 0 -40px;
+  }
+  .step {
+    flex: 1;
+    border-top: 2px solid var(--fds-border-subtle);
+    padding: 12px 0 12px 40px;
+  }
+  .step.s-current {
+    border-top-color: var(--fds-interactive);
+  }
+  .step.s-complete {
+    border-top-color: var(--fds-interactive);
+  }
+  .step-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .step-dot.d-incomplete {
+    border: 1.5px solid var(--fds-border-strong);
+    background: transparent;
+  }
+  .step-dot.d-current {
+    background: var(--fds-interactive);
+  }
+  .step-dot.d-current::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fff;
+  }
+  .step-dot.d-complete {
+    background: var(--fds-interactive);
+  }
+  .step-dot.d-complete::after {
+    content: '';
+    display: block;
+    width: 9px;
+    height: 5px;
+    border-left: 1.5px solid #fff;
+    border-bottom: 1.5px solid #fff;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+  .step-name {
+    font-size: 14px;
+    color: var(--fds-text-primary);
+    line-height: 18px;
+    letter-spacing: 0.16px;
+  }
 
-.fsp-submit__panel-header {
-  background: var(--cds-layer-accent-01);
-  padding: 1rem 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
+  // ── Page content ──
+  // Transparent — shows the page's gray background; words/card inset 40px.
+  // Natural height (not flex-grow) so the button row stays directly under
+  // the card; the gray fill below comes from .fsp-submit's min-height.
+  .page-content {
+    flex: 0 0 auto;
+    padding: 24px 40px;
+  }
 
-  h2 {
-    margin: 0;
-    font-size: 1rem;
+  // ── Section heading (heading-06) ──
+  .section-heading {
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 36px;
+    color: var(--fds-text-primary);
+    margin-bottom: 8px;
+  }
+  .section-subtitle {
+    font-size: 14px;
+    color: var(--fds-text-primary);
+    line-height: 20px;
+    margin-bottom: 16px;
+  }
+
+  // ── Card ──
+  .card {
+    background: var(--fds-layer-01);
+    border: 1px solid var(--fds-border-subtle);
+    border-radius: 8px;
+    padding: 32px;
+  }
+
+  // ── Drag and drop file uploader ──
+  .dnd-zone {
+    border: 1px dashed var(--fds-border-subtle);
+    border-radius: 4px;
+    padding: 16px;
+    cursor: pointer;
+    margin-bottom: 12px;
+    min-height: 80px;
+    display: flex;
+    align-items: flex-start;
+    max-width: 50%;
+  }
+  .dnd-zone--drag {
+    border-color: var(--fds-interactive);
+    background: var(--fds-interactive-light);
+  }
+  .dnd-zone__label {
+    font-size: 14px;
+    color: var(--fds-interactive);
+    letter-spacing: 0.16px;
+    line-height: 20px;
+  }
+  .field-label {
+    display: block;
+    font-size: 14px;
     font-weight: 600;
+    color: var(--fds-text-primary);
+    margin-bottom: 4px;
   }
-}
-
-.fsp-submit__panel-body {
-  padding: 1.25rem 1.5rem 1.5rem;
-}
-
-// 2-column responsive field grid inside a panel body. Collapses to
-// single column on narrow viewports.
-.fsp-submit__fields {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.25rem 2rem;
-
-  @media (min-width: 672px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .field-helper {
+    font-size: 12px;
+    color: var(--fds-text-secondary);
+    letter-spacing: 0.32px;
+    margin-bottom: 12px;
   }
-}
-
-.fsp-submit__field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-
-  dt {
-    margin: 0;
-    font-size: 0.8125rem;
-    color: var(--cds-text-secondary);
+  .field-error {
+    font-size: 12px;
+    color: var(--fds-support-error);
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .field-error svg {
+    fill: var(--fds-support-error);
+    flex-shrink: 0;
   }
 
-  dd {
-    margin: 0;
-    font-size: 0.95rem;
-    color: var(--cds-text-primary);
-    word-break: break-word;
+  // File chip
+  .file-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--fds-border-subtle);
+    border-radius: 2px;
+    padding: 8px 12px;
+    background: var(--fds-background);
+    font-size: 14px;
+    color: var(--fds-text-primary);
+    max-width: 50%;
+    margin-top: 4px;
   }
-}
-
-.fsp-submit__field--wide {
-  grid-column: 1 / -1;
-}
-
-// Triple-column variant for the Term & Dates panel — Effective Date,
-// Term, Expiry Date sit side-by-side on wide viewports. Below the
-// breakpoint they stack the same way the default 2-col variant does.
-.fsp-submit__fields--3col {
-  @media (min-width: 672px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .file-chip--error {
+    border-color: var(--fds-support-error);
+    background: #fff;
   }
-}
-
-// Inline list (chip-style) used for plain string lists like
-// agreement-holder codes and district codes.
-.fsp-submit__chip-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-
-  li {
-    background: var(--cds-layer-accent-01);
-    padding: 0.125rem 0.625rem;
-    border-radius: 999px;
-    font-size: 0.875rem;
-    font-family: var(--cds-code-01-font-family, monospace);
+  .file-chip__name {
+    flex: 1;
   }
-}
+  .file-chip__icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+  .file-chip__icon svg {
+    fill: var(--fds-text-secondary);
+    width: 16px;
+    height: 16px;
+  }
+  .file-chip__remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--fds-text-secondary);
+    padding: 0;
+  }
+  .file-chip__remove svg {
+    fill: currentColor;
+    width: 16px;
+    height: 16px;
+  }
+  .file-chip__status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
 
-.fsp-submit__empty {
-  margin: 0;
-  color: var(--cds-text-secondary);
-  font-style: italic;
-}
+  // ── Notifications ──
+  .notif {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    margin-top: 12px;
+    border-radius: 4px;
+    max-width: 50%;
+  }
+  .notif--info {
+    background: var(--fds-support-info-bg);
+    border: 1px solid var(--fds-notif-info-border);
+    border-left: 3px solid var(--fds-interactive);
+  }
+  .notif--error {
+    background: var(--fds-support-error-bg);
+    border: 1px solid var(--fds-notif-error-border);
+    border-left: 3px solid var(--fds-support-error);
+  }
+  .notif--success {
+    background: var(--fds-support-success-bg);
+    border: 1px solid var(--fds-notif-success-border);
+    border-left: 3px solid var(--fds-support-success);
+  }
+  .notif__icon {
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .notif__icon svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+  }
+  .notif--info .notif__icon {
+    color: var(--fds-interactive);
+  }
+  .notif--error .notif__icon {
+    color: var(--fds-support-error);
+  }
+  .notif--success .notif__icon {
+    color: var(--fds-support-success);
+  }
+  .notif__title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--fds-text-primary);
+    margin-bottom: 2px;
+  }
+  .notif__msg {
+    font-size: 14px;
+    color: var(--fds-text-primary);
+    line-height: 1.5;
+  }
 
-.fsp-submit__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  justify-content: flex-end;
-}
+  // ── Validation table ──
+  .vtable-wrap {
+    border: 1px solid var(--fds-border-subtle);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .vtable-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px 0 24px;
+    height: 48px;
+    background: var(--fds-layer-01);
+    border-bottom: 1px solid var(--fds-border-subtle);
+  }
+  .vtable-header__title {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--fds-text-primary);
+    letter-spacing: 0.16px;
+    line-height: 18px;
+  }
+  .vtable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .vtable thead tr {
+    background: var(--fds-table-header);
+  }
+  .vtable thead th {
+    text-align: left;
+    vertical-align: middle;
+    padding: 0 16px;
+    height: 48px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 18px;
+    color: var(--fds-text-primary);
+    letter-spacing: 0.16px;
+    border-bottom: 1px solid var(--fds-border-subtle);
+  }
+  .vtable tbody td {
+    padding: 15px 16px;
+    color: var(--fds-text-primary);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 18px;
+    letter-spacing: 0.16px;
+    border-bottom: 1px solid var(--fds-border-subtle);
+    vertical-align: middle;
+    height: 48px;
+  }
+  .vtable tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .vtable tbody tr:nth-child(odd) td {
+    background: #ffffff;
+  }
+  .vtable tbody tr:nth-child(even) td {
+    background: var(--fds-table-zebra);
+  }
+  .vtable .col-issue {
+    width: 240px;
+    white-space: nowrap;
+  }
+  .vtable .col-loc {
+    width: 240px;
+    white-space: nowrap;
+  }
+  .vtable code {
+    font-size: 13px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
 
-.fsp-submit__busy {
-  display: flex;
-  justify-content: flex-start;
-}
+  // ── Review sections ──
+  .review-section {
+    background: var(--fds-layer-01);
+    border: 1px solid var(--fds-border-subtle);
+    border-radius: 8px;
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+  .review-section__title {
+    font-size: 20px;
+    font-weight: 400;
+    line-height: 28px;
+    color: var(--fds-text-primary);
+    letter-spacing: 0;
+    padding: 32px 32px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .review-section__title svg {
+    flex-shrink: 0;
+    fill: var(--fds-text-secondary);
+  }
+  .slist {
+    width: calc(100% - 64px);
+    border-collapse: collapse;
+    margin: 0 32px 32px;
+  }
+  .slist tr {
+    border-bottom: 1px solid var(--fds-border-subtle);
+  }
+  .slist tr:last-child {
+    border-bottom: none;
+  }
+  .slist td {
+    padding: 10px 0;
+    vertical-align: middle;
+    font-size: 14px;
+    color: var(--fds-text-primary);
+    height: 36px;
+  }
+  .slist td:first-child {
+    width: 280px;
+    min-width: 280px;
+    color: var(--fds-text-secondary);
+    font-size: 14px;
+    letter-spacing: 0.16px;
+    white-space: nowrap;
+  }
+  .slist .empty {
+    color: var(--fds-text-secondary);
+  }
 
-.fsp-submit__detail-link {
-  font-size: 0.875rem;
-}
+  // Data table
+  .dtable-wrap {
+    border: 1px solid var(--fds-border-subtle);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 16px 32px 32px;
+  }
+  .dtable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .dtable thead th {
+    text-align: left;
+    padding: 12px 16px;
+    font-weight: 700;
+    background: var(--fds-table-header);
+    border-bottom: 1px solid var(--fds-border-subtle);
+    font-size: 12px;
+    letter-spacing: 0.32px;
+  }
+  .dtable tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--fds-border-subtle);
+  }
+  .dtable tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .dtable tbody tr:nth-child(even) td {
+    background: var(--fds-table-zebra);
+  }
+  .empty-state {
+    font-size: 14px;
+    color: var(--fds-text-secondary);
+    font-style: italic;
+    padding: 16px 32px 32px;
+  }
 
-.fsp-submit__error-row code {
-  font-size: 0.8125rem;
-}
+  // ── Button row (inline) ──
+  .btn-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 40px;
+  }
+  // Button row sits directly under the screen — inset 40px to align with
+  // the card / page-content, matching the mockup. Bottom padding gives a
+  // bit of breathing room below the Back / Submit (and Review) buttons.
+  .screen > .btn-row {
+    padding: 0 40px 40px;
+  }
 
-// Carbon's ActionableNotification ships with a max-width that keeps
-// it narrower than its container — override so the success banner
-// spans the full page width like the other panels.
-.fsp-submit__success-banner {
-  max-width: none;
-  width: 100%;
+  // ── Buttons ──
+  .btn {
+    height: 40px;
+    padding: 0 16px;
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.1s;
+    font-family: 'BCSans', sans-serif;
+  }
+  .btn svg {
+    fill: currentColor;
+    flex-shrink: 0;
+    // Constrain every button glyph to 16px — an icon without explicit
+    // width/height (e.g. DocumentIcon) would otherwise balloon to fill the
+    // button and overflow.
+    inline-size: 16px;
+    block-size: 16px;
+  }
+  .btn--primary {
+    background: var(--fds-interactive);
+    color: #fff;
+  }
+  .btn--primary:hover:not(:disabled) {
+    background: var(--fds-interactive-hover);
+  }
+  .btn--primary:disabled {
+    background: var(--fds-border-subtle);
+    color: var(--fds-text-secondary);
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  .btn--ghost {
+    background: transparent;
+    color: var(--fds-interactive);
+    border: 1px solid var(--fds-interactive);
+  }
+  .btn--ghost:hover {
+    background: var(--fds-interactive-light);
+  }
+
+  // ── Confirmation screen ──
+  // Fills the pane and centres the detail vertically (top-to-bottom) as
+  // well as horizontally.
+  .confirm-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    min-block-size: calc(100vh - 3rem);
+    text-align: center;
+    padding: 40px;
+  }
+  .confirm-icon {
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .confirm-icon svg {
+    width: 64px;
+    height: 64px;
+  }
+  .confirm-title {
+    font-size: 42px;
+    font-weight: 400;
+    color: var(--fds-text-primary);
+    margin-bottom: 16px;
+    line-height: 1.2;
+  }
+  .confirm-body {
+    font-size: 20px;
+    color: var(--fds-text-primary);
+    line-height: 28px;
+    max-width: 677px;
+    margin-bottom: 32px;
+  }
+  .confirm-body strong {
+    font-weight: 700;
+  }
+
+  // ── Spinner ──
+  @keyframes fsp-submit-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .spinner {
+    animation: fsp-submit-spin 0.8s linear infinite;
+  }
+
+  // ── Submit overlay ──
+  // Covers the whole page while the submission persists, dimming the review
+  // details behind it and intercepting clicks so the buttons can't be used.
+  .submit-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: rgba(243, 243, 245, 0.72);
+  }
+  .submit-overlay__spinner {
+    inline-size: 48px;
+    block-size: 48px;
+    border: 4px solid var(--fds-border-subtle);
+    border-block-start-color: var(--fds-interactive);
+    border-radius: 50%;
+    animation: fsp-submit-spin 0.8s linear infinite;
+  }
+  .submit-overlay__label {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--fds-text-primary);
+  }
+
+  // Visually-hidden file input that backs the dropzone / browse click.
+  .visually-hidden-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
 }
