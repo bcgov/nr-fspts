@@ -585,6 +585,145 @@ page-level hand-rolled rules.
       background-color: var(--fsp-zebra-stripe);
     }
   }
+
+  // Row hover / focus: the light-blue wash (#dfeaf8) the pages use glares in
+  // dark mode. Replace it with a subtle dark hover shade that lifts above the
+  // zebra stripe so hovered rows read clearly. The g100 prefix gives the
+  // specificity to beat the page-level :hover rules.
+  .fsp-search__table .cds--data-table tbody tr.fsp-search__row--selectable:hover td,
+  .fsp-search__table .cds--data-table tbody tr.fsp-search__row--selectable:focus-visible td,
+  .fsp-inbox__table .cds--data-table tbody tr.fsp-search__row--selectable:hover td,
+  .fsp-inbox__table .cds--data-table tbody tr.fsp-search__row--selectable:focus-visible td {
+    background-color: var(--cds-layer-hover-01);
+  }
+}
+
+/* ------------------ Dark-mode table chrome ------------------
+The list pages (Search / Submission History / Standards Search via
+SearchPage.scss, Inbox, District Notification) hard-code LIGHT hex onto
+header bands, body-cell text, footer/pagination bars and divider lines.
+Those values don't flip with the theme, so under g100 they render as a
+light header band, near-black text on a dark cell, a glaring light
+footer, etc.
+
+The zebra block above already re-tints the row backgrounds; here we
+re-point the remaining chrome (header, text, footer, borders) at the
+matching Carbon dark tokens. Everything is scoped under
+`:root[data-carbon-theme='g100']`, which both keeps light mode untouched
+AND adds the attribute-selector specificity needed to win over the
+page-level rules (which hard-code the same selectors).
+
+Light → dark token map (light values intentionally left in the page SCSS):
+  header band  #dfdfe1            → var(--cds-layer-accent-01)
+  header text  #131315            → var(--cds-text-primary)
+  body text    #131315            → var(--cds-text-primary)
+  footer bg    #dfdfe1            → var(--cds-layer-01)
+  footer text  #606062            → var(--cds-text-secondary)
+  divider/top  #dfdfe1 / #c6c6c8  → var(--cds-border-subtle-01) /
+                                    var(--cds-border-strong-01)
+--------------------------------------------------------------- */
+:root[data-carbon-theme='g100'] {
+  // ── Header band + label ──
+  .fsp-search__table .cds--data-table thead th,
+  .fsp-search__table .cds--data-table thead th .cds--table-header-label,
+  .fsp-inbox__table .cds--data-table thead th,
+  .fsp-inbox__table .cds--data-table thead th .cds--table-header-label {
+    background-color: var(--cds-layer-accent-01);
+    color: var(--cds-text-primary);
+  }
+
+  // ── Body cells ──
+  // Page SCSS repoints --cds-text-secondary to a near-black so Carbon's
+  // own cell colour resolves dark; in g100 we want it light again.
+  .fsp-search__table .cds--data-table,
+  .fsp-inbox__table .cds--data-table {
+    --cds-text-secondary: var(--cds-text-primary);
+  }
+  .fsp-search__table .cds--data-table tbody td,
+  .fsp-search__table .cds--data-table tbody td .cds--table-cell,
+  .fsp-inbox__table .cds--data-table tbody td,
+  .fsp-inbox__table .cds--data-table tbody td .cds--table-cell {
+    color: var(--cds-text-primary);
+  }
+
+  // ── Footer / pagination bar ──
+  .fsp-search__results .cds--pagination,
+  .fsp-inbox__results .cds--pagination {
+    background-color: var(--cds-layer-01);
+    border-block-start-color: var(--cds-border-strong-01);
+    color: var(--cds-text-secondary);
+  }
+  .fsp-search__results .cds--pagination .cds--select-input,
+  .fsp-search__results .cds--pagination .cds--pagination__button,
+  .fsp-search__results .cds--pagination .cds--pagination__text,
+  .fsp-search__results .cds--pagination .cds--pagination__pages-text,
+  .fsp-inbox__results .cds--pagination .cds--select-input,
+  .fsp-inbox__results .cds--pagination .cds--pagination__button,
+  .fsp-inbox__results .cds--pagination .cds--pagination__text,
+  .fsp-inbox__results .cds--pagination .cds--pagination__pages-text {
+    color: var(--cds-text-secondary);
+  }
+
+  // ── Full-bleed results dividers (Search / Submission History / Standards
+  // Search / Inbox / District) ── the hard-coded #dfdfe1 top border reads as
+  // a bright near-white line on the dark pane; retint to the dark border.
+  .fsp-search__results-fullbleed,
+  .fsp-inbox__results-fullbleed,
+  .fsp-district__results-fullbleed {
+    border-block-start-color: var(--cds-border-subtle-01);
+  }
+}
+
+/* ------------------ Dark-mode XML submission page -------------------
+The whole Data Submission screen (XmlSubmissionPage.scss) is built on its
+own fixed-LIGHT `--fds-*` tokens defined on the `.fsp-submit` root, so in
+dark mode it stayed a light page in a dark app. Re-point the ENTIRE token
+set at Carbon dark equivalents under g100 so every surface — gray backdrop,
+white header band, cards, dropzone, notifications, stepper, buttons,
+tables, confirmation — flips and stays consistent with the rest of the app.
+Light mode is untouched (this whole block is g100-scoped). A handful of
+surfaces hard-code a light value instead of reading a token; override those
+explicitly at the end.
+--------------------------------------------------------------------- */
+:root[data-carbon-theme='g100'] .fsp-submit {
+  // Neutrals / layers
+  --fds-background:     var(--cds-background);
+  --fds-layer-01:       var(--cds-layer-01);
+  --fds-text-primary:   var(--cds-text-primary);
+  --fds-text-secondary: var(--cds-text-secondary);
+  --fds-border-subtle:  var(--cds-border-subtle-01);
+  --fds-border-strong:  var(--cds-border-strong-01);
+
+  // Interactive blue (primary/ghost buttons, links, stepper dots, dnd label)
+  --fds-interactive:       var(--cds-interactive);
+  --fds-interactive-hover: var(--cds-link-primary);
+  --fds-interactive-light: var(--cds-layer-hover-01);
+
+  // Status colours + notification tints (Carbon notification component
+  // tokens flip per-theme; dark fallbacks in case they're unset)
+  --fds-support-error:        var(--cds-support-error);
+  --fds-support-success:      var(--cds-support-success);
+  --fds-support-error-bg:     var(--cds-notification-background-error, #2c1a1c);
+  --fds-support-success-bg:   var(--cds-notification-background-success, #1a2a1c);
+  --fds-support-info-bg:      var(--cds-notification-background-info, #1a2230);
+  --fds-notif-info-border:    var(--cds-support-info);
+  --fds-notif-error-border:   var(--cds-support-error);
+  --fds-notif-success-border: var(--cds-support-success);
+
+  // Tables
+  --fds-table-header: var(--cds-layer-accent-01);
+  --fds-table-zebra:  var(--fsp-zebra-stripe);
+
+  // Surfaces that hard-code a light value instead of reading a token:
+  .vtable tbody tr:nth-child(odd) td {
+    background: var(--cds-layer-01);
+  }
+  .file-chip--error {
+    background: var(--cds-layer-01);
+  }
+  .submit-overlay {
+    background: rgba(22, 22, 22, 0.72);
+  }
 }
 
 /* ---------------------------------------------------------------

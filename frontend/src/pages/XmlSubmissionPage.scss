@@ -5,6 +5,17 @@
 // copied verbatim from the mockup's <style> block; only the selector
 // scoping differs.
 
+// The app clears the 3rem fixed header with `margin-block-start: $layout-05`
+// (4rem) on .cds--content — 1rem MORE than the header, leaving a ~16px strip
+// of body background between the header and the page content. It's invisible
+// in light mode (light body) but reads as a black bar in dark mode (#161616).
+// This page supplies its own top spacing, so clear the header exactly (3rem)
+// with no extra gap. Higher specificity (.bc-layout …) beats the app's
+// `.cds--header ~ .cds--content` rule regardless of stylesheet order.
+.bc-layout .cds--content:has(.fsp-submit) {
+  margin-block-start: 3rem;
+}
+
 .fsp-submit {
   // ── Design tokens (mockup :root → page-scoped custom properties) ──
   --fds-interactive:        #0073e6;
@@ -48,6 +59,10 @@
   min-block-size: calc(100vh - 3rem);
   // Anchor for the submit overlay (absolute, inset 0).
   position: relative;
+  // INTENTIONAL system-font style (San Francisco / Segoe): 'BCSans' (no space)
+  // is not the registered 'BC Sans' @font-face, so it deliberately falls
+  // through to -apple-system. This is the design's title style; the other
+  // page titles are set to match it. Do NOT "correct" the spelling.
   font-family: 'BCSans', 'IBM Plex Sans', -apple-system, sans-serif;
 
   *,
@@ -60,7 +75,12 @@
   .page-header {
     background: var(--fds-layer-01);
     border-bottom: 1px solid var(--fds-border-subtle);
-    padding: 40px 40px 0;
+    // 2rem top padding matches FSP Search's title distance from the app
+    // header (its 4rem content-margin + 1rem page padding = 2rem below the
+    // header; we clamp the content-margin to 3rem to kill the dark-bar gap,
+    // so add the 2rem here instead — on the header band, not the body, so
+    // the black bar doesn't return).
+    padding: 2rem 40px 0;
     flex-shrink: 0;
   }
   .page-header__title {

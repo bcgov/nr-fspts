@@ -27,6 +27,9 @@
     font-size: 2rem;
     font-weight: 400;
     line-height: 2.5rem;
+    // Match the Data Submission title's intentional system-font style (see
+    // XmlSubmissionPage.scss). Keeps every page title identical.
+    font-family: 'BCSans', 'IBM Plex Sans', -apple-system, sans-serif;
   }
 }
 
