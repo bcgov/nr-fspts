@@ -116,7 +116,6 @@ public final class URL {
   public static final String SUBMIT_PREFLIGHT = "/{fspId}/submit/preflight";
   public static final String FDU_LIST = "/{fspId}/fdu-list";
   public static final String FDU_LICENCES = "/{fspId}/fdus/{fduId}/licences";
-  public static final String IDENTIFIED_AREAS = "/{fspId}/identified-areas";
 
   // Map View extent — bounding box of all FDU polygons for this FSP +
   // amendment. Fetched lazily by the front-end inbox/results pages so
@@ -129,7 +128,7 @@ public final class URL {
   public static final String DISTRICT_DESIGNATES = "/admin/district-notifications";
   public static final String DISTRICT_DESIGNATE_BY_ID = "/admin/district-notifications/{designateId}";
 
-  // IDIR directory lookup via FAM identity-lookup API. Used by the
+  // IDIR directory lookup via nr-user-lookup-api. Used by the
   // UserSearchModal popup and to enrich designate rows with displayName
   // + email server-side.
   public static final String USER_SEARCH = "/users/search";

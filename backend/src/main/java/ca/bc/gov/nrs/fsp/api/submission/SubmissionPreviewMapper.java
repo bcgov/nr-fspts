@@ -10,8 +10,6 @@ import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPStandardsType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionMetadataType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.ForestStewardshipPlanType;
-import ca.bc.gov.nrs.fsp.api.submission.parser.generated.IdentifiedAreaAssociationType;
-import ca.bc.gov.nrs.fsp.api.submission.parser.generated.IdentifiedAreaType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.MultiPolygonType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.PlanHolderAssociationType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.PolygonType;
@@ -63,7 +61,7 @@ public class SubmissionPreviewMapper {
 
     SubmissionPreview.PlanHeader header = plan == null
         ? new SubmissionPreview.PlanHeader(null, null, null, null, null,
-            null, null, null, null, null, null, null)
+            null, null, null, null, null, null)
         : new SubmissionPreview.PlanHeader(
             asString(plan.getFspID()),
             plan.getPlanName(),
@@ -72,7 +70,6 @@ public class SubmissionPreviewMapper {
             describeActionCode(plan.getActionCode()),
             jaxbValue(plan.getAmendmentApprovalRequiredInd()),
             plan.isFduUpdateInd(),
-            plan.isIdentifiedAreasUpdateInd(),
             plan.isStockingStandardUpdateInd(),
             plan.isFrpa197Ind(),
             plan.isTransitionalInd(),
@@ -96,7 +93,6 @@ public class SubmissionPreviewMapper {
         toAgreementHolders(plan == null ? null : plan.getPlanHolderList()),
         toDistricts(plan == null ? null : plan.getDistrictCodeList()),
         toFduSummaries(plan == null ? null : plan.getFduList()),
-        toIdentifiedAreaSummaries(plan == null ? null : plan.getIdentifiedAreasList()),
         toStockingStandardSummaries(plan == null ? null : plan.getStockingStandards()));
   }
 
@@ -215,24 +211,6 @@ public class SubmissionPreviewMapper {
     return new SubmissionPreview.FduSummary(
         fdu.getFduName(),
         licenceCount,
-        geom.polygonCount(),
-        geom.srsName());
-  }
-
-  private static List<SubmissionPreview.IdentifiedAreaSummary> toIdentifiedAreaSummaries(
-      IdentifiedAreaAssociationType list) {
-    if (list == null || list.getIdentifiedArea() == null) return List.of();
-    return list.getIdentifiedArea().stream()
-        .filter(java.util.Objects::nonNull)
-        .map(SubmissionPreviewMapper::toIdentifiedAreaSummary)
-        .toList();
-  }
-
-  private static SubmissionPreview.IdentifiedAreaSummary toIdentifiedAreaSummary(IdentifiedAreaType area) {
-    PolygonStats geom = extentStats(area.getExtentOf());
-    return new SubmissionPreview.IdentifiedAreaSummary(
-        area.getIdentifiedAreaName(),
-        area.getLegislationTypeCode(),
         geom.polygonCount(),
         geom.srsName());
   }

@@ -27,7 +27,6 @@ class SubmissionPersistenceServiceTest {
 
   private FspService fspService;
   private FduPersistenceService fdu;
-  private IdentifiedAreaPersistenceService identifiedAreas;
   private StandardsPersistenceService standards;
   private SubmissionAttachmentService attachments;
   private OrgUnitLookupDao orgUnitLookup;
@@ -39,7 +38,6 @@ class SubmissionPersistenceServiceTest {
   void freshMocks() {
     fspService = Mockito.mock(FspService.class);
     fdu = Mockito.mock(FduPersistenceService.class);
-    identifiedAreas = Mockito.mock(IdentifiedAreaPersistenceService.class);
     standards = Mockito.mock(StandardsPersistenceService.class);
     attachments = Mockito.mock(SubmissionAttachmentService.class);
     orgUnitLookup = Mockito.mock(OrgUnitLookupDao.class);
@@ -51,7 +49,7 @@ class SubmissionPersistenceServiceTest {
     fduWrite = Mockito.mock(FduWriteDao.class);
     mapper = new SubmissionToFspRequestMapper();
     service = new SubmissionPersistenceService(
-        mapper, fspService, fdu, identifiedAreas, standards, attachments,
+        mapper, fspService, fdu, standards, attachments,
         orgUnitLookup, fduWrite);
   }
 
@@ -75,7 +73,6 @@ class SubmissionPersistenceServiceTest {
     ArgumentCaptor<Long> fspIdCap = ArgumentCaptor.forClass(Long.class);
     verify(fdu).persist(any(), fspIdCap.capture(), eq(1L), any());
     assertThat(fspIdCap.getValue()).isEqualTo(777L);
-    verify(identifiedAreas).persist(any(), eq(777L), eq(1L), any());
     verify(standards).persist(any(), eq(777L), eq(1L), any());
     verify(attachments, times(1)).persist(any(), eq(777L), eq(1L), anyInt(), any());
   }
@@ -111,7 +108,7 @@ class SubmissionPersistenceServiceTest {
         .hasMessageContaining("requires an fspID");
 
     Mockito.verifyNoInteractions(fspService);
-    Mockito.verifyNoInteractions(fdu, identifiedAreas, standards, attachments);
+    Mockito.verifyNoInteractions(fdu, standards, attachments);
   }
 
   // -------- helpers --------

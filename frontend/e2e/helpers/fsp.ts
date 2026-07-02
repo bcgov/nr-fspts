@@ -38,7 +38,6 @@ export async function openFspTab(
     | 'Attachments'
     | 'Stocking Standards'
     | 'FDU / Map'
-    | 'Identified Areas'
     | 'History'
     | 'Workflow',
 ): Promise<void> {
@@ -108,7 +107,9 @@ export async function recordDdmApproval(page: Page): Promise<void> {
     .click();
 
   const modal = page.getByRole('dialog');
-  await expect(modal.getByText(/Record DDM Decision|Edit DDM Decision/)).toBeVisible();
+  // Heading is "Record DDM decision" / "Edit DDM decision" — case-insensitive
+  // so a casing tweak in the modal title doesn't break this helper.
+  await expect(modal.getByText(/Record DDM Decision|Edit DDM Decision/i)).toBeVisible();
 
   // "Approve" radio (value APP). Carbon renders the label as clickable text.
   await modal.getByText('Approve', { exact: true }).click();

@@ -43,8 +43,13 @@ test.describe.serial('FSP lifecycle', () => {
       buffer: xml.buffer,
     });
 
-    // Wait for the validation pass to come back clean.
-    await expect(page.getByText('XML is valid.')).toBeVisible({ timeout: 60_000 });
+    // Wait for the validation pass to come back clean (Upload step, s4).
+    await expect(page.getByText('New FSP submission validated')).toBeVisible({
+      timeout: 60_000,
+    });
+
+    // Two-step wizard: advance to the Review step, then submit from there.
+    await page.getByTestId('review-button').click();
 
     // Persist. The submit endpoint validates again then writes the FSP.
     const [resp] = await Promise.all([
@@ -55,16 +60,15 @@ test.describe.serial('FSP lifecycle', () => {
           r.request().method() === 'POST',
         { timeout: 90_000 },
       ),
-      page.getByRole('button', { name: 'Submit', exact: true }).click(),
+      page.getByTestId('submit-button').click(),
     ]);
     expect(resp.status(), 'submission persist should answer 2xx').toBeLessThan(300);
 
-    // Success banner carries the assigned id; the action button deep-links
-    // to the detail page where we can read it off the URL. Scope to the
-    // persistent banner — the same text also flashes in a toast.
-    const banner = page.locator('.fsp-submit__success-banner');
-    await expect(banner.getByText(/FSP \d+ saved\./)).toBeVisible({ timeout: 30_000 });
-    await banner.getByRole('button', { name: 'Open FSP details' }).click();
+    // Confirmation screen carries the assigned id; its action button
+    // deep-links to the detail page where we read the id off the URL.
+    const confirm = page.locator('.confirm-wrap');
+    await expect(confirm.getByText('FSP draft created')).toBeVisible({ timeout: 30_000 });
+    await confirm.getByTestId('open-draft-button').click();
     await expect(page).toHaveURL(/\/fsp\/information\?fspId=\d+/, { timeout: 30_000 });
     fspId = new URL(page.url()).searchParams.get('fspId') ?? '';
     expect(fspId, 'captured fspId').toMatch(/^\d+$/);

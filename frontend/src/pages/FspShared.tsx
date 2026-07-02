@@ -37,7 +37,6 @@ const FSP_TABS = [
   { label: 'Attachments',      to: '/fsp/attachments' },
   { label: 'Stocking Stds',    to: '/fsp/stocking-standards' },
   { label: 'FDU/Map',          to: '/fsp/fdu-map' },
-  { label: 'Identified Areas', to: '/fsp/identified-areas' },
   { label: 'Workflow',         to: '/fsp/workflow' },
   { label: 'History',          to: '/fsp/history' },
 ];

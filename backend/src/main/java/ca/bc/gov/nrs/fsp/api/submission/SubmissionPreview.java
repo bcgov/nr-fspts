@@ -19,7 +19,6 @@ public record SubmissionPreview(
     List<AgreementHolderRef> agreementHolders,
     List<DistrictRef> districts,
     List<FduSummary> fdus,
-    List<IdentifiedAreaSummary> identifiedAreas,
     List<StockingStandardSummary> stockingStandards
 ) {
 
@@ -50,7 +49,6 @@ public record SubmissionPreview(
       String actionDescription,
       Boolean approvalRequired,
       Boolean fduUpdate,
-      Boolean identifiedAreasUpdate,
       Boolean stockingStandardUpdate,
       Boolean frpa197,
       Boolean transitional,
@@ -70,13 +68,6 @@ public record SubmissionPreview(
       int licenceCount,
       int polygonCount,
       /** SRS name from the GML extent — verbatim, e.g. "EPSG:42102". */
-      String srsName
-  ) {}
-
-  public record IdentifiedAreaSummary(
-      String name,
-      String legislationType,
-      int polygonCount,
       String srsName
   ) {}
 

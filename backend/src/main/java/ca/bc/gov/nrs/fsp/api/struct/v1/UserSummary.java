@@ -3,8 +3,8 @@ package ca.bc.gov.nrs.fsp.api.struct.v1;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * One IDIR user returned by the FAM identity-lookup API. Mirrors
- * nr-rept's ReptUserSummaryDto so the front-end shape is portable.
+ * One IDIR user returned by nr-user-lookup-api. Mirrors nr-rept's
+ * ReptUserSummaryDto so the front-end shape is portable.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record UserSummary(

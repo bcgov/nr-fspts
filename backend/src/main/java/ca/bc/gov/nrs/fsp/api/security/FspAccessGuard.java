@@ -36,6 +36,10 @@ import org.springframework.stereotype.Component;
 public class FspAccessGuard {
 
   private static final String NO_ACCESS = "fsp.web.error.no_access_right";
+  // Ownership is fine but the FSP's status forbids a direct content edit —
+  // a distinct key so the message accurately says "amend it" rather than the
+  // misleading "you don't have access / wrong org".
+  private static final String NOT_EDITABLE_STATUS = "fsp.web.error.not_editable_status";
 
   private final JdbcTemplate jdbcTemplate;
 
@@ -136,7 +140,7 @@ public class FspAccessGuard {
     if (!editable) {
       log.info("Content edit to FSP {} amd {} denied: role={} status={}",
           fspIdLong, amendment, role, status);
-      throw deny(fspId, "not editable in status " + status + " for role " + role);
+      throw denyStatus(fspId, status, role);
     }
   }
 
@@ -181,5 +185,17 @@ public class FspAccessGuard {
     return new StoredProcedureException(
         "FSP_TOMBSTONE", "user_may_access",
         NO_ACCESS + " (FSP " + fspId + ": " + reason + ")");
+  }
+
+  /**
+   * Denial for the status layer — the caller owns the FSP but its status
+   * doesn't allow a direct content edit. Carries {@link #NOT_EDITABLE_STATUS}
+   * so {@code RestExceptionHandler} surfaces the "amend it" message instead of
+   * the no-access / wrong-org one.
+   */
+  private StoredProcedureException denyStatus(String fspId, String status, String role) {
+    return new StoredProcedureException(
+        "FspAccessGuard", "assertContentEditable",
+        NOT_EDITABLE_STATUS + " (FSP " + fspId + ": status=" + status + " role=" + role + ")");
   }
 }

@@ -6,7 +6,6 @@ import ca.bc.gov.nrs.fsp.api.submission.parser.generated.ActionCodeType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FDUType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.ForestStewardshipPlanType;
-import ca.bc.gov.nrs.fsp.api.submission.parser.generated.IdentifiedAreaType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.MultiPolygonType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -70,10 +69,10 @@ class SubmissionGeoJsonParserTest {
     assertThat(fduGeom.getGeometryMember()).hasSize(1);
 
     // ── Identified Area ──
-    assertThat(plan.getIdentifiedAreasList().getIdentifiedArea()).hasSize(1);
-    IdentifiedAreaType ia = plan.getIdentifiedAreasList().getIdentifiedArea().get(0);
-    assertThat(ia.getIdentifiedAreaName()).isEqualTo("Caribou Habitat Sample");
-    assertThat(ia.getLegislationTypeCode()).isEqualTo("FRPA196(1)");
+    // The identified-areas feature was removed: IDENTIFIED_AREA
+    // features in the fixture must be ignored, not parsed into the
+    // plan tree.
+    assertThat(plan.getIdentifiedAreasList()).isNull();
   }
 
   @Test

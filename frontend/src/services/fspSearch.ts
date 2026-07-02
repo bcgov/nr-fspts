@@ -647,28 +647,6 @@ export async function updateFduLicences(
   return res.json() as Promise<FduLicencesUpdated>;
 }
 
-// Identified Areas / Map — combined list across all three legislation
-// types (FRPA s.196(1), FRPA s.196(2), FPPR s.14(4)). Backend issues
-// the three FSP_650_IDENTIFIED_AREAS_MAP.GET calls and tags each row
-// with its source.
-export interface FspIdentifiedArea {
-  identifiedAreaId: string | null;
-  identifiedAreaName: string | null;
-  legislationType: string | null;
-  legislationLabel: string | null;
-}
-
-export interface FspIdentifiedAreaList {
-  areas: FspIdentifiedArea[];
-}
-
-export function getFspIdentifiedAreas(fspId: string): Promise<FspIdentifiedAreaList> {
-  return getJson<FspIdentifiedAreaList>(
-    `/v1/fsp/${encodeURIComponent(fspId)}/identified-areas`,
-    'Identified areas load',
-  );
-}
-
 // Mirrors backend StandardRequest — single row from /standards.
 export interface FspStandardRow {
   standardsRegimeId: string | null;

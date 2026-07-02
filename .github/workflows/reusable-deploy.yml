@@ -73,6 +73,23 @@ on:
       keystore_secret:
         description: Oracle keystore passphrase
         required: true
+      keycloak_sa_client_id:
+        description: |
+          Keycloak admin service-account client id (needs realm-management
+          'manage-clients'). Used to create/sync the FSP backend's user-lookup
+          service account. Omit to skip that step (e.g. PR previews).
+        required: false
+      keycloak_sa_client_secret:
+        description: Keycloak admin service-account client secret
+        required: false
+      keycloak_issuer_uri:
+        description: |
+          Keycloak realm issuer URI (…/realms/<realm>). Drives the service-account
+          script and the backend's user-lookup token URL. Omit to skip both.
+        required: false
+      user_lookup_base_url:
+        description: nr-user-lookup-api base URL for this environment.
+        required: false
 
     outputs:
       triggered:
@@ -104,9 +121,42 @@ jobs:
     env:
       DATABASE_PASSWORD: ${{ secrets.database_password }}
       KEYSTORE_SECRET: ${{ secrets.keystore_secret }}
+      # Job-level so the step `if:` below can read it (a step's own `env` isn't
+      # available to that step's `if`).
+      KC_SA_CLIENT_ID: ${{ secrets.keycloak_sa_client_id }}
     steps:
+      # The deployer action checks out internally, but the Keycloak script runs
+      # before it, so check out here to make ./.github/scripts available.
+      - uses: actions/checkout@v6
+
+      # Idempotently create the FSP backend's user-lookup service-account client
+      # in this environment's realm and assign the nr-user-lookup-api scopes.
+      # Skipped when the admin service-account credentials aren't configured
+      # (e.g. PR previews), so those deploys are unaffected. The resulting
+      # client id/secret are exposed as step outputs (masked) for a later step
+      # to feed into the backend once the lookup integration is wired up.
+      - name: Ensure Keycloak service account
+        id: keycloak_sa
+        if: ${{ env.KC_SA_CLIENT_ID != '' }}
+        env:
+          KEYCLOAK_ISSUER_URI: ${{ secrets.keycloak_issuer_uri }}
+          KC_SA_CLIENT_SECRET: ${{ secrets.keycloak_sa_client_secret }}
+        run: ./.github/scripts/ensure-keycloak-service-account.sh
+
       - uses: bcgov/action-deployer-openshift@f7bd61ec357fb1dfd1d43f1287bcd21382d06348 # v4.1.0
         id: deploy
+        # The user-lookup client secret is a step OUTPUT (from keycloak_sa), so
+        # it can't sit in the job-level env; set it here and reference
+        # "$USER_LOOKUP_CLIENT_SECRET" in parameters — single bash expansion,
+        # same reasoning as DATABASE_PASSWORD above. Empty when the keycloak_sa
+        # step is skipped (PR previews); the backend degrades gracefully.
+        env:
+          USER_LOOKUP_CLIENT_SECRET: ${{ steps.keycloak_sa.outputs.client_secret }}
+          # base-url + issuer are secrets now; route through env (not inline in
+          # `parameters`) so bash does a single expansion. Token URL is derived
+          # from the issuer; empty when the issuer isn't set (PR previews).
+          USER_LOOKUP_BASE_URL: ${{ secrets.user_lookup_base_url }}
+          USER_LOOKUP_TOKEN_URL: ${{ secrets.keycloak_issuer_uri != '' && format('{0}/protocol/openid-connect/token', secrets.keycloak_issuer_uri) || '' }}
         with:
           file: backend/openshift.deploy.yml
           oc_namespace: ${{ secrets.oc_namespace }}
@@ -128,7 +178,10 @@ jobs:
             -p MAX_REPLICAS="${{ inputs.backend_replicas }}"
             -p AWS_COGNITO_ISSUER_URI="${{ vars.AWS_COGNITO_ISSUER_URI }}"
             -p COGNITO_USERINFO_URI="${{ vars.COGNITO_USERINFO_URI }}"
-            -p IDENTITY_LOOKUP_BASE_URL="${{ vars.IDENTITY_LOOKUP_BASE_URL }}"
+            -p USER_LOOKUP_BASE_URL="$USER_LOOKUP_BASE_URL"
+            -p USER_LOOKUP_TOKEN_URL="$USER_LOOKUP_TOKEN_URL"
+            -p USER_LOOKUP_CLIENT_ID="${{ steps.keycloak_sa.outputs.client_id }}"
+            -p USER_LOOKUP_CLIENT_SECRET="$USER_LOOKUP_CLIENT_SECRET"
             -p DATABASE_HOST="${{ secrets.database_host }}"
             -p DATABASE_SERVICE_NAME="${{ secrets.database_service_name }}"
             -p DATABASE_USER="${{ secrets.database_user }}"

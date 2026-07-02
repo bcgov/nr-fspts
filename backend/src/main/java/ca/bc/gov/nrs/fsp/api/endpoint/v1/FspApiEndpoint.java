@@ -260,10 +260,6 @@ public interface FspApiEndpoint {
             @PathVariable long fduId,
             @Valid @RequestBody FduLicencesUpdate body);
 
-    @GetMapping(URL.IDENTIFIED_AREAS)
-    @Operation(summary = "Get identified areas (all FRPA/FPPR sections combined) via FSP_650_IDENTIFIED_AREAS_MAP.GET")
-    ResponseEntity<IdentifiedAreaList> getIdentifiedAreas(@PathVariable String fspId);
-
     // --- Stocking Standards detail (FSP250 view-only) ---
 
     @GetMapping(URL.STANDARD_DETAIL)
@@ -402,7 +398,7 @@ public interface FspApiEndpoint {
     // --- FAM IDIR directory lookup ---
 
     @GetMapping(URL.USER_SEARCH)
-    @Operation(summary = "Search IDIR users via the FAM identity-lookup API")
+    @Operation(summary = "Search IDIR users via nr-user-lookup-api")
     ResponseEntity<UserSearchResponse> searchUsers(
             @RequestParam(name = "userId", required = false) String userId,
             @RequestParam(name = "firstName", required = false) String firstName,

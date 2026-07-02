@@ -116,8 +116,25 @@ public class CodeListsService {
     return fspCodeListsDao.getFspAttachmentTypeCodes().stream()
         .map(CodeListsService::toCodeOption)
         .filter(o -> o.getCode() != null)
+        // The identified-areas feature was removed, so its three
+        // legislation document categories — FPPR s.14(4), FRPA
+        // s.196(1), and FRPA s.196(2) — must not appear in the
+        // Add-Attachment dropdown. The DB code-list table is global
+        // (and not editable here), so the three codes are filtered
+        // out at this service layer.
+        .filter(o -> !IDENTIFIED_AREA_ATTACHMENT_TYPE_CODES.contains(o.getCode()))
         .toList();
   }
+
+  /**
+   * Attachment-type codes tied to the removed identified-areas feature
+   * (FPPR s.14(4), FRPA s.196(1), FRPA s.196(2)). Excluded from the
+   * Add-Attachment category dropdown. Values mirror the
+   * {@code FSP_ATTACHMENT_TYPE_CODE} codes used in
+   * {@code AttachmentsService}.
+   */
+  private static final java.util.Set<String> IDENTIFIED_AREA_ATTACHMENT_TYPE_CODES =
+      java.util.Set.of("FPPR14(4)", "FRPA196(1)", "FRPA196(2)");
 
   /**
    * Silviculture tree species codes (SILV_TREE_SPECIES_CODE table).

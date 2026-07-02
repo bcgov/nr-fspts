@@ -4,11 +4,10 @@ import java.sql.Struct;
 import java.util.List;
 
 /**
- * Wraps the FSP_COMMON geometry functions (legacy: fdu/dao/FDUGeometryDAO.java,
- * IdentifiedAreasGeometryDAO.java).
+ * Wraps the FSP_COMMON geometry functions (legacy: fdu/dao/FDUGeometryDAO.java).
  *
  * fdu_geometry_gets returns either MDSYS.SDO_GEOMETRY (single FDU) or a CURSOR
- * (FSP + amendment scope). area_geometry_gets returns MDSYS.SDO_GEOMETRY.
+ * (FSP + amendment scope).
  *
  * Geometry is exposed as a raw java.sql.Struct so callers can pass it through
  * to a spatial library or to GeoJSON conversion without this layer taking a
@@ -26,7 +25,4 @@ public interface FduGeometryDao {
 
   /** fdu_geometry_gets(?, ?) where the OUT is a CURSOR. */
   List<FduGeometryRow> getFduGeometry(int fspId, int fspAmendmentNumber);
-
-  /** area_geometry_gets(?) where the OUT is MDSYS.SDO_GEOMETRY. */
-  Struct getIdentifiedAreasGeometry(int identifiedAreaId);
 }

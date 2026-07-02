@@ -27,11 +27,11 @@ public class NotificationDesignate {
   /** Org unit the designate belongs to. Required on POST; omitted on
    *  GET rows (the response is already scoped to the requested org unit). */
   private String orgUnitNo;
-  /** Display name from the FAM identity-lookup API. Null on rows where
-   *  the lookup failed or returned no match; the UI falls back to the
+  /** Display name from nr-user-lookup-api. Null on rows where the
+   *  lookup failed or returned no match; the UI falls back to the
    *  IDIR username when this is empty. */
   private String displayName;
-  /** Email address from the FAM identity-lookup API. Same null
-   *  semantics as displayName. */
+  /** Email address from nr-user-lookup-api. Same null semantics as
+   *  displayName. */
   private String emailAddress;
 }

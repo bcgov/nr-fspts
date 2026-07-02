@@ -105,7 +105,16 @@ class FspAccessGuardTest {
     stubUserMayAccess("Y");
     stubStatus("APP");
     assertThatThrownBy(() -> guard.assertContentEditable("123", "0"))
-        .isInstanceOf(StoredProcedureException.class);
+        .isInstanceOf(StoredProcedureException.class)
+        .satisfies(e -> {
+          // Ownership is fine (user_may_access='Y'), so the denial must carry
+          // the status-specific "amend it" code — NOT no_access_right, which
+          // would wrongly tell the submitter it's an org/access problem.
+          StoredProcedureException spe = (StoredProcedureException) e;
+          org.assertj.core.api.Assertions.assertThat(spe.getOracleErrorMessage())
+              .contains("fsp.web.error.not_editable_status")
+              .doesNotContain("fsp.web.error.no_access_right");
+        });
   }
 
   @Test
