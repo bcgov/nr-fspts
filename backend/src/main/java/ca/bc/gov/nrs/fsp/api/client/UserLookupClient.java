@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -50,6 +51,7 @@ public class UserLookupClient {
   private final RestClient http;
   private final ClientCredentialsTokenSource clientCredentials;
 
+  @Autowired
   public UserLookupClient(
       @Value("${fsp.user-lookup.base-url:}") String baseUrl,
       @Value("${fsp.user-lookup.token-url:}") String tokenUrl,
