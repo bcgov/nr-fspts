@@ -26,7 +26,6 @@ public class FspApiController implements FspApiEndpoint {
     private final HistoryService historyService;
     private final ExtensionService extensionService;
     private final FduService fduService;
-    private final IdentifiedAreasService identifiedAreasService;
     private final StandardRegimeService standardRegimeService;
     private final CodeListsService codeListsService;
     private final FspExtentService fspExtentService;
@@ -40,7 +39,6 @@ public class FspApiController implements FspApiEndpoint {
                             InboxService inboxService, HistoryService historyService,
                             ExtensionService extensionService,
                             FduService fduService,
-                            IdentifiedAreasService identifiedAreasService,
                             StandardRegimeService standardRegimeService,
                             CodeListsService codeListsService, FspExtentService fspExtentService,
                             DistrictNotificationService districtNotificationService,
@@ -54,7 +52,6 @@ public class FspApiController implements FspApiEndpoint {
         this.historyService = historyService;
         this.extensionService = extensionService;
         this.fduService = fduService;
-        this.identifiedAreasService = identifiedAreasService;
         this.standardRegimeService = standardRegimeService;
         this.codeListsService = codeListsService;
         this.fspExtentService = fspExtentService;
@@ -263,11 +260,6 @@ public class FspApiController implements FspApiEndpoint {
     public ResponseEntity<FduLicencesUpdated> updateFduLicences(
             String fspId, long fduId, FduLicencesUpdate body) {
         return ResponseEntity.ok(fduService.updateLicences(fspId, fduId, body));
-    }
-
-    @Override
-    public ResponseEntity<IdentifiedAreaList> getIdentifiedAreas(String fspId) {
-        return ResponseEntity.ok(identifiedAreasService.getAreas(fspId));
     }
 
     @Override

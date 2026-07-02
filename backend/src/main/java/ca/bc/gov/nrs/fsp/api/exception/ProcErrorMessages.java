@@ -65,6 +65,12 @@ public final class ProcErrorMessages {
       Map.entry("fsp.web.error.no_access_right", new Info(FORBIDDEN,
           "You don't have access to this FSP. It either doesn't exist or "
               + "belongs to an organization you're not signed in under.")),
+      // Ownership is fine but the FSP's status doesn't permit a direct content
+      // edit (e.g. a Submitter on an Approved / In-Effect plan). Distinct from
+      // no_access_right so the user isn't wrongly told it's an org problem.
+      Map.entry("fsp.web.error.not_editable_status", new Info(FORBIDDEN,
+          "This FSP can't be edited directly in its current status. To change "
+              + "an approved or in-effect plan, create an amendment.")),
       Map.entry("FSP.INVALID.AGREEMENT.HOLDER", new Info(FORBIDDEN,
           "Your client number is not on this FSP's agreement holder list, so "
               + "you can't modify it. An agreement holder for this FSP needs "

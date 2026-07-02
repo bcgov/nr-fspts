@@ -10,7 +10,6 @@ import ca.bc.gov.nrs.fsp.api.submission.validator.AgreementHolderValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.DistrictCodeValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.FduUniquenessValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator;
-import ca.bc.gov.nrs.fsp.api.submission.validator.IdentifiedAreaValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.LicenceContextValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.PlanNameValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.PlanTermValidator;
@@ -42,7 +41,6 @@ public class SubmissionValidationService {
   private final AgreementHolderValidator agreementHolderValidator;
   private final DistrictCodeValidator districtCodeValidator;
   private final FduUniquenessValidator fduUniquenessValidator;
-  private final IdentifiedAreaValidator identifiedAreaValidator;
   private final SubmissionPreviewMapper previewMapper;
 
   public SubmissionValidationResult validate(byte[] xml) {
@@ -90,14 +88,15 @@ public class SubmissionValidationService {
       // Sweep of proc-side business rules a parsed XML alone can
       // settle: required planName on Initial, agreement-holder
       // presence + uniqueness, district presence + existence +
-      // uniqueness, FDU/identified-area name uniqueness, and
-      // legislationTypeCode allow-list. Each maps to a specific
+      // uniqueness, and FDU name uniqueness. Each maps to a specific
       // fsp_error.set_error('FSP.*') call in the proc bodies.
+      // Identified-area sections are intentionally ignored — the
+      // feature was removed, so any identified-area content in the
+      // submission is neither validated nor persisted.
       errors.addAll(planNameValidator.validate(outcome.submission()));
       errors.addAll(agreementHolderValidator.validate(outcome.submission()));
       errors.addAll(districtCodeValidator.validate(outcome.submission()));
       errors.addAll(fduUniquenessValidator.validate(outcome.submission()));
-      errors.addAll(identifiedAreaValidator.validate(outcome.submission()));
       // Preview is built even when geometry/schema errors are present —
       // the user still benefits from seeing what was parsed alongside
       // the errors that need fixing.

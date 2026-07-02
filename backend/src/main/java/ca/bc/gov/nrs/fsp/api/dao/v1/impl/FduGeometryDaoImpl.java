@@ -18,7 +18,6 @@ public class FduGeometryDaoImpl extends AbstractStoredProcedureDao implements Fd
 
   private static final String SP_FDU_BY_ID = "{ ? = call " + PACKAGE_NAME + ".fdu_geometry_gets(?) }";
   private static final String SP_FDU_BY_FSP_AMEND = "{ ? = call " + PACKAGE_NAME + ".fdu_geometry_gets(?,?) }";
-  private static final String SP_AREA_BY_ID = "{ ? = call " + PACKAGE_NAME + ".area_geometry_gets(?) }";
 
   public FduGeometryDaoImpl(JdbcTemplate jdbcTemplate) {
     super(jdbcTemplate);
@@ -59,15 +58,5 @@ public class FduGeometryDaoImpl extends AbstractStoredProcedureDao implements Fd
           }
           return out;
         });
-  }
-
-  @Override
-  public Struct getIdentifiedAreasGeometry(int identifiedAreaId) {
-    return executeCall(SP_AREA_BY_ID,
-        cs -> {
-          cs.registerOutParameter(1, OracleTypes.STRUCT, "MDSYS.SDO_GEOMETRY");
-          cs.setInt(2, identifiedAreaId);
-        },
-        cs -> (Struct) cs.getObject(1));
   }
 }

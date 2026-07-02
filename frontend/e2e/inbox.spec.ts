@@ -287,24 +287,16 @@ test.describe('FSP Inbox', () => {
     await page.goto('/inbox');
     await expect(page.getByRole('heading', { name: 'Inbox', level: 1 })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Search for client' }).click();
-    await expect(page.getByRole('heading', { name: 'Client Search' })).toBeVisible();
+    // Agreement Holder is now a ComboBox autocomplete (the old "Search for
+    // client" modal was retired). Typing >= 3 chars fires the mocked
+    // /clients/search, which returns our TOLKO fixture row.
+    const holder = page.getByRole('combobox', { name: 'Agreement holder' });
+    await holder.click();
+    await holder.fill('tol');
 
-    // Submitting the modal form with no criteria fires the mocked
-    // /clients/search and produces our single fixture row.
-    await page
-      .locator('.client-search-modal')
-      .getByRole('button', { name: 'Search', exact: true })
-      .click();
-    // exact: true so the acronym cell doesn't match the client-name cell.
-    await expect(page.getByRole('cell', { name: 'TOLKO', exact: true })).toBeVisible();
+    await page.getByRole('option', { name: /TOLKO/ }).first().click();
 
-    await page
-      .getByRole('row', { name: /TOLKO/ })
-      .getByRole('button', { name: 'Select' })
-      .click();
-
-    await expect(page.getByRole('heading', { name: 'Client Search' })).not.toBeVisible();
-    await expect(page.getByLabel('Agreement Holder')).toHaveValue('00012345');
+    // The ComboBox now displays the picked client's label.
+    await expect(holder).toHaveValue(/TOLKO/);
   });
 });

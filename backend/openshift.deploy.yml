@@ -52,8 +52,22 @@ parameters:
     required: true
   - name: COGNITO_USERINFO_URI
     required: true
-  - name: IDENTITY_LOOKUP_BASE_URL
-    required: true
+  # nr-user-lookup-api (IDIR/BCeID lookups) — replaces the retired FAM
+  # identity-lookup. Not required so PR previews (which skip the Keycloak
+  # service-account step) deploy fine with these blank; the backend degrades
+  # gracefully when they're unset.
+  - name: USER_LOOKUP_BASE_URL
+    required: false
+    value: ""
+  - name: USER_LOOKUP_TOKEN_URL
+    required: false
+    value: ""
+  - name: USER_LOOKUP_CLIENT_ID
+    required: false
+    value: ""
+  - name: USER_LOOKUP_CLIENT_SECRET
+    required: false
+    value: ""
   - name: DATABASE_HOST
     required: true
   - name: DATABASE_SERVICE_NAME
@@ -150,8 +164,17 @@ objects:
                   value: ${AWS_COGNITO_ISSUER_URI}
                 - name: COGNITO_USERINFO_URI
                   value: ${COGNITO_USERINFO_URI}
-                - name: IDENTITY_LOOKUP_BASE_URL
-                  value: ${IDENTITY_LOOKUP_BASE_URL}
+                - name: USER_LOOKUP_BASE_URL
+                  value: ${USER_LOOKUP_BASE_URL}
+                - name: USER_LOOKUP_TOKEN_URL
+                  value: ${USER_LOOKUP_TOKEN_URL}
+                - name: USER_LOOKUP_CLIENT_ID
+                  value: ${USER_LOOKUP_CLIENT_ID}
+                - name: USER_LOOKUP_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${NAME}-backend-secret-${ZONE}
+                      key: USER_LOOKUP_CLIENT_SECRET
                 - name: DATABASE_HOST
                   value: ${DATABASE_HOST}
                 - name: DATABASE_SERVICE_NAME
@@ -311,6 +334,7 @@ objects:
       DATABASE_USER: ${DATABASE_USER}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}
       KEYSTORE_SECRET: ${KEYSTORE_SECRET}
+      USER_LOOKUP_CLIENT_SECRET: ${USER_LOOKUP_CLIENT_SECRET}
 
   # ── NetworkPolicy: ingress from same-zone frontend + cluster monitoring ──
   - apiVersion: networking.k8s.io/v1

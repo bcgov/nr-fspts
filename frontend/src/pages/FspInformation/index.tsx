@@ -20,7 +20,6 @@ import {type CodeOption, type FspInformation, deleteFsp, getFspAmendmentNumbers,
 
 import AttachmentsTab from './tabs/AttachmentsTab';
 import InformationTab from './tabs/InformationTab';
-import IdentifiedAreasTab from './tabs/IdentifiedAreasTab';
 import MapTab from './tabs/MapTab';
 import StockingStandardsTab from './tabs/StockingStandardsTab';
 import WorkflowTab from './tabs/WorkflowTab';
@@ -429,7 +428,6 @@ const FspInformationPage: FC = () => {
               <Tab>Attachments</Tab>
               <Tab>Stocking standards</Tab>
               <Tab>FDU / map</Tab>
-              <Tab>Identified areas</Tab>
               <Tab>History</Tab>
               {showWorkflowTab && <Tab>Workflow</Tab>}
             </TabList>
@@ -472,17 +470,6 @@ const FspInformationPage: FC = () => {
                     fspStatusCode={fsp?.fspStatusCode}
                     isAdmin={isAdmin}
                     readOnly={!canEditFsp(user, fsp?.fspStatusCode)}
-                    refreshKey={refreshKey}
-                  />
-                </div>
-              </TabPanel>
-              <TabPanel>
-                <div className="fsp-info__tab-panel">
-                  <IdentifiedAreasTab
-                    fspId={fspId}
-                    amendmentNumber={
-                      fsp?.fspAmendmentNumber || amendmentNumber || '0'
-                    }
                     refreshKey={refreshKey}
                   />
                 </div>
@@ -540,9 +527,9 @@ const FspInformationPage: FC = () => {
               This permanently removes amendment{' '}
               <strong>{parsedAmendmentNumber}</strong> on FSP{' '}
               <strong>{fsp?.fspId}</strong> ({planName}) and all of its
-              attachments, standards, FDUs, and identified areas. The
-              prior approved amendment is left in place — you'll be
-              returned to it after the delete.
+              attachments, standards, and FDUs. The prior approved
+              amendment is left in place — you'll be returned to it
+              after the delete.
             </p>
             <p>This cannot be undone.</p>
           </>
@@ -550,8 +537,7 @@ const FspInformationPage: FC = () => {
           <>
             <p>
               This permanently removes FSP <strong>{fsp?.fspId}</strong> ({planName})
-              and all its child records — attachments, standards, FDUs,
-              identified areas.
+              and all its child records — attachments, standards, FDUs.
             </p>
             <p>This cannot be undone.</p>
           </>

@@ -15,6 +15,9 @@ import { gotoPage, navClick, PAGES } from './helpers/nav';
 test.describe('Page smoke', () => {
   // Reachable from the SideNav for a privileged (non-submitter) user.
   for (const [key, def] of Object.entries(PAGES)) {
+    // Submission History is client-tied (Submitter / View Only only); the
+    // smoke suite runs as an internal IDIR user, so it can't reach it.
+    if (key === 'submissionHistory') continue;
     test(`renders ${key} (${def.path})`, async ({ page }) => {
       await gotoPage(page, def);
     });

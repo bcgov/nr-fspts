@@ -40,7 +40,6 @@ export interface SubmissionPreviewPlanHeader {
   actionDescription: string | null;
   approvalRequired: boolean | null;
   fduUpdate: boolean | null;
-  identifiedAreasUpdate: boolean | null;
   stockingStandardUpdate: boolean | null;
   frpa197: boolean | null;
   transitional: boolean | null;
@@ -58,13 +57,6 @@ export interface SubmissionPreviewTermAndDates {
 export interface SubmissionPreviewFdu {
   name: string | null;
   licenceCount: number;
-  polygonCount: number;
-  srsName: string | null;
-}
-
-export interface SubmissionPreviewIdentifiedArea {
-  name: string | null;
-  legislationType: string | null;
   polygonCount: number;
   srsName: string | null;
 }
@@ -96,7 +88,6 @@ export interface SubmissionPreview {
   agreementHolders: SubmissionPreviewAgreementHolder[];
   districts: SubmissionPreviewDistrict[];
   fdus: SubmissionPreviewFdu[];
-  identifiedAreas: SubmissionPreviewIdentifiedArea[];
   stockingStandards: SubmissionPreviewStockingStandard[];
 }
 

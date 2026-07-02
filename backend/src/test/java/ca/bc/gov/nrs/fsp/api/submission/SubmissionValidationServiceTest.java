@@ -8,7 +8,6 @@ import ca.bc.gov.nrs.fsp.api.submission.validator.AgreementHolderValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.DistrictCodeValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.FduUniquenessValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator;
-import ca.bc.gov.nrs.fsp.api.submission.validator.IdentifiedAreaValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.LicenceContextValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.PlanNameValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.PlanTermValidator;
@@ -60,7 +59,6 @@ class SubmissionValidationServiceTest {
         noOpValidator(AgreementHolderValidator.class),
         noOpValidator(DistrictCodeValidator.class),
         noOpValidator(FduUniquenessValidator.class),
-        noOpValidator(IdentifiedAreaValidator.class),
         new SubmissionPreviewMapper(
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.Sil21ClientSearchDao.class)));
@@ -70,8 +68,8 @@ class SubmissionValidationServiceTest {
    * Returns a Mockito stub of the given validator class whose every
    * {@code List}-returning method yields {@link List#of()}. The eight
    * contextual validators (action code, licence, plan term, plan
-   * name, agreement holder, district code, FDU uniqueness,
-   * identified area) all expose the same
+   * name, agreement holder, district code, FDU uniqueness) all
+   * expose the same
    * {@code validate(...) -> List<SubmissionValidationError>} shape,
    * so a single return-type-aware Answer covers them all without
    * per-class reflection. Non-List methods fall back to Mockito's

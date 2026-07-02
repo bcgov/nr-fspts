@@ -25,9 +25,6 @@ import java.util.List;
  * {@link FduPersistenceService}. Bypasses PL/SQL (none exists for FDU
  * writes) and issues raw INSERTs through {@code FduWriteDao}.
  *
- * <p>Increment 3 adds identified-area header + geometry writes via
- * {@link IdentifiedAreaPersistenceService}, same raw-INSERT pattern.
- *
  * <p>Increment 4 adds stocking-standards regime + BGC + layer +
  * species writes via {@link StandardsPersistenceService}, calling the
  * existing FSP_550_STDS_PROPOSAL.SAVE / SAVE_BGC_ITEM procs and the
@@ -60,7 +57,6 @@ public class SubmissionPersistenceService {
   private final SubmissionToFspRequestMapper mapper;
   private final FspService fspService;
   private final FduPersistenceService fduPersistenceService;
-  private final IdentifiedAreaPersistenceService identifiedAreaPersistenceService;
   private final StandardsPersistenceService standardsPersistenceService;
   private final SubmissionAttachmentService attachmentService;
   private final OrgUnitLookupDao orgUnitLookupDao;
@@ -183,7 +179,9 @@ public class SubmissionPersistenceService {
     // the legacy proc-side audit conventions there are bare-name.
     String userId = RequestUtil.getCurrentAuditUserId();
     fduPersistenceService.persist(plan, fspIdLong, amendmentNumberLong, userId);
-    identifiedAreaPersistenceService.persist(plan, fspIdLong, amendmentNumberLong, userId);
+    // Identified-area persistence intentionally removed — the feature
+    // was dropped, so any identified-area content in the submission is
+    // ignored rather than written.
     standardsPersistenceService.persist(plan, fspIdLong, amendmentNumberLong, userId);
 
     int expectedAttachmentCount = submission.getFspSubmissionMetadata() == null

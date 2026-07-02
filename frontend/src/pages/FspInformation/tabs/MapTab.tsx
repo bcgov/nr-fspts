@@ -21,8 +21,8 @@ import {type FspFduList, getFspExtent, getFspFduList,} from '@/services/fspSearc
 interface Props {
   fspId: string;
   amendmentNumber: string;
-  /** Title shown above the extent card — distinguishes FDU from Identified Areas. */
-  variant: 'fdu' | 'identified-areas';
+  /** Title shown above the extent card. */
+  variant: 'fdu';
   /**
    * Current FSP status code (DFT/APP/SUB/...). Drives whether per-row
    * "Edit licences" is shown — DFT for any submitter, APP for admins only.
@@ -41,7 +41,6 @@ interface Props {
 
 const VARIANT_TITLE: Record<Props['variant'], string> = {
   fdu: 'FDU / Map',
-  'identified-areas': 'Identified areas / Map',
 };
 
 const MAP_VIEWER_URL = env.VITE_MAP_VIEWER_URL ?? '';
@@ -70,9 +69,7 @@ const MapTab: FC<Props> = ({
   const [extentError, setExtentError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
 
-  // FDU list only loads on the FDU variant — identified-areas keeps
-  // its simpler extent-only layout (the legacy version had a different
-  // FSP_650 cursor; not in scope for this round).
+  // FDU list loads for the FDU variant.
   const [fduList, setFduList] = useState<FspFduList | null>(null);
   const [fduLoading, setFduLoading] = useState(false);
 
@@ -192,9 +189,8 @@ const MapTab: FC<Props> = ({
 
   return (
     <>
-      {/* Identified-areas variant still gets the extent tile — it has
-          no row table of its own and the MBR is the only thing left to
-          show. FDU variant skips straight to the records table. */}
+      {/* FDU variant skips straight to the records table; the
+          extent-only tile below is retained for any non-FDU variant. */}
       {!showFduTable && (
         <section className="fsp-info__tile fsp-info__tile--full">
           <header className="fsp-info__tile-header">

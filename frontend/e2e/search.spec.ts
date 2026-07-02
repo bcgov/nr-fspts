@@ -232,37 +232,18 @@ test.describe('FSP Search', () => {
     await page.goto('/search');
     await expect(page.getByRole('heading', { name: 'Search', level: 1 })).toBeVisible();
 
-    // The trigger is an icon-only ghost Button with iconDescription
-    // "Search for client" → Carbon renders that as accessible name.
-    await page.getByRole('button', { name: 'Search for client' }).click();
+    // Agreement Holder is now a ComboBox autocomplete (the old "Search for
+    // client" modal was retired). Typing >= 3 chars fires searchClientsAuto
+    // → the mocked /clients/search, which returns our TOLKO fixture row.
+    const holder = page.getByRole('combobox', { name: 'Agreement holder' });
+    await holder.click();
+    await holder.fill('tol');
 
-    // Modal heading confirms the dialog opened.
-    await expect(page.getByRole('heading', { name: 'Client Search' })).toBeVisible();
+    // The suggestion renders as an option labelled "Name (ACRONYM) · number".
+    await page.getByRole('option', { name: /TOLKO/ }).first().click();
 
-    // The modal hosts its own form. Submitting it with no criteria
-    // fires the mocked search and produces our two rows; the per-row
-    // Select button is what we're after.
-    await page
-      .locator('.client-search-modal')
-      .getByRole('button', { name: 'Search', exact: true })
-      .click();
-    // exact: true so "TOLKO" (acronym cell) doesn't also match
-    // "Tolko Industries Ltd." (client-name cell) in the same row.
-    await expect(page.getByRole('cell', { name: 'TOLKO', exact: true })).toBeVisible();
-
-    // Click the first Select button — there is one per row, so be
-    // explicit about which row we pick to avoid first()-strict-mode
-    // ambiguity if Carbon ever renders multiple visible row actions.
-    await page
-      .getByRole('row', { name: /TOLKO/ })
-      .getByRole('button', { name: 'Select' })
-      .click();
-
-    // Modal closes; Agreement Holder text input gets the picked
-    // client_number. Reading via getByLabel resolves to the Carbon
-    // TextInput's underlying <input>.
-    await expect(page.getByRole('heading', { name: 'Client Search' })).not.toBeVisible();
-    await expect(page.getByLabel('Agreement Holder')).toHaveValue('00012345');
+    // The ComboBox now displays the picked client's label.
+    await expect(holder).toHaveValue(/TOLKO/);
   });
 
   // Date-range cross-field validation (form.dateFrom > form.dateTo

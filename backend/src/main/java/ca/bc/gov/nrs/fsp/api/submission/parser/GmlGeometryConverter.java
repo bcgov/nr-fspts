@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Converts the JAXB-parsed GML 2.x geometry inside an FDU or
- * IdentifiedArea {@code <extentOf>} element into a JTS geometry, and
+ * Converts the JAXB-parsed GML 2.x geometry inside an FDU
+ * {@code <extentOf>} element into a JTS geometry, and
  * pulls the SRID out of the {@code srsName} attribute. Shared by
  * {@code GeometryValidator} (topology check) and the persistence
  * path (build SDO_GEOMETRY via WKT).

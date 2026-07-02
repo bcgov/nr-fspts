@@ -843,7 +843,6 @@ function ReviewSections({
             ['Transitional FSP', yesNo(preview.plan?.transitional)],
             ['Legal doc consolidated', yesNo(preview.plan?.legalDocConsolidated)],
             ['FDU update', yesNo(preview.plan?.fduUpdate)],
-            ['Identified areas update', yesNo(preview.plan?.identifiedAreasUpdate)],
             ['Stocking standards update', yesNo(preview.plan?.stockingStandardUpdate)],
           ]}
         />
@@ -909,26 +908,6 @@ function ReviewSections({
               String(f.licenceCount),
               String(f.polygonCount),
               dash(f.srsName),
-            ])}
-          />
-        )}
-      </ReviewSection>
-
-      <ReviewSection
-        title={`Identified areas (${preview.identifiedAreas.length})`}
-        icon={<AreaIcon />}
-      >
-        {preview.identifiedAreas.length === 0 ? (
-          <p className="empty-state">No identified areas in this submission.</p>
-        ) : (
-          <DTable
-            ariaLabel="Identified areas"
-            headers={['Name', 'Legislation', 'Polygons', 'SRS']}
-            rows={preview.identifiedAreas.map((a) => [
-              dash(a.name),
-              dash(a.legislationType),
-              String(a.polygonCount),
-              dash(a.srsName),
             ])}
           />
         )}

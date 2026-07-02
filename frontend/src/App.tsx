@@ -107,7 +107,7 @@ export default function App() {
           {/* Inbox */}
           <Route path="/inbox"                  element={guarded(withLayout(<InboxPage />))} />
 
-          {/* FSP — Attachments / Standards / FDU / Identified Areas /
+          {/* FSP — Attachments / Standards / FDU /
               Workflow used to be top-level routes; they're now mounted
               as Carbon Tabs inside FspInformationPage so the navigation
               stays inside one consolidated screen. Amend / Extension /

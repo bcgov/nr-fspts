@@ -16,10 +16,12 @@ import java.util.List;
 
 /**
  * Walks an unmarshalled {@link FSPSubmissionType}, converts each FDU
- * and Identified Area extent (GML 2.x Polygon / MultiPolygon) into a
- * JTS geometry via {@link GmlGeometryConverter}, and runs
- * {@link IsValidOp} on it. Reports topology problems and missing
- * required ring data.
+ * extent (GML 2.x Polygon / MultiPolygon) into a JTS geometry via
+ * {@link GmlGeometryConverter}, and runs {@link IsValidOp} on it.
+ * Reports topology problems and missing required ring data.
+ *
+ * <p>Identified-area extents are intentionally not validated — the
+ * identified-areas feature was removed, so that content is ignored.
  *
  * <p>Phase 1 scope: topology validity only. Containment and SRS-bounds
  * checks belong to the business-rule validator.
@@ -46,7 +48,6 @@ public class GeometryValidator {
     }
 
     validateFdus(plan.getFduList(), errors);
-    validateIdentifiedAreas(plan.getIdentifiedAreasList(), errors);
     return errors;
   }
 
@@ -60,22 +61,6 @@ public class GeometryValidator {
       String fduPath = String.format(
           "forestStewardshipPlan/fduList/fdu[%d](%s)", i, nameOrIndex(fdu.getFduName(), i));
       validateExtent(fduPath + "/extentOf", fdu.getExtentOf(), errors);
-    }
-  }
-
-  private void validateIdentifiedAreas(
-      IdentifiedAreaAssociationType iaList,
-      List<SubmissionValidationError> errors) {
-    if (iaList == null || iaList.getIdentifiedArea() == null) {
-      return;
-    }
-    List<IdentifiedAreaType> areas = iaList.getIdentifiedArea();
-    for (int i = 0; i < areas.size(); i++) {
-      IdentifiedAreaType area = areas.get(i);
-      String areaPath = String.format(
-          "forestStewardshipPlan/identifiedAreasList/identifiedArea[%d](%s)",
-          i, nameOrIndex(area.getIdentifiedAreaName(), i));
-      validateExtent(areaPath + "/extentOf", area.getExtentOf(), errors);
     }
   }
 

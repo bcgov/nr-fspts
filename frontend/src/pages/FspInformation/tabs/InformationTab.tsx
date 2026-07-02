@@ -802,7 +802,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                 headers={[
                   { key: 'clientNumber', header: 'Client #' },
                   { key: 'clientName', header: 'Client name' },
-                  { key: 'agreement', header: 'Agreement' },
+                  { key: 'agreement', header: 'License' },
                 ]}
                 isSortable
               >

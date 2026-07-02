@@ -64,7 +64,6 @@ const AmendmentDescriptionModal: FC<Props> = ({
   const { display } = useNotification();
   const [busy, setBusy] = useState(false);
   const [fduUpdate, setFduUpdate] = useState(false);
-  const [identifiedAreasUpdate, setIdentifiedAreasUpdate] = useState(false);
   const [stockingStandardUpdate, setStockingStandardUpdate] = useState(false);
   const [approvalRequired, setApprovalRequired] = useState(false);
   const [amendmentReason, setAmendmentReason] = useState('');
@@ -90,7 +89,6 @@ const AmendmentDescriptionModal: FC<Props> = ({
   useEffect(() => {
     if (!open || !fsp) return;
     setFduUpdate(fsp.fduUpdateInd === 'Y');
-    setIdentifiedAreasUpdate(fsp.identifiedAreasUpdateInd === 'Y');
     setStockingStandardUpdate(fsp.stockingStandardUpdateInd === 'Y');
     setApprovalRequired(approvalLocked ? true : fsp.approvalRequiredInd === 'Y');
     setAmendmentReason('');
@@ -140,7 +138,9 @@ const AmendmentDescriptionModal: FC<Props> = ({
       const payload: Partial<FspInformation> = {
         fspAmendmentNumber: targetAmendmentNumber,
         fduUpdateInd: fduUpdate ? 'Y' : 'N',
-        identifiedAreasUpdateInd: identifiedAreasUpdate ? 'Y' : 'N',
+        // Identified-areas feature removed — the update flag is no
+        // longer user-settable; always send 'N'.
+        identifiedAreasUpdateInd: 'N',
         stockingStandardUpdateInd: stockingStandardUpdate ? 'Y' : 'N',
         approvalRequiredInd: approvalRequired ? 'Y' : 'N',
         amendmentReason: trimmed,
@@ -187,15 +187,6 @@ const AmendmentDescriptionModal: FC<Props> = ({
           toggled={fduUpdate}
           disabled={busy}
           onToggle={setFduUpdate}
-        />
-        <Toggle
-          id="amend-identified-areas"
-          labelText="Identified / declared area changes"
-          labelA="No"
-          labelB="Yes"
-          toggled={identifiedAreasUpdate}
-          disabled={busy}
-          onToggle={setIdentifiedAreasUpdate}
         />
         <Toggle
           id="amend-stocking"

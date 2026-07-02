@@ -11,8 +11,6 @@ import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionItemAssoci
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionMetadataType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.ForestStewardshipPlanType;
-import ca.bc.gov.nrs.fsp.api.submission.parser.generated.IdentifiedAreaAssociationType;
-import ca.bc.gov.nrs.fsp.api.submission.parser.generated.IdentifiedAreaType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.LicenceAssociationType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.LinearRingMemberType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.LinearRingType;
@@ -36,11 +34,15 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Parses an FSP GeoJSON submission (single FeatureCollection mixing
- * FDU + Identified Area polygons + a plan-level {@code fsp} header)
- * into an {@link FSPSubmissionType} JAXB tree — the same shape the XML
- * pipeline produces. Downstream geometry validation, preview mapping,
- * and persistence all run unchanged.
+ * Parses an FSP GeoJSON submission (single FeatureCollection of FDU
+ * polygons plus a plan-level {@code fsp} header) into an
+ * {@link FSPSubmissionType} JAXB tree — the same shape the XML pipeline
+ * produces. Downstream geometry validation, preview mapping, and
+ * persistence all run unchanged.
+ *
+ * <p>Identified-area features (fspEntityType=IDENTIFIED_AREA) are
+ * intentionally ignored — that feature was removed, so those features
+ * are skipped rather than parsed, validated, or persisted.
  *
  * <p>Errors that block parsing (malformed JSON, missing root features,
  * unsupported geometry types, etc.) come back as
@@ -56,7 +58,11 @@ public class SubmissionGeoJsonParser {
   /** Discriminator value for FDU features. */
   private static final String ENTITY_FDU = "FDU";
 
-  /** Discriminator value for Identified Area features. */
+  /**
+   * Discriminator value for Identified Area features. The
+   * identified-areas feature was removed, so features carrying this
+   * type are silently skipped — neither validated nor persisted.
+   */
   private static final String ENTITY_IDENTIFIED_AREA = "IDENTIFIED_AREA";
 
   private final ObjectMapper jackson;
@@ -180,17 +186,16 @@ public class SubmissionGeoJsonParser {
                 + " (got \"" + entityType + "\")"));
         continue;
       }
+      // Identified-area features are ignored (feature removed) — skip
+      // shape validation so their content is neither flagged nor read.
+      if (ENTITY_IDENTIFIED_AREA.equals(entityType)) {
+        continue;
+      }
       String name = readPropString(f, "name");
       if (name == null) {
         errors.add(SubmissionValidationError.of(
             path + ".properties.name", "GEOJSON_SCHEMA",
             entityType + " feature requires a non-blank name"));
-      }
-      if (ENTITY_IDENTIFIED_AREA.equals(entityType)
-          && readPropString(f, "legislationTypeCode") == null) {
-        errors.add(SubmissionValidationError.of(
-            path + ".properties.legislationTypeCode", "GEOJSON_SCHEMA",
-            "IDENTIFIED_AREA feature requires a legislationTypeCode"));
       }
       if (f.geometry() == null || f.geometry().type() == null) {
         errors.add(SubmissionValidationError.of(
@@ -265,7 +270,6 @@ public class SubmissionGeoJsonParser {
     plan.setDistrictCodeList(buildDistrictCodes(h.districts()));
 
     FDUAssociationType fduList = OF.createFDUAssociationType();
-    IdentifiedAreaAssociationType iaList = OF.createIdentifiedAreaAssociationType();
 
     List<FspGeoJson.Feature> features = doc.features() == null
         ? List.of()
@@ -286,10 +290,9 @@ public class SubmissionGeoJsonParser {
           FDUType fdu = buildFdu(f, srsName, featurePath, errors);
           if (fdu != null) fduList.getFdu().add(fdu);
         }
-        case ENTITY_IDENTIFIED_AREA -> {
-          IdentifiedAreaType ia = buildIdentifiedArea(f, srsName, featurePath, errors);
-          if (ia != null) iaList.getIdentifiedArea().add(ia);
-        }
+        // Identified-area features are ignored (feature removed) —
+        // skip the feature entirely; nothing is parsed or persisted.
+        case ENTITY_IDENTIFIED_AREA -> { }
         default -> errors.add(SubmissionValidationError.of(
             featurePath + ".properties.fspEntityType",
             "GEOJSON_FIELD",
@@ -297,7 +300,6 @@ public class SubmissionGeoJsonParser {
       }
     }
     if (!fduList.getFdu().isEmpty()) plan.setFduList(fduList);
-    if (!iaList.getIdentifiedArea().isEmpty()) plan.setIdentifiedAreasList(iaList);
 
     FSPSubmissionItemAssociationType item = OF.createFSPSubmissionItemAssociationType();
     item.setForestStewardshipPlan(plan);
@@ -350,19 +352,6 @@ public class SubmissionGeoJsonParser {
     if (extent == null) return null;
     fdu.setExtentOf(extent);
     return fdu;
-  }
-
-  private IdentifiedAreaType buildIdentifiedArea(
-      FspGeoJson.Feature f, String srsName, String path,
-      List<SubmissionValidationError> errors) {
-    IdentifiedAreaType ia = OF.createIdentifiedAreaType();
-    ia.setIdentifiedAreaName(readString(f.properties(), "name"));
-    ia.setLegislationTypeCode(readString(f.properties(), "legislationTypeCode"));
-    SingleOrMultiplePolygonPropertyType extent =
-        buildExtent(f.geometry(), srsName, path + ".geometry", errors);
-    if (extent == null) return null;
-    ia.setExtentOf(extent);
-    return ia;
   }
 
   // ── Geometry ────────────────────────────────────────────────────
