@@ -79,7 +79,9 @@ cross-namespace can be blocked on **either side**, so there are two policies:
 pod only accepts traffic an ingress `NetworkPolicy` in the tools namespace
 allows. `backend/openshift.clamav-netpol.yml` creates, in the tools namespace,
 an ingress rule letting one app namespace open TCP 3310 to the clamd pods
-(`podSelector: app=clamav`, one `allow-<app-ns>-to-clamav` policy per
+(`podSelector: app.kubernetes.io/name=clamav` — the standard ClamAV Helm
+chart's pod label, overridable via `CLAMAV_POD_LABEL_KEY`/`CLAMAV_POD_APP`; one
+`allow-<app-ns>-to-clamav` policy per
 environment). Applied by the **"Allow backend → clamav (NetworkPolicy in
 tools)"** step, which targets the tools namespace with a tools-scoped token.
 Skipped unless the tools secrets are configured.

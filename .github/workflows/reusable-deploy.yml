@@ -233,7 +233,7 @@ jobs:
           parameters:
             -p TOOLS_NAMESPACE="${{ secrets.oc_namespace_tools }}"
             -p SOURCE_NAMESPACE="${{ secrets.oc_namespace }}"
-            -p CLAMAV_POD_LABEL_KEY="${{ vars.CLAMAV_POD_LABEL_KEY || 'app' }}"
+            -p CLAMAV_POD_LABEL_KEY="${{ vars.CLAMAV_POD_LABEL_KEY || 'app.kubernetes.io/name' }}"
             -p CLAMAV_POD_APP="${{ vars.CLAMAV_POD_APP || 'clamav' }}"
             -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"
 

@@ -27,8 +27,11 @@ parameters:
     description: Value of the label that selects the clamav pods in tools.
     value: clamav
   - name: CLAMAV_POD_LABEL_KEY
-    description: Label KEY the clamav pods are selected by (usually 'app').
-    value: app
+    description: |
+      Label KEY the clamav pods are selected by. Defaults to the standard
+      ClamAV Helm chart's label (app.kubernetes.io/name); override if yours
+      differs.
+    value: app.kubernetes.io/name
   - name: CLAMAV_PORT
     value: "3310"
 objects:
