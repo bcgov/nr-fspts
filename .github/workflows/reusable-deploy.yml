@@ -107,6 +107,12 @@ on:
           clamav.<tools-namespace>.svc.cluster.local). Required by the backend
           template — the deploy fails if it isn't provided.
         required: false
+      fom_api_url:
+        description: |
+          nr-fom API base URL for this environment (…/api/external/fom-by-fsp).
+          Fills the FSP-300 "Associated FOMs" column. Omit to disable the
+          lookup (column stays blank).
+        required: false
 
     outputs:
       triggered:
