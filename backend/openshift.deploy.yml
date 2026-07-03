@@ -382,3 +382,26 @@ objects:
                   network.openshift.io/policy-group: monitoring
       policyTypes:
         - Ingress
+
+  # ── NetworkPolicy: egress — the backend must make outbound connections ──
+  # Oracle (external), Cognito + user-lookup (external HTTPS), SMTP, and clamd
+  # (in-cluster, another namespace). Applied unconditionally: NetworkPolicy
+  # egress is all-or-nothing per pod, so a narrow allow-list would silently
+  # break DB / external access wherever the namespace baseline doesn't already
+  # default-deny egress. Permitting all egress can't reduce access below the
+  # current open baseline, and it guarantees the app side never blocks clamd.
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: ${NAME}-backend-${ZONE}-egress
+      labels:
+        app: ${NAME}-backend-${ZONE}
+        app.kubernetes.io/instance: ${ZONE}
+    spec:
+      podSelector:
+        matchLabels:
+          app: ${NAME}-backend-${ZONE}
+      egress:
+        - {}
+      policyTypes:
+        - Egress

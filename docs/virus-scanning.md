@@ -84,23 +84,25 @@ environment). Applied by the **"Allow backend → clamav (NetworkPolicy in
 tools)"** step, which targets the tools namespace with a tools-scoped token.
 Skipped unless the tools secrets are configured.
 
-**2. Egress from the backend (app namespace) — only if the namespace
-default-denies egress.** NetworkPolicy egress is all-or-nothing per pod: if the
-app namespace has *no* egress policy, egress is already open and clamd is
-reachable from this side — so the block is #1, not this. But if the namespace
-enforces a **default-deny egress** (check: `oc get networkpolicy -n <app-ns>`),
-the backend can't leave the namespace until an egress rule allows it.
-`backend/openshift.clamav-egress-netpol.yml` is that additive rule (DNS +
-clamd). It is **opt-in** — the **"Allow backend → clamav (egress, app
-namespace)"** step applies it only when the `CLAMAV_EGRESS_POLICY` variable is
-`true`, because applying a targeted egress policy where none existed would
-restrict the backend to only DNS + clamd and break Oracle/SMTP/etc.
+**2. Egress from the backend (app namespace) — always applied.** The backend
+`openshift.deploy.yml` includes an egress `NetworkPolicy`
+(`${NAME}-backend-${ZONE}-egress`) that permits **all** egress from the backend
+pods. It ships with every backend deploy — no flag, no separate step. It's
+permit-all rather than a narrow `DNS + clamd` allow-list because NetworkPolicy
+egress is all-or-nothing per pod: the backend also needs Oracle, Cognito,
+user-lookup, and SMTP, so a narrow policy would silently break those wherever
+the namespace baseline doesn't already default-deny egress. Permit-all can't
+reduce access below the current open baseline and guarantees the app side never
+blocks clamd.
 
-> **Diagnosing "can't connect to clamd":** run `oc get networkpolicy -n <app-ns>`.
-> No deny-all egress → the block is the tools **ingress** (#1); make sure that
-> policy is applied and its `podSelector` matches the real clamd pod labels
-> (`oc -n <tools-ns> get pods --show-labels`). A deny-all egress present → set
-> `CLAMAV_EGRESS_POLICY=true` to add #2 as well.
+> **Diagnosing "can't connect to clamd":** the egress side (#2) is handled
+> automatically, so a failure almost always means the tools **ingress** (#1) —
+> confirm `backend/openshift.clamav-netpol.yml` was applied into clamd's
+> namespace (needs `OC_NAMESPACE_TOOLS` / `OC_TOKEN_TOOLS`) and that its
+> `podSelector` matches the real clamd pod labels
+> (`oc -n <tools-ns> get pods --show-labels`). Note clamd must be in a namespace
+> your app namespace is allowed to reach — cross-license-plate connections are
+> generally blocked.
 
 ### Required GitHub Actions secrets
 
