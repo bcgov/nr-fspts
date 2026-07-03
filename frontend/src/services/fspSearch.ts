@@ -157,6 +157,10 @@ export interface FspAgreementHolder {
   clientNumber: string | null;
   clientName: string | null;
   agreementDescription: string | null;
+  // Read-only: comma-joined FOM ids referencing this holder, enriched
+  // server-side from the nr-fom API. Absent/blank when no FOMs (or the
+  // FOM API is unreachable).
+  associatedFoms?: string | null;
 }
 
 export interface FspDistrict {

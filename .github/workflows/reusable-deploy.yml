@@ -180,6 +180,10 @@ jobs:
           # from the issuer; empty when the issuer isn't set (PR previews).
           USER_LOOKUP_BASE_URL: ${{ secrets.user_lookup_base_url }}
           USER_LOOKUP_TOKEN_URL: ${{ secrets.keycloak_issuer_uri != '' && format('{0}/protocol/openid-connect/token', secrets.keycloak_issuer_uri) || '' }}
+          # nr-fom API base URL — a secret; route through env (not inline in
+          # `parameters`) for a single bash expansion, same as the URLs above.
+          # Empty disables the Associated-FOMs enrichment (column stays blank).
+          FOM_API_URL: ${{ secrets.fom_api_url }}
         with:
           file: backend/openshift.deploy.yml
           oc_namespace: ${{ secrets.oc_namespace }}
@@ -205,6 +209,7 @@ jobs:
             -p USER_LOOKUP_TOKEN_URL="$USER_LOOKUP_TOKEN_URL"
             -p USER_LOOKUP_CLIENT_ID="${{ steps.keycloak_sa.outputs.client_id }}"
             -p USER_LOOKUP_CLIENT_SECRET="$USER_LOOKUP_CLIENT_SECRET"
+            -p FOM_API_URL="$FOM_API_URL"
             -p CLAMAV_ENABLED="${{ vars.CLAMAV_ENABLED || 'true' }}"
             -p CLAMAV_HOST="$CLAMAV_HOST"
             -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"

@@ -121,6 +121,15 @@ public class FspCodeListsDaoImpl extends AbstractStoredProcedureDao implements F
             + "       effective_date, expiry_date "
             + "  FROM the.fsp_attachment_type_code "
             + " ORDER BY description");
+    // Never cache an empty result. A transient empty read (DB grant/
+    // visibility blip) would otherwise poison the cache for the full TTL
+    // and blank the Add-Attachment dropdown for 30 minutes. On empty,
+    // leave the cache untouched — keep serving the last good snapshot if
+    // we have one, and re-query on the next call until a non-empty fetch
+    // refreshes it.
+    if (fresh.isEmpty()) {
+      return cached != null ? cached : fresh;
+    }
     attachmentTypeRowsCache = List.copyOf(fresh);
     attachmentTypeRowsCachedAt = Instant.now();
     return attachmentTypeRowsCache;

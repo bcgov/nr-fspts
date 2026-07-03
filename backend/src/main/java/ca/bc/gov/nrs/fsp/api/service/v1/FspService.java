@@ -76,6 +76,7 @@ public class FspService {
   private final Fsp300InformationDao informationDao;
   private final ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao validationDao;
   private final ca.bc.gov.nrs.fsp.api.security.FspAccessGuard accessGuard;
+  private final ca.bc.gov.nrs.fsp.api.client.FomByFspClient fomClient;
 
   // When true (default), FSP search runs as a direct table query
   // (FspSearchDirectDao) instead of FSP_100_SEARCH.MAINLINE — see the
@@ -242,7 +243,29 @@ public class FspService {
    */
   public FspRequest getById(String fspId, String amendmentNumber) {
     Fsp300InformationDao.Result r = callInformation(ACTION_GET, fspId, amendmentNumber, null);
-    return toFspDto(r);
+    FspRequest dto = toFspDto(r);
+    enrichAgreementHoldersWithFoms(fspId, dto);
+    return dto;
+  }
+
+  /**
+   * Fills each agreement holder's {@code associatedFoms} from the nr-fom API,
+   * matching FOMs to holders by forest-client / client number. Best-effort:
+   * the FOM client swallows upstream errors and returns an empty map, so a
+   * FOM outage leaves the column blank rather than failing the FSP load
+   * (mirrors legacy {@code Fsp300InformationAction.populateFomByFSP}).
+   */
+  private void enrichAgreementHoldersWithFoms(String fspId, FspRequest dto) {
+    if (dto == null || dto.getAgreementHolders() == null || dto.getAgreementHolders().isEmpty()) {
+      return;
+    }
+    Map<String, String> fomsByClient = fomClient.fomIdsByForestClient(fspId);
+    if (fomsByClient.isEmpty()) {
+      return;
+    }
+    for (FspRequest.AgreementHolder holder : dto.getAgreementHolders()) {
+      holder.setAssociatedFoms(fomsByClient.get(holder.getClientNumber()));
+    }
   }
 
   @Transactional
@@ -264,7 +287,13 @@ public class FspService {
     FspRequest merged = getById(fspId, amendmentNumber);
     applyEdits(merged, request);
     Fsp300InformationDao.Result r = callInformation(ACTION_SAVE, fspId, null, merged);
-    return toFspDto(r);
+    // Enrich the SAVE response the same way GET does — the UI renders the
+    // returned DTO directly (no refetch), so without this a newly added
+    // agreement holder shows a blank Associated FOMs cell until the page
+    // is reloaded.
+    FspRequest dto = toFspDto(r);
+    enrichAgreementHoldersWithFoms(fspId, dto);
+    return dto;
   }
 
   /**
@@ -694,7 +723,7 @@ public class FspService {
         .agreementHolders(r.pFspLicenses() == null ? List.of()
             : r.pFspLicenses().stream()
                 .map(l -> new FspRequest.AgreementHolder(
-                    l.clientNumber(), l.clientName(), l.agreementDescription()))
+                    l.clientNumber(), l.clientName(), l.agreementDescription(), null))
                 .toList())
         .districts(r.pOrgUnits() == null ? List.of()
             : r.pOrgUnits().stream()

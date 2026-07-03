@@ -68,6 +68,13 @@ parameters:
   - name: USER_LOOKUP_CLIENT_SECRET
     required: false
     value: ""
+  # nr-fom (Forest Operations Map) API — fills the FSP-300 "Associated FOMs"
+  # column. Public, no auth. Blank disables enrichment (column stays empty),
+  # so PR previews deploy fine without it. Supplied per environment by the
+  # FOM_API_URL GitHub Actions secret (see reusable-deploy.yml).
+  - name: FOM_API_URL
+    required: false
+    value: ""
   # ClamAV virus scanning — clamd reached over raw TCP (INSTREAM). Plain
   # container env (non-sensitive, like AWS_COGNITO_ISSUER_URI); no Secret.
   - name: CLAMAV_ENABLED
@@ -191,6 +198,8 @@ objects:
                     secretKeyRef:
                       name: ${NAME}-backend-secret-${ZONE}
                       key: USER_LOOKUP_CLIENT_SECRET
+                - name: FOM_API_URL
+                  value: ${FOM_API_URL}
                 - name: CLAMAV_ENABLED
                   value: ${CLAMAV_ENABLED}
                 - name: CLAMAV_HOST
