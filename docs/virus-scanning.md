@@ -72,17 +72,35 @@ clamav scan: 'doc.pdf' (1024 bytes) → UNAVAILABLE (connection refused) — fai
 
 ## Deployment — reaching clamd across namespaces
 
-clamd runs in the shared **tools** namespace, not the app namespace. The backend's own namespace doesn't restrict egress, so the block is
-on the **receiving** side: the clamd pod only accepts traffic that an ingress
-`NetworkPolicy` in the tools namespace allows.
+clamd runs in the shared **tools** namespace, not the app namespace. Reaching it
+cross-namespace can be blocked on **either side**, so there are two policies:
 
-`backend/openshift.clamav-netpol.yml` is that policy — an OpenShift Template
-that creates, in the tools namespace, an ingress rule letting one app namespace
-open TCP 3310 to the clamd pods (`podSelector: app=clamav`, one
-`allow-<app-ns>-to-clamav` policy per environment). It is applied by the
-**"Allow backend → clamav"** step in `reusable-deploy.yml`, which targets the
-tools namespace with a tools-scoped token. The step is skipped unless the tools
-secrets are configured, so deploys without ClamAV are unaffected.
+**1. Ingress on clamd (tools namespace) — usually the one you need.** The clamd
+pod only accepts traffic an ingress `NetworkPolicy` in the tools namespace
+allows. `backend/openshift.clamav-netpol.yml` creates, in the tools namespace,
+an ingress rule letting one app namespace open TCP 3310 to the clamd pods
+(`podSelector: app=clamav`, one `allow-<app-ns>-to-clamav` policy per
+environment). Applied by the **"Allow backend → clamav (NetworkPolicy in
+tools)"** step, which targets the tools namespace with a tools-scoped token.
+Skipped unless the tools secrets are configured.
+
+**2. Egress from the backend (app namespace) — only if the namespace
+default-denies egress.** NetworkPolicy egress is all-or-nothing per pod: if the
+app namespace has *no* egress policy, egress is already open and clamd is
+reachable from this side — so the block is #1, not this. But if the namespace
+enforces a **default-deny egress** (check: `oc get networkpolicy -n <app-ns>`),
+the backend can't leave the namespace until an egress rule allows it.
+`backend/openshift.clamav-egress-netpol.yml` is that additive rule (DNS +
+clamd). It is **opt-in** — the **"Allow backend → clamav (egress, app
+namespace)"** step applies it only when the `CLAMAV_EGRESS_POLICY` variable is
+`true`, because applying a targeted egress policy where none existed would
+restrict the backend to only DNS + clamd and break Oracle/SMTP/etc.
+
+> **Diagnosing "can't connect to clamd":** run `oc get networkpolicy -n <app-ns>`.
+> No deny-all egress → the block is the tools **ingress** (#1); make sure that
+> policy is applied and its `podSelector` matches the real clamd pod labels
+> (`oc -n <tools-ns> get pods --show-labels`). A deny-all egress present → set
+> `CLAMAV_EGRESS_POLICY=true` to add #2 as well.
 
 ### Required GitHub Actions secrets
 

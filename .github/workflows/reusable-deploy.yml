@@ -237,6 +237,27 @@ jobs:
             -p CLAMAV_POD_APP="${{ vars.CLAMAV_POD_APP || 'clamav' }}"
             -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"
 
+      # Opt-in EGRESS policy in THIS (app) namespace, for namespaces that
+      # enforce a default-deny egress and therefore block the backend from
+      # reaching clamd. OFF by default: only set CLAMAV_EGRESS_POLICY=true where
+      # `oc get networkpolicy` shows a deny-all egress — otherwise a targeted
+      # egress policy would restrict the backend to only DNS + clamav and break
+      # Oracle/SMTP/etc. Applied to the app namespace with the normal token.
+      - name: Allow backend → clamav (egress, app namespace)
+        if: ${{ vars.CLAMAV_EGRESS_POLICY == 'true' && env.OC_NAMESPACE_TOOLS != '' }}
+        uses: bcgov/action-deployer-openshift@f7bd61ec357fb1dfd1d43f1287bcd21382d06348 # v4.1.0
+        with:
+          file: backend/openshift.clamav-egress-netpol.yml
+          oc_namespace: ${{ secrets.oc_namespace }}
+          oc_server: ${{ vars.oc_server }}
+          oc_token: ${{ secrets.oc_token }}
+          overwrite: true
+          parameters:
+            -p NAME="nr-fspts"
+            -p ZONE="${{ inputs.target }}"
+            -p TOOLS_NAMESPACE="${{ secrets.oc_namespace_tools }}"
+            -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"
+
   frontend:
     name: Deploy (frontend)
     environment: ${{ inputs.environment }}
