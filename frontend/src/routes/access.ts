@@ -9,7 +9,7 @@ import type { FamLoginUser, ROLE_TYPE } from '@/context/auth/types';
  *   Role            Menus                                         Edit / action
  *   Administrator   all except Submission History                 edit unless APP/INE/SUB; amend/extend/replace; workflow (any)
  *   Decision Maker  FSP Search, Inbox, Reports, Standards Search  workflow on Submitted only; no edits
- *   Reviewer        FSP Search, Inbox, Reports, Standards Search  read-only
+ *   Reviewer        FSP Search, Inbox, Reports, Standards Search  record review milestones on Submitted; no edits/decisions
  *   View All        FSP Search, Inbox, Reports, Standards Search  read-only
  *   Submitter       Submit FSP, Standards Search, Submission Hist edit only while Draft; amend/extend/replace when APP/INE; own org
  *   View Only       Standards Search, Submission History          read-only; own org
@@ -46,14 +46,20 @@ export function canEditFspContent(user: FamLoginUser | null | undefined): boolea
 }
 
 /**
- * Roles permitted to take workflow actions (Administrator, Decision Maker).
- * Per-status scoping (Decision Makers only while a plan is in review) is
- * applied in {@code WorkflowDataTab} and enforced in the backend
- * {@code WorkflowService}. Mirrors backend {@code FspAuthorities.WORKFLOW_DECISION}.
+ * Roles permitted to take workflow actions (Administrator, Decision Maker,
+ * Reviewer). Which action + status each may take is scoped in
+ * {@code WorkflowDataTab} and enforced in the backend {@code WorkflowService}:
+ * Decision Makers act during review (Submitted/OHS); Reviewers may only record
+ * review milestones while Submitted (never decisions). Mirrors backend
+ * {@code FspAuthorities.WORKFLOW_DECISION}.
  */
 export function canActionWorkflow(user: FamLoginUser | null | undefined): boolean {
   const r = effectiveRole(user);
-  return r === 'FSPTS_ADMINISTRATOR' || r === 'FSPTS_DECISION_MAKER';
+  return (
+    r === 'FSPTS_ADMINISTRATOR' ||
+    r === 'FSPTS_DECISION_MAKER' ||
+    r === 'FSPTS_REVIEWER'
+  );
 }
 
 /**

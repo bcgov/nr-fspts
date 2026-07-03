@@ -83,4 +83,37 @@ class WorkflowServiceDdmGuardTest {
         .hasMessageContaining("under review");
     verifyNoInteractions(workflowDao);
   }
+
+  @Test
+  void reviewer_isRejected_submittingADecision() {
+    // A Reviewer may record review milestones only — never a decision. The
+    // action is checked before the status is even read.
+    authenticateAs("FSPTS_REVIEWER");
+
+    WorkflowRequest req = new WorkflowRequest();
+    req.setAction("SAVE_DDM_APP");
+    req.setFspAmendmentNumber("0");
+
+    assertThatThrownBy(() -> service.submitAction("1", req))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("review milestones");
+    verifyNoInteractions(workflowDao);
+  }
+
+  @Test
+  void reviewer_isRejected_savingReviewOutsideSubmitted() {
+    // SAVE_REVIEW is allowed for a Reviewer, but only while Submitted.
+    authenticateAs("FSPTS_REVIEWER");
+    when(fspService.getById("1", "0"))
+        .thenReturn(FspRequest.builder().fspStatusCode("APP").build());
+
+    WorkflowRequest req = new WorkflowRequest();
+    req.setAction("SAVE_REVIEW");
+    req.setFspAmendmentNumber("0");
+
+    assertThatThrownBy(() -> service.submitAction("1", req))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("under review");
+    verifyNoInteractions(workflowDao);
+  }
 }

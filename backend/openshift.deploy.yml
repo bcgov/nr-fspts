@@ -68,6 +68,22 @@ parameters:
   - name: USER_LOOKUP_CLIENT_SECRET
     required: false
     value: ""
+  # ClamAV virus scanning — clamd reached over raw TCP (INSTREAM). Plain
+  # container env (non-sensitive, like AWS_COGNITO_ISSUER_URI); no Secret.
+  - name: CLAMAV_ENABLED
+    required: false
+    value: "true"
+  - name: CLAMAV_HOST
+    required: true
+  - name: CLAMAV_PORT
+    required: false
+    value: "3310"
+  # fail-open=true tolerates a scanner outage (allows the upload); false
+  # rejects it (fail-CLOSED). App default is fail-CLOSED (secure); ephemeral
+  # PR/dev envs that can't reach clamd set this "true" so uploads/e2e work.
+  - name: CLAMAV_FAIL_OPEN
+    required: false
+    value: "false"
   - name: DATABASE_HOST
     required: true
   - name: DATABASE_SERVICE_NAME
@@ -175,6 +191,14 @@ objects:
                     secretKeyRef:
                       name: ${NAME}-backend-secret-${ZONE}
                       key: USER_LOOKUP_CLIENT_SECRET
+                - name: CLAMAV_ENABLED
+                  value: ${CLAMAV_ENABLED}
+                - name: CLAMAV_HOST
+                  value: ${CLAMAV_HOST}
+                - name: CLAMAV_PORT
+                  value: ${CLAMAV_PORT}
+                - name: CLAMAV_FAIL_OPEN
+                  value: ${CLAMAV_FAIL_OPEN}
                 - name: DATABASE_HOST
                   value: ${DATABASE_HOST}
                 - name: DATABASE_SERVICE_NAME

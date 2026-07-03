@@ -160,6 +160,21 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
   }
 
   /**
+   * Handles VirusDetectedException — a throw-style upload rejection from
+   * the virus scanner (infected file, or scanner unavailable under a
+   * fail-closed policy). Maps to 422 (UNPROCESSABLE_ENTITY) with the
+   * rejection's user-facing message as the body.
+   */
+  @ExceptionHandler(VirusDetectedException.class)
+  protected ResponseEntity<Object> handleVirusDetected(VirusDetectedException ex) {
+    ApiError apiError = new ApiError(UNPROCESSABLE_ENTITY);
+    apiError.setMessage(ex.getMessage());
+    log.warn("Upload rejected by virus scanner ({}): {}",
+        ex.getRejection().code(), ex.getMessage());
+    return buildResponseEntity(apiError);
+  }
+
+  /**
    * Map well-known legacy proc error codes (the {@code sil.web.error.*}
    * / {@code FSP.*} strings the procs put in {@code P_ERROR_MESSAGE})
    * to friendly HTTP responses. Unknown proc errors still surface as

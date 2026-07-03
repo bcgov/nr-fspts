@@ -19,7 +19,7 @@ package ca.bc.gov.nrs.fsp.api.security;
  *   <tr><td>ADMINISTRATOR</td><td>yes</td><td>yes</td><td>yes</td></tr>
  *   <tr><td>DECISION_MAKER</td><td>no</td><td>yes (review phase)</td><td>no</td></tr>
  *   <tr><td>SUBMITTER</td><td>yes (own FSPs)</td><td>no</td><td>no</td></tr>
- *   <tr><td>REVIEWER</td><td>no</td><td>no</td><td>no</td></tr>
+ *   <tr><td>REVIEWER</td><td>no</td><td>review milestones only (Submitted)</td><td>no</td></tr>
  *   <tr><td>VIEW_ALL</td><td>no</td><td>no</td><td>no</td></tr>
  *   <tr><td>VIEW_ONLY</td><td>no</td><td>no</td><td>no</td></tr>
  * </table>
@@ -46,12 +46,14 @@ public final class FspAuthorities {
 
   /**
    * Roles permitted to take ministry workflow actions (DDM decision, OTBH,
-   * review milestones, extension decisions). Submitters and read-only roles
-   * are excluded. Status scoping (Decision Makers act only during the review
-   * phase) is enforced in {@code WorkflowService}.
+   * review milestones, extension decisions). Submitter / View-All / View-Only
+   * are excluded. Fine-grained scoping is enforced in {@code WorkflowService}:
+   * Decision Makers act only during the review phase (Submitted / OHS);
+   * Reviewers may only record review milestones ({@code SAVE_REVIEW}) while
+   * Submitted — never decisions. Administrators are unrestricted.
    */
   public static final String WORKFLOW_DECISION =
-      "hasAnyRole('FSPTS_ADMINISTRATOR','FSPTS_DECISION_MAKER')";
+      "hasAnyRole('FSPTS_ADMINISTRATOR','FSPTS_DECISION_MAKER','FSPTS_REVIEWER')";
 
   /** Administrator-only operations (district-notification designates). */
   public static final String ADMINISTRATOR =

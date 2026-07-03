@@ -2,6 +2,7 @@ package ca.bc.gov.nrs.fsp.api.controller.v1;
 
 import ca.bc.gov.nrs.fsp.api.constants.v1.URL;
 import ca.bc.gov.nrs.fsp.api.security.FspAuthorities;
+import ca.bc.gov.nrs.fsp.api.service.v1.VirusScanner;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspRequest;
 import ca.bc.gov.nrs.fsp.api.submission.SubmissionValidationError;
 import ca.bc.gov.nrs.fsp.api.submission.SubmissionValidationResult;
@@ -45,6 +46,7 @@ public class FspSubmissionController {
 
   private final SubmissionValidationService validationService;
   private final SubmissionPersistenceService persistenceService;
+  private final VirusScanner virusScanner;
 
   @PostMapping(value = URL.SUBMISSIONS_VALIDATE, consumes = "multipart/form-data")
   @PreAuthorize(FspAuthorities.CONTENT_EDIT)
@@ -73,7 +75,8 @@ public class FspSubmissionController {
       return ResponseEntity.badRequest().body(missing);
     }
     byte[] xml = file.getBytes();
-    SubmissionValidationResult result = validationService.validate(xml);
+    SubmissionValidationResult result =
+        validationService.validate(xml, file.getOriginalFilename());
     HttpStatus status = result.valid() ? HttpStatus.OK : HttpStatus.UNPROCESSABLE_ENTITY;
     return ResponseEntity.status(status).body(result);
   }
@@ -111,8 +114,21 @@ public class FspSubmissionController {
           SubmissionValidationResult.failed(List.of(SubmissionValidationError.of(
               "UPLOAD_MISSING", "no file part named 'file' was provided")), null));
     }
+    // The main XML/GeoJSON file is virus-scanned inside
+    // validateAndParse (its rejection rides the SubmissionValidationResult
+    // 422). Each attachment is scanned here before persistence — an
+    // infected attachment throws VirusDetectedException → 422.
+    if (attachments != null) {
+      for (MultipartFile attachment : attachments) {
+        if (attachment == null || attachment.isEmpty()) {
+          continue;
+        }
+        virusScanner.scanOrThrow(
+            attachment.getBytes(), attachment.getOriginalFilename());
+      }
+    }
     SubmissionValidationService.ValidationOutcome outcome =
-        validationService.validateAndParse(file.getBytes());
+        validationService.validateAndParse(file.getBytes(), file.getOriginalFilename());
     if (!outcome.result().valid()) {
       return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(outcome.result());
     }

@@ -102,7 +102,7 @@ spec:
             - name: IDENTITY_LOOKUP_BASE_URL
               value: ${IDENTITY_LOOKUP_BASE_URL}
 
-            # ── Oracle DB (consumed by application-oracle.yml) ─
+            # ── Oracle DB (consumed by application.properties) ─
             - name: DATABASE_HOST
               value: ${DATABASE_HOST}
             - name: DATABASE_SERVICE_NAME

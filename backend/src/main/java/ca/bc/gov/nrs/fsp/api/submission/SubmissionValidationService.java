@@ -1,5 +1,6 @@
 package ca.bc.gov.nrs.fsp.api.submission;
 
+import ca.bc.gov.nrs.fsp.api.service.v1.VirusScanner;
 import ca.bc.gov.nrs.fsp.api.submission.geojson.SubmissionGeoJsonParser;
 import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionEnvelopeException;
 import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionEnvelopeStripper;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Phase-1 validation entry point: schema check → JAXB parse with schema
@@ -42,18 +44,44 @@ public class SubmissionValidationService {
   private final DistrictCodeValidator districtCodeValidator;
   private final FduUniquenessValidator fduUniquenessValidator;
   private final SubmissionPreviewMapper previewMapper;
+  private final VirusScanner virusScanner;
 
   public SubmissionValidationResult validate(byte[] xml) {
-    return validateAndParse(xml).result();
+    return validate(xml, null);
+  }
+
+  public SubmissionValidationResult validate(byte[] xml, String filename) {
+    return validateAndParse(xml, filename).result();
+  }
+
+  public ValidationOutcome validateAndParse(byte[] bytes) {
+    return validateAndParse(bytes, null);
   }
 
   /**
    * Variant that also returns the parsed JAXB tree so callers
    * (notably the persistence path) don't have to re-parse on success.
    * On failure, {@code submission} may be null.
+   *
+   * @param filename the uploaded file's name, threaded through purely for the
+   *     virus-scan log line; falls back to {@code "submission"} when the caller
+   *     doesn't have it.
    */
-  public ValidationOutcome validateAndParse(byte[] bytes) {
+  public ValidationOutcome validateAndParse(byte[] bytes, String filename) {
     List<SubmissionValidationError> errors = new ArrayList<>();
+
+    // Virus scan the raw bytes BEFORE parsing/storing. An infected file
+    // short-circuits to a failed result carrying the rejection as a
+    // validation error — the parser never touches it. No-op when
+    // fsp.clamav.enabled=false.
+    String scanName = filename == null || filename.isBlank() ? "submission" : filename;
+    Optional<VirusScanner.Rejection> rejection = virusScanner.check(bytes, scanName);
+    if (rejection.isPresent()) {
+      errors.add(SubmissionValidationError.of(
+          rejection.get().code(), rejection.get().message()));
+      return new ValidationOutcome(
+          SubmissionValidationResult.failed(errors, null), null);
+    }
 
     SubmissionXmlParser.ParseOutcome outcome = switch (detectFormat(bytes)) {
       case XML -> parseXml(bytes, errors);

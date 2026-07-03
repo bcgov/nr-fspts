@@ -12,7 +12,7 @@ and a guide to [pull requests](https://help.github.com/articles/using-pull-reque
 Read the [root README](./README.md) first, then the module READMEs:
 
 - **Backend** — [backend/README.md](./backend/README.md). Needs BC Gov VPN, a
-  gitignored `application-local.yml`, and an Oracle truststore. There is no
+  gitignored `application-local.properties`, and an Oracle truststore. There is no
   local database; the API talks to the shared Oracle.
 - **Frontend** — [frontend/README.md](./frontend/README.md). Needs a
   `frontend/.env` with Cognito config.

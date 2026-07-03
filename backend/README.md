@@ -18,7 +18,7 @@ There is **no local database** — the API connects to the shared BC Gov Oracle.
 You need:
 
 1. **BC Gov VPN** connected (Oracle reachability).
-2. `src/main/resources/application-local.yml` — gitignored; holds the DB
+2. `src/main/resources/application-local.properties` — gitignored; holds the DB
    password, Cognito, and IDIR config the `local` profile reads. (See its
    header comment for the truststore-extraction procedure.)
 3. `src/main/resources/cert/jssecacerts` — the Oracle truststore.
@@ -30,7 +30,7 @@ You need:
 docker compose up                 # backend :8080 + frontend :3000
 
 # Or natively (requires Maven + a JDK 21):
-mvn spring-boot:run               # uses the local profile / application-local.yml
+mvn spring-boot:run               # uses the local profile / application-local.properties
 ```
 
 - API base: <http://localhost:8080>
@@ -81,5 +81,9 @@ src/main/java/ca/bc/gov/nrs/fsp/api/
   [../docs/roles-and-security.md](../docs/roles-and-security.md).
 - **Proc errors** raise `FSP.*` codes; map new ones in `ProcErrorMessages`
   rather than letting them fall through to 500.
+- **Uploads are virus-scanned** (ClamAV `clamd` over raw TCP) before parse or
+  storage. Locally there's no clamd, so the `local` profile fails open — see
+  [../docs/virus-scanning.md](../docs/virus-scanning.md) for config, the
+  fail-open policy, and the cross-namespace NetworkPolicy the deploy needs.
 - Keep services thin; push business rules to the procs (they own the schema and
   the transitions).

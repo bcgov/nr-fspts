@@ -8,12 +8,12 @@
 # Prereqs (host machine):
 #   1. BCGov VPN is connected. Compose can't route traffic to the Oracle
 #      host for you; the reachability comes from your host's routing table.
-#   2. backend/src/main/resources/application-local.yml exists. It's
+#   2. backend/src/main/resources/application-local.properties exists. It's
 #      gitignored and holds the DB password + Cognito + IDIR config that
 #      the `local` profile reads.
 #   3. backend/src/main/resources/cert/jssecacerts exists (the Oracle
 #      truststore). Copy it from a running pod — the procedure is in the
-#      header comment of application-local.yml.
+#      header comment of application-local.properties.
 #   4. frontend/.env exists. Copy frontend/.env.example and fill in the
 #      Cognito client IDs.
 #
@@ -39,11 +39,12 @@ services:
     working_dir: /app
     entrypoint: sh -c "mvn -DskipTests spring-boot:run"
     environment:
-      # Activates application-local.yml AND application-oracle.yml. Spring
-      # merges them; application-local.yml supplies the credentials.
+      # Activates the `local` + `oracle` profiles. The base
+      # application.properties holds the Oracle datasource config;
+      # application-local.properties supplies the credentials.
       SPRING_PROFILES_ACTIVE: local,oracle
       # Override the host-absolute TRUSTSTORE_PATH baked into
-      # application-local.yml. The cert dir is mounted in via ./backend:/app,
+      # application-local.properties. The cert dir is mounted in via ./backend:/app,
       # so this is the equivalent in-container path.
       TRUSTSTORE_PATH: /app/src/main/resources/cert/jssecacerts
     ports: ["8080:8080"]

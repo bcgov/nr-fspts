@@ -153,7 +153,7 @@ src/main/resources/cert/jssecacerts
 # Keep example env file
 !.env.example
 
-# Local Spring profile (contains DB / Jasper credentials — see application-local.yml header)
-src/main/resources/application-local.yml
+# Local Spring profile (contains DB / Jasper credentials — see application-local.properties header)
+src/main/resources/application-local.properties
 
 src/main/resources/static

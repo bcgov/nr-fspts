@@ -51,16 +51,19 @@ public class AttachmentsService {
   private final FspCodeListsDao codeListsDao;
   private final JdbcTemplate jdbcTemplate;
   private final FspAccessGuard accessGuard;
+  private final VirusScanner virusScanner;
 
   public AttachmentsService(
       Fsp400AttachmentsDao attachmentsDao,
       FspCodeListsDao codeListsDao,
       JdbcTemplate jdbcTemplate,
-      FspAccessGuard accessGuard) {
+      FspAccessGuard accessGuard,
+      VirusScanner virusScanner) {
     this.attachmentsDao = attachmentsDao;
     this.codeListsDao = codeListsDao;
     this.jdbcTemplate = jdbcTemplate;
     this.accessGuard = accessGuard;
+    this.virusScanner = virusScanner;
   }
 
   public List<AttachmentResponse> getByFspId(String fspId) {
@@ -126,6 +129,10 @@ public class AttachmentsService {
     // client number, so without this a submitter could attach to any
     // org's FSP. Resolves the latest amendment internally.
     accessGuard.assertContentEditable(fspId, null);
+    // Virus scan the raw bytes before storing — throws
+    // VirusDetectedException (→ 422) on rejection. No-op when
+    // fsp.clamav.enabled=false.
+    virusScanner.scanOrThrow(file.getBytes(), file.getOriginalFilename());
     // Resolve the FSP's current latest amendment number — the old
     // hardcoded "1" tripped FAX_FSP_FK whenever the FSP's amendments
     // didn't include 1 (e.g. original-only FSPs sitting at amendment 0).

@@ -35,7 +35,7 @@ understanding this codebase — see [docs/database.md](docs/database.md).
 
 Prerequisites: BC Gov VPN (for Oracle reachability), Docker, and the local
 config files described in [`compose.yml`](compose.yml) (a gitignored
-`backend/src/main/resources/application-local.yml`, an Oracle truststore, and
+`backend/src/main/resources/application-local.properties`, an Oracle truststore, and
 `frontend/.env`).
 
 ```bash
@@ -54,6 +54,7 @@ OpenAPI/Swagger at `/swagger-ui`.
 | [docs/roles-and-security.md](docs/roles-and-security.md) | The six FSPTS roles, the capability matrix, and how authorization is enforced front-to-back |
 | [docs/database.md](docs/database.md) | How the API talks to the legacy Oracle packages, the ownership fence, and the FSP status state machine |
 | [docs/submissions.md](docs/submissions.md) | The XML / GeoJSON submission pipeline (validate → preview → persist) |
+| [docs/virus-scanning.md](docs/virus-scanning.md) | ClamAV scanning of uploads — config, fail-open policy, cross-namespace NetworkPolicy + secrets |
 | [docs/reports.md](docs/reports.md) | JasperReports PDF/CSV reporting (fills directly against Oracle, bypassing the procs) |
 | [docs/notifications.md](docs/notifications.md) | Email: transactional workflow events + the scheduled district-designate digest |
 | [docs/fam-integration.md](docs/fam-integration.md) | FAM IDIR identity-lookup (in-request user picker + scheduler email resolution) |
