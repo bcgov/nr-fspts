@@ -63,6 +63,13 @@ These need more than a logged-in user:
 - **A directory user for District Notification.** Set
   `E2E_DISTRICT_DESIGNATE` to an IDIR username to add/remove; otherwise
   it falls back to `E2E_IDIR_USER`, and skips if neither is set.
+- **A reachable virus scanner — or fail-open.** The `fsp-lifecycle`
+  spec uploads a file, which the backend virus-scans first. If the
+  target backend has ClamAV enabled and fail-**closed** but can't reach
+  clamd, the upload is rejected with "Virus scan unavailable" and the
+  spec fails at the validate step. Point it at a backend with a reachable
+  clamd, or one running fail-open (`CLAMAV_FAIL_OPEN=true`, the local-dev
+  default). See [../../docs/virus-scanning.md](../../docs/virus-scanning.md).
 
 ## Keeping the DB clean
 

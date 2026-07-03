@@ -56,14 +56,18 @@ flowchart LR
 ## Pipeline
 
 ```
-upload ──▶ detect format ──▶ parse ──▶ validate ──▶ preview ──┐
- (.xml/.json)   { → GeoJSON     (XSD /     (schema +   (what we   │
-                 < → XML         GeoJSON)   geometry +  parsed)    │
-                                            business)              ▼
-                                                            persist (one
-                                                            transaction)
+upload ──▶ scan ──▶ detect format ──▶ parse ──▶ validate ──▶ preview ──┐
+ (.xml/.json) (ClamAV)  { → GeoJSON     (XSD /     (schema +   (what we   │
+                         < → XML         GeoJSON)   geometry +  parsed)    │
+                                                    business)              ▼
+                                                                    persist (one
+                                                                    transaction)
 ```
 
+- **Scan** — the raw bytes are virus-scanned (ClamAV) before anything parses
+  them; an infected or (under a fail-closed policy) unverifiable file short-
+  circuits to a validation error and is never parsed or stored. Attachments are
+  scanned too. See [virus-scanning.md](virus-scanning.md).
 - **Detect** — `SubmissionValidationService.detectFormat`: first non-whitespace
   byte `{` → GeoJSON, `<` → XML.
 - **Validate (dry run)** — `POST /api/v1/fsp/submissions/validate` returns
@@ -99,6 +103,7 @@ amendment to build on, or the submission is rejected up front.
 | Concern | Code |
 |---------|------|
 | Orchestration | `submission/SubmissionValidationService` |
+| Virus scanning | `service/v1/VirusScanner` + `client/ClamAvClient` ([virus-scanning.md](virus-scanning.md)) |
 | XML parse | `submission/parser/SubmissionXmlParser` |
 | GeoJSON parse | `submission/geojson/SubmissionGeoJsonParser` |
 | Validators | `submission/validator/*` |

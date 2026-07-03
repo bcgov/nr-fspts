@@ -50,6 +50,9 @@ jobs:
       keycloak_sa_client_secret: ${{ secrets.KEYCLOAK_SA_CLIENT_SECRET }}
       keycloak_issuer_uri: ${{ secrets.KEYCLOAK_ISSUER_URI }}
       user_lookup_base_url: ${{ secrets.USER_LOOKUP_BASE_URL }}
+      oc_namespace_tools: ${{ secrets.OC_NAMESPACE_TOOLS }}
+      oc_token_tools: ${{ secrets.OC_TOKEN_TOOLS }}
+      clamav_host: ${{ secrets.CLAMAV_HOST }}
     with:
       environment: test
       target: test
@@ -87,6 +90,9 @@ jobs:
 #      keycloak_sa_client_secret: ${{ secrets.KEYCLOAK_SA_CLIENT_SECRET }}
 #      keycloak_issuer_uri: ${{ secrets.KEYCLOAK_ISSUER_URI }}
 #      user_lookup_base_url: ${{ secrets.USER_LOOKUP_BASE_URL }}
+#      oc_namespace_tools: ${{ secrets.OC_NAMESPACE_TOOLS }}
+#      oc_token_tools: ${{ secrets.OC_TOKEN_TOOLS }}
+#      clamav_host: ${{ secrets.CLAMAV_HOST }}
 #    with:
 #      environment: prod
 #      target: prod

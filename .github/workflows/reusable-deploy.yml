@@ -90,6 +90,23 @@ on:
       user_lookup_base_url:
         description: nr-user-lookup-api base URL for this environment.
         required: false
+      oc_namespace_tools:
+        description: |
+          Namespace of the shared clamav clamd (the tools namespace). Set to
+          apply the ingress NetworkPolicy that lets this env's backend reach
+          clamav cross-namespace. Omit to skip (e.g. if clamav isn't used).
+        required: false
+      oc_token_tools:
+        description: |
+          OpenShift token with edit rights in oc_namespace_tools, used only to
+          apply the clamav ingress NetworkPolicy there. Omit to skip.
+        required: false
+      clamav_host:
+        description: |
+          clamd host for the backend's CLAMAV_HOST (e.g.
+          clamav.<tools-namespace>.svc.cluster.local). Required by the backend
+          template — the deploy fails if it isn't provided.
+        required: false
 
     outputs:
       triggered:
@@ -121,9 +138,15 @@ jobs:
     env:
       DATABASE_PASSWORD: ${{ secrets.database_password }}
       KEYSTORE_SECRET: ${{ secrets.keystore_secret }}
+      # CLAMAV_HOST is a secret; route it through env (not inline in
+      # `parameters`) for a single bash expansion, same reasoning as
+      # DATABASE_PASSWORD above.
+      CLAMAV_HOST: ${{ secrets.clamav_host }}
       # Job-level so the step `if:` below can read it (a step's own `env` isn't
       # available to that step's `if`).
       KC_SA_CLIENT_ID: ${{ secrets.keycloak_sa_client_id }}
+      # Same reasoning — gates the clamav NetworkPolicy step below.
+      OC_NAMESPACE_TOOLS: ${{ secrets.oc_namespace_tools }}
     steps:
       # The deployer action checks out internally, but the Keycloak script runs
       # before it, so check out here to make ./.github/scripts available.
@@ -157,6 +180,10 @@ jobs:
           # from the issuer; empty when the issuer isn't set (PR previews).
           USER_LOOKUP_BASE_URL: ${{ secrets.user_lookup_base_url }}
           USER_LOOKUP_TOKEN_URL: ${{ secrets.keycloak_issuer_uri != '' && format('{0}/protocol/openid-connect/token', secrets.keycloak_issuer_uri) || '' }}
+          # nr-fom API base URL — a secret; route through env (not inline in
+          # `parameters`) for a single bash expansion, same as the URLs above.
+          # Empty disables the Associated-FOMs enrichment (column stays blank).
+          FOM_API_URL: ${{ secrets.fom_api_url }}
         with:
           file: backend/openshift.deploy.yml
           oc_namespace: ${{ secrets.oc_namespace }}
@@ -182,12 +209,38 @@ jobs:
             -p USER_LOOKUP_TOKEN_URL="$USER_LOOKUP_TOKEN_URL"
             -p USER_LOOKUP_CLIENT_ID="${{ steps.keycloak_sa.outputs.client_id }}"
             -p USER_LOOKUP_CLIENT_SECRET="$USER_LOOKUP_CLIENT_SECRET"
+            -p FOM_API_URL="$FOM_API_URL"
+            -p CLAMAV_ENABLED="${{ vars.CLAMAV_ENABLED || 'true' }}"
+            -p CLAMAV_HOST="$CLAMAV_HOST"
+            -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"
+            -p CLAMAV_FAIL_OPEN="${{ vars.CLAMAV_FAIL_OPEN || 'false' }}"
             -p DATABASE_HOST="${{ secrets.database_host }}"
             -p DATABASE_SERVICE_NAME="${{ secrets.database_service_name }}"
             -p DATABASE_USER="${{ secrets.database_user }}"
             -p DATABASE_PASSWORD="$DATABASE_PASSWORD"
             -p KEYSTORE_SECRET="$KEYSTORE_SECRET"
           triggers: ${{ inputs.triggers }}
+
+      # Allow this environment's backend to reach the shared clamav clamd,
+      # which lives in a DIFFERENT namespace (tools). The rule is an ingress
+      # policy on the clamav pod, so it's applied INTO tools using a
+      # tools-scoped token — not this app namespace. Skipped when the tools
+      # secrets aren't configured, so deploys without clamav are unaffected.
+      - name: Allow backend → clamav (NetworkPolicy in tools)
+        if: ${{ env.OC_NAMESPACE_TOOLS != '' }}
+        uses: bcgov/action-deployer-openshift@f7bd61ec357fb1dfd1d43f1287bcd21382d06348 # v4.1.0
+        with:
+          file: backend/openshift.clamav-netpol.yml
+          oc_namespace: ${{ secrets.oc_namespace_tools }}
+          oc_server: ${{ vars.oc_server }}
+          oc_token: ${{ secrets.oc_token_tools }}
+          overwrite: true
+          parameters:
+            -p TOOLS_NAMESPACE="${{ secrets.oc_namespace_tools }}"
+            -p SOURCE_NAMESPACE="${{ secrets.oc_namespace }}"
+            -p CLAMAV_POD_LABEL_KEY="${{ vars.CLAMAV_POD_LABEL_KEY || 'app.kubernetes.io/name' }}"
+            -p CLAMAV_POD_APP="${{ vars.CLAMAV_POD_APP || 'clamav' }}"
+            -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"
 
   frontend:
     name: Deploy (frontend)

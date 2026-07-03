@@ -61,7 +61,18 @@ class SubmissionValidationServiceTest {
         noOpValidator(FduUniquenessValidator.class),
         new SubmissionPreviewMapper(
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
-            org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.Sil21ClientSearchDao.class)));
+            org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.Sil21ClientSearchDao.class)),
+        // Scanner disabled → check() is a no-op, so the pipeline runs
+        // exactly as before. A dedicated test below drives the INFECTED
+        // short-circuit with an explicit scanner.
+        disabledScanner());
+  }
+
+  /** A VirusScanner with scanning disabled (default): every check is empty. */
+  private static ca.bc.gov.nrs.fsp.api.service.v1.VirusScanner disabledScanner() {
+    return new ca.bc.gov.nrs.fsp.api.service.v1.VirusScanner(
+        org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.client.ClamAvClient.class),
+        /*enabled=*/ false, /*failOpen=*/ false);
   }
 
   /**
@@ -135,6 +146,52 @@ class SubmissionValidationServiceTest {
         .as("ESF-wrapped submission should be unwrapped and validated identically")
         .isEmpty();
     assertThat(result.valid()).isTrue();
+  }
+
+  @Test
+  void infected_file_short_circuits_with_VIRUS_DETECTED() throws Exception {
+    // Build a scanner whose client reports INFECTED, wire a minimal
+    // service around it (the other collaborators are never reached
+    // because the scan short-circuits before parsing).
+    ca.bc.gov.nrs.fsp.api.client.ClamAvClient infectedClient =
+        org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.client.ClamAvClient.class);
+    org.mockito.Mockito.when(infectedClient.scan(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(ca.bc.gov.nrs.fsp.api.client.ScanResult.infected(
+            "Eicar-Test-Signature", "stream: Eicar-Test-Signature FOUND"));
+    ca.bc.gov.nrs.fsp.api.service.v1.VirusScanner enabledScanner =
+        new ca.bc.gov.nrs.fsp.api.service.v1.VirusScanner(
+            infectedClient, /*enabled=*/ true, /*failOpen=*/ false);
+
+    SchemaValidator schemaValidator = new SchemaValidator();
+    invokePostConstruct(schemaValidator, "compileSchema");
+    SubmissionXmlParser parser = new SubmissionXmlParser(schemaValidator);
+    invokePostConstruct(parser, "initContext");
+    SubmissionValidationService infectedService = new SubmissionValidationService(
+        new SubmissionEnvelopeStripper(), parser,
+        new ca.bc.gov.nrs.fsp.api.submission.geojson.SubmissionGeoJsonParser(
+            new com.fasterxml.jackson.databind.ObjectMapper()),
+        newGeometryValidator(),
+        noOpValidator(ActionCodeContextValidator.class),
+        noOpValidator(LicenceContextValidator.class),
+        noOpValidator(PlanTermValidator.class),
+        noOpValidator(PlanNameValidator.class),
+        noOpValidator(AgreementHolderValidator.class),
+        noOpValidator(DistrictCodeValidator.class),
+        noOpValidator(FduUniquenessValidator.class),
+        new SubmissionPreviewMapper(
+            org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
+            org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.Sil21ClientSearchDao.class)),
+        enabledScanner);
+
+    SubmissionValidationResult result =
+        infectedService.validate(read("valid-mackenzie-96-amend6.xml"));
+
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).hasSize(1);
+    assertThat(result.errors().get(0).code()).isEqualTo("VIRUS_DETECTED");
+    assertThat(result.errors().get(0).message()).contains("Eicar-Test-Signature");
+    // Parser must not have run on an infected file — preview stays null.
+    assertThat(result.preview()).isNull();
   }
 
   @Test

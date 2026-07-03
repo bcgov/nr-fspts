@@ -13,7 +13,7 @@ those packages own the schema, the business rules, and the transitions.
 
 There is **no DB container** for local dev. The backend connects directly to
 the shared Oracle over the BC Gov VPN, using a truststore
-and credentials supplied via the gitignored `application-local.yml`.
+and credentials supplied via the gitignored `application-local.properties`.
 
 ## The packages this app calls
 

@@ -434,6 +434,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
     clientNumber: dash(h.clientNumber),
     clientName: dash(h.clientName),
     agreement: dash(h.agreementDescription),
+    associatedFoms: dash(h.associatedFoms),
   }));
 
 
@@ -803,6 +804,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                   { key: 'clientNumber', header: 'Client #' },
                   { key: 'clientName', header: 'Client name' },
                   { key: 'agreement', header: 'License' },
+                  { key: 'associatedFoms', header: 'Associated FOMs' },
                 ]}
                 isSortable
               >

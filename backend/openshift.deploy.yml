@@ -68,6 +68,29 @@ parameters:
   - name: USER_LOOKUP_CLIENT_SECRET
     required: false
     value: ""
+  # nr-fom (Forest Operations Map) API — fills the FSP-300 "Associated FOMs"
+  # column. Public, no auth. Blank disables enrichment (column stays empty),
+  # so PR previews deploy fine without it. Supplied per environment by the
+  # FOM_API_URL GitHub Actions secret (see reusable-deploy.yml).
+  - name: FOM_API_URL
+    required: false
+    value: ""
+  # ClamAV virus scanning — clamd reached over raw TCP (INSTREAM). Plain
+  # container env (non-sensitive, like AWS_COGNITO_ISSUER_URI); no Secret.
+  - name: CLAMAV_ENABLED
+    required: false
+    value: "true"
+  - name: CLAMAV_HOST
+    required: true
+  - name: CLAMAV_PORT
+    required: false
+    value: "3310"
+  # fail-open=true tolerates a scanner outage (allows the upload); false
+  # rejects it (fail-CLOSED). App default is fail-CLOSED (secure); ephemeral
+  # PR/dev envs that can't reach clamd set this "true" so uploads/e2e work.
+  - name: CLAMAV_FAIL_OPEN
+    required: false
+    value: "false"
   - name: DATABASE_HOST
     required: true
   - name: DATABASE_SERVICE_NAME
@@ -175,6 +198,16 @@ objects:
                     secretKeyRef:
                       name: ${NAME}-backend-secret-${ZONE}
                       key: USER_LOOKUP_CLIENT_SECRET
+                - name: FOM_API_URL
+                  value: ${FOM_API_URL}
+                - name: CLAMAV_ENABLED
+                  value: ${CLAMAV_ENABLED}
+                - name: CLAMAV_HOST
+                  value: ${CLAMAV_HOST}
+                - name: CLAMAV_PORT
+                  value: ${CLAMAV_PORT}
+                - name: CLAMAV_FAIL_OPEN
+                  value: ${CLAMAV_FAIL_OPEN}
                 - name: DATABASE_HOST
                   value: ${DATABASE_HOST}
                 - name: DATABASE_SERVICE_NAME
@@ -358,3 +391,26 @@ objects:
                   network.openshift.io/policy-group: monitoring
       policyTypes:
         - Ingress
+
+  # ── NetworkPolicy: egress — the backend must make outbound connections ──
+  # Oracle (external), Cognito + user-lookup (external HTTPS), SMTP, and clamd
+  # (in-cluster, another namespace). Applied unconditionally: NetworkPolicy
+  # egress is all-or-nothing per pod, so a narrow allow-list would silently
+  # break DB / external access wherever the namespace baseline doesn't already
+  # default-deny egress. Permitting all egress can't reduce access below the
+  # current open baseline, and it guarantees the app side never blocks clamd.
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: ${NAME}-backend-${ZONE}-egress
+      labels:
+        app: ${NAME}-backend-${ZONE}
+        app.kubernetes.io/instance: ${ZONE}
+    spec:
+      podSelector:
+        matchLabels:
+          app: ${NAME}-backend-${ZONE}
+      egress:
+        - {}
+      policyTypes:
+        - Egress

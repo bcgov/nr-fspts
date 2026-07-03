@@ -71,6 +71,10 @@ public class FspRequest extends BaseRequest {
     private String clientNumber;
     private String clientName;
     private String agreementDescription;
+    // Read-path only: comma-joined FOM ids referencing this agreement
+    // holder, filled from the nr-fom API (FomByFspClient). Null on request
+    // bodies the client posts back — the SAVE proc ignores it.
+    private String associatedFoms;
   }
 
   /** One row of the org-units VARRAY (THE.FSP_ORG_UNIT_OBJECT). */

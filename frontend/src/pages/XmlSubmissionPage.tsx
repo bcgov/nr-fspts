@@ -565,7 +565,15 @@ function ValidationNotif({ view, fileName }: { view: ViewState; fileName: string
 // ── Validation issues table (mockup .vtable, s5-errors) ───────────
 
 const VALIDATION_CODE_LABELS: Record<string, string> = {
+  VIRUS_DETECTED: 'Virus detected',
+  VIRUS_SCAN_UNAVAILABLE: 'Virus scan unavailable',
+  UPLOAD_MISSING: 'File missing',
   FORMAT_UNRECOGNIZED: 'Unrecognized file format',
+  ENVELOPE_PARSE_ERROR: 'Envelope parse error',
+  ENVELOPE_UNRECOGNIZED: 'Unrecognized envelope format',
+  ENVELOPE_MISSING_CONTENT: 'Envelope missing content',
+  ENVELOPE_NOT_FSP: 'Envelope does not contain an FSP',
+  ENVELOPE_EXTRACTION_FAILED: 'Could not extract submission from envelope',
   XML_READ: 'XML read failure',
   XML_PARSE: 'XML parse error',
   XSD: 'Schema validation error',
@@ -599,7 +607,15 @@ const VALIDATION_CODE_LABELS: Record<string, string> = {
   INVALID_LEGISLATION_TYPE: 'Invalid legislationTypeCode',
 };
 
-const labelFor = (code: string): string => VALIDATION_CODE_LABELS[code] ?? code;
+// Humanize an unmapped SCREAMING_SNAKE_CASE code as a last resort, so a new
+// backend code never surfaces raw (e.g. NEW_CODE → 'New code').
+const humanizeCode = (code: string): string => {
+  const words = code.replace(/_/g, ' ').trim().toLowerCase();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : code;
+};
+
+const labelFor = (code: string): string =>
+  VALIDATION_CODE_LABELS[code] ?? humanizeCode(code);
 
 // Xerces tags every XSD failure with a "cvc-…:" constraint id; strip it
 // so the human-readable sentence is what shows in the Detail column.

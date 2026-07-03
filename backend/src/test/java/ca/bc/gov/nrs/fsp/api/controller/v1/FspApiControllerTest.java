@@ -278,17 +278,30 @@ class FspApiControllerTest {
   }
 
   @Test
-  void workflowAction_forbiddenForSubmitterAndReviewer() throws Exception {
-    // WORKFLOW_DECISION excludes Submitter and all read-only roles —
-    // only Administrator / Decision Maker may act. Body is valid so the
-    // 403 comes from authorization, not bean validation.
-    for (String role : List.of("FSPTS_SUBMITTER", "FSPTS_REVIEWER", "FSPTS_VIEW_ALL")) {
+  void workflowAction_forbiddenForSubmitterAndReadOnlyRoles() throws Exception {
+    // WORKFLOW_DECISION admits Administrator / Decision Maker / Reviewer.
+    // Submitter and the pure read-only roles (View-All / View-Only) are still
+    // excluded at the authority level. Body is valid so the 403 comes from
+    // authorization, not bean validation.
+    for (String role : List.of("FSPTS_SUBMITTER", "FSPTS_VIEW_ALL", "FSPTS_VIEW_ONLY")) {
       mvc.perform(post("/api/v1/fsp/1/workflow/action")
               .contentType(MediaType.APPLICATION_JSON)
               .content("{\"action\":\"SAVE_REVIEW\"}")
               .with(asRole(role)))
           .andExpect(status().isForbidden());
     }
+  }
+
+  @Test
+  void workflowAction_allowedForReviewer() throws Exception {
+    // Reviewers now reach the endpoint (WORKFLOW_DECISION). The action+status
+    // scoping (only SAVE_REVIEW, only Submitted) is enforced in WorkflowService
+    // — mocked here — so this proves only that the authority gate opens.
+    mvc.perform(post("/api/v1/fsp/1/workflow/action")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"action\":\"SAVE_REVIEW\"}")
+            .with(asRole("FSPTS_REVIEWER")))
+        .andExpect(status().isOk());
   }
 
   @Test

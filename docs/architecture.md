@@ -37,6 +37,7 @@ flowchart LR
     oracle[("Oracle THE<br/>legacy data + PL/SQL<br/>= nr-mof-db")]
     fam["FAM<br/>IDIR identity lookup"]
     smtp["SMTP"]
+    clamav["ClamAV clamd<br/>(upload virus scan)"]
 
     idir & bceid --> spa
     spa -- "JSON + Bearer JWT" --> api
@@ -45,6 +46,7 @@ flowchart LR
     api -- "stored procs (JDBC)" --> oracle
     api -- "user lookup" --> fam
     api -- "email" --> smtp
+    api -- "scan uploads (INSTREAM)" --> clamav
 ```
 
 Submissions used to arrive over a sixth dependency — the external **ESF** queue
@@ -160,7 +162,7 @@ See [roles-and-security.md](roles-and-security.md) for steps 2–5 and
 
 ## External integrations
 
-The API depends on four BC Gov services:
+The API depends on five BC Gov services:
 
 | System | Used for | Doc |
 |--------|----------|-----|
@@ -168,6 +170,7 @@ The API depends on four BC Gov services:
 | **Cognito** | Authentication (IDIR / BCeID Business JWTs) | [roles-and-security.md](roles-and-security.md) |
 | **FAM** | IDIR identity lookup (user picker + digest email resolution) | [fam-integration.md](fam-integration.md) |
 | **SMTP** | Outgoing email (workflow events + designate digest) | [notifications.md](notifications.md) |
+| **ClamAV** | Virus-scanning every uploaded file (clamd over raw TCP) | [virus-scanning.md](virus-scanning.md) |
 
 Submissions used to arrive via a fifth — the external **ESF** queue — now
 replaced by direct upload ([submissions.md](submissions.md#background-bringing-esf-in-house)).
@@ -178,3 +181,10 @@ OpenShift via GitHub Actions (`.github/workflows/`). The frontend is served by
 Caddy (reverse-proxying `/api/*` to the backend Service); the backend runs as a
 container connecting to the shared Oracle. Local dev mirrors this with
 `compose.yml`.
+
+The backend also scans uploads against a **ClamAV clamd** that lives in the
+shared **tools** namespace. Reaching it cross-namespace needs an ingress
+`NetworkPolicy` applied into tools (`backend/openshift.clamav-netpol.yml`, via
+the "Allow backend → clamav" deploy step), which requires the `OC_NAMESPACE_TOOLS`
+/ `OC_TOKEN_TOOLS` secrets. Everything ClamAV — config env vars, the fail-open
+policy, and this networking — is in [virus-scanning.md](virus-scanning.md).

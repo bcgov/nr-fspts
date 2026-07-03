@@ -87,7 +87,7 @@ public class SubmissionToFspRequestMapper {
     // let the proc resolve the rest.
     return list.getClientCode().stream()
         .filter(code -> code != null && !code.isBlank())
-        .map(code -> new FspRequest.AgreementHolder(code, null, null))
+        .map(code -> new FspRequest.AgreementHolder(code, null, null, null))
         .toList();
   }
 

@@ -235,6 +235,31 @@ public class WorkflowService {
       }
     }
 
+    // Reviewers may only RECORD REVIEW MILESTONES (SAVE_REVIEW), and only while
+    // the plan is Submitted. Decisions (DDM / OTBH / extension) stay with
+    // Decision Makers / Administrators. The endpoint now admits Reviewers (via
+    // WORKFLOW_DECISION), so this is the authoritative action+status fence
+    // mirroring enableReviewEdits in WorkflowDataTab. Fail-closed if the status
+    // can't be read. (Effective role is single, so this never overlaps Admin/DM.)
+    if (RequestUtil.isCurrentUserReviewer()) {
+      if (!"SAVE_REVIEW".equals(requestedAction)) {
+        throw new IllegalArgumentException(
+            "Reviewers can only record review milestones, not workflow decisions.");
+      }
+      String status = "";
+      try {
+        FspRequest current = fspService.getById(fspId, amendment);
+        if (current != null) status = nz(current.getFspStatusCode());
+      } catch (RuntimeException e) {
+        log.warn("Reviewer review-phase check could not read FSP {} status: {}",
+            fspId, e.getMessage());
+      }
+      if (!"SUB".equals(status.toUpperCase())) {
+        throw new IllegalArgumentException(
+            "Reviewers can only action the workflow while a plan is under review (Submitted).");
+      }
+    }
+
     // Capture the PRE-save status code so publishEmailFor can apply the
     // legacy "DDM/admin just adjusting dates → don't email" guard. Done
     // here (inside the transaction, before the mutation) because after
