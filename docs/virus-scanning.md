@@ -48,7 +48,7 @@ All via env (defaults in `application.properties`):
 | Env var | Default | Purpose |
 |---------|---------|---------|
 | `CLAMAV_ENABLED` | `true` | Master switch. `false` = skip scanning entirely (no-op). |
-| `CLAMAV_HOST` | — | clamd host, e.g. `clamav.e4ba30-tools.svc.cluster.local`. |
+| `CLAMAV_HOST` | — (**required**) | clamd host, e.g. `clamav.<tools-namespace>.svc.cluster.local`. No default — the deploy fails unless it's set (GitHub **secret** `CLAMAV_HOST` per environment, threaded through `reusable-deploy.yml`). |
 | `CLAMAV_PORT` | `3310` | clamd TCP port. |
 | `CLAMAV_FAIL_OPEN` | `false` | See above. `true` tolerates a scanner outage. |
 | `CLAMAV_CONNECT_TIMEOUT` | `5s` | Socket connect timeout. |
@@ -72,8 +72,7 @@ clamav scan: 'doc.pdf' (1024 bytes) → UNAVAILABLE (connection refused) — fai
 
 ## Deployment — reaching clamd across namespaces
 
-clamd runs in the shared **tools** namespace (`e4ba30-tools`), not the app
-namespace. The backend's own namespace doesn't restrict egress, so the block is
+clamd runs in the shared **tools** namespace, not the app namespace. The backend's own namespace doesn't restrict egress, so the block is
 on the **receiving** side: the clamd pod only accepts traffic that an ingress
 `NetworkPolicy` in the tools namespace allows.
 
@@ -92,16 +91,17 @@ Set these per GitHub Environment (`dev`, `test`, later `prod`), threaded through
 
 | Secret | Value |
 |--------|-------|
-| `OC_NAMESPACE_TOOLS` | tools namespace, e.g. `e4ba30-tools` |
-| `OC_TOKEN_TOOLS` | token for a service account in that namespace with `edit` |
+| `CLAMAV_HOST` | clamd host — **required** for the backend deploy (the template has no default) |
+| `OC_NAMESPACE_TOOLS` | the tools namespace where clamd runs (only for the NetworkPolicy step) |
+| `OC_TOKEN_TOOLS` | token for a service account in that namespace with `edit` (only for the NetworkPolicy step) |
 
 The app-namespace `oc_token` has no rights in tools, hence the separate token.
 Minting one:
 
 ```bash
-oc -n e4ba30-tools create sa fspts-netpol
-oc -n e4ba30-tools adm policy add-role-to-user edit -z fspts-netpol
-oc -n e4ba30-tools create token fspts-netpol --duration=8760h
+oc -n <tools-namespace> create sa fspts-netpol
+oc -n <tools-namespace> adm policy add-role-to-user edit -z fspts-netpol
+oc -n <tools-namespace> create token fspts-netpol --duration=8760h
 ```
 
 The clamd pod selector defaults to `app: clamav`; override without code changes

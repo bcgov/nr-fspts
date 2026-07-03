@@ -92,7 +92,7 @@ on:
         required: false
       oc_namespace_tools:
         description: |
-          Namespace of the shared clamav clamd (e.g. e4ba30-tools). Set to
+          Namespace of the shared clamav clamd (the tools namespace). Set to
           apply the ingress NetworkPolicy that lets this env's backend reach
           clamav cross-namespace. Omit to skip (e.g. if clamav isn't used).
         required: false
@@ -100,6 +100,12 @@ on:
         description: |
           OpenShift token with edit rights in oc_namespace_tools, used only to
           apply the clamav ingress NetworkPolicy there. Omit to skip.
+        required: false
+      clamav_host:
+        description: |
+          clamd host for the backend's CLAMAV_HOST (e.g.
+          clamav.<tools-namespace>.svc.cluster.local). Required by the backend
+          template — the deploy fails if it isn't provided.
         required: false
 
     outputs:
@@ -132,6 +138,10 @@ jobs:
     env:
       DATABASE_PASSWORD: ${{ secrets.database_password }}
       KEYSTORE_SECRET: ${{ secrets.keystore_secret }}
+      # CLAMAV_HOST is a secret; route it through env (not inline in
+      # `parameters`) for a single bash expansion, same reasoning as
+      # DATABASE_PASSWORD above.
+      CLAMAV_HOST: ${{ secrets.clamav_host }}
       # Job-level so the step `if:` below can read it (a step's own `env` isn't
       # available to that step's `if`).
       KC_SA_CLIENT_ID: ${{ secrets.keycloak_sa_client_id }}
@@ -196,7 +206,7 @@ jobs:
             -p USER_LOOKUP_CLIENT_ID="${{ steps.keycloak_sa.outputs.client_id }}"
             -p USER_LOOKUP_CLIENT_SECRET="$USER_LOOKUP_CLIENT_SECRET"
             -p CLAMAV_ENABLED="${{ vars.CLAMAV_ENABLED || 'true' }}"
-            -p CLAMAV_HOST="${{ vars.CLAMAV_HOST }}"
+            -p CLAMAV_HOST="$CLAMAV_HOST"
             -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"
             -p CLAMAV_FAIL_OPEN="${{ vars.CLAMAV_FAIL_OPEN || 'false' }}"
             -p DATABASE_HOST="${{ secrets.database_host }}"

@@ -18,10 +18,10 @@ metadata:
   name: nr-fspts-clamav-netpol
 parameters:
   - name: TOOLS_NAMESPACE
-    description: Namespace where the shared clamav clamd runs (e.g. e4ba30-tools).
+    description: Namespace where the shared clamav clamd runs (the tools namespace).
     required: true
   - name: SOURCE_NAMESPACE
-    description: App namespace being allowed to reach clamav (e.g. e4ba30-dev).
+    description: App namespace being allowed to reach clamav (this deploy's namespace).
     required: true
   - name: CLAMAV_POD_APP
     description: Value of the label that selects the clamav pods in tools.

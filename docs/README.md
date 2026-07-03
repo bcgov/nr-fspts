@@ -7,6 +7,7 @@ start. These docs go deeper:
 |-----|---------------------------|
 | [architecture.md](architecture.md) | Understand the layers, the request flow, and the stored-procedure DAO pattern that defines this codebase |
 | [roles-and-security.md](roles-and-security.md) | Know what each of the six FSPTS roles can do and how authorization is enforced front-to-back |
+| [permission-matrix.md](permission-matrix.md) | See the role permissions broken out **by FSP status** (activity × state × role) — a draft matrix for client confirmation |
 | [database.md](database.md) | Work with the legacy Oracle packages (`nr-mof-db`), the ownership fence, or the status state machine |
 | [submissions.md](submissions.md) | Touch the XML / GeoJSON submission pipeline |
 | [submission-geojson-spec.md](submission-geojson-spec.md) | Hand a client the GeoJSON upload format spec |
