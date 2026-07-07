@@ -384,7 +384,7 @@ public class FspApiController implements FspApiEndpoint {
         return ResponseEntity.noContent().build();
     }
 
-    // --- FAM IDIR directory lookup ---
+    // --- IDIR directory lookup (nr-user-lookup-api) ---
 
     @Override
     public ResponseEntity<UserSearchResponse> searchUsers(

@@ -93,12 +93,17 @@ public class FspAccessGuard {
    * top of {@link #assertWritable}'s ownership fence:
    *
    * <ul>
-   *   <li><b>Administrator</b> — editable in any status <em>except</em>
-   *       Approved (APP), In-Effect (INE) or Submitted (SUB).</li>
+   *   <li><b>Administrator</b> — editable in <em>every</em> status
+   *       (FSPTS Permission Matrix B1, client-confirmed 2026-07-06).</li>
    *   <li><b>Submitter</b> — editable only while Draft (DFT).</li>
    *   <li>any other effective role — never (defense-in-depth; the endpoint is
    *       already gated by {@code FspAuthorities.CONTENT_EDIT}).</li>
    * </ul>
+   *
+   * <p>This governs <b>general content</b> (Information / Stocking Standards /
+   * FDU). Attachments (matrix B2) are more permissive — Decision Maker /
+   * Reviewer may edit them while a plan is under review — and must go through
+   * {@link #assertAttachmentEditable} instead.</p>
    *
    * <p>Amend / Extend / Replace are a separate flow and must NOT call this —
    * they are valid for Administrator / Submitter on Approved / In-Effect plans
@@ -130,7 +135,7 @@ public class FspAccessGuard {
     String role = RequestUtil.getEffectiveRole();
     boolean editable;
     if (FsptsRoles.ADMINISTRATOR.equals(role)) {
-      editable = !"APP".equals(status) && !"INE".equals(status) && !"SUB".equals(status);
+      editable = true; // matrix B1 — Administrator edits content in any status
     } else if (FsptsRoles.SUBMITTER.equals(role)) {
       editable = "DFT".equals(status);
     } else {
@@ -139,6 +144,66 @@ public class FspAccessGuard {
 
     if (!editable) {
       log.info("Content edit to FSP {} amd {} denied: role={} status={}",
+          fspIdLong, amendment, role, status);
+      throw denyStatus(fspId, status, role);
+    }
+  }
+
+  /**
+   * Assert the current user may EDIT/UPLOAD ATTACHMENTS in the FSP's current
+   * status — matrix section B2, which is more permissive than general content
+   * ({@link #assertContentEditable}) because the ministry attaches review
+   * documents while a plan is under decision:
+   *
+   * <ul>
+   *   <li><b>Administrator</b> — any status.</li>
+   *   <li><b>Submitter</b> — Draft (DFT) only.</li>
+   *   <li><b>Decision Maker</b> — Submitted (SUB) or Opportunity-to-be-Heard
+   *       (OHS).</li>
+   *   <li><b>Reviewer</b> — Submitted (SUB) only.</li>
+   *   <li>any other effective role — never.</li>
+   * </ul>
+   *
+   * <p>Runs the {@link #assertWritable} ownership fence first, then the
+   * per-status role check. Throws a 403-mapped {@link StoredProcedureException}
+   * on violation; fails closed if the status can't be read.
+   */
+  public void assertAttachmentEditable(String fspId, String amendmentNumber) {
+    assertWritable(fspId, amendmentNumber);
+
+    final long fspIdLong;
+    try {
+      fspIdLong = Long.parseLong(fspId);
+    } catch (NumberFormatException e) {
+      throw deny(fspId, "non-numeric fsp id");
+    }
+
+    Long amendment = parseAmendment(amendmentNumber);
+    if (amendment == null) {
+      amendment = latestAmendment(fspIdLong);
+    }
+
+    String status = currentStatus(fspIdLong, amendment);
+    if (status.isEmpty()) {
+      throw deny(fspId, "status unavailable");
+    }
+
+    String role = RequestUtil.getEffectiveRole();
+    boolean editable;
+    if (FsptsRoles.ADMINISTRATOR.equals(role)) {
+      editable = true;
+    } else if (FsptsRoles.SUBMITTER.equals(role)) {
+      editable = "DFT".equals(status);
+    } else if (FsptsRoles.DECISION_MAKER.equals(role)) {
+      editable = "SUB".equals(status) || "OHS".equals(status);
+    } else if (FsptsRoles.REVIEWER.equals(role)) {
+      editable = "SUB".equals(status);
+    } else {
+      editable = false;
+    }
+
+    if (!editable) {
+      log.info("Attachment edit to FSP {} amd {} denied: role={} status={}",
           fspIdLong, amendment, role, status);
       throw denyStatus(fspId, status, role);
     }

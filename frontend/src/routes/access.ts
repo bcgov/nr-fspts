@@ -6,13 +6,19 @@ import type { FamLoginUser, ROLE_TYPE } from '@/context/auth/types';
  * FspAuthorities (@PreAuthorize) + the WorkflowService / FspAccessGuard status
  * checks. Menu, page, and capability gating all derive from the one role.
  *
+ * Source of truth: FSPTS Permission Matrix (by status), client-confirmed
+ * 2026-07-06. Key rules encoded below:
+ *
  *   Role            Menus                                         Edit / action
- *   Administrator   all except Submission History                 edit unless APP/INE/SUB; amend/extend/replace; workflow (any)
- *   Decision Maker  FSP Search, Inbox, Reports, Standards Search  workflow on Submitted only; no edits
- *   Reviewer        FSP Search, Inbox, Reports, Standards Search  record review milestones on Submitted; no edits/decisions
- *   View All        FSP Search, Inbox, Reports, Standards Search  read-only
- *   Submitter       Submit FSP, Standards Search, Submission Hist edit only while Draft; amend/extend/replace when APP/INE; own org
- *   View Only       Standards Search, Submission History          read-only; own org
+ *   Administrator   all except Submission History                 edit content in ANY status; amend/extend/replace; workflow: clarification/reverse/revert/extension (NOT the review decisions)
+ *   Decision Maker  FSP Search, Inbox, Reports, Standards Search  no content edits (attachments on SUB/OHS); all review decisions
+ *   Reviewer        FSP Search, Inbox, Reports, Standards Search  no content edits (attachments on SUB); all review decisions
+ *   View All        FSP Search, Inbox, Reports, Standards Search  read-only; sees APP/INE/REJ only
+ *   Submitter       Submit FSP, Standards Search, Submission Hist edit content + attachments only while Draft; amend/extend/replace when APP/INE; own org
+ *   View Only       Standards Search, Submission History          read-only; own org (all statuses)
+ *
+ * Attachments (B2) are a separate, more permissive rule than general content
+ * (B1) — see {@link canEditAttachments} vs {@link canEditFsp}.
  */
 
 /** Internal (ministry) roles — share a menu set, never client-tied. */
@@ -46,11 +52,13 @@ export function canEditFspContent(user: FamLoginUser | null | undefined): boolea
 }
 
 /**
- * Roles permitted to take workflow actions (Administrator, Decision Maker,
- * Reviewer). Which action + status each may take is scoped in
- * {@code WorkflowDataTab} and enforced in the backend {@code WorkflowService}:
- * Decision Makers act during review (Submitted/OHS); Reviewers may only record
- * review milestones while Submitted (never decisions). Mirrors backend
+ * Roles permitted to reach the workflow actions (Administrator, Decision
+ * Maker, Reviewer). Which action + status each may take is scoped in
+ * {@code WorkflowDataTab} and enforced in the backend {@code WorkflowService}
+ * per FSPTS Permission Matrix section D:
+ * Decision Maker + Reviewer own the review decisions (milestones, Approve,
+ * Reject, Offer/Record OTBH); the Administrator is excluded from those but
+ * keeps request-clarification, extension, and reverse/revert. Mirrors backend
  * {@code FspAuthorities.WORKFLOW_DECISION}.
  */
 export function canActionWorkflow(user: FamLoginUser | null | undefined): boolean {
@@ -63,12 +71,12 @@ export function canActionWorkflow(user: FamLoginUser | null | undefined): boolea
 }
 
 /**
- * Per-FSP content-edit gate (Information / Attachments / Stocking Standards /
- * FDU). Status rules:
+ * Per-FSP <b>general content</b>-edit gate (Information / Stocking Standards /
+ * FDU spatial) — matrix section B1. Attachments have their own, more
+ * permissive rule: {@link canEditAttachments}. Status rules:
  *
  * <ul>
- *   <li><b>Administrator</b> — editable in every status <em>except</em>
- *       Approved, In-Effect, or Submitted.</li>
+ *   <li><b>Administrator</b> — editable in <em>every</em> status.</li>
  *   <li><b>Submitter</b> — editable only while the plan is a Draft.</li>
  *   <li>everyone else — never editable.</li>
  * </ul>
@@ -83,8 +91,37 @@ export function canEditFsp(
 ): boolean {
   const r = effectiveRole(user);
   const s = (fspStatusCode ?? '').toUpperCase();
-  if (r === 'FSPTS_ADMINISTRATOR') return !['APP', 'INE', 'SUB'].includes(s);
+  if (r === 'FSPTS_ADMINISTRATOR') return true;
   if (r === 'FSPTS_SUBMITTER') return s === 'DFT';
+  return false;
+}
+
+/**
+ * Per-FSP <b>attachment</b>-edit/upload gate — matrix section B2, which is
+ * more permissive than general content edits ({@link canEditFsp}) because the
+ * ministry attaches review documents while a plan is under decision:
+ *
+ * <ul>
+ *   <li><b>Administrator</b> — every status.</li>
+ *   <li><b>Submitter</b> — Draft only (own org).</li>
+ *   <li><b>Decision Maker</b> — Submitted and Opportunity-to-be-Heard.</li>
+ *   <li><b>Reviewer</b> — Submitted only.</li>
+ *   <li>everyone else — never.</li>
+ * </ul>
+ *
+ * Ownership (own-org) is enforced server-side by the FSP access guard; this
+ * governs the per-status affordance only.
+ */
+export function canEditAttachments(
+  user: FamLoginUser | null | undefined,
+  fspStatusCode: string | null | undefined,
+): boolean {
+  const r = effectiveRole(user);
+  const s = (fspStatusCode ?? '').toUpperCase();
+  if (r === 'FSPTS_ADMINISTRATOR') return true;
+  if (r === 'FSPTS_SUBMITTER') return s === 'DFT';
+  if (r === 'FSPTS_DECISION_MAKER') return s === 'SUB' || s === 'OHS';
+  if (r === 'FSPTS_REVIEWER') return s === 'SUB';
   return false;
 }
 

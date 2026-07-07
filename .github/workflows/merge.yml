@@ -53,6 +53,7 @@ jobs:
       oc_namespace_tools: ${{ secrets.OC_NAMESPACE_TOOLS }}
       oc_token_tools: ${{ secrets.OC_TOKEN_TOOLS }}
       clamav_host: ${{ secrets.CLAMAV_HOST }}
+      fom_api_url: ${{ secrets.FOM_API_URL }}
     with:
       environment: test
       target: test
@@ -93,6 +94,7 @@ jobs:
 #      oc_namespace_tools: ${{ secrets.OC_NAMESPACE_TOOLS }}
 #      oc_token_tools: ${{ secrets.OC_TOKEN_TOOLS }}
 #      clamav_host: ${{ secrets.CLAMAV_HOST }}
+#      fom_api_url: ${{ secrets.FOM_API_URL }}
 #    with:
 #      environment: prod
 #      target: prod

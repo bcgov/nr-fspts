@@ -45,12 +45,32 @@ public final class FspAuthorities {
       "hasAnyRole('FSPTS_ADMINISTRATOR','FSPTS_SUBMITTER')";
 
   /**
-   * Roles permitted to take ministry workflow actions (DDM decision, OTBH,
-   * review milestones, extension decisions). Submitter / View-All / View-Only
-   * are excluded. Fine-grained scoping is enforced in {@code WorkflowService}:
-   * Decision Makers act only during the review phase (Submitted / OHS);
-   * Reviewers may only record review milestones ({@code SAVE_REVIEW}) while
-   * Submitted — never decisions. Administrators are unrestricted.
+   * Roles permitted to edit/upload ATTACHMENTS (matrix B2 — more permissive
+   * than {@link #CONTENT_EDIT} because the ministry attaches review documents
+   * while a plan is under decision). Admin / Submitter / Decision Maker /
+   * Reviewer may reach the endpoint; the per-status rule (e.g. DM only on
+   * SUB/OHS, Reviewer only on SUB, Submitter only on Draft) is enforced in
+   * {@code FspAccessGuard.assertAttachmentEditable}. View-All / View-Only
+   * excluded.
+   */
+  public static final String ATTACHMENT_EDIT =
+      "hasAnyRole('FSPTS_ADMINISTRATOR','FSPTS_SUBMITTER',"
+          + "'FSPTS_DECISION_MAKER','FSPTS_REVIEWER')";
+
+  /**
+   * Roles permitted to reach the ministry workflow endpoint (DDM decision,
+   * OTBH, review milestones, extension decisions). Submitter / View-All /
+   * View-Only are excluded here. The fine-grained per-action / per-status
+   * matrix (FSPTS Permission Matrix section D) is enforced in
+   * {@code WorkflowService.assertWorkflowActionAllowed}:
+   * <ul>
+   *   <li>Approve / Reject / review-milestone / Offer-OTBH / Record-OTBH —
+   *       Decision Maker + Reviewer (<b>Administrator excluded</b>).</li>
+   *   <li>Request clarification (SAVE_DDM_DFT) — Admin + DM + Reviewer.</li>
+   *   <li>Extension decision (SAVE_EXT_*) — Admin + DM.</li>
+   * </ul>
+   * Administrator is admitted at this coarse gate because it still owns
+   * request-clarification, extension, and the reverse/revert corrections.
    */
   public static final String WORKFLOW_DECISION =
       "hasAnyRole('FSPTS_ADMINISTRATOR','FSPTS_DECISION_MAKER','FSPTS_REVIEWER')";

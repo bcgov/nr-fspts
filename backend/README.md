@@ -7,8 +7,9 @@ stateless OAuth2 resource server over the legacy Oracle PL/SQL packages — see
 stored-procedure pattern that defines it.
 
 - **Java 21**, **Spring Boot 3.5**
-- Web (Undertow), WebFlux (FAM identity-lookup client), JDBC (`ojdbc11`),
-  Validation, AOP, Cache, Mail, Actuator
+- Web (Undertow), JDBC (`ojdbc11`), Validation, AOP, Cache, Mail, Actuator
+- Outbound REST (`RestClient`): nr-user-lookup-api (IDIR/BCeID directory),
+  nr-fom (Associated FOMs)
 - OAuth2 **resource server** (Cognito JWTs) + method security (`@PreAuthorize`)
 - Stored-procedure DAOs (no ORM); OpenAPI via springdoc
 

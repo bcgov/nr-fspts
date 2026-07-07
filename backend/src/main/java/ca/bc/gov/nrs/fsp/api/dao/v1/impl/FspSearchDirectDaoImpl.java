@@ -213,12 +213,23 @@ public class FspSearchDirectDaoImpl implements FspSearchDirectDao {
         + " fsp.fsp_id DESC, fsp.fsp_amendment_number DESC";
   }
 
+  // FSPTS Permission Matrix section A (client-confirmed 2026-07-06):
+  //   View All  → APP / INE / REJ  (REJ added; was APP/INE).
+  //   View Only → own-org, ALL statuses (was restricted to APP/INE).
+  // Both surface here in the direct-search visibility filter. NOTE: this only
+  // governs the SEARCH-RESULTS list on the direct-query path. The proc
+  // rollback path (FSP_100_SEARCH.get_search_criteria) and the FSP-detail
+  // read fence (fsp_tombstone.user_may_access, hit when a row is opened) live
+  // in nr-mof-db and must be updated there for full parity.
+  private static final String VIEW_ALL_STATUSES = "('APP','INE','REJ')";
+
   /**
-   * Role/client visibility — verbatim port of get_search_criteria. The
-   * proc's {@code fah.client_number = X} predicates become EXISTS
-   * semi-joins (no FAH join in the outer query). IF/ELSIF order is
-   * preserved exactly, including the quirk that an Administrator who also
-   * holds View-All is restricted to APP/INE.
+   * Role/client visibility — port of get_search_criteria, updated for the
+   * 2026-07-06 matrix (see {@link #VIEW_ALL_STATUSES}). The proc's
+   * {@code fah.client_number = X} predicates become EXISTS semi-joins (no FAH
+   * join in the outer query). IF/ELSIF order is preserved; under the
+   * single-effective-role model the {@code viewAll && submitter} branch is
+   * effectively dead but kept for structural parity.
    */
   private static void appendVisibility(
       SearchCriteria c, List<String> where, MapSqlParameterSource params) {
@@ -229,13 +240,14 @@ public class FspSearchDirectDaoImpl implements FspSearchDirectDao {
     String client = isBlank(c.userClientNumber()) ? null : c.userClientNumber().trim();
 
     if (viewAll && submitter) {
-      // APP/INE, OR own-client FSPs; a null client sees everything.
+      // View-All statuses, OR own-client FSPs; a null client sees everything.
       if (client != null) {
-        where.add("(fsp.fsp_status_code IN ('APP','INE') OR " + ahExists("accessClient") + ")");
+        where.add("(fsp.fsp_status_code IN " + VIEW_ALL_STATUSES
+            + " OR " + ahExists("accessClient") + ")");
         params.addValue("accessClient", client);
       }
     } else if (viewAll) {
-      where.add("fsp.fsp_status_code IN ('APP','INE')");
+      where.add("fsp.fsp_status_code IN " + VIEW_ALL_STATUSES);
     } else if (submitter) {
       if (client != null) {
         where.add(ahExists("accessClient"));
@@ -243,8 +255,9 @@ public class FspSearchDirectDaoImpl implements FspSearchDirectDao {
       }
       // null client → ministry user → no restriction (proc: 1 = 1)
     } else if (viewOnly) {
+      // View Only now sees ALL statuses for its own org (matrix A) — the
+      // status filter is dropped; the own-client fence stays.
       if (client != null) {
-        where.add("fsp.fsp_status_code IN ('APP','INE')");
         where.add(ahExists("accessClient"));
         params.addValue("accessClient", client);
       } else {

@@ -199,7 +199,7 @@ public interface FspApiEndpoint {
     ResponseEntity<List<CodeOption>> getAttachmentCategories(@PathVariable String fspId);
 
     @PostMapping(value = URL.ATTACHMENTS, consumes = "multipart/form-data")
-    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
+    @PreAuthorize(FspAuthorities.ATTACHMENT_EDIT)
     @Operation(summary = "Upload an attachment via FSP_400_ATTACHMENTS.CREATE_ATTACHMENT + SAVE_ATTACHMENT_CONTENT")
     ResponseEntity<AttachmentResponse> uploadAttachment(
             @PathVariable String fspId,
@@ -214,7 +214,7 @@ public interface FspApiEndpoint {
             @PathVariable String fspId, @PathVariable Long attachmentId);
 
     @DeleteMapping(URL.ATTACHMENT_BY_ID)
-    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
+    @PreAuthorize(FspAuthorities.ATTACHMENT_EDIT)
     @Operation(summary = "Delete an attachment via FSP_400_ATTACHMENTS.REMOVE_ATTACHMENT")
     ResponseEntity<Void> deleteAttachment(
             @PathVariable String fspId, @PathVariable Long attachmentId);
@@ -395,7 +395,7 @@ public interface FspApiEndpoint {
     @Operation(summary = "Remove a district notification designate by id")
     ResponseEntity<Void> removeDistrictDesignate(@PathVariable String designateId);
 
-    // --- FAM IDIR directory lookup ---
+    // --- IDIR directory lookup (nr-user-lookup-api) ---
 
     @GetMapping(URL.USER_SEARCH)
     @Operation(summary = "Search IDIR users via nr-user-lookup-api")

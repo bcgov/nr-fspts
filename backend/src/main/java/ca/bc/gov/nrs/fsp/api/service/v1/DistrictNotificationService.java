@@ -17,7 +17,7 @@ import java.util.List;
  * by designate id.
  *
  * <p>Display-name + email enrichment is done client-side after the
- * list renders — the page fires parallel FAM lookups in the background
+ * list renders — the page fires parallel nr-user-lookup-api lookups in the background
  * so the table appears immediately rather than waiting on N upstream
  * round trips.</p>
  */

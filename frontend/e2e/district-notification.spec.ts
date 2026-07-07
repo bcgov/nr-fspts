@@ -5,7 +5,7 @@ import { gotoPage, PAGES } from './helpers/nav';
 /**
  * District Notification admin flow: add an individual IDIR designate to
  * a district, confirm they appear, then remove them and confirm they're
- * gone. Real backend (FAM identity lookup + the district-notification
+ * gone. Real backend (nr-user-lookup-api directory lookup + the district-notification
  * proc), so it needs:
  *
  *   * an admin (FSPTS_ADMINISTRATOR) storageState, and

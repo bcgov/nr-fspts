@@ -54,9 +54,11 @@ class FspSearchDirectDaoBuildSqlTest {
   }
 
   @Test
-  void viewAll_restrictsToApprovedAndInEffect() {
+  void viewAll_restrictsToApprovedInEffectAndRejected() {
     Built b = build(roleOnly("FSP_VIEW_ALL,", null), null);
-    assertThat(b.sql()).contains("fsp.fsp_status_code IN ('APP','INE')");
+    // Matrix A (client-confirmed 2026-07-06): View All sees Approved /
+    // In-Effect / Rejected (REJ added).
+    assertThat(b.sql()).contains("fsp.fsp_status_code IN ('APP','INE','REJ')");
     assertThat(b.sql()).doesNotContain(AH_EXISTS_FRAGMENT);
   }
 
@@ -78,10 +80,13 @@ class FspSearchDirectDaoBuildSqlTest {
   }
 
   @Test
-  void viewOnlyWithClient_restrictsToOwnApprovedFsps() {
+  void viewOnlyWithClient_restrictsToOwnOrgAllStatuses() {
     Built b = build(roleOnly("FSP_VIEW_ONLY,", "00012345"), null);
-    assertThat(b.sql()).contains("fsp.fsp_status_code IN ('APP','INE')");
+    // Matrix A (client-confirmed 2026-07-06): View Only sees its own org's
+    // FSPs in ANY status — the own-client fence stays, the status filter is
+    // dropped.
     assertThat(b.sql()).contains(AH_EXISTS_FRAGMENT);
+    assertThat(b.sql()).doesNotContain("IN ('APP','INE')");
     assertThat(b.params().getValue("accessClient")).isEqualTo("00012345");
   }
 
@@ -94,8 +99,8 @@ class FspSearchDirectDaoBuildSqlTest {
   @Test
   void viewAllAndSubmitterWithClient_seesApprovedOrOwn() {
     Built b = build(roleOnly("FSP_VIEW_ALL,FSP_SUBMITTER,", "00012345"), null);
-    // (APP/INE OR own-client) as a single OR group.
-    assertThat(b.sql()).contains("(fsp.fsp_status_code IN ('APP','INE') OR ");
+    // (APP/INE/REJ OR own-client) as a single OR group.
+    assertThat(b.sql()).contains("(fsp.fsp_status_code IN ('APP','INE','REJ') OR ");
     assertThat(b.sql()).contains(AH_EXISTS_FRAGMENT);
     assertThat(b.params().getValue("accessClient")).isEqualTo("00012345");
   }

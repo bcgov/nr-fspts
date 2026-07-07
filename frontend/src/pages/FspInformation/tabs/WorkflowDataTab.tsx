@@ -14,6 +14,7 @@ import { Add, Edit } from '@carbon/icons-react';
 import { type FC, type ReactNode, useEffect, useState } from 'react';
 
 import DdmDecisionEditModal, {
+  type DdmDecisionChoice,
   type DdmDecisionSubmitPayload,
 } from '@/components/DdmDecisionEditModal';
 import ExtensionDecisionEditModal, {
@@ -139,69 +140,85 @@ const Field: FC<FieldEntry> = ({ label, value }) => (
 // a single boolean rather than re-implementing role + status logic
 // at every call site.
 
+// FSPTS Permission Matrix section D (client-confirmed 2026-07-06). The
+// review decisions (milestones, comments, Approve, Reject, Offer/Record
+// OTBH) belong to Decision Maker + Reviewer — the Administrator is dashed
+// out of those cells. Admin keeps request-clarification, extension, and the
+// reverse/revert corrections. Backend mirror:
+// WorkflowService.assertWorkflowActionAllowed.
+
+// Record review milestone / comments (SAVE_REVIEW) — DM + Reviewer, only
+// while Submitted. Administrator excluded.
 const enableReviewEdits = (
   status: string | null | undefined,
   roles: FspWorkflowRoles,
 ): boolean => {
-  const s = (status ?? '').toUpperCase();
-  // Legacy: disabled in DFT/OHS-already-sent; enabled only when SUB.
-  // OHS technically appears in the role check below but is short-circuited
-  // by the early-out at the top of enableReviewDetails().
-  if (s !== 'SUB') return false;
-  return roles.isReviewer || roles.isDecisionMaker || roles.isAdministrator;
+  if ((status ?? '').toUpperCase() !== 'SUB') return false;
+  return roles.isDecisionMaker || roles.isReviewer;
 };
 
+// Offer Opportunity to be Heard (SAVE_OTBH_OFFERED) — DM + Reviewer, while
+// Submitted or Approved. Administrator excluded; the Submitter's matrix Y is
+// held pending client clarification and so is not granted here.
 const enableOtbhOfferedEdit = (
   status: string | null | undefined,
   roles: FspWorkflowRoles,
 ): boolean => {
   const s = (status ?? '').toUpperCase();
-  if (s === 'DFT' || s === 'OHS') return false;
-  if (!roles.isDecisionMaker && !roles.isAdministrator) return false;
-  // SUB for everyone; after that only Administrators (canUpdateApproved).
-  // Decision Makers get Submitted only.
-  return s === 'SUB' || canUpdateApproved(roles);
+  if (s !== 'SUB' && s !== 'APP') return false;
+  return roles.isDecisionMaker || roles.isReviewer;
 };
 
+// Record OTBH heard (SAVE_OTBH_HEARD) — DM + Reviewer, only while OHS.
 const enableOtbhHeardEdit = (
   status: string | null | undefined,
   roles: FspWorkflowRoles,
 ): boolean => {
-  const s = (status ?? '').toUpperCase();
-  if (s !== 'OHS') return false;
-  return roles.isDecisionMaker || roles.isAdministrator;
+  if ((status ?? '').toUpperCase() !== 'OHS') return false;
+  return roles.isDecisionMaker || roles.isReviewer;
 };
 
+// DDM decision dialog (SAVE_DDM_APP / _DFT / _REJ). Which decisions are
+// offered depends on the role — see allowedDdmDecisions. On Submitted the
+// dialog opens for DM + Reviewer (all three) and for the Administrator
+// (Request-clarification only). Administrators retain the post-approval
+// date-correction window on APP.
 const enableDdmEdit = (
   status: string | null | undefined,
   roles: FspWorkflowRoles,
-): boolean => {
+): boolean => allowedDdmDecisions(status, roles).length > 0;
+
+// The DDM decision choices a given role may take in the current status,
+// per matrix D (revision post-[82]). On Submitted: DM + Reviewer get all
+// three (Approve / Request-clarification / Reject); the Administrator gets
+// Approve + Request-clarification but NOT Reject (still dashed out of Reject).
+// On an already-approved plan the Administrator may edit the recorded
+// approval's dates (APP).
+const allowedDdmDecisions = (
+  status: string | null | undefined,
+  roles: FspWorkflowRoles,
+): DdmDecisionChoice[] => {
   const s = (status ?? '').toUpperCase();
-  if (!roles.isDecisionMaker && !roles.isAdministrator) return false;
-  // Administrators may record a decision while Submitted and amend it
-  // after approval (APP). Decision Makers act only during the review
-  // phase — Submitted — and never re-open a decided plan.
-  if (roles.isAdministrator) return s === 'SUB' || s === 'APP';
-  return s === 'SUB';
+  if (s === 'SUB') {
+    if (roles.isDecisionMaker || roles.isReviewer) return ['APP', 'DFT', 'REJ'];
+    if (roles.isAdministrator) return ['APP', 'DFT'];
+    return [];
+  }
+  // Post-approval date correction of the recorded decision stays Admin-only.
+  if (s === 'APP') return roles.isAdministrator ? ['APP'] : [];
+  return [];
 };
 
+// Extension decision (SAVE_EXT_*) — Admin + DM, once an extension row is
+// open. Reviewer excluded.
 const enableExtensionEdit = (
   status: string | null | undefined,
   extension: FspExtensionDecision,
   roles: FspWorkflowRoles,
 ): boolean => {
   if (isBlank(extension.statusCode)) return false;
-  // Extension decisions act on already-approved (In-Effect) plans, which
-  // is outside the Decision Maker's review-phase scope — Administrator
-  // only.
-  return roles.isAdministrator;
+  return roles.isAdministrator || roles.isDecisionMaker;
 };
-
-// Admin-only: edits to a decision (or OTBH) after the review phase.
-// Decision Makers act only while a plan is Submitted, never after, so
-// they no longer get the post-approval (INE) window they once did.
-const canUpdateApproved = (roles: FspWorkflowRoles): boolean =>
-  roles.isAdministrator;
 
 const ddmHasData = (ddm: FspDdmDecision): boolean =>
   !isBlank(ddm.statusCode) ||
@@ -709,6 +726,7 @@ const WorkflowDataTab: FC<Props> = ({
         open={ddmModalOpen}
         value={state.ddmDecision}
         currentStatusCode={state.fspStatusCode}
+        allowedDecisions={allowedDdmDecisions(fspStatusCode, roles)}
         onClose={() => setDdmModalOpen(false)}
         onSubmit={handleDdmSave}
       />
