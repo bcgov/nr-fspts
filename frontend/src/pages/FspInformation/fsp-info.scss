@@ -195,15 +195,27 @@
   .fsp-species-modal__form {
     padding-block-end: 1rem;
   }
+  // No .cds--modal-content override here on purpose: Carbon's default grid
+  // (header / content=1fr overflow-y:auto / footer) already sizes the modal
+  // to its content and scrolls only when it would exceed the viewport. The
+  // custom action row sits at the end of the content and rides that same
+  // scroll, matching every other dialog.
 
-  // Carbon's Modal puts `overflow-y: auto` on .cds--modal-content so a
-  // long form can scroll. That same overflow clips the absolutely-
-  // positioned ComboBox listbox in DistrictPickerModal — the autocomplete
-  // dropdown gets cut off at the modal's bottom edge instead of floating
-  // above it. Letting the modal content overflow visibly fixes the clip;
-  // the forms in these dialogs are short enough that scrolling isn't
-  // relevant in practice. Pair with a high z-index on the listbox so it
-  // sits above the modal footer when it does spill out.
+  // When the content scrolls, Carbon adds .cds--modal-scroll-content with a
+  // bottom `mask-image` fade (~48-80px) to hint at more content. Because our
+  // Cancel / Save row is the last child of the content, that fade shades and
+  // clips the buttons. These dialogs keep the actions in-body, so drop the
+  // fade — the buttons must stay fully opaque and clickable.
+  .cds--modal-scroll-content {
+    mask-image: none;
+  }
+}
+
+// Opt-in override for dialogs whose Carbon ComboBox / autocomplete listbox
+// would otherwise be clipped by the modal's scroll overflow
+// (DistrictPickerModal). Those forms are short, so trading the scroll for a
+// visible overflow is safe. Applied via `fsp-species-modal--overflow-visible`.
+.fsp-species-modal--overflow-visible {
   .cds--modal-content {
     overflow: visible;
   }

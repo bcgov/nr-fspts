@@ -32,6 +32,15 @@ interface DdmDecisionEditModalProps {
   value: FspDdmDecision;
   /** Current FSP status — used to pre-select the matching decision radio. */
   currentStatusCode: string | null;
+  /**
+   * Decision choices the current user may take, per FSPTS Permission Matrix
+   * section D (e.g. an Administrator on Submitted gets {@code ['DFT']} only —
+   * they are dashed out of Approve/Reject; a DM/Reviewer gets all three).
+   * Choices outside this set are rendered disabled, and the initial
+   * selection is forced onto an allowed choice. Defaults to all three when
+   * omitted.
+   */
+  allowedDecisions?: DdmDecisionChoice[];
   onClose: () => void;
   /**
    * Submit a fresh decision (or update an existing one). Modal awaits
@@ -95,10 +104,13 @@ const transitionBanner = (decision: DdmDecisionChoice): string => {
  * hack. The RadioButtonGroup makes the mutual exclusion structural,
  * and conditional date fields keep the form short.
  */
+const ALL_DECISIONS: DdmDecisionChoice[] = ['APP', 'DFT', 'REJ'];
+
 const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   open,
   value,
   currentStatusCode,
+  allowedDecisions = ALL_DECISIONS,
   onClose,
   onSubmit,
 }) => {
@@ -107,9 +119,19 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
     () => decisionFromStatus(currentStatusCode),
     [currentStatusCode],
   );
-  const [decision, setDecision] = useState<DdmDecisionChoice>(
-    prevDecision ?? 'APP',
-  );
+  const isAllowed = (choice: DdmDecisionChoice): boolean =>
+    allowedDecisions.includes(choice);
+  // Initial selection: the persisted decision when the user may still take
+  // it, otherwise the first choice they are allowed (so an Administrator
+  // restricted to Request-clarification lands on DFT rather than a disabled
+  // Approve radio).
+  const initialDecision = useMemo<DdmDecisionChoice>(() => {
+    if (prevDecision && allowedDecisions.includes(prevDecision)) {
+      return prevDecision;
+    }
+    return allowedDecisions[0] ?? prevDecision ?? 'APP';
+  }, [prevDecision, allowedDecisions]);
+  const [decision, setDecision] = useState<DdmDecisionChoice>(initialDecision);
   const [decisionDate, setDecisionDate] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('');
   const [comment, setComment] = useState('');
@@ -125,11 +147,11 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   // last time and then closed without saving.
   useEffect(() => {
     if (!open) return;
-    setDecision(prevDecision ?? 'APP');
+    setDecision(initialDecision);
     setDecisionDate(value.decisionDate ?? isoToday());
     setEffectiveDate(value.effectiveDate ?? '');
     setComment(value.comment ?? '');
-  }, [open, prevDecision, value]);
+  }, [open, initialDecision, value]);
 
   const needsEffectiveDate = decision === 'APP';
   const needsComment = decision === 'DFT';
@@ -202,28 +224,30 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
             orientation="vertical"
             onChange={(v) => setDecision(v as DdmDecisionChoice)}
           >
+            {/* Approve / Reject are disabled for roles the matrix dashes
+                out of them (e.g. an Administrator, who may only Request
+                clarification). isAllowed() carries that per-role gate. */}
             <RadioButton
               id="ddm-decision-app"
               labelText={DECISION_LABEL.APP}
               value="APP"
-              disabled={saving}
+              disabled={saving || !isAllowed('APP')}
             />
-            {/* Reject and Request Clarification are locked once the FSP
-                has been approved (APP / INE). The DDM Decision dialog
-                in this state can only adjust the existing Approve
-                row's dates and comment — flipping to REJ/DFT after an
-                approval is no longer allowed. */}
+            {/* Reject and Request Clarification are also locked once the
+                FSP has been approved (APP / INE): in that state the dialog
+                can only adjust the existing Approve row's dates and comment
+                — flipping to REJ/DFT after an approval is not allowed. */}
             <RadioButton
               id="ddm-decision-dft"
               labelText={DECISION_LABEL.DFT}
               value="DFT"
-              disabled={saving || isApproved}
+              disabled={saving || isApproved || !isAllowed('DFT')}
             />
             <RadioButton
               id="ddm-decision-rej"
               labelText={DECISION_LABEL.REJ}
               value="REJ"
-              disabled={saving || isApproved}
+              disabled={saving || isApproved || !isAllowed('REJ')}
             />
           </RadioButtonGroup>
           {isApproved && (
@@ -296,12 +320,6 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
             invalidText="Comment is required for Request Clarification."
             onChange={(e) => setComment(e.target.value)}
           />
-
-          {value.name && (
-            <p className="fsp-info__placeholder" style={{ marginBottom: 0 }}>
-              Decided by <strong>{value.name}</strong>.
-            </p>
-          )}
         </div>
         <div className="fsp-species-modal__actions">
           <Button kind="secondary" disabled={saving} onClick={closeDialog}>

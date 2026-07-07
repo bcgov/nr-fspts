@@ -32,8 +32,8 @@ import {
   type UserSummary,
 } from '@/services/fspSearch';
 
-// Designate IDIRs are stored with the AD prefix ("IDIR\MAVILLEN"); FAM
-// expects the bare name. Strip whatever sits ahead of the last backslash.
+// Designate IDIRs are stored with the AD prefix ("IDIR\MAVILLEN"); the
+// user-lookup API expects the bare name. Strip whatever sits ahead of the last backslash.
 const stripIdirPrefix = (idir: string): string => {
   const idx = idir.lastIndexOf('\\');
   return idx >= 0 ? idir.slice(idx + 1) : idir;
@@ -56,7 +56,7 @@ const DistrictNotificationPage: FC = () => {
   const [codeListsLoading, setCodeListsLoading] = useState(true);
 
   // Form state — only the district matters; designate IDIR comes
-  // entirely from the FAM user-search modal pick.
+  // entirely from the user-search modal pick.
   const [orgUnitNo, setOrgUnitNo] = useState('');
 
   // Results state — null = no query yet, [] = queried but empty.
@@ -68,7 +68,7 @@ const DistrictNotificationPage: FC = () => {
   // open with that designate's IDIR username in the confirmation text;
   // hitting Cancel sets it back to null without firing the API call.
   const [pendingDelete, setPendingDelete] = useState<NotificationDesignate | null>(null);
-  // FAM IDIR lookup popup state. The "Find user" button opens it; on
+  // IDIR lookup popup state. The "Find user" button opens it; on
   // Select the picked user's userId flows into newIdir so Add reuses
   // the same SAVE path as the previous manual-entry flow.
   const [userSearchOpen, setUserSearchOpen] = useState(false);
@@ -118,7 +118,7 @@ const DistrictNotificationPage: FC = () => {
     try {
       const rows = await getDistrictDesignates(orgUnit);
       setDesignates(rows);
-      // Kick off FAM profile lookups in the background. The list is
+      // Kick off nr-user-lookup-api profile lookups in the background. The list is
       // already visible at this point; displayName/email cells render
       // as "—" until the lookups resolve.
       if (rows.length > 0) {
@@ -132,7 +132,7 @@ const DistrictNotificationPage: FC = () => {
     }
   }, []);
 
-  // Fetches each row's FAM profile in parallel, then merges the
+  // Fetches each row's nr-user-lookup-api profile in parallel, then merges the
   // displayName + email back into state in a single update. Bails if
   // the user picked a different district while the lookups were in
   // flight (enrichmentOrgUnitRef guards against stale painting).
@@ -184,7 +184,7 @@ const DistrictNotificationPage: FC = () => {
     [loadDesignates],
   );
 
-  // FAM user-picker callback. Selecting a row in the user-search modal
+  // User-picker callback. Selecting a row in the user-search modal
   // is the entire "add a designate" gesture — there's no intermediate
   // text input or separate "Add" button. The picked userId goes
   // straight to the SAVE endpoint; on success we reload the table.
@@ -291,7 +291,7 @@ const DistrictNotificationPage: FC = () => {
           </div>
         </div>
 
-        {/* Add-designate trigger, right-aligned. Clicking opens the FAM
+        {/* Add-designate trigger, right-aligned. Clicking opens the
             user-search modal; picking a user there is the entire add
             gesture (handleUserPicked fires SAVE directly, no separate
             Add button). Kept inside the form Tile so it sits next to

@@ -127,8 +127,10 @@ public class AttachmentsService {
       throws IOException {
     // Ownership fence: the attachment proc doesn't thread the caller's
     // client number, so without this a submitter could attach to any
-    // org's FSP. Resolves the latest amendment internally.
-    accessGuard.assertContentEditable(fspId, null);
+    // org's FSP. Resolves the latest amendment internally. Attachments use
+    // the B2 rule (Admin any status; Submitter Draft; DM on SUB/OHS;
+    // Reviewer on SUB) — see FspAccessGuard.assertAttachmentEditable.
+    accessGuard.assertAttachmentEditable(fspId, null);
     // Virus scan the raw bytes before storing — throws
     // VirusDetectedException (→ 422) on rejection. No-op when
     // fsp.clamav.enabled=false.
@@ -163,7 +165,7 @@ public class AttachmentsService {
 
   @Transactional
   public void delete(String fspId, Long attachmentId) {
-    accessGuard.assertContentEditable(fspId, null);
+    accessGuard.assertAttachmentEditable(fspId, null);
     attachmentsDao.removeAttachment(
         Long.valueOf(fspId), findLatestAmendmentNumber(fspId), attachmentId);
   }

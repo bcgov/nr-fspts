@@ -21,7 +21,7 @@ import { type FC, useEffect, useState } from 'react';
 
 import { useAuth } from '@/context/auth/useAuth';
 import { useNotification } from '@/context/notification/useNotification';
-import { canEditFsp } from '@/routes/access';
+import { canEditAttachments } from '@/routes/access';
 import {
   type CodeOption,
   downloadFspAttachment,
@@ -37,8 +37,8 @@ interface Props {
   refreshKey?: number;
   /**
    * Current FSP status code — gates the Add Attachment button via
-   * canEditFsp. Submitter-only users on SUB and View-Only on any
-   * status get a read-only tab.
+   * canEditAttachments (matrix B2): Admin any status; Submitter Draft;
+   * Decision Maker on SUB/OHS; Reviewer on SUB; read-only otherwise.
    */
   fspStatusCode?: string | null;
 }
@@ -77,7 +77,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
   const { user } = useAuth();
   // Submitter-only on SUB and View-Only never see add affordances.
   // Other roles fall through to existing behaviour.
-  const canEdit = canEditFsp(user, fspStatusCode);
+  const canEdit = canEditAttachments(user, fspStatusCode);
   const [rows, setRows] = useState<FspAttachmentRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

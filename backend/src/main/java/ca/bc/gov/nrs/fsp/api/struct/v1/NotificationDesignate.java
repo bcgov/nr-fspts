@@ -10,10 +10,10 @@ import lombok.NoArgsConstructor;
  * username that gets CC'd on FSP-200 notification emails for a given
  * org unit.
  *
- * <p>Legacy returned an email address too, looked up via WebADE; that
- * path isn't ported (we don't have an IDIR identity-lookup service
- * wired up yet). Field is kept on the DTO for forward-compat — it'll
- * be null until the lookup is plumbed in.</p>
+ * <p>Legacy returned an email address too, looked up via WebADE. The
+ * backend leaves this field null; the UI enriches display-name + email
+ * client-side via nr-user-lookup-api after the list renders. Field is
+ * kept on the DTO for forward-compat.</p>
  */
 @Data
 @Builder

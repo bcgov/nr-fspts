@@ -1399,7 +1399,7 @@ export interface NotificationDesignate {
   emailAddress?: string | null;
 }
 
-// ── FAM IDIR directory lookup ─────────────────────────────────────
+// ── IDIR directory lookup (nr-user-lookup-api) ────────────────────
 
 export interface UserSummary {
   userId: string;
@@ -1425,7 +1425,7 @@ export interface UserSearchParams {
   size?: number;
 }
 
-/** GET /api/v1/fsp/users/search — passes through to the FAM identity-lookup API. */
+/** GET /api/v1/fsp/users/search — passes through to nr-user-lookup-api. */
 export async function searchUsers(params: UserSearchParams): Promise<UserSearchResponse> {
   const qs = new URLSearchParams();
   if (params.userId) qs.set('userId', params.userId);

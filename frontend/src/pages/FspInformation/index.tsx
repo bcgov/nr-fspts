@@ -159,10 +159,15 @@ const FspInformationPage: FC = () => {
 
   const statusDesc = fsp?.fspStatusDesc?.trim() ?? '';
   // Delete is gated by the legacy status CODE (not the human description)
-  // since the description varies by locale / future renames. DFT is the
-  // only state the UI exposes — the proc itself also accepts REJ, but
-  // hiding that here matches the product spec ("draft only").
-  const canDelete = canModify && fsp?.fspStatusCode === 'DFT';
+  // since the description varies by locale / future renames. FSPTS
+  // Permission Matrix section C (client-confirmed 2026-07-06) allows Delete
+  // on a Draft (DFT) OR a Rejected (REJ) plan — a rejected FSP is terminal,
+  // so removing it is the only lifecycle action left. The proc accepts both;
+  // role scoping (Admin / Submitter-own-org) is enforced by canModify + the
+  // backend access guard.
+  const deletableStatus =
+    fsp?.fspStatusCode === 'DFT' || fsp?.fspStatusCode === 'REJ';
+  const canDelete = canModify && deletableStatus;
   // Amendment vs base-FSP detection drives both the button label and
   // the post-delete routing. Amendment number > 0 = an amendment; 0 /
   // missing = the original FSP. Treat NaN as 0 so a bad URL doesn't

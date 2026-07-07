@@ -105,7 +105,7 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
       modalHeading="Add district"
       passiveModal
       size="sm"
-      className="fsp-species-modal"
+      className="fsp-species-modal fsp-species-modal--overflow-visible"
       onRequestClose={closeDialog}
       preventCloseOnClickOutside
     >

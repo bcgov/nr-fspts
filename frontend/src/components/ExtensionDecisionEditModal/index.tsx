@@ -174,7 +174,13 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
           subtitle=""
         />
         {extensionLabel && (
-          <p className="fsp-info__placeholder" style={{ marginTop: 0 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.875rem',
+              color: 'var(--cds-text-secondary, #525252)',
+            }}
+          >
             <strong>Extension:</strong> {extensionLabel}
           </p>
         )}
@@ -265,12 +271,6 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
           disabled={saving}
           onChange={(e) => setComment(e.target.value)}
         />
-
-        {value.name && (
-          <p className="fsp-info__placeholder" style={{ marginBottom: 0 }}>
-            Decided by <strong>{value.name}</strong>.
-          </p>
-        )}
       </div>
       <div className="fsp-species-modal__actions">
         <Button kind="secondary" disabled={saving} onClick={closeDialog}>

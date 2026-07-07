@@ -213,52 +213,20 @@ public class WorkflowService {
     String userId = RequestUtil.getCurrentAuditUserId();
     String amendment = nz(request.getFspAmendmentNumber());
 
-    // Decision Makers act only during the review phase (Submitted / OHS):
-    // they cannot touch the workflow once a plan is Draft, Approved, In
-    // Effect, or Rejected. Administrators have no such restriction, and
-    // Submitters / read-only roles never reach here (the endpoint is gated
-    // by FspAuthorities.WORKFLOW_DECISION). Defense-in-depth mirror of the
-    // UI gates in WorkflowDataTab; fail-closed if the status can't be read.
-    if (RequestUtil.isCurrentUserDecisionMaker() && !RequestUtil.isCurrentUserAdmin()) {
-      String status = "";
-      try {
-        FspRequest current = fspService.getById(fspId, amendment);
-        if (current != null) status = nz(current.getFspStatusCode());
-      } catch (RuntimeException e) {
-        log.warn("DDM review-phase check could not read FSP {} status: {}", fspId, e.getMessage());
-      }
-      String s = status.toUpperCase();
-      if (!"SUB".equals(s) && !"OHS".equals(s)) {
-        throw new IllegalArgumentException(
-            "Decision Makers can only action the workflow while a plan is under "
-                + "review (Submitted).");
-      }
+    // FSPTS Permission Matrix section D (client-confirmed 2026-07-06) — the
+    // authoritative per-action / per-role / per-status workflow fence. The
+    // endpoint gate (FspAuthorities.WORKFLOW_DECISION) admits only Admin / DM /
+    // Reviewer; this narrows each action to the roles + status the matrix
+    // allows. Fail-closed if the status can't be read.
+    String currentStatusUpper = "";
+    try {
+      FspRequest current = fspService.getById(fspId, amendment);
+      if (current != null) currentStatusUpper = nz(current.getFspStatusCode()).toUpperCase();
+    } catch (RuntimeException e) {
+      log.warn("Workflow authz could not read FSP {} status (failing closed): {}",
+          fspId, e.getMessage());
     }
-
-    // Reviewers may only RECORD REVIEW MILESTONES (SAVE_REVIEW), and only while
-    // the plan is Submitted. Decisions (DDM / OTBH / extension) stay with
-    // Decision Makers / Administrators. The endpoint now admits Reviewers (via
-    // WORKFLOW_DECISION), so this is the authoritative action+status fence
-    // mirroring enableReviewEdits in WorkflowDataTab. Fail-closed if the status
-    // can't be read. (Effective role is single, so this never overlaps Admin/DM.)
-    if (RequestUtil.isCurrentUserReviewer()) {
-      if (!"SAVE_REVIEW".equals(requestedAction)) {
-        throw new IllegalArgumentException(
-            "Reviewers can only record review milestones, not workflow decisions.");
-      }
-      String status = "";
-      try {
-        FspRequest current = fspService.getById(fspId, amendment);
-        if (current != null) status = nz(current.getFspStatusCode());
-      } catch (RuntimeException e) {
-        log.warn("Reviewer review-phase check could not read FSP {} status: {}",
-            fspId, e.getMessage());
-      }
-      if (!"SUB".equals(status.toUpperCase())) {
-        throw new IllegalArgumentException(
-            "Reviewers can only action the workflow while a plan is under review (Submitted).");
-      }
-    }
+    assertWorkflowActionAllowed(requestedAction, currentStatusUpper);
 
     // Capture the PRE-save status code so publishEmailFor can apply the
     // legacy "DDM/admin just adjusting dates → don't email" guard. Done
@@ -356,6 +324,99 @@ public class WorkflowService {
     WorkflowState state = getWorkflowState(fspId);
     publishEmailFor(fspId, amendment, request, oldStatusCode, state);
     return state;
+  }
+
+  /**
+   * Authoritative per-action workflow authorization — FSPTS Permission Matrix
+   * section D (client-confirmed 2026-07-06). Effective role is single, so at
+   * most one of the flags below is set. The matrix inverts the legacy model:
+   *
+   * <ul>
+   *   <li><b>Review decisions</b> — {@code SAVE_REVIEW} (milestone/comments),
+   *       {@code SAVE_DDM_REJ} (reject), {@code SAVE_OTBH_OFFERED},
+   *       {@code SAVE_OTBH_HEARD} — belong to <b>Decision Maker + Reviewer</b>.
+   *       <b>Administrator is excluded</b> from these.</li>
+   *   <li>{@code SAVE_DDM_APP} (approve) — Administrator + Decision Maker +
+   *       Reviewer (matrix revision post-[82] restored Admin's Approve; Reject
+   *       stays DM/Reviewer only).</li>
+   *   <li>{@code SAVE_DDM_DFT} (request clarification, back to Draft) —
+   *       Administrator + Decision Maker + Reviewer.</li>
+   *   <li>{@code SAVE_EXT_APP} / {@code SAVE_EXT_REJ} (extension decision) —
+   *       Administrator + Decision Maker (Reviewer excluded).</li>
+   * </ul>
+   *
+   * <p>plus the per-action status window: Approve / Reject / milestone /
+   * request-clarification only while <b>Submitted</b>; Offer OTBH while
+   * Submitted or Approved; Record OTBH heard only while Opportunity-to-be-Heard.
+   * Extension decisions carry no extra status gate here (the frontend only
+   * surfaces them once an extension row is open; the proc enforces the rest).
+   *
+   * <p>Submitter's matrix Y on Offer-OTBH + Reject is intentionally <b>NOT</b>
+   * granted — held pending client clarification — and Submitters never reach
+   * this method anyway (the endpoint gate excludes them). Throws
+   * {@link IllegalArgumentException} (→ 400) on violation, matching the other
+   * request-shape guards in this method.
+   */
+  private void assertWorkflowActionAllowed(String action, String statusUpper) {
+    boolean isAdmin = RequestUtil.isCurrentUserAdmin();
+    boolean isDm = RequestUtil.isCurrentUserDecisionMaker();
+    boolean isReviewer = RequestUtil.isCurrentUserReviewer();
+    // Review decisions are the Decision Maker + Reviewer domain; Admin is
+    // dashed out of these cells in the matrix.
+    boolean reviewDecider = isDm || isReviewer;
+
+    switch (action) {
+      case "SAVE_REVIEW" -> { // record review milestone / comments
+        requireRole(reviewDecider, action, "a Decision Maker or Reviewer");
+        requireStatus("SUB".equals(statusUpper), action, "Submitted");
+      }
+      case "SAVE_DDM_APP" -> { // approve — Admin + DM + Reviewer
+        requireRole(isAdmin || reviewDecider, action,
+            "an Administrator, Decision Maker or Reviewer");
+        requireStatus("SUB".equals(statusUpper), action, "Submitted");
+      }
+      case "SAVE_DDM_REJ" -> { // reject — DM + Reviewer only (Admin excluded)
+        requireRole(reviewDecider, action, "a Decision Maker or Reviewer");
+        requireStatus("SUB".equals(statusUpper), action, "Submitted");
+      }
+      case "SAVE_DDM_DFT" -> { // request clarification (back to Draft)
+        requireRole(isAdmin || reviewDecider, action,
+            "an Administrator, Decision Maker or Reviewer");
+        requireStatus("SUB".equals(statusUpper), action, "Submitted");
+      }
+      case "SAVE_OTBH_OFFERED" -> { // offer opportunity to be heard
+        requireRole(reviewDecider, action, "a Decision Maker or Reviewer");
+        requireStatus("SUB".equals(statusUpper) || "APP".equals(statusUpper),
+            action, "Submitted or Approved");
+      }
+      case "SAVE_OTBH_HEARD" -> { // record OTBH heard
+        requireRole(reviewDecider, action, "a Decision Maker or Reviewer");
+        requireStatus("OHS".equals(statusUpper), action, "Opportunity to be Heard");
+      }
+      case "SAVE_EXT_APP", "SAVE_EXT_REJ" -> { // extension decision
+        requireRole(isAdmin || isDm, action, "an Administrator or Decision Maker");
+      }
+      default -> {
+        // No other action codes reach submitAction (the SPA emits only the
+        // eight above). Leave unknown actions to the proc rather than
+        // silently allowing a mislabelled decision.
+      }
+    }
+  }
+
+  private static void requireRole(boolean allowed, String action, String who) {
+    if (!allowed) {
+      throw new IllegalArgumentException(
+          "This action (" + action + ") may only be taken by " + who + ".");
+    }
+  }
+
+  private static void requireStatus(boolean allowed, String action, String statuses) {
+    if (!allowed) {
+      throw new IllegalArgumentException(
+          "This action (" + action + ") is only valid while the plan is "
+              + statuses + ".");
+    }
   }
 
   /**
