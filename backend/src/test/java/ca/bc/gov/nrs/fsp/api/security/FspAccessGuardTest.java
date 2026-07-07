@@ -126,14 +126,16 @@ class FspAccessGuardTest {
   }
 
   @Test
-  void adminMayNotEditApprovedInEffectOrSubmitted() {
+  void adminMayEditApprovedInEffectAndSubmitted() {
+    // Matrix B1 (client-confirmed 2026-07-06): the Administrator edits content
+    // in EVERY status (previously blocked on APP / INE / SUB).
     authAs("FSPTS_ADMINISTRATOR");
     stubUserMayAccess("Y");
     for (String s : List.of("APP", "INE", "SUB")) {
       stubStatus(s);
-      assertThatThrownBy(() -> guard.assertContentEditable("123", "0"))
-          .as("admin edit blocked in %s", s)
-          .isInstanceOf(StoredProcedureException.class);
+      assertThatCode(() -> guard.assertContentEditable("123", "0"))
+          .as("admin edit allowed in %s", s)
+          .doesNotThrowAnyException();
     }
   }
 

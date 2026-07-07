@@ -19,11 +19,20 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Guards the "Decision Makers act only during the review phase" rule in
- * {@link WorkflowService#submitAction}. The role gate (only Admin / DDM
- * reach the endpoint) is enforced by {@code @PreAuthorize} and covered in
- * the controller test; here we verify the status constraint the service
- * layers on top for non-admin Decision Makers.
+ * Guards the per-action / per-role / per-status workflow fence in
+ * {@link WorkflowService#submitAction} (FSPTS Permission Matrix section D,
+ * client-confirmed 2026-07-06). The coarse endpoint gate (only Admin / DM /
+ * Reviewer reach the endpoint) is enforced by {@code @PreAuthorize} and
+ * covered in the controller test; here we verify the fine-grained rules the
+ * service layers on top:
+ *
+ * <ul>
+ *   <li>Review decisions (Reject / milestones / OTBH) are DM + Reviewer — the
+ *       Administrator is excluded (Approve + Request-clarification remain).</li>
+ *   <li>Extension decisions are Admin + DM — the Reviewer is excluded.</li>
+ *   <li>Each action is valid only in its status window (e.g. Approve while
+ *       Submitted).</li>
+ * </ul>
  */
 class WorkflowServiceDdmGuardTest {
 
@@ -52,7 +61,7 @@ class WorkflowServiceDdmGuardTest {
   @Test
   void decisionMaker_isRejected_actioningWorkflowOutsideReviewPhase() {
     authenticateAs("FSPTS_DECISION_MAKER");
-    // FSP is already Approved — outside the SUB/OHS review phase.
+    // FSP is already Approved — Approve is only valid while Submitted.
     when(fspService.getById("1", "0"))
         .thenReturn(FspRequest.builder().fspStatusCode("APP").build());
 
@@ -62,7 +71,7 @@ class WorkflowServiceDdmGuardTest {
 
     assertThatThrownBy(() -> service.submitAction("1", req))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("under review");
+        .hasMessageContaining("only valid while the plan is Submitted");
 
     // The proc is never reached when the guard trips.
     verifyNoInteractions(workflowDao);
@@ -70,7 +79,8 @@ class WorkflowServiceDdmGuardTest {
 
   @Test
   void decisionMaker_isRejected_whenStatusUnreadable() {
-    // Fail-closed: if the current status can't be resolved, deny.
+    // Fail-closed: if the current status can't be resolved it can't equal the
+    // required SUB, so the status guard denies.
     authenticateAs("FSPTS_DECISION_MAKER");
     when(fspService.getById("1", "0")).thenReturn(null);
 
@@ -80,23 +90,44 @@ class WorkflowServiceDdmGuardTest {
 
     assertThatThrownBy(() -> service.submitAction("1", req))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("under review");
+        .hasMessageContaining("only valid while the plan is Submitted");
     verifyNoInteractions(workflowDao);
   }
 
   @Test
-  void reviewer_isRejected_submittingADecision() {
-    // A Reviewer may record review milestones only — never a decision. The
-    // action is checked before the status is even read.
-    authenticateAs("FSPTS_REVIEWER");
+  void administrator_isRejected_fromReject() {
+    // Matrix D: Reject belongs to Decision Maker + Reviewer; the Administrator
+    // is excluded (Approve + Request-clarification remain available to Admin).
+    // Turned away on role grounds before the proc is reached.
+    authenticateAs("FSPTS_ADMINISTRATOR");
+    when(fspService.getById("1", "0"))
+        .thenReturn(FspRequest.builder().fspStatusCode("SUB").build());
 
     WorkflowRequest req = new WorkflowRequest();
-    req.setAction("SAVE_DDM_APP");
+    req.setAction("SAVE_DDM_REJ");
     req.setFspAmendmentNumber("0");
 
     assertThatThrownBy(() -> service.submitAction("1", req))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("review milestones");
+        .hasMessageContaining("Decision Maker or Reviewer");
+    verifyNoInteractions(workflowDao);
+  }
+
+  @Test
+  void reviewer_isRejected_fromExtensionDecision() {
+    // Matrix D: extension decisions are Admin + Decision Maker only — a
+    // Reviewer is turned away on role grounds.
+    authenticateAs("FSPTS_REVIEWER");
+    when(fspService.getById("1", "0"))
+        .thenReturn(FspRequest.builder().fspStatusCode("INE").build());
+
+    WorkflowRequest req = new WorkflowRequest();
+    req.setAction("SAVE_EXT_APP");
+    req.setFspAmendmentNumber("0");
+
+    assertThatThrownBy(() -> service.submitAction("1", req))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Administrator or Decision Maker");
     verifyNoInteractions(workflowDao);
   }
 
@@ -113,7 +144,7 @@ class WorkflowServiceDdmGuardTest {
 
     assertThatThrownBy(() -> service.submitAction("1", req))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("under review");
+        .hasMessageContaining("only valid while the plan is Submitted");
     verifyNoInteractions(workflowDao);
   }
 }
