@@ -967,11 +967,18 @@ export async function updateStandardRegimeLayer(
   layerCode: string,
   layerId: string | null,
   payload: StandardRegimeLayerUpdate,
+  amendmentNumber?: string,
 ): Promise<StandardRegimeLayerDetail> {
   // Omit the layerId query param entirely when creating a brand-new
   // layer — the backend's required=false annotation pairs with the
-  // proc's auto-ADD branch (P_REVISION_COUNT null → ADD).
-  const qs = layerId ? `?layerId=${encodeURIComponent(layerId)}` : '';
+  // proc's auto-ADD branch (P_REVISION_COUNT null → ADD). The
+  // amendmentNumber must be forwarded so the backend's pre-save regime
+  // read (FSP_550_STDS_PROPOSAL.GET) resolves the row instead of tripping
+  // NO_DATA_FOUND → a misleading 404.
+  const params = new URLSearchParams();
+  if (layerId) params.set('layerId', layerId);
+  if (amendmentNumber) params.set('amendmentNumber', amendmentNumber);
+  const qs = params.toString() ? `?${params.toString()}` : '';
   const res = await apiFetch(
     `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/layers/${encodeURIComponent(layerCode)}${qs}`,
     {

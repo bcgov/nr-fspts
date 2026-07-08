@@ -306,6 +306,7 @@ public interface FspApiEndpoint {
             @PathVariable String regimeId,
             @PathVariable String layerCode,
             @RequestParam(name = "layerId", required = false) String layerId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
             @Valid @RequestBody StandardRegimeLayerUpdate body);
 
     @PostMapping(URL.STANDARD_LAYER_SPECIES)

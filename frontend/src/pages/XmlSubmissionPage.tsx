@@ -28,6 +28,74 @@ type WizardStep = 'upload' | 'review';
 const MAX_BYTES = 50 * 1024 * 1024;
 const XML_ACCEPT = '.xml,.json,.geojson';
 
+// ── Per-submission-type notification copy ─────────────────────────
+// FSP Data Submission notifications spec (client-confirmed). The XML's
+// actionCode drives the wording: I (initial), A (amendment), R
+// (replacement), U (update). Minor amendments (no DDM approval) also land
+// as a draft at upload, so they share the 'A' wording — the in-effect
+// transition happens later at submit-for-decision, not here.
+type SubmissionType = 'I' | 'A' | 'R' | 'U';
+
+interface SubmissionCopy {
+  /** Title of the success notif once the file validates cleanly. */
+  validatedTitle: string;
+  /** Noun in the "[N] issue(s) found in {noun}" error title. */
+  errorNoun: string;
+  confirmTitle: string;
+  /** Sentence after the bold "FSP {id} {name}" in the confirmation. */
+  confirmBody: string;
+  /** CTA label; receives the FSP id. */
+  confirmCta: (id: string) => string;
+}
+
+const SUBMISSION_COPY: Record<SubmissionType, SubmissionCopy> = {
+  I: {
+    validatedTitle: 'New FSP submission validated',
+    errorNoun: 'new FSP submission',
+    confirmTitle: 'FSP draft created',
+    confirmBody:
+      'has been saved as a draft. Review your draft and submit it when ready.',
+    confirmCta: (id) => `Open FSP ${id} draft`,
+  },
+  A: {
+    validatedTitle: 'FSP amendment validated',
+    errorNoun: 'FSP amendment',
+    confirmTitle: 'Amendment draft created',
+    confirmBody:
+      'has been saved as an amendment draft. Review your draft and submit it when ready.',
+    confirmCta: (id) => `Open FSP ${id} draft`,
+  },
+  R: {
+    validatedTitle: 'FSP replacement validated',
+    errorNoun: 'FSP replacement',
+    confirmTitle: 'Replacement draft created',
+    confirmBody:
+      'has been saved as a replacement draft. Review your draft and submit it when ready.',
+    confirmCta: (id) => `Open FSP ${id} draft`,
+  },
+  U: {
+    validatedTitle: 'FSP update validated',
+    errorNoun: 'FSP update',
+    confirmTitle: 'FSP updated',
+    confirmBody: 'has been updated successfully.',
+    confirmCta: (id) => `Open FSP ${id}`,
+  },
+};
+
+/** Map the raw XML actionCode onto a {@link SubmissionType} (defaults to I). */
+const toSubmissionType = (code: string | null | undefined): SubmissionType => {
+  switch ((code ?? '').toUpperCase()) {
+    case 'A':
+      return 'A';
+    case 'R':
+      return 'R';
+    case 'U':
+      return 'U';
+    default:
+      return 'I';
+  }
+};
+
 export default function XmlSubmissionPage() {
   const { display } = useNotification();
   const navigate = useNavigate();
@@ -41,12 +109,21 @@ export default function XmlSubmissionPage() {
   // Mockup s2-no-file: the Review button stays enabled; clicking it without a
   // file surfaces this inline error rather than the button being disabled.
   const [noFileError, setNoFileError] = useState(false);
+  // The submission type resolved from the last validated file's actionCode.
+  // Captured here so the confirmation screen (which only receives the saved
+  // FSP) can still pick the right wording. Defaults to Initial.
+  const [subType, setSubType] = useState<SubmissionType>('I');
 
   const xmlInputRef = useRef<HTMLInputElement | null>(null);
 
-  const validateSize = (file: File): string | null => {
+  // Upload edge cases (spec §2): empty file and over-size, each with its
+  // own copy. Returns the message to surface, or null when the file is fine.
+  const validateFile = (file: File): string | null => {
+    if (file.size === 0) {
+      return 'The uploaded file contains no content. Please check your file and try again.';
+    }
     if (file.size > MAX_BYTES) {
-      return `File exceeds the 50 MB upload cap (${(file.size / 1_048_576).toFixed(1)} MB)`;
+      return 'File exceeds size limit. Maximum file size is 50 MB.';
     }
     return null;
   };
@@ -54,12 +131,17 @@ export default function XmlSubmissionPage() {
   // ── XML file selection (shared by hidden input + drag-and-drop) ──
   const acceptXmlFile = (file: File | null) => {
     if (!file) return;
-    const err = validateSize(file);
+    const err = validateFile(file);
     if (err) {
       setSizeError(err);
       setXmlFile(file);
       setView({ kind: 'idle' });
-      display({ kind: 'error', title: 'File too large', subtitle: err, timeout: 6000 });
+      display({
+        kind: 'error',
+        title: file.size === 0 ? 'Empty file' : 'File too large',
+        subtitle: err,
+        timeout: 6000,
+      });
       return;
     }
     setSizeError(null);
@@ -123,6 +205,7 @@ export default function XmlSubmissionPage() {
     validateSubmission(xmlFile)
       .then((result) => {
         if (cancelled) return;
+        setSubType(toSubmissionType(result.preview?.plan?.actionCode));
         setView({ kind: 'validated', result });
       })
       .catch((err) => {
@@ -205,6 +288,7 @@ export default function XmlSubmissionPage() {
       <div className="fsp-submit">
         <ConfirmScreen
           saved={successOutcome.saved}
+          type={subType}
           onOpenDraft={(href) => navigate(href)}
         />
       </div>
@@ -508,6 +592,7 @@ function ValidationNotif({ view, fileName }: { view: ViewState; fileName: string
     );
   }
   if (view.kind === 'validated') {
+    const copy = SUBMISSION_COPY[toSubmissionType(view.result.preview?.plan?.actionCode)];
     if (view.result.valid) {
       return (
         <div
@@ -520,7 +605,7 @@ function ValidationNotif({ view, fileName }: { view: ViewState; fileName: string
             <CheckIcon />
           </span>
           <div>
-            <div className="notif__title">New FSP submission validated</div>
+            <div className="notif__title">{copy.validatedTitle}</div>
             <div className="notif__msg">
               {fileName ? `"${fileName}" was uploaded with no issues found.` : 'No issues found.'}
             </div>
@@ -536,7 +621,7 @@ function ValidationNotif({ view, fileName }: { view: ViewState; fileName: string
         </span>
         <div>
           <div className="notif__title">
-            {n} issue{n === 1 ? '' : 's'} found in new FSP submission
+            {n} issue{n === 1 ? '' : 's'} found in {copy.errorNoun}
           </div>
           <div className="notif__msg">
             Correct the issues in your source file, then replace the file to continue.
@@ -961,13 +1046,16 @@ function ReviewSections({
 
 function ConfirmScreen({
   saved,
+  type,
   onOpenDraft,
 }: {
   saved: FspInformation;
+  type: SubmissionType;
   onOpenDraft: (href: string) => void;
 }) {
   const id = saved.fspId ?? '?';
   const name = saved.fspPlanName ?? '';
+  const copy = SUBMISSION_COPY[type];
   const detailHref = saved.fspId
     ? `/fsp/information?fspId=${encodeURIComponent(saved.fspId)}`
     : null;
@@ -977,15 +1065,13 @@ function ConfirmScreen({
         <div className="confirm-icon" aria-hidden="true">
           <CheckIcon size={64} color="var(--fds-support-success)" />
         </div>
-        <h2 className="confirm-title">FSP draft created</h2>
+        <h2 className="confirm-title">{copy.confirmTitle}</h2>
         <p className="confirm-body">
           <strong>
             FSP {id}
             {name ? ` ${name}` : ''}
           </strong>{' '}
-          has been saved as a draft.
-          <br />
-          Review your draft and submit it when ready.
+          {copy.confirmBody}
         </p>
         <div style={{ display: 'flex', gap: '12px' }}>
           {detailHref && (
@@ -995,7 +1081,7 @@ function ConfirmScreen({
               data-testid="open-draft-button"
               onClick={() => onOpenDraft(detailHref)}
             >
-              Open FSP {id} draft
+              {copy.confirmCta(String(id))}
               <DocumentIcon />
             </button>
           )}

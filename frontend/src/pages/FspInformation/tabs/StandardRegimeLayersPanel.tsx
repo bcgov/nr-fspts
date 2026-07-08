@@ -185,6 +185,7 @@ const EMPTY_LAYER_DETAIL = (layerCode: string): StandardRegimeLayerDetail => ({
 const LayerDetailPanel: FC<{
   fspId: string;
   regimeId: string;
+  amendmentNumber: string;
   layer: StandardRegimeLayer;
   readOnly?: boolean;
   /** Called after a brand-new layer is created (initial Save on the
@@ -194,6 +195,7 @@ const LayerDetailPanel: FC<{
 }> = ({
   fspId,
   regimeId,
+  amendmentNumber,
   layer,
   readOnly = false,
   onLayerCreated,
@@ -363,6 +365,7 @@ const LayerDetailPanel: FC<{
         layer.layerCode,
         layer.layerId,
         toLayerPayload(form),
+        amendmentNumber || undefined,
       );
       setDetail(updated);
       setEditing(false);
@@ -1045,6 +1048,7 @@ const StandardRegimeLayersPanel: FC<Props> = ({
               <LayerDetailPanel
                 fspId={fspId}
                 regimeId={regimeId}
+                amendmentNumber={amendmentNumber}
                 layer={l}
                 readOnly={readOnly}
                 onLayerCreated={refreshRegime}
