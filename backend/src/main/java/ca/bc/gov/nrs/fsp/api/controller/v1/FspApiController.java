@@ -299,9 +299,10 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<StandardRegimeLayerDetail> updateStandardRegimeLayer(
             String fspId, String regimeId, String layerCode, String layerId,
-            StandardRegimeLayerUpdate body) {
+            String amendmentNumber, StandardRegimeLayerUpdate body) {
         return ResponseEntity.ok(
-                standardRegimeService.saveLayer(fspId, regimeId, layerCode, layerId, body));
+                standardRegimeService.saveLayer(
+                        fspId, regimeId, layerCode, layerId, amendmentNumber, body));
     }
 
     @Override

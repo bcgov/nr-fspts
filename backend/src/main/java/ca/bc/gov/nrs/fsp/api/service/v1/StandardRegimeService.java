@@ -330,15 +330,19 @@ public class StandardRegimeService {
   @Transactional
   public StandardRegimeLayerDetail saveLayer(
       String fspId, String regimeId, String layerCode, String layerId,
-      StandardRegimeLayerUpdate edits) {
-    accessGuard.assertContentEditable(fspId, null);
+      String amendmentNumber, StandardRegimeLayerUpdate edits) {
+    accessGuard.assertContentEditable(fspId, amendmentNumber);
     // Blank layerId = ADD path. The legacy SAVE proc routes to ADD when
     // P_REVISION_COUNT is null, so we skip the current-detail fetch (no
     // current exists) and pass nulls for both the layer id and revision.
     // The proc returns the assigned id via the INOUT pStandardsRegimeLayerId
     // slot so we can re-fetch using the new id.
     final boolean isAdd = layerId == null || layerId.isBlank();
-    StandardRegimeDetail regime = getDetail(fspId, null, regimeId);
+    // Must forward the amendment number: FSP_550_STDS_PROPOSAL.GET has no
+    // "latest amendment" branch, so a blank amendment fires NO_DATA_FOUND →
+    // "noRecord" → a misleading 404 on save (see the other standards write
+    // methods, which all thread amendmentNumber).
+    StandardRegimeDetail regime = getDetail(fspId, amendmentNumber, regimeId);
     if (regime == null) {
       throw new IllegalStateException(
           "Standards regime " + regimeId + " not found for FSP " + fspId);
