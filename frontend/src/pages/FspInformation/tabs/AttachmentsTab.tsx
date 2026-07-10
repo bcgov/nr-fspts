@@ -1,7 +1,5 @@
 import {
   Button,
-  DataTable,
-  FileUploader,
   Loading,
   Modal,
   Select,
@@ -16,20 +14,32 @@ import {
   TableRow,
   TextArea,
 } from '@carbon/react';
-import { Add, Download } from '@carbon/icons-react';
-import { type FC, useEffect, useState } from 'react';
+import { Add, DocumentAdd, Launch, TrashCan } from '@carbon/icons-react';
+import { type FC, useEffect, useMemo, useState } from 'react';
 
+import DragDropFileInput from '@/components/DragDropFileInput';
+import EmptyState from '@/components/EmptyState/EmptyState';
 import { useAuth } from '@/context/auth/useAuth';
 import { useNotification } from '@/context/notification/useNotification';
 import { canEditAttachments } from '@/routes/access';
 import {
   type CodeOption,
-  downloadFspAttachment,
+  deleteFspAttachment,
+  fetchFspAttachmentBlob,
   type FspAttachmentRow,
   getAttachmentCategories,
   getFspAttachments,
   uploadFspAttachment,
 } from '@/services/fspSearch';
+
+type SortDir = 'ASC' | 'DESC';
+
+// Amendment numbers arrive as strings ("0", "1", …); parse for a numeric
+// sort so 10 orders after 9. Non-numeric/blank rows sink to the bottom.
+const parseAmendment = (value: string | null): number => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : -1;
+};
 
 interface Props {
   fspId: string;
@@ -45,19 +55,6 @@ interface Props {
 
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
-
-const HEADERS = [
-  { key: 'category', header: 'Category' },
-  { key: 'attachmentName', header: 'File' },
-  { key: 'attachmentDescription', header: 'Description' },
-  { key: 'attachmentSize', header: 'Size' },
-  { key: 'fspAmendmentNumber', header: 'Amendment' },
-  { key: 'consolidatedInd', header: 'Consolidated' },
-  // Synthetic action column — Carbon's built-in DataTable sort tries
-  // to sort by cell value (empty for actions), so opt it out via
-  // isSortable=false on this header alone.
-  { key: 'actions', header: '', isSortable: false },
-];
 
 // Shared attachment constraints (extension allow-list, 50-char
 // filename cap, 50 MB size cap) live in @/lib/attachmentConstraints
@@ -81,7 +78,14 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
   const [rows, setRows] = useState<FspAttachmentRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  // Default to newest amendment first, with the sort indicator shown on
+  // the Amendment column; clicking the header toggles the direction.
+  const [sortDir, setSortDir] = useState<SortDir>('DESC');
+  // Attachment queued for deletion (drives the confirm dialog); null when
+  // no confirmation is pending.
+  const [pendingDelete, setPendingDelete] = useState<FspAttachmentRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Add-attachment dialog state.
   const [modalOpen, setModalOpen] = useState(false);
@@ -90,9 +94,6 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
   const [selectedTypeCode, setSelectedTypeCode] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
-  // FileUploader is uncontrolled; bumping this key forces a remount
-  // when the user clears or after a successful save.
-  const [uploaderResetKey, setUploaderResetKey] = useState(0);
   const [uploading, setUploading] = useState(false);
 
   const { display } = useNotification();
@@ -124,20 +125,63 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fspId, refreshKey]);
 
-  const handleDownload = async (attachmentId: string, fallbackName: string) => {
-    if (downloadingId) return;
-    setDownloadingId(attachmentId);
-    try {
-      await downloadFspAttachment(fspId, attachmentId, fallbackName);
-    } catch (e) {
+  // Open an attachment inline in a new browser tab. The tab is opened
+  // synchronously on the click (pre-fetch) so pop-up blockers don't reject
+  // it; we then swap in the blob URL once the authenticated fetch resolves.
+  const handleView = async (attachmentId: string, fileName: string | null) => {
+    if (viewingId) return;
+    const popup = window.open('about:blank', '_blank');
+    if (!popup) {
       display({
         kind: 'error',
-        title: 'Download failed',
+        title: 'Pop-up blocked',
+        subtitle: 'Allow pop-ups for this site to view attachments.',
+        timeout: 7000,
+      });
+      return;
+    }
+    setViewingId(attachmentId);
+    try {
+      const blob = await fetchFspAttachmentBlob(fspId, attachmentId, fileName);
+      // Object URL is left un-revoked — the new tab needs it while it
+      // loads; the browser releases it when that tab closes.
+      popup.location.href = URL.createObjectURL(blob);
+    } catch (e) {
+      popup.close();
+      display({
+        kind: 'error',
+        title: 'Could not open attachment',
         subtitle: e instanceof Error ? e.message : 'Unknown error',
         timeout: 7000,
       });
     } finally {
-      setDownloadingId(null);
+      setViewingId(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    const attachmentId = pendingDelete?.fspAttachmentId;
+    if (!attachmentId) return;
+    setDeleting(true);
+    try {
+      await deleteFspAttachment(fspId, attachmentId);
+      setPendingDelete(null);
+      refreshList();
+      display({
+        kind: 'success',
+        title: 'Attachment deleted.',
+        subtitle: pendingDelete?.attachmentName ?? undefined,
+        timeout: 6000,
+      });
+    } catch (e) {
+      display({
+        kind: 'error',
+        title: 'Delete failed',
+        subtitle: e instanceof Error ? e.message : 'Unknown error',
+        timeout: 9000,
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -145,7 +189,6 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
     setSelectedTypeCode('');
     setSelectedFile(null);
     setDescription('');
-    setUploaderResetKey((k) => k + 1);
   };
 
   const openAddDialog = () => {
@@ -166,31 +209,9 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
     resetDialog();
   };
 
-  // Carbon's FileUploader.onChange signature varies between versions —
-  // same shim used on the XML submission page.
-  const filesFromCarbon = (
-    event: React.SyntheticEvent<HTMLElement>,
-    data?: { addedFiles?: Array<{ file: File }> },
-  ): File[] => {
-    if (data?.addedFiles?.length) {
-      return data.addedFiles.map((f) => f.file).filter(Boolean);
-    }
-    const input = event.currentTarget as unknown as HTMLInputElement;
-    if (input?.files?.length) return Array.from(input.files);
-    const target = event.target as unknown as HTMLInputElement;
-    if (target?.files?.length) return Array.from(target.files);
-    return [];
-  };
-
-  const onFileChange = (
-    event: React.SyntheticEvent<HTMLElement>,
-    data?: { addedFiles?: Array<{ file: File }> },
-  ) => {
-    const file = filesFromCarbon(event, data)[0] ?? null;
-    if (!file) {
-      setSelectedFile(null);
-      return;
-    }
+  // Validate the picked file against the shared extension/size/name
+  // constraints before accepting it into the form.
+  const onFileSelect = (file: File) => {
     const problem = validateAttachmentFile(file);
     if (problem) {
       display({ kind: 'error', ...problem, timeout: 0 });
@@ -226,6 +247,16 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
     }
   };
 
+  // Frontend sort on Amendment (numeric), defaulting to descending so the
+  // most recent amendment's attachments sit at the top.
+  const sorted = useMemo(() => {
+    if (!rows) return [];
+    return [...rows].sort((a, b) => {
+      const diff = parseAmendment(a.fspAmendmentNumber) - parseAmendment(b.fspAmendmentNumber);
+      return sortDir === 'DESC' ? -diff : diff;
+    });
+  }, [rows, sortDir]);
+
   if (loading && !rows) {
     return (
       <div className="fsp-info__loading" role="status" aria-live="polite">
@@ -235,94 +266,95 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
   }
   if (error) return <p className="fsp-info__error">{error}</p>;
 
-  const tableRows = (rows ?? []).map((r, i) => ({
-    id: r.fspAttachmentId ?? `row-${i}`,
-    category: dash(r.category),
-    attachmentName: dash(r.attachmentName),
-    attachmentDescription: dash(r.attachmentDescription),
-    attachmentSize: dash(r.attachmentSize),
-    fspAmendmentNumber: dash(r.fspAmendmentNumber),
-    consolidatedInd: r.consolidatedInd === 'Y' ? 'Yes' : 'No',
-    actions: '',
-    __attachmentId: r.fspAttachmentId,
-    __fileName: r.attachmentName,
-  }));
-
   return (
-    <section className="fsp-info__tile fsp-info__tile--full">
-      <header className="fsp-info__tile-header">
-        <h2 className="fsp-info__section-title">Attachments</h2>
-        {canEdit && (
-          <Button
-            kind="tertiary"
-            size="sm"
-            renderIcon={Add}
-            onClick={openAddDialog}
-          >
-            Add attachment
-          </Button>
-        )}
-      </header>
-      {tableRows.length === 0 ? (
-        <p className="fsp-info__placeholder">No attachments on this FSP.</p>
+    <>
+      {sorted.length === 0 ? (
+        <EmptyState
+          icon={<DocumentAdd size={80} />}
+          title="No attachments for this FSP"
+          body="Add the FSP legal documents, maps of FDUs, and decision letters for this FSP."
+          action={
+            canEdit ? (
+              <Button kind="primary" renderIcon={Add} onClick={openAddDialog}>
+                Add attachment
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
-        <div className="bordered-table">
-          <DataTable rows={tableRows} headers={HEADERS} isSortable>
-            {({ rows: r, headers, getTableProps, getHeaderProps, getRowProps }) => (
-              <TableContainer>
-                <Table {...getTableProps()} size="md" useZebraStyles>
-                  <TableHead>
-                    <TableRow>
-                      {headers.map((h) => (
-                        <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
-                          {h.header}
-                        </TableHeader>
-                      ))}
+        <>
+          {canEdit && (
+            <div className="fsp-info__tab-actions">
+              <Button kind="tertiary" size="sm" renderIcon={Add} onClick={openAddDialog}>
+                Add attachment
+              </Button>
+            </div>
+          )}
+          <div className="bordered-table">
+          <TableContainer>
+            <Table size="md" useZebraStyles>
+              <TableHead>
+                <TableRow>
+                  <TableHeader>Category</TableHeader>
+                  <TableHeader>File</TableHeader>
+                  <TableHeader>Description</TableHeader>
+                  <TableHeader>Size</TableHeader>
+                  <TableHeader
+                    isSortable
+                    isSortHeader
+                    sortDirection={sortDir}
+                    onClick={() => setSortDir((d) => (d === 'DESC' ? 'ASC' : 'DESC'))}
+                  >
+                    Amendment
+                  </TableHeader>
+                  <TableHeader>Consolidated</TableHeader>
+                  <TableHeader>Actions</TableHeader>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sorted.map((r, i) => {
+                  const attachmentId = r.fspAttachmentId;
+                  return (
+                    <TableRow key={attachmentId ?? `row-${i}`}>
+                      <TableCell>{dash(r.category)}</TableCell>
+                      <TableCell>{dash(r.attachmentName)}</TableCell>
+                      <TableCell>{dash(r.attachmentDescription)}</TableCell>
+                      <TableCell>{dash(r.attachmentSize)}</TableCell>
+                      <TableCell>{dash(r.fspAmendmentNumber)}</TableCell>
+                      <TableCell>{r.consolidatedInd === 'Y' ? 'Yes' : 'No'}</TableCell>
+                      <TableCell>
+                        {attachmentId ? (
+                          <div className="fsp-info__row-actions">
+                            <Button
+                              kind="ghost"
+                              size="sm"
+                              renderIcon={Launch}
+                              disabled={viewingId === attachmentId}
+                              onClick={() => void handleView(attachmentId, r.attachmentName)}
+                            >
+                              View
+                            </Button>
+                            {canEdit && (
+                              <Button
+                                kind="danger--ghost"
+                                size="sm"
+                                renderIcon={TrashCan}
+                                onClick={() => setPendingDelete(r)}
+                              >
+                                Delete
+                              </Button>
+                            )}
+                          </div>
+                        ) : null}
+                      </TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {r.map((row) => {
-                      const source = tableRows.find((t) => t.id === row.id);
-                      const attachmentId = source?.__attachmentId ?? null;
-                      const fallbackName = source?.__fileName ?? row.id;
-                      const isDownloading = downloadingId === attachmentId;
-                      return (
-                        <TableRow {...getRowProps({ row })} key={row.id}>
-                          {row.cells.map((cell) => {
-                            if (cell.info.header === 'actions') {
-                              return (
-                                <TableCell key={cell.id}>
-                                  {attachmentId ? (
-                                    <Button
-                                      kind="ghost"
-                                      size="sm"
-                                      renderIcon={Download}
-                                      iconDescription={
-                                        isDownloading ? 'Downloading…' : 'Download'
-                                      }
-                                      hasIconOnly
-                                      disabled={isDownloading}
-                                      onClick={() =>
-                                        void handleDownload(attachmentId, fallbackName)
-                                      }
-                                    />
-                                  ) : null}
-                                </TableCell>
-                              );
-                            }
-                            return (
-                              <TableCell key={cell.id}>{cell.value as string}</TableCell>
-                            );
-                          })}
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </DataTable>
-        </div>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          </div>
+        </>
       )}
 
       {/* Add-attachment dialog — same shape as the species composer
@@ -363,23 +395,20 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
               />
             ))}
           </Select>
-          <FileUploader
-            key={`att-${uploaderResetKey}`}
-            labelTitle="File *"
-            labelDescription={
+          <DragDropFileInput
+            label="File *"
+            helperText={
               `Allowed: ${ACCEPTED_ATTACHMENT_EXTENSIONS.join(', ')}. `
               + `File name max ${MAX_ATTACHMENT_FILENAME_LEN} chars. Max 50 MB.`
             }
-            buttonLabel="Browse"
-            filenameStatus="edit"
-            multiple={false}
-            // The accept array hands the OS file picker an extension
-            // allow-list so the user can't even see disallowed files
-            // in the dialog. Re-checked in onFileChange because
-            // drag-and-drop can bypass the picker entirely.
-            accept={[...ACCEPTED_ATTACHMENT_EXTENSIONS]}
-            onChange={onFileChange}
-            onDelete={() => setSelectedFile(null)}
+            file={selectedFile}
+            // The accept list hands the OS file picker an extension
+            // allow-list; re-checked in onFileSelect because drag-and-drop
+            // can bypass the picker entirely.
+            accept={ACCEPTED_ATTACHMENT_EXTENSIONS}
+            disabled={uploading}
+            onSelect={onFileSelect}
+            onRemove={() => setSelectedFile(null)}
           />
           <TextArea
             id="attachment-description"
@@ -402,11 +431,50 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
             renderIcon={uploading ? UploadingIcon : undefined}
             onClick={() => void submitUpload()}
           >
-            {uploading ? 'Uploading…' : 'Save'}
+            {uploading ? 'Adding…' : 'Add attachment'}
           </Button>
         </div>
       </Modal>
-    </section>
+
+      {/* Delete confirmation — irreversible, so gate it behind a danger
+          dialog rather than deleting straight from the row button. Passive
+          modal + custom footer so the buttons match the Add dialog's
+          compact Cancel/primary pair (Carbon's built-in footer renders the
+          oversized full-width buttons). */}
+      <Modal
+        open={pendingDelete !== null}
+        passiveModal
+        size="sm"
+        className="fsp-species-modal fsp-species-modal--tight"
+        modalHeading="Delete attachment"
+        onRequestClose={() => {
+          if (!deleting) setPendingDelete(null);
+        }}
+        preventCloseOnClickOutside
+      >
+        <p>
+          Permanently delete{' '}
+          <strong>{pendingDelete?.attachmentName ?? 'this attachment'}</strong>? This
+          cannot be undone.
+        </p>
+        <div className="fsp-species-modal__actions">
+          <Button
+            kind="secondary"
+            disabled={deleting}
+            onClick={() => setPendingDelete(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            kind="danger"
+            disabled={deleting}
+            onClick={() => void confirmDelete()}
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </div>
+      </Modal>
+    </>
   );
 };
 

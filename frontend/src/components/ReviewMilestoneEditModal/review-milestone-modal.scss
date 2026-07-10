@@ -1,0 +1,30 @@
+// Review milestone Add/Edit dialog. Sits on top of the shared
+// .fsp-species-modal styling; adds the vertical rhythm, the "Review
+// status" label + checkbox grouping, and the audit line.
+
+.review-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.review-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+// Group heading above the "Mark as complete" checkbox — matches a Carbon
+// field label's weight/colour so it reads as the field's title.
+.review-modal__label {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.32px;
+  color: var(--cds-text-secondary, #525252);
+}
+
+.review-modal__audit {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--cds-text-secondary, #525252);
+}

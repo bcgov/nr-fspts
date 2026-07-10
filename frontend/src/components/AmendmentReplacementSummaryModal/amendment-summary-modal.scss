@@ -1,0 +1,34 @@
+.amend-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem 1.5rem;
+  margin: 0;
+
+  &__row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+
+    dt {
+      margin: 0;
+      font-size: 0.75rem;
+      color: var(--cds-text-secondary);
+    }
+
+    dd {
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--cds-text-primary);
+      word-break: break-word;
+    }
+
+    // Summary of changes spans the full width and keeps line breaks.
+    &--block {
+      grid-column: 1 / -1;
+
+      dd {
+        white-space: pre-wrap;
+      }
+    }
+  }
+}

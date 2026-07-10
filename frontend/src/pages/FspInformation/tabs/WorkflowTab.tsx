@@ -1,5 +1,4 @@
 import {
-  DataTable,
   Loading,
   Table,
   TableBody,
@@ -9,9 +8,36 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import {type FC, useEffect, useState} from 'react';
+import {CheckmarkFilled} from '@carbon/icons-react';
+import {type FC, useEffect, useMemo, useState} from 'react';
 
 import {type FspWorkflowEvent, getFspWorkflow} from '@/services/fspSearch';
+
+type SortDir = 'ASC' | 'DESC';
+
+const MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+// The proc returns event_date_time as "YYYY-MM-DD HH:MM:SS AM/PM"
+// (e.g. "2026-07-07 03:28:50 PM"). Capture the parts once so we can both
+// reformat for display and derive a sortable timestamp.
+const EVENT_DATE_TIME =
+  /^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})\s*([AP]M)$/i;
+
+// Sortable epoch (UTC ms) from the raw string. 0 for unparseable rows,
+// which keeps them in their original relative order.
+const parseEventTime = (value: string | null): number => {
+  if (!value) return 0;
+  const m = EVENT_DATE_TIME.exec(value.trim());
+  if (!m) return 0;
+  let hour = Number(m[4]);
+  const meridiem = m[7].toUpperCase();
+  if (meridiem === 'PM' && hour !== 12) hour += 12;
+  if (meridiem === 'AM' && hour === 12) hour = 0;
+  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), hour, Number(m[5]), Number(m[6]));
+};
 
 interface Props {
   fspId: string;
@@ -27,19 +53,42 @@ interface Props {
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
 
-const HEADERS = [
-  { key: 'eventDateTime', header: 'Date / time' },
-  { key: 'event', header: 'Event' },
-  { key: 'description', header: 'Description' },
-  { key: 'userId', header: 'User' },
-  { key: 'amendmentNumber', header: 'Amendment' },
-  { key: 'extensionNumber', header: 'Extension' },
-];
+// Reformat "2026-07-07 03:28:50 PM" → "Jul 07, 2026 - 03:28:50 PM".
+// Unparseable values pass through unchanged (after the empty-value dash).
+const formatEventDateTime = (value: string | null): string => {
+  const v = dash(value);
+  if (v === '—') return v;
+  const m = EVENT_DATE_TIME.exec(v.trim());
+  if (!m) return v;
+  return `${MONTHS[Number(m[2]) - 1]} ${m[3]}, ${m[1]} - ${m[4]}:${m[5]}:${m[6]} ${m[7].toUpperCase()}`;
+};
+
+// "Approval required?" cell — green checkmark + Yes when the event's
+// approval-request indicator is 'Y', plain "No" otherwise.
+const ApprovalRequired: FC<{ value: string }> = ({ value }) => {
+  if (value === 'Y') {
+    return (
+      <span
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
+      >
+        <CheckmarkFilled
+          size={16}
+          style={{ fill: 'var(--cds-support-success)' }}
+        />
+        Yes
+      </span>
+    );
+  }
+  return <span>{value === 'N' ? 'No' : '—'}</span>;
+};
 
 const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
   const [rows, setRows] = useState<FspWorkflowEvent[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Default to newest-first, with the sort indicator shown on the Date
+  // column; clicking the header toggles ascending/descending.
+  const [sortDir, setSortDir] = useState<SortDir>('DESC');
 
   useEffect(() => {
     if (!fspId) return;
@@ -61,6 +110,17 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
     };
   }, [fspId, refreshKey]);
 
+  // Frontend sort on Date and time. Parses the display string to a
+  // timestamp so months sort chronologically (a plain string sort would
+  // order "Jul" before "Jun"). Stable within equal timestamps.
+  const sorted = useMemo(() => {
+    if (!rows) return [];
+    return [...rows].sort((a, b) => {
+      const diff = parseEventTime(a.eventDateTime) - parseEventTime(b.eventDateTime);
+      return sortDir === 'DESC' ? -diff : diff;
+    });
+  }, [rows, sortDir]);
+
   if (loading && !rows) {
     return (
       <div className="fsp-info__loading" role="status" aria-live="polite">
@@ -73,50 +133,52 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
     return <p className="fsp-info__placeholder">No workflow events recorded.</p>;
   }
 
-  const tableRows = rows.map((r, i) => ({
-    id: `${r.eventDateTime ?? 'ev'}-${i}`,
-    eventDateTime: dash(r.eventDateTime),
-    event: dash(r.event),
-    description: dash(r.description),
-    userId: dash(r.userId),
-    amendmentNumber: dash(r.amendmentNumber),
-    extensionNumber: dash(r.extensionNumber),
-  }));
-
+  // No section heading / white tile here — the History table sits
+  // directly on the gray tab canvas (per the approved layout). Sorting is
+  // handled manually (above) so we render a static Carbon table and drive
+  // the Date column's sort indicator from `sortDir`.
   return (
-    <section className="fsp-info__tile fsp-info__tile--full">
-      <header className="fsp-info__tile-header">
-        <h2 className="fsp-info__section-title">History</h2>
-      </header>
-      <div className="bordered-table">
-        <DataTable rows={tableRows} headers={HEADERS} isSortable>
-          {({ rows: r, headers, getTableProps, getHeaderProps, getRowProps }) => (
-            <TableContainer>
-              <Table {...getTableProps()} size="md" useZebraStyles>
-                <TableHead>
-                  <TableRow>
-                    {headers.map((h) => (
-                      <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
-                        {h.header}
-                      </TableHeader>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {r.map((row) => (
-                    <TableRow {...getRowProps({ row })} key={row.id}>
-                      {row.cells.map((cell) => (
-                        <TableCell key={cell.id}>{cell.value as string}</TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </DataTable>
-      </div>
-    </section>
+    <div className="bordered-table">
+      <TableContainer>
+        <Table size="md" useZebraStyles>
+          <TableHead>
+            <TableRow>
+              <TableHeader
+                isSortable
+                isSortHeader
+                sortDirection={sortDir}
+                onClick={() =>
+                  setSortDir((d) => (d === 'DESC' ? 'ASC' : 'DESC'))
+                }
+              >
+                Date and time
+              </TableHeader>
+              <TableHeader>Event</TableHeader>
+              <TableHeader>Description</TableHeader>
+              <TableHeader>Approval required</TableHeader>
+              <TableHeader>User ID</TableHeader>
+              <TableHeader>Amendment</TableHeader>
+              <TableHeader>Extension</TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {sorted.map((r, i) => (
+              <TableRow key={`${r.eventDateTime ?? 'ev'}-${i}`}>
+                <TableCell>{formatEventDateTime(r.eventDateTime)}</TableCell>
+                <TableCell>{dash(r.event)}</TableCell>
+                <TableCell>{dash(r.description)}</TableCell>
+                <TableCell>
+                  <ApprovalRequired value={r.approvalRequestIndicator ?? ''} />
+                </TableCell>
+                <TableCell>{dash(r.userId)}</TableCell>
+                <TableCell>{dash(r.amendmentNumber)}</TableCell>
+                <TableCell>{dash(r.extensionNumber)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </div>
   );
 };
 

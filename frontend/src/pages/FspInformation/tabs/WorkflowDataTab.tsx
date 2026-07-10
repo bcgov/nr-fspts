@@ -1,5 +1,6 @@
 import {
   Button,
+  InlineNotification,
   Loading,
   Table,
   TableBody,
@@ -110,16 +111,44 @@ const statusTag = (code: string | null | undefined): ReactNode => {
   );
 };
 
-const completedTag = (ind: string | null | undefined): ReactNode =>
+// Recorded milestones/events show a green "Complete" pill; those without
+// a record show a plain em-dash (they don't block approval — see the
+// section descriptions).
+const completeTag = (ind: string | null | undefined): ReactNode =>
   ind === 'Y' ? (
     <Tag type="green" size="sm">
-      Completed
+      Complete
     </Tag>
   ) : (
-    <Tag type="gray" size="sm">
-      Pending
-    </Tag>
+    <span>—</span>
   );
+
+// "Optional" outline pill shown beside the Review details / OTBH headings.
+const optionalTag = (
+  <Tag type="outline" size="sm">
+    Optional
+  </Tag>
+);
+
+// Neutral pill shown beside "DDM decision" before any decision is recorded.
+const decisionPendingTag = (
+  <Tag type="gray" size="sm">
+    Decision pending
+  </Tag>
+);
+
+// DDM "Decided by" field label tracks the decision outcome so it reads
+// "Approved by" / "Rejected by" instead of a generic "Decided by".
+const decidedByLabel = (code: string | null | undefined): string => {
+  switch ((code ?? '').toUpperCase()) {
+    case 'APP':
+      return 'Approved by';
+    case 'REJ':
+      return 'Rejected by';
+    default:
+      return 'Decided by';
+  }
+};
 
 interface FieldEntry {
   label: string;
@@ -243,6 +272,13 @@ const extensionExists = (
 // the amendment picker, and DdmDecisionTile surfaces the same date
 // fields below.
 
+// A review milestone counts as "recorded" once it has a completion flag,
+// a reviewer, or a comment — drives Edit vs Add on the row action.
+const reviewHasRecord = (item: FspReviewItem): boolean =>
+  item.completedInd === 'Y' ||
+  !isBlank(item.entryUserId) ||
+  !isBlank(item.comment);
+
 const ReviewDetailsTile: FC<{
   items: FspReviewItem[];
   canEdit: boolean;
@@ -250,8 +286,15 @@ const ReviewDetailsTile: FC<{
 }> = ({ items, canEdit, onEdit }) => (
   <section className="fsp-info__tile fsp-info__tile--full">
     <header className="fsp-info__tile-header">
-      <h2 className="fsp-info__section-title">Review details</h2>
+      <div className="fsp-info__title-group">
+        <h2 className="fsp-info__section-title">Review details</h2>
+        {optionalTag}
+      </div>
     </header>
+    <p className="fsp-info__section-desc">
+      Optional reviews recorded for this submission. Milestones without a
+      record do not block approval.
+    </p>
     <div className="bordered-table">
       <TableContainer>
         <Table size="md" useZebraStyles>
@@ -262,33 +305,36 @@ const ReviewDetailsTile: FC<{
               <TableHeader>Reviewed by</TableHeader>
               <TableHeader>Date</TableHeader>
               <TableHeader>Comment</TableHeader>
-              {canEdit && (
-                <TableHeader style={{ width: '4rem' }} aria-label="Actions" />
-              )}
+              {canEdit && <TableHeader>Actions</TableHeader>}
             </TableRow>
           </TableHead>
           <TableBody>
-            {items.map((item) => (
-              <TableRow key={item.code}>
-                <TableCell>{item.label}</TableCell>
-                <TableCell>{completedTag(item.completedInd)}</TableCell>
-                <TableCell>{dash(item.entryUserId)}</TableCell>
-                <TableCell>{dash(item.entryTimestamp)}</TableCell>
-                <TableCell>{dash(item.comment)}</TableCell>
-                {canEdit && (
-                  <TableCell>
-                    <Button
-                      kind="ghost"
-                      size="sm"
-                      renderIcon={Edit}
-                      iconDescription="Edit"
-                      hasIconOnly
-                      onClick={() => onEdit(item)}
-                    />
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
+            {items.map((item) => {
+              const recorded = reviewHasRecord(item);
+              return (
+                <TableRow key={item.code}>
+                  <TableCell>{item.label}</TableCell>
+                  <TableCell>{completeTag(item.completedInd)}</TableCell>
+                  <TableCell>{dash(item.entryUserId)}</TableCell>
+                  <TableCell>{dash(item.entryTimestamp)}</TableCell>
+                  <TableCell>{dash(item.comment)}</TableCell>
+                  {canEdit && (
+                    <TableCell>
+                      <div className="fsp-info__row-actions">
+                        <Button
+                          kind="ghost"
+                          size="sm"
+                          renderIcon={recorded ? Edit : Add}
+                          onClick={() => onEdit(item)}
+                        >
+                          {recorded ? 'Edit record' : 'Add record'}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
@@ -313,10 +359,18 @@ const OtbhDetailsTile: FC<{
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
-        <h2 className="fsp-info__section-title">
-          Opportunity To Be Heard
-        </h2>
+        <div className="fsp-info__title-group">
+          <h2 className="fsp-info__section-title">
+            Opportunity to be heard (OTBH)
+          </h2>
+          {optionalTag}
+        </div>
       </header>
+      <p className="fsp-info__section-desc">
+        Recording &ldquo;OTBH offered&rdquo; sets the FSP status to Opportunity
+        to Be Heard Sent and locks the plan; &ldquo;OTBH heard&rdquo; returns it
+        to Submitted.
+      </p>
       <div className="bordered-table">
         <TableContainer>
           <Table size="md" useZebraStyles>
@@ -326,31 +380,35 @@ const OtbhDetailsTile: FC<{
                 <TableHeader>Status</TableHeader>
                 <TableHeader>Date</TableHeader>
                 <TableHeader>Comment</TableHeader>
-                {anyEditable && (
-                  <TableHeader style={{ width: '4rem' }} aria-label="Actions" />
-                )}
+                {anyEditable && <TableHeader>Actions</TableHeader>}
               </TableRow>
             </TableHead>
             <TableBody>
               {rows.map((row) => {
                 const canEditRow = rowEditable(row.key);
+                const recorded =
+                  row.completedInd === 'Y' ||
+                  !isBlank(row.date) ||
+                  !isBlank(row.comment);
                 return (
                   <TableRow key={row.key}>
                     <TableCell>{row.label}</TableCell>
-                    <TableCell>{completedTag(row.completedInd)}</TableCell>
+                    <TableCell>{completeTag(row.completedInd)}</TableCell>
                     <TableCell>{dash(row.date)}</TableCell>
                     <TableCell>{dash(row.comment)}</TableCell>
                     {anyEditable && (
                       <TableCell>
                         {canEditRow && (
-                          <Button
-                            kind="ghost"
-                            size="sm"
-                            renderIcon={Edit}
-                            iconDescription="Edit"
-                            hasIconOnly
-                            onClick={() => onEdit(row)}
-                          />
+                          <div className="fsp-info__row-actions">
+                            <Button
+                              kind="ghost"
+                              size="sm"
+                              renderIcon={recorded ? Edit : Add}
+                              onClick={() => onEdit(row)}
+                            >
+                              {recorded ? 'Edit record' : 'Add record'}
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     )}
@@ -374,35 +432,43 @@ const DdmDecisionTile: FC<{
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
-        {/* Status pill removed — the FSP-level status it surfaces is
-            already the canonical header pill in FspInformation. */}
-        <h2 className="fsp-info__section-title">DDM decision</h2>
-      </header>
-      {canEdit && (
-        <div className="fsp-info__tab-actions">
-          <Button
-            kind="tertiary"
-            size="sm"
-            renderIcon={hasData ? Edit : Add}
-            onClick={onEdit}
-          >
-            {hasData ? 'Edit Decision' : 'Record Decision'}
-          </Button>
+        <div className="fsp-info__title-group">
+          <h2 className="fsp-info__section-title">DDM decision</h2>
+          {!isBlank(decision.statusCode)
+            ? statusTag(decision.statusCode)
+            : decisionPendingTag}
         </div>
-      )}
+        {canEdit && (
+          <div className="fsp-info__tile-header-actions">
+            <Button
+              kind="tertiary"
+              size="sm"
+              renderIcon={hasData ? Edit : Add}
+              onClick={onEdit}
+            >
+              {hasData ? 'Edit decision' : 'Record decision'}
+            </Button>
+          </div>
+        )}
+      </header>
+      <p className="fsp-info__section-desc">
+        Review the final decision metadata and supporting documents.
+      </p>
       {hasData ? (
-        <dl className="fsp-info__field-list">
-          <Field label="Decided by" value={dash(decision.name)} />
+        <dl className="fsp-info__field-list fsp-info__field-list--emphasis">
           <Field
-            label="Submission date"
-            value={dash(decision.submissionDate)}
+            label={decidedByLabel(decision.statusCode)}
+            value={dash(decision.name)}
           />
           <Field label="Decision date" value={dash(decision.decisionDate)} />
           <Field
             label="Effective date"
             value={dash(decision.effectiveDate)}
           />
-          <Field label="Comment" value={dash(decision.comment)} />
+          <Field label="Submitted" value={dash(decision.submissionDate)} />
+          {!isBlank(decision.comment) && (
+            <Field label="Comment" value={dash(decision.comment)} />
+          )}
         </dl>
       ) : (
         <p className="fsp-info__placeholder">No decision recorded yet.</p>
@@ -421,22 +487,24 @@ const ExtensionRequestTile: FC<{
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
-        <h2 className="fsp-info__section-title">Extension request</h2>
-        {hasDecision && statusTag(decision.statusCode)}
-      </header>
-      {canEdit && (
-        <div className="fsp-info__tab-actions">
-          <Button
-            kind="tertiary"
-            size="sm"
-            renderIcon={hasDecision ? Edit : Add}
-            onClick={onEdit}
-          >
-            {hasDecision ? 'Edit Decision' : 'Record Decision'}
-          </Button>
+        <div className="fsp-info__title-group">
+          <h2 className="fsp-info__section-title">Extension request</h2>
+          {hasDecision ? statusTag(decision.statusCode) : decisionPendingTag}
         </div>
-      )}
-      <dl className="fsp-info__field-list">
+        {canEdit && (
+          <div className="fsp-info__tile-header-actions">
+            <Button
+              kind="tertiary"
+              size="sm"
+              renderIcon={hasDecision ? Edit : Add}
+              onClick={onEdit}
+            >
+              {hasDecision ? 'Edit decision' : 'Record decision'}
+            </Button>
+          </div>
+        )}
+      </header>
+      <dl className="fsp-info__field-list fsp-info__field-list--emphasis">
         <Field
           label="Extension number"
           value={dash(extensionIds ?? decision.extensionId)}
@@ -451,7 +519,9 @@ const ExtensionRequestTile: FC<{
           label="Effective date"
           value={dash(decision.effectiveDate)}
         />
-        <Field label="Comment" value={dash(decision.comment)} />
+        {!isBlank(decision.comment) && (
+          <Field label="Comment" value={dash(decision.comment)} />
+        )}
       </dl>
     </section>
   );
@@ -483,6 +553,8 @@ const WorkflowDataTab: FC<Props> = ({
     useState<OtbhDialogValue | null>(null);
   const [ddmModalOpen, setDdmModalOpen] = useState(false);
   const [extensionModalOpen, setExtensionModalOpen] = useState(false);
+  // Dismissible IDIR-visibility notice at the top of the tab.
+  const [bannerVisible, setBannerVisible] = useState(true);
   const { display } = useNotification();
 
   useEffect(() => {
@@ -673,33 +745,46 @@ const WorkflowDataTab: FC<Props> = ({
   };
 
   return (
-    <div className="fsp-info__tiles-grid">
-      <ReviewDetailsTile
-        items={state.reviewItems}
-        canEdit={reviewEditable}
-        onEdit={(item) => setReviewEditTarget(item)}
-      />
+    <>
+      {bannerVisible && (
+        <InlineNotification
+          className="fsp-info__workflow-banner"
+          kind="info"
+          lowContrast
+          title="Information on this tab is visible to all government (IDIR) users, but not to licensees/BCTS. Avoid noting confidential or sensitive information."
+          onClose={() => {
+            setBannerVisible(false);
+            return true;
+          }}
+        />
+      )}
+      <div className="fsp-info__tiles-grid">
+        <DdmDecisionTile
+          decision={state.ddmDecision}
+          canEdit={ddmEditable}
+          onEdit={() => setDdmModalOpen(true)}
+        />
 
-      <OtbhDetailsTile
-        rows={otbhRows}
-        rowEditable={otbhRowEditable}
-        onEdit={(row) =>
-          setOtbhEditTarget({
-            key: row.key,
-            label: row.label,
-            date: row.date,
-            comment: row.comment,
-          })
-        }
-      />
+        <ReviewDetailsTile
+          items={state.reviewItems}
+          canEdit={reviewEditable}
+          onEdit={(item) => setReviewEditTarget(item)}
+        />
 
-      <DdmDecisionTile
-        decision={state.ddmDecision}
-        canEdit={ddmEditable}
-        onEdit={() => setDdmModalOpen(true)}
-      />
+        <OtbhDetailsTile
+          rows={otbhRows}
+          rowEditable={otbhRowEditable}
+          onEdit={(row) =>
+            setOtbhEditTarget({
+              key: row.key,
+              label: row.label,
+              date: row.date,
+              comment: row.comment,
+            })
+          }
+        />
 
-      {extensionIsPresent && (
+        {extensionIsPresent && (
         <ExtensionRequestTile
           decision={state.extensionDecision}
           extensionIds={state.extensionIds}
@@ -724,6 +809,7 @@ const WorkflowDataTab: FC<Props> = ({
 
       <DdmDecisionEditModal
         open={ddmModalOpen}
+        fspId={fspId}
         value={state.ddmDecision}
         currentStatusCode={state.fspStatusCode}
         allowedDecisions={allowedDdmDecisions(fspStatusCode, roles)}
@@ -740,7 +826,8 @@ const WorkflowDataTab: FC<Props> = ({
         onClose={() => setExtensionModalOpen(false)}
         onSubmit={handleExtensionSave}
       />
-    </div>
+      </div>
+    </>
   );
 };
 

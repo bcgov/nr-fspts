@@ -1,0 +1,66 @@
+// DDM decision Record/Edit dialog. Sits on top of the shared
+// .fsp-species-modal styling; adds the vertical rhythm, the two-column
+// date row, and the decision-letter block.
+
+.ddm-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.ddm-modal__banner.cds--inline-notification {
+  max-inline-size: 100%;
+  inline-size: 100%;
+  margin-block: 0;
+}
+
+// Carbon hard-codes `inline-size: 288px` on single date-picker inputs,
+// which overflows the modal. Beat it (0,3,0 > 0,2,0) so the pickers honour
+// their wrapper width instead. The submission date fills the modal width.
+.ddm-modal {
+  .cds--date-picker,
+  .cds--date-picker-container,
+  .cds--date-picker--single,
+  .cds--date-picker--single .cds--date-picker__input {
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+}
+
+// Decision date + Effective date sit next to each other at a compact
+// fixed width with the same gap as the Plan details edit pane, rather
+// than each stretching to half the modal (which pushed them far apart).
+// Mirrors the Plan-details pattern: a sized wrapper cell holds the
+// picker, which fills it via the full-width rule above.
+.ddm-modal__date-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+}
+
+.ddm-modal__date-cell {
+  flex: 0 0 auto;
+  inline-size: 11rem;
+  max-inline-size: 100%;
+}
+
+.ddm-modal__letter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ddm-modal__section-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--cds-text-primary, #161616);
+}
+
+.ddm-modal__letter-desc {
+  margin: 0;
+  color: var(--cds-text-secondary, #525252);
+  // The record-mode copy carries a hard line break between the file
+  // constraints and the storage note.
+  white-space: pre-line;
+}

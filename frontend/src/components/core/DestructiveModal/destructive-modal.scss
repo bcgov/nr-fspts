@@ -1,3 +1,10 @@
+// Trim Carbon's default 3rem ($spacing-09) modal-content bottom padding so
+// the action row sits close to the modal edge, matching the app's other
+// confirm dialogs (e.g. delete attachment).
+.destructive-modal-dialog .cds--modal-content {
+  padding-block-end: 1rem;
+}
+
 .destructive-modal {
   &__message {
     margin: 0;

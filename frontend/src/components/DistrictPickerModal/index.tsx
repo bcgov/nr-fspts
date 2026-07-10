@@ -152,7 +152,7 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
           renderIcon={saving ? SavingIcon : undefined}
           onClick={() => void submit()}
         >
-          {saving ? 'Adding…' : 'Save'}
+          {saving ? 'Adding…' : 'Add district'}
         </Button>
       </div>
     </Modal>

@@ -1,6 +1,8 @@
 import {
   Button,
+  ComboBox,
   DataTable,
+  DataTableSkeleton,
   Loading,
   Modal,
   Pagination,
@@ -11,68 +13,74 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TextInput,
 } from '@carbon/react';
-import { Search as SearchIcon } from '@carbon/icons-react';
-import { useCallback, useEffect, useState, type FC, type FormEvent } from 'react';
+import { Add } from '@carbon/icons-react';
+import { useCallback, useEffect, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
-import { searchClients, type ClientSearchResult } from '@/services/clientSearch';
+import StatusTag from '@/components/StatusTag/StatusTag';
+import {
+  searchClients,
+  searchClientsAuto,
+  type ClientSearchResult,
+} from '@/services/clientSearch';
 import './ClientSearchModal.scss';
 
 interface ClientSearchModalProps {
   open: boolean;
   onClose: () => void;
-  /** Called with the selected client when the user clicks Select on a row.
+  /** Called with the selected client when the user clicks Add on a row.
       The modal closes itself; the parent decides what to do with the row. */
   onSelect: (client: ClientSearchResult) => void;
 }
 
-interface CriteriaState {
-  clientAcronym: string;
-  clientNumber: string;
-  clientName: string; // last name
-  legalFirstName: string;
-  legalMiddleName: string;
-}
-
-const EMPTY_CRITERIA: CriteriaState = {
-  clientAcronym: '',
-  clientNumber: '',
-  clientName: '',
-  legalFirstName: '',
-  legalMiddleName: '',
-};
-
-// Column max-lengths sourced from THE.FOREST_CLIENT — see the
-// reference_fsp-schema-lengths memory note. Last Name in the DB is
-// VARCHAR2(60) but the legacy SIL21 form capped it at 30 for the
-// same reason most search forms do: matching by prefix is cheaper
-// and 30 chars covers ~all real surnames.
-const FIELD_LENGTHS = {
-  clientAcronym: 8,
-  clientNumber: 8,
-  clientName: 30,
-  legalFirstName: 30,
-  legalMiddleName: 30,
-} as const;
-
 const HEADERS = [
-  { key: 'clientAcronym', header: 'Client acronym' },
   { key: 'clientNumber', header: 'Client number' },
-  { key: 'clientLocnCode', header: 'Location code' },
+  { key: 'clientAcronym', header: 'Client acronym' },
   { key: 'clientName', header: 'Client name' },
+  { key: 'clientLocnCode', header: 'Location code' },
   { key: 'clientLocnName', header: 'Location' },
   { key: 'city', header: 'City' },
   { key: 'clientStatusCode', header: 'Status' },
-  // 'select' is a synthetic column — DataTable's row.cells iteration
-  // walks the registered headers, so we surface a header for it even
-  // though its cell renders an action button rather than data.
-  { key: 'select', header: '' },
+  // 'add' is a synthetic column — DataTable's row.cells iteration walks
+  // the registered headers, so we surface a header for it even though
+  // its cell renders an action button rather than data.
+  { key: 'add', header: 'Action' },
 ];
 
 const formatCell = (value: string | null | undefined) =>
   value && value.trim().length > 0 ? value.trim() : '—';
+
+// FOREST_CLIENT.CLIENT_STATUS_CODE arrives as a short code; render the
+// friendly label the rest of the UI shows (and the status pill keys on).
+const CLIENT_STATUS_LABELS: Record<string, string> = {
+  ACT: 'Active',
+  DAC: 'Deactivated',
+  DEC: 'Deceased',
+  REC: 'Receivership',
+  SPN: 'Suspended',
+};
+
+const clientStatusLabel = (value: string | null | undefined): string => {
+  const code = value?.trim();
+  if (!code) return '';
+  return CLIENT_STATUS_LABELS[code.toUpperCase()] ?? code;
+};
+
+// Label for a client suggestion in the Agreement Holder autocomplete:
+// "Name (ACRONYM) · #number", with absent parts dropped. Matches the
+// main SearchPage's Agreement Holder combobox.
+const clientLabel = (c: ClientSearchResult): string => {
+  const parts: string[] = [];
+  const name = c.clientName?.trim();
+  if (name) parts.push(name);
+  const acronym = c.clientAcronym?.trim();
+  if (acronym) parts.push(`(${acronym})`);
+  const number = c.clientNumber?.trim();
+  const label = parts.join(' ');
+  if (number) return label ? `${label} · ${number}` : number;
+  return label;
+};
 
 // Each row needs a unique id. clientNumber + locnCode is unique per
 // row in the cursor (a client may have multiple locations); if either
@@ -86,7 +94,13 @@ const rowKey = (r: ClientSearchResult, index: number): string => {
 };
 
 const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect }) => {
-  const [criteria, setCriteria] = useState<CriteriaState>(EMPTY_CRITERIA);
+  // Agreement Holder autocomplete state — same shape as the main
+  // SearchPage's client combobox: a debounced term drives the suggestion
+  // list, and the picked client is remembered so its label stays shown.
+  const [holderItems, setHolderItems] = useState<ClientSearchResult[]>([]);
+  const [holderSelected, setHolderSelected] = useState<ClientSearchResult | null>(null);
+  const [holderTerm, setHolderTerm] = useState('');
+
   const [results, setResults] = useState<ClientSearchResult[] | null>(null);
   const [totalElements, setTotalElements] = useState(0);
   const [page, setPage] = useState(0);
@@ -103,28 +117,32 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
     }
   }, [error, display]);
 
-  const set = <K extends keyof CriteriaState>(key: K, value: CriteriaState[K]) =>
-    setCriteria((prev) => ({ ...prev, [key]: value }));
+  // Debounced Agreement Holder lookup — same shape as the main SearchPage:
+  // wait 300ms after the last keystroke, skip terms under 3 chars, and
+  // tolerate a failed fetch by clearing the suggestion list.
+  useEffect(() => {
+    const term = holderTerm.trim();
+    if (term.length < 3) {
+      setHolderItems([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchClientsAuto(term)
+        .then(setHolderItems)
+        .catch(() => setHolderItems([]));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [holderTerm]);
 
-  // Acronym + Client Number are alphanumeric in the DB (Acronym mostly
-  // letters, Number is padded digits) — strip pure-whitespace-only
-  // input but allow whatever else the user types. The proc's LIKE
-  // searches do the heavy lifting for fuzzy matching.
-
+  // Pull every location row for the picked client (the autocomplete only
+  // returns one row per client number). This is what fills the results
+  // table the user actually picks a location from.
   const runSearch = useCallback(
-    async (nextPage: number, nextSize: number) => {
+    async (clientNumber: string, nextPage: number, nextSize: number) => {
       setLoading(true);
       setError(null);
       try {
-        const data = await searchClients({
-          clientAcronym: criteria.clientAcronym,
-          clientNumber: criteria.clientNumber,
-          clientName: criteria.clientName,
-          legalFirstName: criteria.legalFirstName,
-          legalMiddleName: criteria.legalMiddleName,
-          page: nextPage,
-          size: nextSize,
-        });
+        const data = await searchClients({ clientNumber, page: nextPage, size: nextSize });
         setResults(data.content);
         setTotalElements(data.page.totalElements);
         setPage(data.page.number);
@@ -137,29 +155,50 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
         setLoading(false);
       }
     },
-    [criteria],
+    [],
   );
 
-  const handleSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      void runSearch(0, pageSize);
-    },
-    [runSearch, pageSize],
-  );
+  // Typing replaces any prior selection and clears the results (until a
+  // new client is picked). Ignore the synthetic input change Carbon fires
+  // when it sets the input to the selected item's label.
+  const handleHolderInput = (text: string) => {
+    if (holderSelected && clientLabel(holderSelected) === text) return;
+    setHolderSelected(null);
+    setResults(null);
+    setTotalElements(0);
+    setHolderTerm(text);
+  };
+
+  // Picking a client immediately runs the location search — no separate
+  // Search button. A cleared selection (the × in the combobox) empties
+  // the results table.
+  const handleHolderSelect = (data: { selectedItem?: ClientSearchResult | null }) => {
+    const client = data.selectedItem ?? null;
+    setHolderSelected(client);
+    const num = client?.clientNumber?.trim();
+    if (num) {
+      void runSearch(num, 0, pageSize);
+    } else {
+      setResults(null);
+      setTotalElements(0);
+    }
+  };
 
   const handlePagination = useCallback(
     ({ page: newPage, pageSize: newSize }: { page: number; pageSize: number }) => {
-      void runSearch(newPage - 1, newSize);
+      const num = holderSelected?.clientNumber?.trim();
+      if (num) void runSearch(num, newPage - 1, newSize);
     },
-    [runSearch],
+    [runSearch, holderSelected],
   );
 
-  // Reset state every time the modal opens — otherwise stale criteria
-  // and results from a previous open carry over, which is confusing
-  // when the user comes back to pick a different client.
+  // Reset state every time the modal opens — otherwise a stale selection
+  // and results from a previous open carry over, which is confusing when
+  // the user comes back to pick a different client.
   const handleClose = useCallback(() => {
-    setCriteria(EMPTY_CRITERIA);
+    setHolderItems([]);
+    setHolderSelected(null);
+    setHolderTerm('');
     setResults(null);
     setTotalElements(0);
     setPage(0);
@@ -167,7 +206,7 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
     onClose();
   }, [onClose]);
 
-  const handleSelect = useCallback(
+  const handleAdd = useCallback(
     (row: ClientSearchResult) => {
       onSelect(row);
       handleClose();
@@ -182,74 +221,57 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
       open={open}
       onRequestClose={handleClose}
       // Carbon's "lg" passes the standard breakpoint; the table needs
-      // room for 7+ columns plus the Select button so wider is better.
+      // room for 7+ columns plus the Add button so wider is better.
       size="lg"
-      modalHeading="Client search"
+      modalHeading="Add agreement holder"
       passiveModal
       className="client-search-modal"
     >
-      <form className="client-search__form" onSubmit={handleSubmit}>
-        <div className="client-search__field-grid">
-          <TextInput
-            id="client-search-acronym"
-            labelText="Client acronym"
-            value={criteria.clientAcronym}
-            onChange={(e) => set('clientAcronym', e.target.value)}
-            maxLength={FIELD_LENGTHS.clientAcronym}
-            autoComplete="off"
-          />
-          <TextInput
-            id="client-search-number"
-            labelText="Client number"
-            value={criteria.clientNumber}
-            onChange={(e) => set('clientNumber', e.target.value.replace(/\D/g, ''))}
-            maxLength={FIELD_LENGTHS.clientNumber}
-            inputMode="numeric"
-            autoComplete="off"
-          />
-          <TextInput
-            id="client-search-lastName"
-            labelText="Last name"
-            value={criteria.clientName}
-            onChange={(e) => set('clientName', e.target.value)}
-            maxLength={FIELD_LENGTHS.clientName}
-            autoComplete="off"
-          />
-          <TextInput
-            id="client-search-firstName"
-            labelText="First name"
-            value={criteria.legalFirstName}
-            onChange={(e) => set('legalFirstName', e.target.value)}
-            maxLength={FIELD_LENGTHS.legalFirstName}
-            autoComplete="off"
-          />
-          <TextInput
-            id="client-search-middleName"
-            labelText="Middle name"
-            value={criteria.legalMiddleName}
-            onChange={(e) => set('legalMiddleName', e.target.value)}
-            maxLength={FIELD_LENGTHS.legalMiddleName}
-            autoComplete="off"
-          />
-        </div>
+      <p className="client-search__intro">
+        Search for a client to add as an agreement holder on this FSP.
+      </p>
 
-        <div className="client-search__actions">
-          <Button
-            type="submit"
-            size="md"
-            renderIcon={loading ? SearchingIcon : SearchIcon}
-            disabled={loading}
-          >
-            {loading ? 'Searching...' : 'Search'}
-          </Button>
+      <div className="client-search__holder">
+        <ComboBox
+          id="client-search-holder"
+          titleText="Agreement holder"
+          helperText="Enter name, acronym, or client number (min. 3 characters)"
+          items={holderItems}
+          itemToString={(item) => (item ? clientLabel(item) : '')}
+          selectedItem={holderSelected}
+          onInputChange={handleHolderInput}
+          onChange={handleHolderSelect}
+        />
+      </div>
+
+      {loading && !hasResults && (
+        <div className="client-search__results">
+          {/* First query for a picked client — show a table skeleton in
+              place of the (not-yet-loaded) results panel. */}
+          <div className="bordered-table">
+            <DataTableSkeleton
+              headers={HEADERS}
+              rowCount={5}
+              showHeader={false}
+              showToolbar={false}
+              aria-label="Searching clients"
+            />
+          </div>
         </div>
-      </form>
+      )}
 
       {hasResults && (
         <div className="client-search__results">
-          <div className="client-search__table-container">
-            <div className={loading ? 'client-search__table--loading' : undefined}>
-              <div className="bordered-table">
+          {/* Result count banner + table + pagination read as one
+              connected block inside a single rounded border, matching the
+              main SearchPage results panel. */}
+          <div className="bordered-table client-search__results-panel">
+            <div className="client-search__results-header">
+              {totalElements.toLocaleString()}{' '}
+              {totalElements === 1 ? 'result' : 'results'} found
+            </div>
+            <div className="client-search__table-container">
+              <div className={loading ? 'client-search__table--loading' : undefined}>
                 <DataTable rows={results!.map((r, i) => ({ ...r, id: rowKey(r, i) }))} headers={HEADERS}>
                   {({ rows, headers, getTableProps, getHeaderProps }) => (
                     <TableContainer>
@@ -266,23 +288,34 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
                         <TableBody>
                           {rows.map((row, idx) => {
                             // Pull the original ClientSearchResult back so
-                            // the Select handler hands the parent a clean
+                            // the Add handler hands the parent a clean
                             // typed object rather than the DataTable's
                             // augmented row shape.
                             const original = results![idx];
                             return (
                               <TableRow key={row.id}>
                                 {row.cells.map((cell) => {
-                                  if (cell.info.header === 'select') {
+                                  if (cell.info.header === 'add') {
                                     return (
                                       <TableCell key={cell.id}>
                                         <Button
                                           kind="ghost"
                                           size="sm"
-                                          onClick={() => handleSelect(original)}
+                                          renderIcon={Add}
+                                          onClick={() => handleAdd(original)}
                                         >
-                                          Select
+                                          Add
                                         </Button>
+                                      </TableCell>
+                                    );
+                                  }
+                                  if (cell.info.header === 'clientStatusCode') {
+                                    const label = clientStatusLabel(
+                                      cell.value as string | null | undefined,
+                                    );
+                                    return (
+                                      <TableCell key={cell.id}>
+                                        {label ? <StatusTag status={label} /> : '—'}
                                       </TableCell>
                                     );
                                   }
@@ -301,34 +334,30 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
                   )}
                 </DataTable>
               </div>
+              {loading && (
+                <div className="client-search__table-overlay" role="status" aria-live="polite">
+                  <Loading description="Loading…" withOverlay={false} />
+                </div>
+              )}
             </div>
-            {loading && (
-              <div className="client-search__table-overlay" role="status" aria-live="polite">
-                <Loading description="Loading…" withOverlay={false} />
-              </div>
-            )}
-          </div>
 
-          <Pagination
-            page={page + 1}
-            pageSize={pageSize}
-            pageSizes={[10, 25, 50, 100]}
-            totalItems={totalElements}
-            onChange={handlePagination}
-            size="md"
-          />
+            <Pagination
+              page={page + 1}
+              pageSize={pageSize}
+              pageSizes={[10, 25, 50, 100]}
+              totalItems={totalElements}
+              onChange={handlePagination}
+              size="md"
+            />
+          </div>
         </div>
       )}
 
-      {results !== null && !hasResults && !error && (
-        <p className="client-search__summary">No clients match your search.</p>
+      {results !== null && !hasResults && !loading && !error && (
+        <p className="client-search__summary">No locations found for this client.</p>
       )}
     </Modal>
   );
 };
-
-// Renders a small Carbon spinner sized to fit a Button icon slot;
-// same shape we use on the main SearchPage's Search button.
-const SearchingIcon = () => <Loading small withOverlay={false} description="" />;
 
 export default ClientSearchModal;
