@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import {Edit, Launch, Map as MapIcon} from '@carbon/icons-react';
+import {Edit, Launch} from '@carbon/icons-react';
 import {type FC, useEffect, useMemo, useState} from 'react';
 
 import EmptyState from '@/components/EmptyState/EmptyState';
@@ -48,6 +48,26 @@ const MAP_VIEWER_LAYERS = '1417,1418,1419,1420';
 
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
+
+// Thin-stroke folded-map glyph for the empty state. Carbon's filled Map
+// reads too heavy at pictogram size; a stroked SVG with non-scaling-stroke
+// keeps the lines a crisp ~1.5px at any rendered size.
+const EmptyMapIcon = () => (
+  <svg
+    width="112"
+    height="112"
+    viewBox="0 0 32 32"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 8l8-3 8 3 8-3v19l-8 3-8-3-8 3z" vectorEffect="non-scaling-stroke" />
+    <path d="M12 5v19M20 8v19" vectorEffect="non-scaling-stroke" />
+  </svg>
+);
 
 type SortDir = 'ASC' | 'DESC';
 
@@ -222,7 +242,7 @@ const MapTab: FC<Props> = ({
           </div>
         ) : !fduList || fduList.fdus.length === 0 ? (
           <EmptyState
-            icon={<MapIcon size={80} />}
+            icon={<EmptyMapIcon />}
             title="No FDUs for this FSP"
             body="FDU boundaries come from the spatial data (XML/GeoJSON) submitted for this FSP. None have been submitted for this version yet."
           />
