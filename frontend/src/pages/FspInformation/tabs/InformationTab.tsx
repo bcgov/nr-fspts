@@ -4,6 +4,8 @@ import {
   DatePicker,
   DatePickerInput,
   NumberInput,
+  RadioButton,
+  RadioButtonGroup,
   Table,
   TableBody,
   TableCell,
@@ -11,18 +13,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TextArea,
   TextInput,
-  Toggle,
 } from '@carbon/react';
-import {Add, Edit, TrashCan} from '@carbon/icons-react';
+import {Add, Area, Edit, LicenseThirdParty, Report, TrashCan} from '@carbon/icons-react';
 import {type FC, useEffect, useState} from 'react';
 
-import AmendmentDescriptionModal from '@/components/AmendmentDescriptionModal';
 import ClientSearchModal from '@/components/ClientSearchModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import DistrictPickerModal from '@/components/DistrictPickerModal';
-import ExtensionSummaryModal from '@/components/ExtensionSummaryModal';
 import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
 import {canEditFsp} from '@/routes/access';
@@ -38,6 +36,12 @@ import {
 interface Props {
   fsp: FspInformation | null;
   onSaved: (updated: FspInformation) => void;
+  /**
+   * Notifies the parent page whenever Plan details enters/leaves edit
+   * mode, so it can disable the page-level action buttons (Amend,
+   * Extend, Replace, Submit, Delete) while an edit is in progress.
+   */
+  onEditingChange?: (editing: boolean) => void;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -65,10 +69,14 @@ const formatTerm = (
 interface FieldEntry {
   label: string;
   value: string;
+  // Span the full width of the field-list grid — used for the FSP name
+  // and the two flag rows so the dates (Effective / Expiry / FSP term)
+  // sit together on their own row, matching the approved layout.
+  full?: boolean;
 }
 
-const Field: FC<FieldEntry> = ({ label, value }) => (
-  <div className="fsp-info__field">
+const Field: FC<FieldEntry> = ({ label, value, full }) => (
+  <div className={full ? 'fsp-info__field fsp-info__field--full' : 'fsp-info__field'}>
     <dt>{label}</dt>
     <dd>{value}</dd>
   </div>
@@ -78,12 +86,14 @@ const Field: FC<FieldEntry> = ({ label, value }) => (
 
 /**
  * Editable subset of FspInformation. Only fields the FSP-300 SAVE proc
- * accepts as user input. Status, IDs, audit columns, revision count,
- * and the proc-derived description fields are excluded — those come
- * back on the response and the parent refreshes from there.
+ * accepts as user input AND that appear on the redesigned Information
+ * tab. Status, IDs, audit columns, amendment metadata, and the
+ * proc-derived description fields are excluded — those come back on the
+ * response and the parent refreshes from there.
  *
- * Toggles bind to a boolean here for Carbon's <Toggle>; we convert to
- * the proc's 'Y'/'N' strings just before the save call.
+ * The Transition flags bind to a boolean here for the Yes/No radio
+ * groups; we convert to the proc's 'Y'/'N' strings just before the save
+ * call.
  */
 interface EditFormState {
   fspPlanName: string;
@@ -91,13 +101,9 @@ interface EditFormState {
   fspTelephoneNumber: string;
   fspEmailAddress: string;
   fspPlanStartDate: string;
-  fspPlanEndDate: string;
   fspExpiryDate: string;
   fspPlanTermYears: string;
   fspPlanTermMonths: string;
-  amendmentName: string;
-  amendmentAuthority: string;
-  amendmentReason: string;
   transitionInd: boolean;
   frpa197electionInd: boolean;
 }
@@ -108,13 +114,9 @@ const createFormState = (fsp: FspInformation): EditFormState => ({
   fspTelephoneNumber: fsp.fspTelephoneNumber ?? '',
   fspEmailAddress: fsp.fspEmailAddress ?? '',
   fspPlanStartDate: fsp.fspPlanStartDate ?? '',
-  fspPlanEndDate: fsp.fspPlanEndDate ?? '',
   fspExpiryDate: fsp.fspExpiryDate ?? '',
   fspPlanTermYears: fsp.fspPlanTermYears ?? '',
   fspPlanTermMonths: fsp.fspPlanTermMonths ?? '',
-  amendmentName: fsp.amendmentName ?? '',
-  amendmentAuthority: fsp.amendmentAuthority ?? '',
-  amendmentReason: '', // not on read DTO; proc accepts it on save
   transitionInd: fsp.transitionInd === 'Y',
   frpa197electionInd: fsp.frpa197electionInd === 'Y',
 });
@@ -125,9 +127,6 @@ const MAX = {
   fspContactName: 60,
   fspTelephoneNumber: 10,
   fspEmailAddress: 100,
-  amendmentName: 30,
-  amendmentAuthority: 50,
-  amendmentReason: 2000,
 } as const;
 
 type Errors = Partial<Record<keyof EditFormState, string>>;
@@ -154,15 +153,6 @@ const validate = (form: EditFormState): Errors => {
   if (form.fspEmailAddress.length > MAX.fspEmailAddress) {
     errs.fspEmailAddress = `Max ${MAX.fspEmailAddress} characters.`;
   }
-  if (form.amendmentName.length > MAX.amendmentName) {
-    errs.amendmentName = `Max ${MAX.amendmentName} characters.`;
-  }
-  if (form.amendmentAuthority.length > MAX.amendmentAuthority) {
-    errs.amendmentAuthority = `Max ${MAX.amendmentAuthority} characters.`;
-  }
-  if (form.amendmentReason.length > MAX.amendmentReason) {
-    errs.amendmentReason = `Max ${MAX.amendmentReason} characters.`;
-  }
   const years = form.fspPlanTermYears.trim();
   if (years && (!/^\d+$/.test(years) || Number(years) > 99)) {
     errs.fspPlanTermYears = 'Whole number 0–99.';
@@ -181,20 +171,16 @@ const toPayload = (form: EditFormState): Partial<FspInformation> => ({
   fspTelephoneNumber: form.fspTelephoneNumber.trim() || null,
   fspEmailAddress: form.fspEmailAddress.trim() || null,
   fspPlanStartDate: form.fspPlanStartDate || null,
-  fspPlanEndDate: form.fspPlanEndDate || null,
   fspExpiryDate: form.fspExpiryDate || null,
   fspPlanTermYears: form.fspPlanTermYears.trim() || null,
   fspPlanTermMonths: form.fspPlanTermMonths.trim() || null,
-  amendmentName: form.amendmentName.trim() || null,
-  amendmentAuthority: form.amendmentAuthority.trim() || null,
-  amendmentReason: form.amendmentReason.trim() || null,
   transitionInd: form.transitionInd ? 'Y' : 'N',
   frpa197electionInd: form.frpa197electionInd ? 'Y' : 'N',
 });
 
 // ─── Component ─────────────────────────────────────────────────────────
 
-const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
+const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
   const { display } = useNotification();
   const { user } = useAuth();
   // Master edit gate — View-Only never edits; Submitter-only is locked
@@ -214,14 +200,6 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
   // the licensees / org-units relations.
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [districtPickerOpen, setDistrictPickerOpen] = useState(false);
-
-  // FSP301 dialog — covers both AMD ("Amendment Description") and RPL
-  // ("Replacement Description") flows. Stored as a string so the same
-  // modal instance can render the right heading text.
-  const [amendmentDialog, setAmendmentDialog] = useState<
-    'Amendment Description' | 'Replacement Description' | null
-  >(null);
-  const [extensionSummaryOpen, setExtensionSummaryOpen] = useState(false);
   // Holds the district pending removal so ConfirmationModal can render
   // the right label and the confirm handler knows which orgUnitNo to
   // drop from the PUT payload. Mirrors the BGC zone delete pattern in
@@ -237,6 +215,12 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
       setErrors({});
     }
   }, [fsp, editing]);
+
+  // Surface edit-mode state so the parent page can lock its action
+  // buttons while Plan details are being edited.
+  useEffect(() => {
+    onEditingChange?.(editing);
+  }, [editing, onEditingChange]);
 
   if (!fsp || !form) return null;
 
@@ -315,10 +299,21 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
     const merged = [...(fsp.agreementHolders ?? []), next];
     const updated = await updateFsp(fsp.fspId, { agreementHolders: merged });
     onSaved(updated);
+    // "<Client name> (<abbr>) - <number> has been added to this FSP",
+    // with any absent part dropped.
+    const holderParts: string[] = [];
+    if (client.clientName?.trim()) holderParts.push(client.clientName.trim());
+    if (client.clientAcronym?.trim()) holderParts.push(`(${client.clientAcronym.trim()})`);
+    let holderLabel = holderParts.join(' ');
+    if (client.clientNumber?.trim()) {
+      holderLabel = holderLabel
+        ? `${holderLabel} - ${client.clientNumber.trim()}`
+        : client.clientNumber.trim();
+    }
     display({
       kind: 'success',
       title: 'Agreement holder added.',
-      subtitle: client.clientName || client.clientNumber || undefined,
+      subtitle: holderLabel ? `${holderLabel} has been added to this FSP` : undefined,
       timeout: 6000,
     });
   };
@@ -359,10 +354,14 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
     const merged = [...(fsp.districts ?? []), next];
     const updated = await updateFsp(fsp.fspId, { districts: merged });
     onSaved(updated);
+    // "<District Acr> - <District name> has been added to this FSP",
+    // falling back to whichever part is present.
+    const districtLabel =
+      code && name ? `${code} - ${name}` : code ?? name ?? district.code;
     display({
       kind: 'success',
       title: 'District added.',
-      subtitle: code ?? district.code,
+      subtitle: districtLabel ? `${districtLabel} has been added to this FSP` : undefined,
       timeout: 6000,
     });
   };
@@ -387,40 +386,24 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
     });
   };
 
-  // ─── Read-only field lists ──────────────────────────────────────────
-
+  // ─── Read-only field list (Plan details) ────────────────────────────
+  // FSP name and the two flags span the full row so the three date
+  // fields group together on a single row, matching the approved
+  // layout. Contact fields are kept here (per design) after the flags.
   const planDetails: FieldEntry[] = [
-    { label: 'FSP name', value: dash(fsp.fspPlanName) },
-    { label: 'Status', value: dash(fsp.fspStatusDesc) },
-    { label: 'Amendment name', value: dash(fsp.amendmentName) },
-    { label: 'Amendment type', value: dash(fsp.fspAmendmentDesc) },
-    { label: 'Amendment authority', value: dash(fsp.amendmentAuthority) },
-  ];
-
-  // Matches the legacy FSP300 Y/N-with-link convention. All three
-  // entries open as dialogs:
-  //   Amendment Description     visible only when amendment_code = 'AMD'
-  //   Replacement Description   visible only when amendment_code = 'RPL'
-  //   Extension Summary         visible whenever fsp_extension_stat != 'N'
-  const hasAmendmentDescription = fsp.fspAmendmentCode === 'AMD';
-  const hasReplacementDescription = fsp.fspAmendmentCode === 'RPL';
-  const hasExtensionSummary =
-    !!fsp.fspExtensionStat && fsp.fspExtensionStat !== 'N';
-
-  const termAndDates: FieldEntry[] = [
+    { label: 'FSP name', value: dash(fsp.fspPlanName), full: true },
     { label: 'Effective date', value: dash(fsp.fspPlanStartDate) },
     { label: 'Expiry date', value: dash(fsp.fspExpiryDate) },
-    { label: 'Submission date', value: dash(fsp.fspPlanSubmissionDate) },
-    { label: 'Term', value: formatTerm(fsp.fspPlanTermYears, fsp.fspPlanTermMonths) },
-    { label: 'Plan end date', value: dash(fsp.fspPlanEndDate) },
-  ];
-
-  const flags: FieldEntry[] = [
-    { label: 'Transitional FSP', value: yesNo(fsp.transitionInd) },
-    { label: 'FRPA 197 election', value: yesNo(fsp.frpa197electionInd) },
-  ];
-
-  const contact: FieldEntry[] = [
+    {
+      label: 'FSP term',
+      value: formatTerm(fsp.fspPlanTermYears, fsp.fspPlanTermMonths),
+    },
+    { label: 'Transitional FSP', value: yesNo(fsp.transitionInd), full: true },
+    {
+      label: 'FRPA s.197 election for stocking standards',
+      value: yesNo(fsp.frpa197electionInd),
+      full: true,
+    },
     { label: 'Contact name', value: dash(fsp.fspContactName) },
     { label: 'Telephone', value: dash(fsp.fspTelephoneNumber) },
     { label: 'E-mail address', value: dash(fsp.fspEmailAddress) },
@@ -437,343 +420,241 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
     associatedFoms: dash(h.associatedFoms),
   }));
 
-
   return (
     <div>
-      {!editing && canEdit && (
-        <div className="fsp-info__tab-actions">
-          <Button kind="tertiary" size="sm" renderIcon={Edit} onClick={handleEdit}>
-            Edit
-          </Button>
-        </div>
-      )}
-
       <div className="fsp-info__tiles-grid">
-        {/* Plan Details */}
-        <section className="fsp-info__tile">
+        {/* Plan details */}
+        <section className="fsp-info__tile fsp-info__tile--full">
           <header className="fsp-info__tile-header">
-            <h2 className="fsp-info__section-title">Plan details</h2>
+            <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+              <Report size={20} />
+              <span>Plan details</span>
+            </h2>
+            {!editing && canEdit && (
+              <Button
+                kind="tertiary"
+                size="sm"
+                renderIcon={Edit}
+                onClick={handleEdit}
+              >
+                Edit plan details
+              </Button>
+            )}
           </header>
           {editing ? (
-            <div className="fsp-info__edit-grid">
-              <TextInput
-                id="edit-fspPlanName"
-                labelText="FSP name"
-                value={form.fspPlanName}
-                maxLength={MAX.fspPlanName}
-                invalid={!!errors.fspPlanName}
-                invalidText={errors.fspPlanName}
-                disabled={saving}
-                onChange={(e) => setField('fspPlanName', e.target.value)}
-              />
-              <TextInput
-                id="edit-amendmentName"
-                labelText="Amendment name"
-                value={form.amendmentName}
-                maxLength={MAX.amendmentName}
-                invalid={!!errors.amendmentName}
-                invalidText={errors.amendmentName}
-                disabled={saving}
-                onChange={(e) => setField('amendmentName', e.target.value)}
-              />
-              <TextInput
-                id="edit-amendmentAuthority"
-                labelText="Amendment authority"
-                value={form.amendmentAuthority}
-                maxLength={MAX.amendmentAuthority}
-                invalid={!!errors.amendmentAuthority}
-                invalidText={errors.amendmentAuthority}
-                disabled={saving}
-                onChange={(e) => setField('amendmentAuthority', e.target.value)}
-              />
-              <TextArea
-                id="edit-amendmentReason"
-                labelText="Amendment reason"
-                value={form.amendmentReason}
-                maxLength={MAX.amendmentReason}
-                rows={3}
-                invalid={!!errors.amendmentReason}
-                invalidText={errors.amendmentReason}
-                disabled={saving}
-                onChange={(e) => setField('amendmentReason', e.target.value)}
-              />
+            <div className="fsp-info__edit">
+              <p className="fsp-info__subtitle">
+                All fields are required unless marked optional.
+              </p>
+
+              <div className="fsp-info__edit-cell fsp-info__edit-cell--name">
+                <TextInput
+                  id="edit-fspPlanName"
+                  labelText="FSP name"
+                  value={form.fspPlanName}
+                  maxLength={MAX.fspPlanName}
+                  invalid={!!errors.fspPlanName}
+                  invalidText={errors.fspPlanName}
+                  disabled={saving}
+                  onChange={(e) => setField('fspPlanName', e.target.value)}
+                />
+              </div>
+
+              <div className="fsp-info__edit-section">
+                <h3 className="fsp-info__edit-section-title">Dates and term</h3>
+                <div className="fsp-info__edit-row">
+                  <div className="fsp-info__edit-cell fsp-info__edit-cell--date">
+                    <DatePicker
+                      datePickerType="single"
+                      dateFormat="Y-m-d"
+                      value={form.fspPlanStartDate || undefined}
+                      onChange={(dates: Date[]) =>
+                        setField(
+                          'fspPlanStartDate',
+                          dates[0] ? toIsoDate(dates[0]) : '',
+                        )
+                      }
+                    >
+                      <DatePickerInput
+                        id="edit-fspPlanStartDate"
+                        placeholder="YYYY-MM-DD"
+                        labelText="Effective date"
+                        disabled={saving}
+                      />
+                    </DatePicker>
+                  </div>
+                  <div className="fsp-info__edit-cell fsp-info__edit-cell--date">
+                    <DatePicker
+                      datePickerType="single"
+                      dateFormat="Y-m-d"
+                      value={form.fspExpiryDate || undefined}
+                      onChange={(dates: Date[]) =>
+                        setField('fspExpiryDate', dates[0] ? toIsoDate(dates[0]) : '')
+                      }
+                    >
+                      <DatePickerInput
+                        id="edit-fspExpiryDate"
+                        placeholder="YYYY-MM-DD"
+                        labelText="Expiry date"
+                        disabled={saving}
+                      />
+                    </DatePicker>
+                  </div>
+                  <div className="fsp-info__edit-cell fsp-info__edit-cell--term">
+                    <NumberInput
+                      id="edit-fspPlanTermYears"
+                      label="Term years"
+                      min={0}
+                      max={99}
+                      allowEmpty
+                      hideSteppers
+                      value={
+                        form.fspPlanTermYears === ''
+                          ? ''
+                          : Number(form.fspPlanTermYears)
+                      }
+                      invalid={!!errors.fspPlanTermYears}
+                      invalidText={errors.fspPlanTermYears}
+                      disabled={saving}
+                      onChange={(_e, { value }) =>
+                        setField(
+                          'fspPlanTermYears',
+                          value === '' ? '' : String(value),
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="fsp-info__edit-cell fsp-info__edit-cell--term">
+                    <NumberInput
+                      id="edit-fspPlanTermMonths"
+                      label="Term months"
+                      min={0}
+                      max={11}
+                      allowEmpty
+                      hideSteppers
+                      value={
+                        form.fspPlanTermMonths === ''
+                          ? ''
+                          : Number(form.fspPlanTermMonths)
+                      }
+                      invalid={!!errors.fspPlanTermMonths}
+                      invalidText={errors.fspPlanTermMonths}
+                      disabled={saving}
+                      onChange={(_e, { value }) =>
+                        setField(
+                          'fspPlanTermMonths',
+                          value === '' ? '' : String(value),
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="fsp-info__edit-section">
+                <h3 className="fsp-info__edit-section-title">Transition</h3>
+                <div className="fsp-info__edit-radios">
+                  <RadioButtonGroup
+                    name="transitionInd"
+                    legendText="Transitional FSP"
+                    valueSelected={form.transitionInd ? 'Y' : 'N'}
+                    disabled={saving}
+                    onChange={(value) =>
+                      setField('transitionInd', value === 'Y')
+                    }
+                  >
+                    <RadioButton id="transitionInd-yes" labelText="Yes" value="Y" />
+                    <RadioButton id="transitionInd-no" labelText="No" value="N" />
+                  </RadioButtonGroup>
+                  <RadioButtonGroup
+                    name="frpa197electionInd"
+                    legendText="FRPA s.197 election for stocking standards"
+                    valueSelected={form.frpa197electionInd ? 'Y' : 'N'}
+                    disabled={saving}
+                    onChange={(value) =>
+                      setField('frpa197electionInd', value === 'Y')
+                    }
+                  >
+                    <RadioButton id="frpa197-yes" labelText="Yes" value="Y" />
+                    <RadioButton id="frpa197-no" labelText="No" value="N" />
+                  </RadioButtonGroup>
+                </div>
+              </div>
+
+              <div className="fsp-info__edit-section">
+                <h3 className="fsp-info__edit-section-title">Contact</h3>
+                <div className="fsp-info__edit-row">
+                  <div className="fsp-info__edit-cell fsp-info__edit-cell--text">
+                    <TextInput
+                      id="edit-fspContactName"
+                      labelText="Contact name"
+                      value={form.fspContactName}
+                      maxLength={MAX.fspContactName}
+                      invalid={!!errors.fspContactName}
+                      invalidText={errors.fspContactName}
+                      disabled={saving}
+                      onChange={(e) => setField('fspContactName', e.target.value)}
+                    />
+                  </div>
+                  <div className="fsp-info__edit-cell fsp-info__edit-cell--text">
+                    <TextInput
+                      id="edit-fspTelephoneNumber"
+                      labelText="Telephone"
+                      helperText="10 digits, no separators"
+                      value={form.fspTelephoneNumber}
+                      maxLength={MAX.fspTelephoneNumber}
+                      invalid={!!errors.fspTelephoneNumber}
+                      invalidText={errors.fspTelephoneNumber}
+                      disabled={saving}
+                      onChange={(e) =>
+                        setField(
+                          'fspTelephoneNumber',
+                          e.target.value.replace(/\D/g, ''),
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="fsp-info__edit-cell fsp-info__edit-cell--text">
+                    <TextInput
+                      id="edit-fspEmailAddress"
+                      labelText="E-mail address"
+                      value={form.fspEmailAddress}
+                      maxLength={MAX.fspEmailAddress}
+                      invalid={!!errors.fspEmailAddress}
+                      invalidText={errors.fspEmailAddress}
+                      disabled={saving}
+                      onChange={(e) => setField('fspEmailAddress', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
-            <dl className="fsp-info__field-list">
+            <dl className="fsp-info__field-list fsp-info__field-list--emphasis">
               {planDetails.map((f) => (
                 <Field key={f.label} {...f} />
               ))}
             </dl>
           )}
-        </section>
-
-        {/* Related Forms — Y/N + navigation buttons matching the
-            legacy FSP300 "Amendment Description / Replacement
-            Description / Extension Summary" rows. Each row shows "Y"
-            with an Open button when applicable, "—" otherwise. */}
-        {!editing && (
-          <section className="fsp-info__tile">
-            <header className="fsp-info__tile-header">
-              <h2 className="fsp-info__section-title">Related forms</h2>
-            </header>
-            <dl className="fsp-info__field-list">
-              <div className="fsp-info__field">
-                <dt>Amendment description</dt>
-                <dd>
-                  {hasAmendmentDescription ? (
-                    <Button
-                      kind="ghost"
-                      size="sm"
-                      renderIcon={Edit}
-                      onClick={() => setAmendmentDialog('Amendment Description')}
-                    >
-                      Open
-                    </Button>
-                  ) : (
-                    '—'
-                  )}
-                </dd>
-              </div>
-              <div className="fsp-info__field">
-                <dt>Replacement description</dt>
-                <dd>
-                  {hasReplacementDescription ? (
-                    <Button
-                      kind="ghost"
-                      size="sm"
-                      renderIcon={Edit}
-                      onClick={() => setAmendmentDialog('Replacement Description')}
-                    >
-                      Open
-                    </Button>
-                  ) : (
-                    '—'
-                  )}
-                </dd>
-              </div>
-              <div className="fsp-info__field">
-                <dt>Extension summary</dt>
-                <dd>
-                  {hasExtensionSummary ? (
-                    <Button
-                      kind="ghost"
-                      size="sm"
-                      renderIcon={Edit}
-                      onClick={() => setExtensionSummaryOpen(true)}
-                    >
-                      View
-                    </Button>
-                  ) : (
-                    '—'
-                  )}
-                </dd>
-              </div>
-            </dl>
-          </section>
-        )}
-
-        {/* Term & Dates */}
-        <section className="fsp-info__tile">
-          <header className="fsp-info__tile-header">
-            <h2 className="fsp-info__section-title">Term &amp; dates</h2>
-          </header>
-          {editing ? (
-            <div className="fsp-info__edit-grid">
-              <DatePicker
-                datePickerType="single"
-                dateFormat="Y-m-d"
-                value={form.fspPlanStartDate || undefined}
-                onChange={(dates: Date[]) =>
-                  setField('fspPlanStartDate', dates[0] ? toIsoDate(dates[0]) : '')
-                }
+          {editing && (
+            <div className="fsp-info__form-actions">
+              <Button
+                kind="secondary"
+                size="sm"
+                disabled={saving}
+                onClick={handleCancel}
               >
-                <DatePickerInput
-                  id="edit-fspPlanStartDate"
-                  placeholder="YYYY-MM-DD"
-                  labelText="Effective date"
-                  disabled={saving}
-                />
-              </DatePicker>
-              <DatePicker
-                datePickerType="single"
-                dateFormat="Y-m-d"
-                value={form.fspExpiryDate || undefined}
-                onChange={(dates: Date[]) =>
-                  setField('fspExpiryDate', dates[0] ? toIsoDate(dates[0]) : '')
-                }
+                Cancel
+              </Button>
+              <Button
+                kind="primary"
+                size="sm"
+                disabled={saving}
+                onClick={handleSave}
               >
-                <DatePickerInput
-                  id="edit-fspExpiryDate"
-                  placeholder="YYYY-MM-DD"
-                  labelText="Expiry date"
-                  disabled={saving}
-                />
-              </DatePicker>
-              {/*
-                Term + Plan End Date share one column of the 2-col edit
-                grid so Plan End Date sits directly under Term (the
-                right column of this row stays empty by design — matches
-                the legacy 5-year-cap layout where Plan End Date is the
-                fallback / alternative entry to the term).
-              */}
-              <div className="fsp-info__edit-stack">
-                <fieldset className="fsp-info__term-group">
-                  <legend className="fsp-info__term-legend">Term</legend>
-                  {/*
-                    Inline styles set the flex layout + cell widths.
-                    The .fsp-info__term-inputs class anchors a separate
-                    SCSS rule that resets Carbon's hard-coded 9.375rem
-                    min-inline-size on the inner <input>, which is what
-                    was actually overflowing the cell.
-                  */}
-                  <div
-                    className="fsp-info__term-inputs"
-                    style={{ display: 'flex', gap: '1rem' }}
-                  >
-                    <div style={{ width: '5rem', flex: '0 0 5rem' }}>
-                      <NumberInput
-                        id="edit-fspPlanTermYears"
-                        label="Years"
-                        min={0}
-                        max={99}
-                        allowEmpty
-                        hideSteppers
-                        value={form.fspPlanTermYears === '' ? '' : Number(form.fspPlanTermYears)}
-                        invalid={!!errors.fspPlanTermYears}
-                        invalidText={errors.fspPlanTermYears}
-                        disabled={saving}
-                        onChange={(_e, { value }) =>
-                          setField('fspPlanTermYears', value === '' ? '' : String(value))
-                        }
-                      />
-                    </div>
-                    <div style={{ width: '5rem', flex: '0 0 5rem' }}>
-                      <NumberInput
-                        id="edit-fspPlanTermMonths"
-                        label="Months"
-                        min={0}
-                        max={11}
-                        allowEmpty
-                        hideSteppers
-                        value={form.fspPlanTermMonths === '' ? '' : Number(form.fspPlanTermMonths)}
-                        invalid={!!errors.fspPlanTermMonths}
-                        invalidText={errors.fspPlanTermMonths}
-                        disabled={saving}
-                        onChange={(_e, { value }) =>
-                          setField('fspPlanTermMonths', value === '' ? '' : String(value))
-                        }
-                      />
-                    </div>
-                  </div>
-                </fieldset>
-                <DatePicker
-                  datePickerType="single"
-                  dateFormat="Y-m-d"
-                  value={form.fspPlanEndDate || undefined}
-                  onChange={(dates: Date[]) =>
-                    setField('fspPlanEndDate', dates[0] ? toIsoDate(dates[0]) : '')
-                  }
-                >
-                  <DatePickerInput
-                    id="edit-fspPlanEndDate"
-                    placeholder="YYYY-MM-DD"
-                    labelText="Plan end date"
-                    disabled={saving}
-                  />
-                </DatePicker>
-              </div>
+                {saving ? 'Saving…' : 'Save changes'}
+              </Button>
             </div>
-          ) : (
-            <dl className="fsp-info__field-list">
-              {termAndDates.map((f) => (
-                <Field key={f.label} {...f} />
-              ))}
-            </dl>
-          )}
-        </section>
-
-        {/* Contact */}
-        <section className="fsp-info__tile">
-          <header className="fsp-info__tile-header">
-            <h2 className="fsp-info__section-title">Contact</h2>
-          </header>
-          {editing ? (
-            <div className="fsp-info__edit-grid">
-              <TextInput
-                id="edit-fspContactName"
-                labelText="Contact name"
-                value={form.fspContactName}
-                maxLength={MAX.fspContactName}
-                invalid={!!errors.fspContactName}
-                invalidText={errors.fspContactName}
-                disabled={saving}
-                onChange={(e) => setField('fspContactName', e.target.value)}
-              />
-              <TextInput
-                id="edit-fspTelephoneNumber"
-                labelText="Telephone"
-                helperText="10 digits, no separators"
-                value={form.fspTelephoneNumber}
-                maxLength={MAX.fspTelephoneNumber}
-                invalid={!!errors.fspTelephoneNumber}
-                invalidText={errors.fspTelephoneNumber}
-                disabled={saving}
-                onChange={(e) =>
-                  setField('fspTelephoneNumber', e.target.value.replace(/\D/g, ''))
-                }
-              />
-              <TextInput
-                id="edit-fspEmailAddress"
-                labelText="E-mail address"
-                value={form.fspEmailAddress}
-                maxLength={MAX.fspEmailAddress}
-                invalid={!!errors.fspEmailAddress}
-                invalidText={errors.fspEmailAddress}
-                disabled={saving}
-                onChange={(e) => setField('fspEmailAddress', e.target.value)}
-              />
-            </div>
-          ) : (
-            <dl className="fsp-info__field-list">
-              {contact.map((f) => (
-                <Field key={f.label} {...f} />
-              ))}
-            </dl>
-          )}
-        </section>
-
-        {/* Flags */}
-        <section className="fsp-info__tile">
-          <header className="fsp-info__tile-header">
-            <h2 className="fsp-info__section-title">Flags</h2>
-          </header>
-          {editing ? (
-            <div className="fsp-info__edit-grid fsp-info__edit-grid--toggles">
-              <Toggle
-                id="edit-transitionInd"
-                labelText="Transitional FSP"
-                labelA="No"
-                labelB="Yes"
-                toggled={form.transitionInd}
-                disabled={saving}
-                onToggle={(v) => setField('transitionInd', v)}
-              />
-              <Toggle
-                id="edit-frpa197electionInd"
-                labelText="FRPA 197 election"
-                labelA="No"
-                labelB="Yes"
-                toggled={form.frpa197electionInd}
-                disabled={saving}
-                onToggle={(v) => setField('frpa197electionInd', v)}
-              />
-            </div>
-          ) : (
-            <dl className="fsp-info__field-list">
-              {flags.map((f) => (
-                <Field key={f.label} {...f} />
-              ))}
-            </dl>
           )}
         </section>
 
@@ -782,12 +663,16 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
             and persisted without going through the scalar edit mode. */}
         <section className="fsp-info__tile fsp-info__tile--full">
           <header className="fsp-info__tile-header">
-            <h2 className="fsp-info__section-title">Agreement holders</h2>
+            <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+              <LicenseThirdParty size={20} />
+              <span>Agreement holders</span>
+            </h2>
             {canEdit && (
               <Button
                 kind="tertiary"
                 size="sm"
                 renderIcon={Add}
+                disabled={editing}
                 onClick={() => setClientPickerOpen(true)}
               >
                 Add agreement holder
@@ -801,9 +686,9 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
               <DataTable
                 rows={agreementHolderRows}
                 headers={[
-                  { key: 'clientNumber', header: 'Client #' },
+                  { key: 'clientNumber', header: 'Client number' },
                   { key: 'clientName', header: 'Client name' },
-                  { key: 'agreement', header: 'License' },
+                  { key: 'agreement', header: 'Licence' },
                   { key: 'associatedFoms', header: 'Associated FOMs' },
                 ]}
                 isSortable
@@ -841,12 +726,16 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
             (Carbon ComboBox over getOrgUnits). */}
         <section className="fsp-info__tile fsp-info__tile--full">
           <header className="fsp-info__tile-header">
-            <h2 className="fsp-info__section-title">Districts</h2>
+            <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+              <Area size={20} />
+              <span>Districts</span>
+            </h2>
             {canEdit && (
               <Button
                 kind="tertiary"
                 size="sm"
                 renderIcon={Add}
+                disabled={editing}
                 onClick={() => setDistrictPickerOpen(true)}
               >
                 Add district
@@ -896,17 +785,6 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
         </section>
       </div>
 
-      {editing && (
-        <div className="fsp-info__form-actions">
-          <Button kind="secondary" size="sm" disabled={saving} onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button kind="primary" size="sm" disabled={saving} onClick={handleSave}>
-            {saving ? 'Saving…' : 'Save'}
-          </Button>
-        </div>
-      )}
-
       <ClientSearchModal
         open={clientPickerOpen}
         onClose={() => setClientPickerOpen(false)}
@@ -953,18 +831,6 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
           from this FSP? This cannot be undone.
         </p>
       </ConfirmationModal>
-      <AmendmentDescriptionModal
-        open={amendmentDialog != null}
-        fsp={fsp}
-        heading={amendmentDialog ?? 'Amendment Description'}
-        onClose={() => setAmendmentDialog(null)}
-        onSaved={onSaved}
-      />
-      <ExtensionSummaryModal
-        open={extensionSummaryOpen}
-        fspId={fsp.fspId}
-        onClose={() => setExtensionSummaryOpen(false)}
-      />
     </div>
   );
 };

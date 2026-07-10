@@ -1,0 +1,93 @@
+// Amend / Replace FSP dialog. Sits on top of the shared .fsp-species-modal
+// body/footer styling; this file only adds the intro copy, info banner,
+// horizontal Y/N question rows, and approval block.
+
+.amend-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.amend-modal__intro {
+  margin: 0;
+  color: var(--cds-text-secondary, #525252);
+}
+
+// Custom info banner — mirrors Carbon's low-contrast info notification
+// (blue left accent, tinted fill, info glyph) but permits the inline
+// "Data submission" link that InlineNotification would reject.
+.amend-modal__banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: var(--cds-notification-background-info, #edf5ff);
+  border-inline-start: 3px solid var(--cds-support-info, #0043ce);
+  border-radius: 2px;
+  color: var(--cds-text-primary, #161616);
+  line-height: 1.4;
+}
+
+.amend-modal__banner-icon {
+  flex: 0 0 auto;
+  margin-block-start: 0.0625rem;
+  fill: var(--cds-support-info, #0043ce);
+}
+
+// FDU + stocking questions: label flush-left, Yes/No radios flush-right,
+// with a hairline divider between the two rows.
+.amend-modal__questions {
+  display: flex;
+  flex-direction: column;
+}
+
+.amend-modal__question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-block-size: 2.5rem;
+}
+
+.amend-modal__question-label {
+  color: var(--cds-text-primary, #161616);
+}
+
+// Keep the Yes/No pair on one line, hugging the right edge.
+.amend-modal__question .cds--radio-button-group {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 1rem;
+}
+
+.amend-modal__divider {
+  block-size: 0;
+  margin-block: 0.25rem;
+  border: 0;
+  border-block-start: 1px solid var(--cds-border-subtle-01, #e0e0e0);
+}
+
+// Approval block: bold heading, optional description (replace) or the
+// Yes/No radios stacked below (amend).
+.amend-modal__approval {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.amend-modal__approval-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--cds-text-primary, #161616);
+}
+
+.amend-modal__approval-desc {
+  margin: 0;
+  color: var(--cds-text-secondary, #525252);
+}
+
+.amend-modal__error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--cds-text-error, #da1e28);
+}

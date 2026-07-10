@@ -1,6 +1,5 @@
 import {
   Button,
-  DataTable,
   Loading,
   Table,
   TableBody,
@@ -10,9 +9,10 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import {Edit, Map as MapIcon} from '@carbon/icons-react';
-import {type FC, useEffect, useState} from 'react';
+import {Edit, Launch} from '@carbon/icons-react';
+import {type FC, useEffect, useMemo, useState} from 'react';
 
+import EmptyState from '@/components/EmptyState/EmptyState';
 import FduLicencesModal from '@/components/FduLicencesModal';
 import {useNotification} from '@/context/notification/useNotification';
 import {env} from '@/env';
@@ -49,11 +49,27 @@ const MAP_VIEWER_LAYERS = '1417,1418,1419,1420';
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
 
-const FDU_HEADERS = [
-  { key: 'fduName', header: 'FDU name' },
-  { key: 'licences', header: 'Licence' },
-  { key: 'actions', header: '', isSortable: false },
-];
+// Thin-stroke folded-map glyph for the empty state. Carbon's filled Map
+// reads too heavy at pictogram size; a stroked SVG with non-scaling-stroke
+// keeps the lines a crisp ~1.5px at any rendered size.
+const EmptyMapIcon = () => (
+  <svg
+    width="112"
+    height="112"
+    viewBox="0 0 32 32"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 8l8-3 8 3 8-3v19l-8 3-8-3-8 3z" vectorEffect="non-scaling-stroke" />
+    <path d="M12 5v19M20 8v19" vectorEffect="non-scaling-stroke" />
+  </svg>
+);
+
+type SortDir = 'ASC' | 'DESC';
 
 const MapTab: FC<Props> = ({
   fspId,
@@ -72,6 +88,9 @@ const MapTab: FC<Props> = ({
   // FDU list loads for the FDU variant.
   const [fduList, setFduList] = useState<FspFduList | null>(null);
   const [fduLoading, setFduLoading] = useState(false);
+  // Frontend sort on FDU name, ascending by default with the indicator
+  // shown; clicking the header toggles the direction.
+  const [sortDir, setSortDir] = useState<SortDir>('ASC');
 
   // Edit-licences modal target — null when closed.
   const [editTarget, setEditTarget] = useState<
@@ -179,13 +198,16 @@ const MapTab: FC<Props> = ({
   };
 
   const showFduTable = variant === 'fdu';
-  const fduRows =
-    fduList?.fdus.map((f, i) => ({
-      id: f.fduId ?? `row-${i}`,
-      fduName: dash(f.fduName),
-      licences: dash(f.licences),
-      actions: '',
-    })) ?? [];
+  const sortedFdus = useMemo(() => {
+    const list = fduList?.fdus ?? [];
+    return [...list].sort((a, b) => {
+      const cmp = (a.fduName ?? '').localeCompare(b.fduName ?? '', undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+      return sortDir === 'ASC' ? cmp : -cmp;
+    });
+  }, [fduList, sortDir]);
 
   return (
     <>
@@ -213,88 +235,76 @@ const MapTab: FC<Props> = ({
         </section>
       )}
 
-      {showFduTable && (
-        <section className="fsp-info__tile fsp-info__tile--full">
-          <header className="fsp-info__tile-header">
-            <h2 className="fsp-info__section-title">FDU records</h2>
-          </header>
-          {fduLoading && !fduList ? (
-            <div className="fsp-info__loading" role="status" aria-live="polite">
-              <Loading description="Loading FDUs…" withOverlay={false} />
-            </div>
-          ) : !fduList || fduList.fdus.length === 0 ? (
-            <p>No FDU records with spatial data for this FSP/amendment.</p>
-          ) : (
-            <div className="bordered-table">
-              <DataTable rows={fduRows} headers={FDU_HEADERS} isSortable>
-                {({ rows: r, headers, getTableProps, getHeaderProps, getRowProps }) => (
-                  <TableContainer>
-                    <Table {...getTableProps()} size="md" useZebraStyles>
-                      <TableHead>
-                        <TableRow>
-                          {headers.map((h) => (
-                            <TableHeader
-                              {...getHeaderProps({ header: h })}
-                              key={h.key}
-                            >
-                              {h.header}
-                            </TableHeader>
-                          ))}
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {r.map((row) => (
-                          <TableRow {...getRowProps({ row })} key={row.id}>
-                            {row.cells.map((cell) => {
-                              if (cell.info.header === 'actions') {
-                                const sourceRow = fduList?.fdus.find(
-                                  (f) => (f.fduId ?? '') === row.id,
-                                );
-                                return (
-                                  <TableCell key={cell.id}>
-                                    <Button
-                                      kind="ghost"
-                                      size="sm"
-                                      renderIcon={MapIcon}
-                                      onClick={() => openMapView()}
-                                      disabled={!extent || opening}
-                                    >
-                                      Map view
-                                    </Button>
-                                    {canEditLicences && sourceRow?.fduId && (
-                                      <Button
-                                        kind="ghost"
-                                        size="sm"
-                                        renderIcon={Edit}
-                                        onClick={() =>
-                                          setEditTarget({
-                                            fduId: sourceRow.fduId as string,
-                                            fduName: sourceRow.fduName ?? '',
-                                            licences: sourceRow.licences ?? '',
-                                          })
-                                        }
-                                      >
-                                        Edit licences
-                                      </Button>
-                                    )}
-                                  </TableCell>
-                                );
+      {showFduTable &&
+        (fduLoading && !fduList ? (
+          <div className="fsp-info__loading" role="status" aria-live="polite">
+            <Loading description="Loading FDUs…" withOverlay={false} />
+          </div>
+        ) : !fduList || fduList.fdus.length === 0 ? (
+          <EmptyState
+            icon={<EmptyMapIcon />}
+            title="No FDUs for this FSP"
+            body="FDU boundaries come from the spatial data (XML/GeoJSON) submitted for this FSP. None have been submitted for this version yet."
+          />
+        ) : (
+          <div className="bordered-table fsp-info__fdu-table">
+            <TableContainer>
+              <Table size="md" useZebraStyles>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader
+                      isSortable
+                      isSortHeader
+                      sortDirection={sortDir}
+                      onClick={() => setSortDir((d) => (d === 'ASC' ? 'DESC' : 'ASC'))}
+                    >
+                      FDU name
+                    </TableHeader>
+                    <TableHeader>Licence</TableHeader>
+                    <TableHeader>Actions</TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {sortedFdus.map((f, i) => (
+                    <TableRow key={f.fduId ?? `row-${i}`}>
+                      <TableCell>{dash(f.fduName)}</TableCell>
+                      <TableCell>{dash(f.licences)}</TableCell>
+                      <TableCell>
+                        <div className="fsp-info__row-actions">
+                          <Button
+                            kind="ghost"
+                            size="sm"
+                            renderIcon={Launch}
+                            onClick={() => openMapView()}
+                            disabled={!extent || opening}
+                          >
+                            Map view
+                          </Button>
+                          {canEditLicences && f.fduId && (
+                            <Button
+                              kind="ghost"
+                              size="sm"
+                              renderIcon={Edit}
+                              onClick={() =>
+                                setEditTarget({
+                                  fduId: f.fduId as string,
+                                  fduName: f.fduName ?? '',
+                                  licences: f.licences ?? '',
+                                })
                               }
-                              return (
-                                <TableCell key={cell.id}>{cell.value as string}</TableCell>
-                              );
-                            })}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-              </DataTable>
-            </div>
-          )}
-        </section>
-      )}
+                            >
+                              Edit licences
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </div>
+        ))}
 
       {editTarget && (
         <FduLicencesModal

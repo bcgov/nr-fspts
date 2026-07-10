@@ -38,3 +38,8 @@
   line-height: 1.5;
   color: var(--cds-text-secondary);
 }
+
+/* Call-to-action button beneath the body (e.g. "Add attachment"). */
+.bc-empty-state__action {
+  margin-block-start: 24px;
+}

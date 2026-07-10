@@ -1282,6 +1282,65 @@ export async function downloadFspAttachment(
   URL.revokeObjectURL(url);
 }
 
+// Map the allowed attachment extensions to a MIME type so the blob can
+// render inline in a new browser tab (the download endpoint labels every
+// file application/octet-stream, which forces a save instead of a view).
+// Unknown extensions fall back to octet-stream (browser will download).
+const ATTACHMENT_MIME_BY_EXT: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
+
+/**
+ * Fetches a single attachment's bytes (with Bearer auth via apiFetch) and
+ * returns a Blob re-typed by the filename extension so callers can open it
+ * inline in a new tab. Used by the Attachments tab's "View" action; the
+ * auth header is why we can't just point an <a target="_blank"> at the URL.
+ */
+export async function fetchFspAttachmentBlob(
+  fspId: string,
+  attachmentId: string,
+  fileName: string | null,
+): Promise<Blob> {
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/attachments/${encodeURIComponent(attachmentId)}/download`,
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Attachment load failed (${res.status}): ${detail}`
+        : `Attachment load failed (${res.status})`,
+    );
+  }
+  const raw = await res.blob();
+  const ext = (fileName ?? '').split('.').pop()?.toLowerCase() ?? '';
+  const mime = ATTACHMENT_MIME_BY_EXT[ext];
+  // Blob.slice with a type argument yields a same-bytes blob with the
+  // overridden MIME type; skip if we can't improve on octet-stream.
+  return mime ? raw.slice(0, raw.size, mime) : raw;
+}
+
+/** Permanently deletes a single FSP attachment (backend returns 204). */
+export async function deleteFspAttachment(
+  fspId: string,
+  attachmentId: string,
+): Promise<void> {
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail
+        ? `Attachment delete failed (${res.status}): ${detail}`
+        : `Attachment delete failed (${res.status})`,
+    );
+  }
+}
+
 export interface FspSearchResult {
   fspId: string | null;
   planName: string | null;

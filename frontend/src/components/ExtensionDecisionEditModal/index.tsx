@@ -13,6 +13,9 @@ import { useEffect, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
 import type { FspExtensionDecision } from '@/services/fspSearch';
+// Reuse the DDM decision dialog's layout (body rhythm, full-width banner,
+// compact date row) so the two decision dialogs read identically.
+import '../DdmDecisionEditModal/ddm-decision-modal.scss';
 
 /** Maps onto the two SAVE_EXT_* proc actions. */
 export type ExtensionDecisionChoice = 'APP' | 'REJ';
@@ -160,32 +163,33 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
           : 'Record extension decision'
       }
       passiveModal
-      size="sm"
-      className="fsp-species-modal"
+      size="md"
+      className="fsp-species-modal ddm-modal"
       onRequestClose={closeDialog}
       preventCloseOnClickOutside
     >
-      <div className="fsp-species-modal__form">
+      <div className="fsp-species-modal__form ddm-modal__body">
+        <p className="fsp-species-modal__subtitle">
+          All fields are required unless marked optional.
+        </p>
+
         <InlineNotification
+          className="ddm-modal__banner"
           kind="info"
           lowContrast
           hideCloseButton
           title={transitionBanner(decision)}
           subtitle=""
         />
+
         {extensionLabel && (
-          <p
-            style={{
-              margin: 0,
-              fontSize: '0.875rem',
-              color: 'var(--cds-text-secondary, #525252)',
-            }}
-          >
+          <p className="ddm-modal__letter-desc">
             <strong>Extension:</strong> {extensionLabel}
           </p>
         )}
+
         <RadioButtonGroup
-          legendText="Decision *"
+          legendText="Decision"
           name="ext-decision"
           valueSelected={decision}
           orientation="vertical"
@@ -216,57 +220,63 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
           <DatePickerInput
             id="ext-submission-date"
             placeholder="YYYY-MM-DD"
-            labelText="Submission date *"
+            labelText="Submission date"
             disabled={saving}
             invalid={submissionMissing}
             invalidText="Submission date is required."
           />
         </DatePicker>
 
-        <DatePicker
-          datePickerType="single"
-          dateFormat="Y-m-d"
-          value={decisionDate || undefined}
-          onChange={(dates: Date[]) =>
-            setDecisionDate(dates[0] ? toIsoDate(dates[0]) : '')
-          }
-        >
-          <DatePickerInput
-            id="ext-decision-date"
-            placeholder="YYYY-MM-DD"
-            labelText="Decision date *"
-            disabled={saving}
-            invalid={decisionDateMissing}
-            invalidText="Decision date is required."
-          />
-        </DatePicker>
+        <div className="ddm-modal__date-row">
+          <div className="ddm-modal__date-cell">
+            <DatePicker
+              datePickerType="single"
+              dateFormat="Y-m-d"
+              value={decisionDate || undefined}
+              onChange={(dates: Date[]) =>
+                setDecisionDate(dates[0] ? toIsoDate(dates[0]) : '')
+              }
+            >
+              <DatePickerInput
+                id="ext-decision-date"
+                placeholder="YYYY-MM-DD"
+                labelText="Decision date"
+                disabled={saving}
+                invalid={decisionDateMissing}
+                invalidText="Decision date is required."
+              />
+            </DatePicker>
+          </div>
 
-        {needsEffectiveDate && (
-          <DatePicker
-            datePickerType="single"
-            dateFormat="Y-m-d"
-            value={effectiveDate || undefined}
-            onChange={(dates: Date[]) =>
-              setEffectiveDate(dates[0] ? toIsoDate(dates[0]) : '')
-            }
-          >
-            <DatePickerInput
-              id="ext-effective-date"
-              placeholder="YYYY-MM-DD"
-              labelText="Effective date *"
-              disabled={saving}
-              invalid={effectiveMissing}
-              invalidText="Effective date is required for Approve."
-            />
-          </DatePicker>
-        )}
+          {needsEffectiveDate && (
+            <div className="ddm-modal__date-cell">
+              <DatePicker
+                datePickerType="single"
+                dateFormat="Y-m-d"
+                value={effectiveDate || undefined}
+                onChange={(dates: Date[]) =>
+                  setEffectiveDate(dates[0] ? toIsoDate(dates[0]) : '')
+                }
+              >
+                <DatePickerInput
+                  id="ext-effective-date"
+                  placeholder="YYYY-MM-DD"
+                  labelText="Effective date"
+                  disabled={saving}
+                  invalid={effectiveMissing}
+                  invalidText="Effective date is required for Approve."
+                />
+              </DatePicker>
+            </div>
+          )}
+        </div>
 
         <TextArea
           id="ext-comment"
-          labelText="Comment"
-          helperText="Optional — up to 4000 characters."
-          maxLength={4000}
-          rows={5}
+          labelText="Comment (optional)"
+          enableCounter
+          maxCount={4000}
+          rows={4}
           value={comment}
           disabled={saving}
           onChange={(e) => setComment(e.target.value)}

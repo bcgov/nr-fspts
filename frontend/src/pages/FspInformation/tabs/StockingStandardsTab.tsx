@@ -15,6 +15,7 @@ import {
 import {Add, Checkmark, Copy, TrashCan} from '@carbon/icons-react';
 import {type FC, useCallback, useEffect, useState} from 'react';
 
+import { StandardsSearchIcon } from '@/components/Layout/navIcons';
 import AddExistingStandardModal from '@/components/AddExistingStandardModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import NewStandardModal from '@/components/NewStandardModal';
@@ -224,7 +225,10 @@ const StockingStandardsTab: FC<Props> = ({
   // on an empty FSP.
   const headerNode = (
     <header className="fsp-info__tile-header">
-      <h2 className="fsp-info__section-title">Stocking standards</h2>
+      <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+        <StandardsSearchIcon width={20} height={20} />
+        <span>Stocking standards</span>
+      </h2>
       <div className="fsp-info__tile-header-actions">
         {canCopy && (
           <Button

@@ -48,6 +48,7 @@ export const DestructiveModal: FC<DestructiveModalProps> = ({
 
   return (
     <Modal
+      className="destructive-modal-dialog"
       open={open}
       modalHeading={title}
       passiveModal

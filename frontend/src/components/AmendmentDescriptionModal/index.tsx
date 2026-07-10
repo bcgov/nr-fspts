@@ -1,5 +1,16 @@
-import { Button, Loading, Modal, Stack, TextArea, Toggle } from '@carbon/react';
+import {
+  Button,
+  Link as CarbonLink,
+  Loading,
+  Modal,
+  RadioButton,
+  RadioButtonGroup,
+  Stack,
+  TextArea,
+} from '@carbon/react';
+import { Information } from '@carbon/icons-react';
 import { useEffect, useState, type FC } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 
 import { useNotification } from '@/context/notification/useNotification';
 import {
@@ -8,25 +19,19 @@ import {
   type FspInformation,
   updateFsp,
 } from '@/services/fspSearch';
+import './amendment-description-modal.scss';
 
 /**
  * Dialog that covers FSP301 (legacy Amend Information / Replace
- * Information page) as a modal. Captures the four Y/N change
- * indicators + the "Summary of Changes" textarea; saves through the
- * same FSP_300_INFORMATION SAVE proc the main Information edit pane
- * uses, so no new backend wiring is needed — the request just carries
- * the extra fields.
+ * Information page) as a modal. Captures the Y/N change indicators + the
+ * "Summary of changes" textarea; saves through the same
+ * FSP_300_INFORMATION SAVE proc the main Information edit pane uses, so
+ * no new backend wiring is needed — the request just carries the extra
+ * fields.
  *
- * <p>One component services both AMD ("Amendment Description") and RPL
- * ("Replacement Description") flows — the only difference is the
- * heading text passed in by the caller. The fspAmendmentCode itself
- * is read off the underlying FSP and surfaces in the title so the user
- * knows which flow they're in.
- */
-/**
- * Drives both the editing-only path (existing amendment description
- * tweaked after the fact) and the "kick off a new amendment /
- * replacement" path from the FSP300 header buttons.
+ * <p>One component services both AMD ("Amend") and RPL ("Replace")
+ * flows — the wording (amendment vs replacement) and the approval
+ * treatment differ, but the persistence path is shared.
  *
  * <ul>
  *   <li><b>edit</b> — operates on the current amendment. Just SAVE.</li>
@@ -43,7 +48,7 @@ type Mode = 'edit' | 'create-amend' | 'create-replace';
 interface Props {
   open: boolean;
   fsp: FspInformation | null;
-  /** "Amendment Description" or "Replacement Description". */
+  /** "Amend FSP" or "Replace FSP" — the FSP id is appended in-modal. */
   heading: string;
   /** Defaults to 'edit' for backwards compat. */
   mode?: Mode;
@@ -51,7 +56,7 @@ interface Props {
   onSaved: (updated: FspInformation) => void;
 }
 
-const AMENDMENT_REASON_MAX = 2000;
+const SUMMARY_MAX = 500;
 
 const AmendmentDescriptionModal: FC<Props> = ({
   open,
@@ -63,11 +68,15 @@ const AmendmentDescriptionModal: FC<Props> = ({
 }) => {
   const { display } = useNotification();
   const [busy, setBusy] = useState(false);
-  const [fduUpdate, setFduUpdate] = useState(false);
-  const [stockingStandardUpdate, setStockingStandardUpdate] = useState(false);
-  const [approvalRequired, setApprovalRequired] = useState(false);
+  // Tri-state Y/N radios — null = not yet answered. "All fields are
+  // required", so submit is blocked until each is set.
+  const [fduUpdate, setFduUpdate] = useState<boolean | null>(null);
+  const [stockingStandardUpdate, setStockingStandardUpdate] = useState<
+    boolean | null
+  >(null);
+  const [approvalRequired, setApprovalRequired] = useState<boolean | null>(null);
   const [amendmentReason, setAmendmentReason] = useState('');
-  const [reasonError, setReasonError] = useState<string | null>(null);
+  const [showErrors, setShowErrors] = useState(false);
   // Once the AMEND / REPLACE proc has run we hold the proc-assigned
   // amendment number here. A retry of Save after a description SAVE
   // failure must NOT call AMEND/REPLACE a second time, or we'd end up
@@ -78,42 +87,52 @@ const AmendmentDescriptionModal: FC<Props> = ({
     useState<string | null>(null);
 
   const isReplace = mode === 'create-replace';
-  // Replacements are always ministry-approval-required per FRPA — the
-  // legacy FSP304 page renders the checkbox disabled and pre-checked.
-  const approvalLocked = isReplace;
+  // Amendment vs replacement wording used throughout the copy.
+  const noun = isReplace ? 'replacement' : 'amendment';
+  // Both the Amend and Replace instances of this modal stay mounted at
+  // once (only `open` toggles), so element ids and — critically — radio
+  // group `name`s must be namespaced per mode. Otherwise the two
+  // dialogs' radios share a group and clicking one toggles the other's
+  // hidden input, making them appear unclickable.
+  const idp = mode;
 
-  // Reset every time the modal re-opens against a (possibly different)
-  // FSP. The legacy form pre-fills from current proc values; for the
-  // two create modes we start from the prior amendment's flags so the
-  // user sees the same defaults the legacy carry-forward would show.
+  // Reset every time the modal re-opens. "All fields are required" so we
+  // start the radios unanswered rather than pre-filling from the prior
+  // amendment. Replacements are always ministry-approval-required, so
+  // approvalRequired is pinned true there.
   useEffect(() => {
-    if (!open || !fsp) return;
-    setFduUpdate(fsp.fduUpdateInd === 'Y');
-    setStockingStandardUpdate(fsp.stockingStandardUpdateInd === 'Y');
-    setApprovalRequired(approvalLocked ? true : fsp.approvalRequiredInd === 'Y');
+    if (!open) return;
+    setFduUpdate(null);
+    setStockingStandardUpdate(null);
+    setApprovalRequired(isReplace ? true : null);
     setAmendmentReason('');
-    setReasonError(null);
+    setShowErrors(false);
     setCreatedAmendmentNumber(null);
     setCreatedFspIdForAmendment(null);
-  }, [open, fsp, approvalLocked]);
+  }, [open, isReplace]);
 
   const closeIfIdle = () => {
     if (busy) return;
     onClose();
   };
 
+  const reasonTrimmed = amendmentReason.trim();
+  const reasonError =
+    reasonTrimmed.length === 0
+      ? 'Summary of changes is required.'
+      : reasonTrimmed.length > SUMMARY_MAX
+        ? `Max ${SUMMARY_MAX} characters.`
+        : null;
+  const fduError = fduUpdate === null;
+  const stockingError = stockingStandardUpdate === null;
+  const approvalError = !isReplace && approvalRequired === null;
+
   const submit = async () => {
     if (!fsp || !fsp.fspId) return;
-    const trimmed = amendmentReason.trim();
-    if (!trimmed) {
-      setReasonError('Summary of Changes is required.');
+    if (fduError || stockingError || approvalError || reasonError) {
+      setShowErrors(true);
       return;
     }
-    if (trimmed.length > AMENDMENT_REASON_MAX) {
-      setReasonError(`Max ${AMENDMENT_REASON_MAX} characters.`);
-      return;
-    }
-    setReasonError(null);
     setBusy(true);
     try {
       // In create modes, kick off AMEND / REPLACE first if we haven't
@@ -123,7 +142,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
       let targetFspId = fsp.fspId;
       let targetAmendmentNumber: string | null = fsp.fspAmendmentNumber;
       if (mode !== 'edit' && createdAmendmentNumber == null) {
-        const created = mode === 'create-replace'
+        const created = isReplace
           ? await replaceFsp(fsp.fspId)
           : await amendFsp(fsp.fspId);
         targetFspId = created.fspId ?? fsp.fspId;
@@ -143,23 +162,24 @@ const AmendmentDescriptionModal: FC<Props> = ({
         identifiedAreasUpdateInd: 'N',
         stockingStandardUpdateInd: stockingStandardUpdate ? 'Y' : 'N',
         approvalRequiredInd: approvalRequired ? 'Y' : 'N',
-        amendmentReason: trimmed,
+        amendmentReason: reasonTrimmed,
       };
       const updated = await updateFsp(targetFspId, payload);
       onSaved(updated);
       onClose();
       display({
         kind: 'success',
-        title: `${heading} saved.`,
-        subtitle: mode !== 'edit' && targetAmendmentNumber
-          ? `New amendment number: ${targetAmendmentNumber}`
-          : undefined,
+        title: isReplace ? 'Replacement created.' : 'Amendment created.',
+        subtitle:
+          mode !== 'edit' && targetAmendmentNumber
+            ? `New amendment number: ${targetAmendmentNumber}`
+            : undefined,
         timeout: 6000,
       });
     } catch (e) {
       display({
         kind: 'error',
-        title: `Failed to save ${heading.toLowerCase()}`,
+        title: `Failed to create ${noun}`,
         subtitle: e instanceof Error ? e.message : 'Unknown error',
         timeout: 0,
       });
@@ -168,67 +188,141 @@ const AmendmentDescriptionModal: FC<Props> = ({
     }
   };
 
+  const submitLabel =
+    mode === 'edit'
+      ? busy
+        ? 'Saving…'
+        : 'Save'
+      : busy
+        ? 'Creating…'
+        : 'Create amendment';
+
   return (
     <Modal
       open={open}
-      modalHeading={heading}
+      modalHeading={fsp?.fspId ? `${heading} ${fsp.fspId}` : heading}
       passiveModal
-      size="sm"
-      className="fsp-species-modal"
+      size="md"
+      className="fsp-species-modal amend-modal"
       onRequestClose={closeIfIdle}
       preventCloseOnClickOutside
     >
-      <Stack gap={5} className="fsp-species-modal__form">
-        <Toggle
-          id="amend-fdu"
-          labelText="FDU changes"
-          labelA="No"
-          labelB="Yes"
-          toggled={fduUpdate}
-          disabled={busy}
-          onToggle={setFduUpdate}
-        />
-        <Toggle
-          id="amend-stocking"
-          labelText="Stocking standard changes"
-          labelA="No"
-          labelB="Yes"
-          toggled={stockingStandardUpdate}
-          disabled={busy}
-          onToggle={setStockingStandardUpdate}
-        />
-        <Toggle
-          id="amend-approval-required"
-          // FSP304 spec: replacements always require ministry approval,
-          // so the toggle is locked Yes when the modal is opened in
-          // create-replace mode. AMD lets the user pick.
-          labelText={
-            isReplace
-              ? 'Replacement requires ministry approval'
-              : 'Does this amendment require approval?'
-          }
-          labelA="No"
-          labelB="Yes"
-          toggled={approvalRequired}
-          disabled={busy || approvalLocked}
-          onToggle={setApprovalRequired}
-        />
-        <TextArea
-          id="amend-reason"
-          labelText="Summary of changes *"
-          placeholder="Describe the changes being made…"
-          maxLength={AMENDMENT_REASON_MAX}
-          rows={5}
-          value={amendmentReason}
-          invalid={!!reasonError}
-          invalidText={reasonError ?? ''}
-          disabled={busy}
-          onChange={(e) => {
-            setAmendmentReason(e.target.value);
-            if (reasonError) setReasonError(null);
-          }}
-        />
-      </Stack>
+      <div className="fsp-species-modal__form amend-modal__body">
+        <p className="amend-modal__intro">
+          Creating {isReplace ? 'a replacement' : 'an amendment'} starts a new
+          draft linked to this FSP. The approved plan isn&apos;t changed. All
+          fields are required.
+        </p>
+
+        {/* Custom info banner rather than Carbon's InlineNotification —
+            the latter forbids interactive children, and we need the
+            inline "Data submission" link. */}
+        <div className="amend-modal__banner" role="note">
+          <Information className="amend-modal__banner-icon" size={20} />
+          <span>
+            If your {noun} includes an XML/GeoJSON file, create it through{' '}
+            <CarbonLink as={RouterLink} to="/data-submission">
+              Data submission
+            </CarbonLink>
+          </span>
+        </div>
+
+        <div className="amend-modal__questions">
+          <div className="amend-modal__question">
+            <span className="amend-modal__question-label">
+              Does this {noun} change FDU boundaries?
+            </span>
+            <RadioButtonGroup
+              name={`${idp}-fdu`}
+              legendText=""
+              valueSelected={fduUpdate === null ? '' : fduUpdate ? 'Y' : 'N'}
+              onChange={(v) => setFduUpdate(v === 'Y')}
+              disabled={busy}
+            >
+              <RadioButton id={`${idp}-fdu-yes`} labelText="Yes" value="Y" />
+              <RadioButton id={`${idp}-fdu-no`} labelText="No" value="N" />
+            </RadioButtonGroup>
+          </div>
+          {showErrors && fduError && (
+            <p className="amend-modal__error">Select an option.</p>
+          )}
+
+          <hr className="amend-modal__divider" />
+
+          <div className="amend-modal__question">
+            <span className="amend-modal__question-label">
+              Does this {noun} change stocking standards?
+            </span>
+            <RadioButtonGroup
+              name={`${idp}-stocking`}
+              legendText=""
+              valueSelected={
+                stockingStandardUpdate === null
+                  ? ''
+                  : stockingStandardUpdate
+                    ? 'Y'
+                    : 'N'
+              }
+              onChange={(v) => setStockingStandardUpdate(v === 'Y')}
+              disabled={busy}
+            >
+              <RadioButton id={`${idp}-stocking-yes`} labelText="Yes" value="Y" />
+              <RadioButton id={`${idp}-stocking-no`} labelText="No" value="N" />
+            </RadioButtonGroup>
+          </div>
+          {showErrors && stockingError && (
+            <p className="amend-modal__error">Select an option.</p>
+          )}
+        </div>
+
+        {isReplace ? (
+          <div className="amend-modal__approval">
+            <p className="amend-modal__approval-title">Approval</p>
+            <p className="amend-modal__approval-desc">
+              Replacement amendments require approval. The district reviews the
+              replacement and makes a decision.
+            </p>
+          </div>
+        ) : (
+          <div className="amend-modal__approval">
+            <p className="amend-modal__approval-title">
+              Does this amendment require approval?
+            </p>
+            <RadioButtonGroup
+              name={`${idp}-approval`}
+              legendText=""
+              valueSelected={
+                approvalRequired === null ? '' : approvalRequired ? 'Y' : 'N'
+              }
+              onChange={(v) => setApprovalRequired(v === 'Y')}
+              disabled={busy}
+            >
+              <RadioButton id={`${idp}-approval-yes`} labelText="Yes" value="Y" />
+              <RadioButton id={`${idp}-approval-no`} labelText="No" value="N" />
+            </RadioButtonGroup>
+            {showErrors && approvalError && (
+              <p className="amend-modal__error">Select an option.</p>
+            )}
+          </div>
+        )}
+
+        <Stack gap={3}>
+          <TextArea
+            id={`${idp}-reason`}
+            labelText="Summary of changes"
+            placeholder="Describe the changes being made…"
+            enableCounter
+            maxCount={SUMMARY_MAX}
+            rows={4}
+            value={amendmentReason}
+            invalid={showErrors && !!reasonError}
+            invalidText={reasonError ?? ''}
+            disabled={busy}
+            onChange={(e) => setAmendmentReason(e.target.value)}
+          />
+        </Stack>
+      </div>
+
       <div className="fsp-species-modal__actions">
         <Button kind="secondary" disabled={busy} onClick={closeIfIdle}>
           Cancel
@@ -239,7 +333,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
           renderIcon={busy ? BusyIcon : undefined}
           onClick={() => void submit()}
         >
-          {busy ? 'Saving…' : 'Save'}
+          {submitLabel}
         </Button>
       </div>
     </Modal>

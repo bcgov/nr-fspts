@@ -1,11 +1,26 @@
-import {Button, Column, Grid, Loading, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs, Tag,} from '@carbon/react';
-import {ArrowLeft, CalendarAdd, DocumentAdd, Renew, SendAlt, TrashCan} from '@carbon/icons-react';
+import {Breadcrumb, BreadcrumbItem, Button, Column, Grid, Link, Loading, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs,} from '@carbon/react';
+import {
+  CalendarAdd,
+  DocumentAdd,
+  DocumentAttachment,
+  Flow,
+  Map,
+  Renew,
+  RecentlyViewed,
+  SendAlt,
+  TableOfContents,
+  TrashCan,
+} from '@carbon/icons-react';
+import { StandardsSearchIcon } from '@/components/Layout/navIcons';
+import { StatusTag } from '@/components/StatusTag/StatusTag';
 import {type FC, useEffect, useState} from 'react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 
 import AmendmentDescriptionModal from '@/components/AmendmentDescriptionModal';
+import AmendmentReplacementSummaryModal from '@/components/AmendmentReplacementSummaryModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import ExtensionRequestModal from '@/components/ExtensionRequestModal';
+import ExtensionSummaryModal from '@/components/ExtensionSummaryModal';
 import SubmitFspModal from '@/components/SubmitFspModal';
 import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
@@ -27,18 +42,33 @@ import WorkflowDataTab from './tabs/WorkflowDataTab';
 
 import './fsp-info.scss';
 
-// Carbon Tag color by status description — same palette the search
-// results table uses so the badge reads consistently when the user
-// crosses over.
-const STATUS_TAG_TYPE_BY_DESC: Record<
-  string,
-  'green' | 'blue' | 'gray' | 'red' | 'warm-gray'
-> = {
-  Approved: 'green',
-  Submitted: 'blue',
-  Draft: 'gray',
-  Rejected: 'red',
-  Expired: 'warm-gray',
+// Adapter so the custom Standards-Search nav icon (fixed 20px) renders at
+// Carbon's tab-icon size. Carbon calls renderIcon with `{ size: 16 }`; the
+// nav icon ignores `size`, so map it onto width/height. Keeps the Stocking
+// standards tab icon identical to the side-nav Standards Search item.
+const StockingStandardsTabIcon = ({ size = 16 }: { size?: number }) => (
+  <StandardsSearchIcon width={size} height={size} />
+);
+
+// fspExtensionStat is a bare status code — a single char on the FSP300
+// read path (e.g. 'S') — so map it to the human label the shared
+// StatusTag expects, and drive its colour, in the header type-summary
+// card. Both single-letter and 3-letter forms are covered.
+const EXTENSION_STAT_LABEL: Record<string, string> = {
+  S: 'Submitted',
+  A: 'Approved',
+  I: 'In effect',
+  R: 'Rejected',
+  D: 'Draft',
+  SUB: 'Submitted',
+  APP: 'Approved',
+  INE: 'In effect',
+  REJ: 'Rejected',
+  DFT: 'Draft',
+  OHS: 'Opportunity to be Heard',
+  EXP: 'Expired',
+  CAN: 'Cancelled',
+  RET: 'Retired',
 };
 
 const FspInformationPage: FC = () => {
@@ -206,6 +236,13 @@ const FspInformationPage: FC = () => {
   const [confirmAmendOpen, setConfirmAmendOpen] = useState(false);
   const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false);
   const [extensionDialogOpen, setExtensionDialogOpen] = useState(false);
+  // Read-only summary dialogs opened from the header type-summary card.
+  const [descriptionSummaryOpen, setDescriptionSummaryOpen] = useState(false);
+  const [extensionSummaryOpen, setExtensionSummaryOpen] = useState(false);
+  // True while the Information tab's Plan details are being edited — locks
+  // the page-level action buttons so a mid-edit mutation can't clobber the
+  // in-flight changes.
+  const [infoEditing, setInfoEditing] = useState(false);
 
   // ConfirmationModal manages its own busy + error-toast lifecycle:
   // it awaits the promise, closes on success, and shows an "Action
@@ -270,36 +307,47 @@ const FspInformationPage: FC = () => {
   // silently-blank header + tabs.
   const fspMissing = !loading && !!fsp && !fsp.fspId && !fsp.fspPlanName;
 
+  // Header type-summary card: each column only appears when the current
+  // version actually is that type. fspAmendmentCode is AMD (amendment)
+  // or RPL (replacement) — mutually exclusive; fspExtensionStat is 'N'
+  // (or blank) when there's no extension, otherwise a status code.
+  const amendmentCode = (fsp?.fspAmendmentCode ?? '').toUpperCase();
+  const showAmendment = amendmentCode === 'AMD';
+  const showReplacement = amendmentCode === 'RPL';
+  const extensionStat = (fsp?.fspExtensionStat ?? '').toUpperCase();
+  const showExtension = extensionStat !== '' && extensionStat !== 'N';
+  const showTypeSummary =
+    !fspMissing && (showAmendment || showReplacement || showExtension);
+  const extensionStatusLabel =
+    EXTENSION_STAT_LABEL[extensionStat] ?? fsp?.fspExtensionStat ?? '';
+
   return (
     <Grid fullWidth className="default-grid fsp-info-grid">
       <Column sm={4} md={8} lg={16}>
-        {/* Back button steers per role — BCeID submitters land at
+        {/* Breadcrumb steers per role — BCeID submitters land at
             /submission-history (the FSP Search page is gated off for
-            them), everyone else lands at /search. */}
-        <button
-          type="button"
-          className="fsp-info__back"
-          onClick={() => navigate(defaultRouteForUser(user))}
-        >
-          <ArrowLeft size={16} />{' '}
-          {defaultRouteForUser(user) === '/submission-history'
-            ? 'Back to submission history'
-            : 'Back to search'}
-        </button>
+            them), everyone else lands at /search. Carbon shows a trailing
+            slash by default, giving the "FSP Search /" look. */}
+        <Breadcrumb noTrailingSlash={false} className="fsp-info__breadcrumb">
+          <BreadcrumbItem
+            href={defaultRouteForUser(user)}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate(defaultRouteForUser(user));
+            }}
+          >
+            {defaultRouteForUser(user) === '/submission-history'
+              ? 'Submission history'
+              : 'FSP Search'}
+          </BreadcrumbItem>
+        </Breadcrumb>
       </Column>
 
       <Column sm={4} md={8} lg={16}>
         <header className="fsp-info__header">
           <div className="fsp-info__header-title">
-            <h1>
-              FSP {fsp?.fspId ?? fspId}
-              {fspMissing ? '' : ` — ${planName}`}
-            </h1>
-            {statusDesc && (
-              <Tag type={STATUS_TAG_TYPE_BY_DESC[statusDesc] ?? 'gray'} size="md">
-                {statusDesc}
-              </Tag>
-            )}
+            <h1>FSP {fsp?.fspId ?? fspId}</h1>
+            {statusDesc && <StatusTag status={statusDesc} />}
             {(canExtend || canAmend || canReplace || canSubmit || canDelete) && (
               <div className="fsp-info__header-actions">
                 {canAmend && fsp?.fspId && (
@@ -307,6 +355,7 @@ const FspInformationPage: FC = () => {
                     kind="tertiary"
                     size="sm"
                     renderIcon={DocumentAdd}
+                    disabled={infoEditing}
                     onClick={() => setConfirmAmendOpen(true)}
                   >
                     Amend FSP
@@ -317,6 +366,7 @@ const FspInformationPage: FC = () => {
                     kind="tertiary"
                     size="sm"
                     renderIcon={CalendarAdd}
+                    disabled={infoEditing}
                     onClick={() => setExtensionDialogOpen(true)}
                   >
                     Extend FSP
@@ -327,6 +377,7 @@ const FspInformationPage: FC = () => {
                     kind="tertiary"
                     size="sm"
                     renderIcon={Renew}
+                    disabled={infoEditing}
                     onClick={() => setConfirmReplaceOpen(true)}
                   >
                     Replace FSP
@@ -337,6 +388,7 @@ const FspInformationPage: FC = () => {
                     kind="primary"
                     size="sm"
                     renderIcon={SendAlt}
+                    disabled={infoEditing}
                     onClick={() => setConfirmSubmitOpen(true)}
                   >
                     Submit FSP
@@ -347,6 +399,7 @@ const FspInformationPage: FC = () => {
                     kind="danger--tertiary"
                     size="sm"
                     renderIcon={TrashCan}
+                    disabled={infoEditing}
                     onClick={() => setConfirmDeleteOpen(true)}
                   >
                     {isAmendment ? 'Delete amendment' : 'Delete FSP'}
@@ -356,9 +409,12 @@ const FspInformationPage: FC = () => {
             )}
           </div>
           {!fspMissing && (
+            <p className="fsp-info__subtitle">Check and manage this FSP</p>
+          )}
+          {!fspMissing && (
             <dl className="fsp-info__meta">
               <div className="fsp-info__meta-item fsp-info__meta-item--select">
-                <strong>Amendment</strong>
+                <strong>Version</strong>
                 <Select
                   id="fsp-amendment-picker"
                   labelText=""
@@ -367,7 +423,7 @@ const FspInformationPage: FC = () => {
                   style={{ width: amendmentSelectWidth }}
                   value={selectedAmendment}
                   onChange={(e) => handleAmendmentChange(e.target.value)}
-                  disabled={amendments.length === 0}
+                  disabled={amendments.length === 0 || infoEditing}
                 >
                   {amendments.length === 0 && (
                     <SelectItem
@@ -380,18 +436,62 @@ const FspInformationPage: FC = () => {
                   ))}
                 </Select>
               </div>
-              <div className="fsp-info__meta-item">
-                <strong>Effective</strong>
-                <span>{fsp?.fspPlanStartDate ?? '—'}</span>
-              </div>
-              <div className="fsp-info__meta-item">
-                <strong>Expiry</strong>
-                <span>{fsp?.fspExpiryDate ?? '—'}</span>
-              </div>
             </dl>
           )}
         </header>
       </Column>
+
+      {showTypeSummary && (
+        <Column sm={4} md={8} lg={16}>
+          <div className="fsp-info__type-summary">
+            {showAmendment && (
+              <div className="fsp-info__type-summary-item">
+                <div className="fsp-info__type-summary-head">
+                  <span className="fsp-info__type-summary-label">Amendment</span>
+                </div>
+                <Link
+                  as="button"
+                  type="button"
+                  onClick={() => setDescriptionSummaryOpen(true)}
+                >
+                  View amendment description
+                </Link>
+              </div>
+            )}
+            {showReplacement && (
+              <div className="fsp-info__type-summary-item">
+                <div className="fsp-info__type-summary-head">
+                  <span className="fsp-info__type-summary-label">Replacement</span>
+                </div>
+                <Link
+                  as="button"
+                  type="button"
+                  onClick={() => setDescriptionSummaryOpen(true)}
+                >
+                  View replacement request
+                </Link>
+              </div>
+            )}
+            {showExtension && (
+              <div className="fsp-info__type-summary-item">
+                <div className="fsp-info__type-summary-head">
+                  <span className="fsp-info__type-summary-label">Extension</span>
+                  {extensionStatusLabel && (
+                    <StatusTag status={extensionStatusLabel} />
+                  )}
+                </div>
+                <Link
+                  as="button"
+                  type="button"
+                  onClick={() => setExtensionSummaryOpen(true)}
+                >
+                  View extension summary
+                </Link>
+              </div>
+            )}
+          </div>
+        </Column>
+      )}
 
       <Column sm={4} md={8} lg={16}>
         {loading && !fsp ? (
@@ -427,27 +527,26 @@ const FspInformationPage: FC = () => {
                 <Loading description="Loading FSP…" withOverlay={false} />
               </div>
             )}
+          {/* Carbon's <Tabs> only renders a context provider (no DOM),
+              so a className on it is dropped. Wrap it in a real div so the
+              full-bleed gray pane styling can target the panel. */}
+          <div className="fsp-info__page-tabs">
           <Tabs>
             <TabList aria-label="FSP sections" contained>
-              <Tab>Information</Tab>
-              <Tab>Attachments</Tab>
-              <Tab>Stocking standards</Tab>
-              <Tab>FDU / map</Tab>
-              <Tab>History</Tab>
-              {showWorkflowTab && <Tab>Workflow</Tab>}
+              <Tab renderIcon={TableOfContents}>Information</Tab>
+              <Tab renderIcon={StockingStandardsTabIcon}>Stocking standards</Tab>
+              <Tab renderIcon={Map}>FDU / Map</Tab>
+              <Tab renderIcon={DocumentAttachment}>Attachments</Tab>
+              <Tab renderIcon={RecentlyViewed}>History</Tab>
+              {showWorkflowTab && <Tab renderIcon={Flow}>Workflow</Tab>}
             </TabList>
             <TabPanels>
               <TabPanel>
                 <div className="fsp-info__tab-panel">
-                  <InformationTab fsp={fsp} onSaved={setFsp} />
-                </div>
-              </TabPanel>
-              <TabPanel>
-                <div className="fsp-info__tab-panel">
-                  <AttachmentsTab
-                    fspId={fspId}
-                    refreshKey={refreshKey}
-                    fspStatusCode={fsp?.fspStatusCode}
+                  <InformationTab
+                    fsp={fsp}
+                    onSaved={setFsp}
+                    onEditingChange={setInfoEditing}
                   />
                 </div>
               </TabPanel>
@@ -476,6 +575,15 @@ const FspInformationPage: FC = () => {
                     isAdmin={isAdmin}
                     readOnly={!canEditFsp(user, fsp?.fspStatusCode)}
                     refreshKey={refreshKey}
+                  />
+                </div>
+              </TabPanel>
+              <TabPanel>
+                <div className="fsp-info__tab-panel">
+                  <AttachmentsTab
+                    fspId={fspId}
+                    refreshKey={refreshKey}
+                    fspStatusCode={fsp?.fspStatusCode}
                   />
                 </div>
               </TabPanel>
@@ -514,6 +622,7 @@ const FspInformationPage: FC = () => {
               )}
             </TabPanels>
           </Tabs>
+          </div>
           </div>
         )}
       </Column>
@@ -570,6 +679,16 @@ const FspInformationPage: FC = () => {
         mode="create-replace"
         onClose={() => setConfirmReplaceOpen(false)}
         onSaved={navigateToNewAmendment}
+      />
+      <AmendmentReplacementSummaryModal
+        open={descriptionSummaryOpen}
+        fsp={fsp}
+        onClose={() => setDescriptionSummaryOpen(false)}
+      />
+      <ExtensionSummaryModal
+        open={extensionSummaryOpen}
+        fspId={fsp?.fspId ?? fspId}
+        onClose={() => setExtensionSummaryOpen(false)}
       />
       <ExtensionRequestModal
         open={extensionDialogOpen}

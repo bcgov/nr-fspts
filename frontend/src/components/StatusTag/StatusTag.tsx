@@ -10,6 +10,9 @@ const statusVariant = (desc: string): string => {
   if (d.includes('submit')) return 'submitted';
   if (d.includes('in effect') || d.includes('in-effect')) return 'in-effect';
   if (d.includes('approv')) return 'approved';
+  // Client (FOREST_CLIENT) status: "Active" is green. Guard against
+  // "inactive"/"deactivated" so only a truly active client goes green.
+  if (d.includes('active') && !d.includes('inactive')) return 'approved';
   if (d.includes('reject')) return 'rejected';
   if (d.includes('expir')) return 'expired';
   if (d.includes('cancel')) return 'cancelled';

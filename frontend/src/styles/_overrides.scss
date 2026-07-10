@@ -765,6 +765,21 @@ body {
 }
 
 /* ---------------------------------------------------------------
+Date-picker input font — realign to the sans stack.
+
+Carbon styles the date-picker value with `type-style('code-02')`, an IBM
+Plex Mono (MONOSPACE) face, so a date field renders in a different,
+heavier-looking font than the text / number inputs beside it (which use
+`body-compact-01` / BC Sans). Override just the font-family + letter-
+spacing so a date field matches its neighbours; loaded after Carbon at
+equal specificity (0,1,0) so it wins.
+--------------------------------------------------------------- */
+.cds--date-picker__input {
+  font-family: "BC Sans", "Noto Sans", Verdana, Arial, sans-serif;
+  letter-spacing: 0.16px;
+}
+
+/* ---------------------------------------------------------------
 Text colours — align Carbon's neutral greys to the BC Gov FDS palette the
 design (and the HTML mock-ups) use, so text renders the exact same shade.
 

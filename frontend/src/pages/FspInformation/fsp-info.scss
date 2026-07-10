@@ -30,6 +30,59 @@
   gap: 0.75rem;
 }
 
+// "Check and manage this FSP" strap-line under the page title.
+.fsp-info__subtitle {
+  margin: 0;
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+}
+
+// Type-summary card below the version picker: up to three columns
+// (Amendment / Replacement / Extension), each conditionally rendered,
+// with a "View …" link (and a status pill for the extension). Sits on
+// the white header area above the gray tab pane.
+.fsp-info__type-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 3rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--cds-border-subtle-01, #e0e0e0);
+  border-radius: 0.5rem;
+}
+
+.fsp-info__type-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+  min-inline-size: 10rem;
+
+  // Link rendered as a <button> — strip the UA button chrome (grey
+  // background, border, padding) so it reads as a plain text link.
+  .cds--link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: start;
+    cursor: pointer;
+  }
+}
+
+// Fixed height = the status pill's 24px so the labels line up across
+// columns whether or not a column carries a pill (the taller pill would
+// otherwise push the "Extension" label below the pill-less "Amendment").
+.fsp-info__type-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 1.5rem;
+}
+
+.fsp-info__type-summary-label {
+  font-size: 1rem;
+  color: var(--cds-text-primary);
+}
+
 .fsp-info__header-title {
   display: flex;
   flex-wrap: wrap;
@@ -133,8 +186,9 @@
 .fsp-info__tab-panel {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
-  padding-block-start: 1rem;
+  gap: 1.5rem;
+  // Top spacing now comes from the gray .cds--tab-content padding; no
+  // extra block-start padding here or the first card sits too low.
 }
 
 // Tile grid. Two columns on desktop, one column below.
@@ -157,6 +211,33 @@
   gap: 0.5rem;
   margin-block-end: 0.5rem;
   flex-wrap: wrap;
+}
+
+// View/Delete (and Map view / Edit) ghost buttons inside a table's Actions
+// cell — keep them on one row and pull the padding in so the pair doesn't
+// inflate row height. The negative inline-start margin cancels Carbon's
+// 1rem ghost-button padding ($spacing-05) so the first button's label
+// starts at the cell's text edge, exactly in line with the "Actions"
+// column header above it.
+.fsp-info__row-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  margin-inline-start: -1rem;
+}
+
+// FDU / Map table: distribute the columns evenly across the full width
+// (fixed layout → equal shares with no explicit widths). The Actions
+// column is the rightmost, so it already holds the right side; keep its
+// header and buttons left-aligned within the column so the "Actions"
+// label sits directly above the buttons instead of floating to the far
+// cell edge (Carbon ghost buttons carry a trailing icon + padding, which
+// otherwise pushes the label out of line with the header).
+.fsp-info__fdu-table {
+  .cds--data-table {
+    table-layout: fixed;
+  }
 }
 
 // Save/Cancel pair at the bottom of an edit form. Direct port of
@@ -195,11 +276,13 @@
   .fsp-species-modal__form {
     padding-block-end: 1rem;
   }
-  // No .cds--modal-content override here on purpose: Carbon's default grid
-  // (header / content=1fr overflow-y:auto / footer) already sizes the modal
-  // to its content and scrolls only when it would exceed the viewport. The
-  // custom action row sits at the end of the content and rides that same
-  // scroll, matching every other dialog.
+  // Trim Carbon's default 3rem ($spacing-09) modal-content bottom padding.
+  // Our custom Cancel / Save action row is the last child of the content, so
+  // the full 3rem leaves too much dead space beneath the buttons. 1rem keeps
+  // a comfortable gap and matches the delete-attachment dialog everywhere.
+  .cds--modal-content {
+    padding-block-end: 1rem;
+  }
 
   // When the content scrolls, Carbon adds .cds--modal-scroll-content with a
   // bottom `mask-image` fade (~48-80px) to hint at more content. Because our
@@ -245,6 +328,20 @@
   margin-block-start: 1.5rem;
   margin-block-end: 0;
   flex-wrap: wrap;
+}
+
+// Secondary "All fields are required unless marked optional." line under
+// a dialog heading. Shared by the Amend/Replace, DDM, and Review dialogs.
+.fsp-species-modal__subtitle {
+  margin: 0;
+  color: var(--cds-text-secondary, #525252);
+}
+
+// Trim Carbon's default 3rem ($spacing-09) modal-content bottom padding
+// on short confirm dialogs (e.g. delete attachment) where it leaves too
+// much dead space beneath the action buttons.
+.fsp-species-modal--tight .cds--modal-content {
+  padding-block-end: 1rem;
 }
 
 // Submit-FSP preflight modal: small additions on top of the shared
@@ -329,6 +426,110 @@
   }
 }
 
+// ── Edit mode (Plan details) — grouped sections matching the approved
+// layout: an "All fields are required" strap-line, a "Dates and term"
+// row, a "Transition" radio block, and an optional "Contact" row.
+.fsp-info__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  // The Plan details tile is a white card, but the global
+  // `.cds--tab-content` rule pushes form fields to field-02 (white) so
+  // they'd disappear into it. Revert to field-01 (gray) so the inputs
+  // read as fields, matching the approved layout.
+  --cds-field: var(--cds-field-01);
+  --cds-field-hover: var(--cds-field-hover-01);
+  --cds-border-subtle: var(--cds-border-subtle-01);
+
+  // Tighten the strap-line to the FSP name field below it.
+  .fsp-info__subtitle {
+    margin-block-end: -0.5rem;
+  }
+}
+
+.fsp-info__edit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.fsp-info__edit-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+}
+
+// A wrapping row of inputs (dates + term, or the contact fields). Fixed-
+// width cells (below) keep the columns packed tight to the left like the
+// read-only field list instead of stretching edge-to-edge.
+.fsp-info__edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: flex-start;
+}
+
+// Fixed-width field cells. Carbon inputs default to width:100%, so a
+// sized wrapper + a min-inline-size reset gives predictable, compact
+// widths (mirrors the Years/Months .fsp-info__term-input-cell trick).
+.fsp-info__edit-cell {
+  flex: 0 0 auto;
+
+  // Force every Carbon field to fill its sized cell and defeat the
+  // hard-coded min-inline-size (number input) / default widths (date
+  // picker) — including the date-picker input wrapper, whose width
+  // anchors the calendar icon (left unsized it overflowed into the
+  // next cell).
+  .cds--text-input,
+  .cds--date-picker,
+  .cds--date-picker-container,
+  .cds--date-picker-input__wrapper,
+  .cds--number,
+  .cds--number input[type='number'] {
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  // Carbon hard-codes a 288px width on the single date-picker input at
+  // specificity (0,3,0): `.cds--date-picker--single .cds--date-picker__input`.
+  // Match its shape with an extra ancestor class (0,4,0) so the input
+  // actually honours the 11rem cell instead of blowing past it into the
+  // neighbouring fields.
+  .cds--date-picker.cds--date-picker--single .cds--date-picker__input {
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+}
+
+.fsp-info__edit-cell--name {
+  inline-size: 25rem;
+  max-inline-size: 100%;
+}
+
+.fsp-info__edit-cell--date {
+  inline-size: 11rem;
+}
+
+.fsp-info__edit-cell--term {
+  inline-size: 7rem;
+}
+
+.fsp-info__edit-cell--text {
+  inline-size: 14rem;
+}
+
+// Transition flags: each Yes/No group stacked vertically.
+.fsp-info__edit-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 // Term group: a fieldset with a "Term" legend over a Years/Months pair.
 // Reset the browser's default fieldset chrome so it lines up with the
 // surrounding Carbon inputs.
@@ -398,6 +599,9 @@
     // is roughly 1rem inline; bump it to 1.5rem (matches the modal
     // header's inline padding).
     padding-inline: 1.5rem;
+    // Trim Carbon's 3rem bottom padding so the pinned actions row sits
+    // close to the modal edge, matching the rest of the dialogs.
+    padding-block-end: 1rem;
   }
 
   &__form {
@@ -435,37 +639,86 @@
 }
 
 .ext-modal {
-  &__context {
-    margin: 0;
-    padding: 0.75rem 0.875rem;
-    background: var(--cds-layer-02, #ffffff);
-    border-radius: 2px;
-    display: grid;
-    gap: 0.375rem;
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
   }
 
-  &__context-row {
+  &__intro {
+    margin: 0;
+    color: var(--cds-text-secondary, #525252);
+  }
+
+  // White summary tile — Effective date / Current term / Current expiry
+  // laid out as three columns (stacks on narrow widths).
+  &__summary {
+    margin: 0;
+    padding: 1rem 1.25rem;
+    background: var(--cds-layer-02, #ffffff);
+    border: 1px solid var(--cds-border-subtle-01, #e0e0e0);
+    border-radius: 0.25rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem 2rem;
+
+    @media (min-width: 640px) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  &__summary-item {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  &__summary-label {
+    font-weight: 600;
+    color: var(--cds-text-primary, #161616);
+  }
+
+  &__summary-value {
+    margin: 0;
+    color: var(--cds-text-primary, #161616);
+  }
+
+  // A logical group (Extend-by + its inputs, or the Attachments block).
+  &__section {
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
+  }
+
+  &__section-title {
+    margin: 0;
+    font-weight: 600;
+    color: var(--cds-text-primary, #161616);
+  }
+
+  &__hint {
+    margin: 0;
     font-size: 0.8125rem;
+    color: var(--cds-text-secondary, #525252);
+  }
 
-    dt {
-      color: var(--cds-text-secondary, #525252);
-      font-weight: 400;
-    }
+  &__divider {
+    block-size: 0;
+    margin: 0;
+    border: 0;
+    border-block-start: 1px solid var(--cds-border-subtle-01, #e0e0e0);
+  }
 
-    dd {
-      margin: 0;
-      font-weight: 600;
-    }
+  &__note {
+    margin: 0;
+    color: var(--cds-text-secondary, #525252);
   }
 
   &__term-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
+    max-inline-size: 22rem;
 
     .cds--number input[type='number'] {
       min-inline-size: 0;
@@ -483,20 +736,36 @@
 }
 
 .fsp-info__tile {
-  background-color: var(--cds-layer-01);
+  // White card sitting on the gray tab-content canvas. Rounded corners
+  // + a soft shadow give the card lift the approved layout calls for.
+  background-color: var(--cds-layer-02);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04);
   // Tightened block padding (top/bottom) so the section heading
   // doesn't sit in a huge wash of whitespace; left/right stay
   // generous for the field-list / table content.
-  padding: 0.75rem 1.5rem 1.25rem;
+  padding: 1rem 1.5rem 1.5rem;
   min-height: 100%;
 
   @media (min-width: 672px) {
-    padding: 1rem 2rem 1.5rem;
+    padding: 1.25rem 2rem 1.75rem;
   }
 }
 
 .fsp-info__tile--full {
   grid-column: 1 / -1;
+}
+
+// Thin gray outline around the Information-tab section cards (Plan
+// details / Agreement holders / Districts). Scoped via :has so only
+// the icon-titled sections get the border, leaving other tabs' tiles
+// as-is.
+.fsp-info__tile:has(.fsp-info__section-title--icon) {
+  border: 1px solid #ececec;
+  // Just the flat border — drop the card lift/shadow on these sections.
+  box-shadow: none;
 }
 
 .fsp-info__tile-header {
@@ -506,6 +775,14 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-block-end: 0.5rem;
+}
+
+// Information-tab section headers (Plan details / Agreement holders /
+// Districts — the icon titles) get extra breathing room before the
+// field list / table below. Scoped via :has so other tabs' tighter
+// headers are untouched.
+.fsp-info__tile-header:has(.fsp-info__section-title--icon) {
+  margin-block-end: 1.5rem;
 }
 
 // Inline group on the right side of a tile header — lets us cluster
@@ -523,6 +800,55 @@
   font-size: 1rem;
   font-weight: 600;
   color: var(--cds-text-primary);
+}
+
+// Cluster a section title with an inline tag (status pill / "Optional")
+// on the left of a tile header, so `space-between` doesn't shove them
+// to opposite edges of the row.
+.fsp-info__title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+// Muted description line beneath a section heading (Workflow tab tiles).
+.fsp-info__section-desc {
+  margin: 0 0 1.25rem;
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+// Info banner at the top of the Workflow tab. Keep the notification's
+// title at regular weight so it reads as one plain sentence, and let it
+// span the full content width above the tile grid.
+.fsp-info__workflow-banner {
+  max-inline-size: none;
+  margin-block-start: 0.5rem;
+  margin-block-end: 0.5rem;
+
+  .cds--inline-notification__title {
+    font-weight: 400;
+  }
+}
+
+// Section title with a leading Carbon icon (Plan details / Agreement
+// holders / Districts on the Information tab). The icon sits muted next
+// to the label so it reads as decoration, not an action.
+.fsp-info__section-title--icon {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  // Larger, regular-weight heading to match the approved layout.
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1.4;
+
+  svg {
+    flex: 0 0 auto;
+    fill: var(--cds-icon-secondary);
+  }
 }
 
 // Key/value pairs inside a tile. Responsive grid like REPT's FieldList.
@@ -557,6 +883,36 @@
     color: var(--cds-text-primary);
     word-break: break-word;
   }
+}
+
+// Span the full field-list row. Used for the FSP name and the two flag
+// rows on the Information tab so the Effective / Expiry / FSP term
+// fields group together on their own row.
+.fsp-info__field--full {
+  grid-column: 1 / -1;
+}
+
+// Plan-details field grid: pack the columns to the left (content-sized,
+// not stretched edge-to-edge) so Effective / Expiry / FSP term sit as a
+// tight group and the rest of the card breathes — matching the approved
+// layout. Full-width fields (FSP name, the flag rows) still span 1 / -1.
+.fsp-info__field-list--emphasis {
+  justify-content: start;
+
+  @media (min-width: 672px) {
+    grid-template-columns: repeat(3, minmax(0, max-content));
+    column-gap: 3rem;
+    row-gap: 1.25rem;
+  }
+}
+
+// Emphasised labels — bold, primary-colour field names as in the
+// approved Information-tab layout. Scoped to this modifier so the
+// lighter default label style on other tabs is untouched.
+.fsp-info__field-list--emphasis .fsp-info__field dt {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
 }
 
 .fsp-info__placeholder {
@@ -642,6 +998,11 @@
 // (gray) so inputs still stand out against the white panel.
 .fsp-info__inner-tabs {
   width: 100%;
+  // Whiten the active tab pill (contained tabs read --cds-layer). Form
+  // widgets inside the panel revert to layer-01 (gray) so they still
+  // stand out. Shared by the page-level tabs and the nested Standards
+  // sub-tabs, so keep this block to token overrides only — the gray
+  // pane + full-bleed live on the --page modifier below.
   --cds-layer: var(--cds-layer-02);
 
   .cds--tab-content {
@@ -649,6 +1010,55 @@
     --cds-field-hover: var(--cds-field-hover-01);
     --cds-border-subtle: var(--cds-border-subtle-01);
     --cds-border-subtle-selected: var(--cds-border-subtle-selected-01);
+  }
+}
+
+// Page-level FSP tabs (Information / Stocking standards / …), applied to
+// a <div> wrapping Carbon's <Tabs> (a className on <Tabs> itself is
+// dropped — it renders only a context provider). This does NOT reuse
+// .fsp-info__inner-tabs, because that sets --cds-layer: layer-02 (white)
+// and Carbon paints the panel from `.cds--tabs--contained ~
+// .cds--tab-content { background: var(--cds-layer) }` — which would turn
+// the gray canvas white. Instead we leave --cds-layer at its default
+// (gray) and target the panel with the SAME sibling shape at higher
+// specificity (0,3,0 > Carbon's 0,2,0) so our gray + full-bleed win
+// deterministically, regardless of bundle order.
+.fsp-info__page-tabs {
+  // Child combinator (not descendant): <Tabs> renders no DOM, so the outer
+  // TabList + tab panels are DIRECT children here. Scoping to `>` keeps this
+  // gray/full-bleed off the nested Standards sub-tabs (Overview / Layers /
+  // …), which live inside a panel wrapped in .fsp-info__inner-tabs and must
+  // stay white via their own --cds-layer override.
+  > .cds--tabs--contained ~ .cds--tab-content {
+    // Gray canvas behind the white .fsp-info__tile cards.
+    background-color: var(--cds-layer-01);
+    // Full-bleed the gray pane so it touches the side-nav on the left and
+    // the screen edge on the right. The breakout must equal the page's
+    // real horizontal inset — measured as .cds--content (1.5rem) + the
+    // Carbon css-grid margin (1.25rem @ ≥672px) = 2.75rem each side. The
+    // matching inline padding pushes the cards back so they stay aligned
+    // with the tab bar + page header. (Overshooting here is what caused a
+    // horizontal scrollbar.)
+    margin-inline: -2.75rem;
+    width: calc(100% + 5.5rem);
+    padding: 1.5rem 2.75rem;
+    box-sizing: border-box;
+
+    // Run the gray canvas to the bottom of the viewport even when the
+    // active tab is short (e.g. a few History rows) so no white shows
+    // below the table. There's no viewport-height flex chain in the page
+    // layout, so we anchor with a min-height: 100dvh minus the page chrome
+    // stacked above the pane (fixed header + breadcrumb + title + version
+    // + tab bar ≈ 22rem). Tall tabs (Information) exceed this and are
+    // unaffected. Tune the offset if the header block's height changes.
+    min-block-size: calc(100dvh - 22rem);
+
+    // Below 672px the grid margin drops to 1rem → 2.5rem total inset.
+    @media (max-width: 671px) {
+      margin-inline: -2.5rem;
+      width: calc(100% + 5rem);
+      padding: 1.5rem 2.5rem;
+    }
   }
 }
 

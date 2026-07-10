@@ -41,6 +41,8 @@ interface SubmissionCopy {
   validatedTitle: string;
   /** Noun in the "[N] issue(s) found in {noun}" error title. */
   errorNoun: string;
+  /** Step 2 (Review) primary button label — replaces the generic "Submit". */
+  submitLabel: string;
   confirmTitle: string;
   /** Sentence after the bold "FSP {id} {name}" in the confirmation. */
   confirmBody: string;
@@ -52,6 +54,7 @@ const SUBMISSION_COPY: Record<SubmissionType, SubmissionCopy> = {
   I: {
     validatedTitle: 'New FSP submission validated',
     errorNoun: 'new FSP submission',
+    submitLabel: 'Save draft',
     confirmTitle: 'FSP draft created',
     confirmBody:
       'has been saved as a draft. Review your draft and submit it when ready.',
@@ -60,6 +63,7 @@ const SUBMISSION_COPY: Record<SubmissionType, SubmissionCopy> = {
   A: {
     validatedTitle: 'FSP amendment validated',
     errorNoun: 'FSP amendment',
+    submitLabel: 'Save amendment draft',
     confirmTitle: 'Amendment draft created',
     confirmBody:
       'has been saved as an amendment draft. Review your draft and submit it when ready.',
@@ -68,6 +72,7 @@ const SUBMISSION_COPY: Record<SubmissionType, SubmissionCopy> = {
   R: {
     validatedTitle: 'FSP replacement validated',
     errorNoun: 'FSP replacement',
+    submitLabel: 'Save replacement draft',
     confirmTitle: 'Replacement draft created',
     confirmBody:
       'has been saved as a replacement draft. Review your draft and submit it when ready.',
@@ -76,6 +81,7 @@ const SUBMISSION_COPY: Record<SubmissionType, SubmissionCopy> = {
   U: {
     validatedTitle: 'FSP update validated',
     errorNoun: 'FSP update',
+    submitLabel: 'Update FSP',
     confirmTitle: 'FSP updated',
     confirmBody: 'has been updated successfully.',
     confirmCta: (id) => `Open FSP ${id}`,
@@ -781,6 +787,9 @@ function ReviewStep({
   onBack: () => void;
   onSubmit: () => void;
 }) {
+  // Button label tracks the submission type (I/A/R/U) so it reads e.g.
+  // "Save amendment draft" instead of a generic "Submit".
+  const submitLabel = SUBMISSION_COPY[toSubmissionType(preview?.plan?.actionCode)].submitLabel;
   return (
     <>
       <div className="page-content">
@@ -816,7 +825,7 @@ function ReviewStep({
           disabled={submitting}
           onClick={onSubmit}
         >
-          {submitting ? 'Submitting' : 'Submit'}
+          {submitting ? 'Submitting' : submitLabel}
           {submitting ? <SpinnerIcon /> : <ArrowRightIcon />}
         </button>
       </div>
