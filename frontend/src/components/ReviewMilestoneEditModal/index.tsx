@@ -1,4 +1,5 @@
-import { Button, Checkbox, Loading, Modal, TextArea } from '@carbon/react';
+import { Button, Checkbox, Loading, TextArea } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { useEffect, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';

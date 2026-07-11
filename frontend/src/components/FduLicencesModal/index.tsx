@@ -2,16 +2,16 @@ import {
   Button,
   InlineNotification,
   Loading,
-  Modal,
   Stack,
   Tag,
   TextInput,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { Add } from '@carbon/icons-react';
 import { useEffect, useMemo, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
-import { updateFduLicences } from '@/services/fspSearch';
+import { checkLicenceExists, updateFduLicences } from '@/services/fspSearch';
 
 /**
  * Dialog for editing the licence numbers attached to a single FDU.
@@ -61,6 +61,7 @@ const FduLicencesModal: FC<Props> = ({
   const [added, setAdded] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
   const [draftError, setDraftError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -69,6 +70,7 @@ const FduLicencesModal: FC<Props> = ({
     setAdded([]);
     setDraft('');
     setDraftError(null);
+    setChecking(false);
     setSubmitting(false);
   }, [open, initialSet]);
 
@@ -77,7 +79,11 @@ const FduLicencesModal: FC<Props> = ({
   const removeAdded = (lic: string) =>
     setAdded((cur) => cur.filter((l) => l !== lic));
 
-  const stageAdd = () => {
+  // Validate on Add rather than at save: cheap client checks first (empty /
+  // duplicate), then confirm the number exists in PROV_FOREST_USE before
+  // staging it. This catches a bad licence immediately instead of failing
+  // the whole batch when the user clicks Save changes.
+  const stageAdd = async () => {
     const v = draft.trim().toUpperCase();
     if (!v) {
       setDraftError('Enter a licence number to add.');
@@ -87,9 +93,23 @@ const FduLicencesModal: FC<Props> = ({
       setDraftError(`${v} is already in this FDU.`);
       return;
     }
-    setAdded((cur) => [...cur, v]);
-    setDraft('');
+    setChecking(true);
     setDraftError(null);
+    try {
+      const exists = await checkLicenceExists(fspId, v);
+      if (!exists) {
+        setDraftError(
+          `${v} was not found in the provincial forest-use registry.`,
+        );
+        return;
+      }
+      setAdded((cur) => [...cur, v]);
+      setDraft('');
+    } catch {
+      setDraftError('Could not validate the licence number. Please try again.');
+    } finally {
+      setChecking(false);
+    }
   };
 
   const removedLicences = initialSet.filter((l) => !kept.includes(l));
@@ -139,7 +159,6 @@ const FduLicencesModal: FC<Props> = ({
     <Modal
       open={open}
       modalHeading={`Edit licences — ${fduName}`}
-      modalLabel="FDU"
       passiveModal
       size="sm"
       className="fsp-species-modal fdu-licences-modal"
@@ -209,19 +228,19 @@ const FduLicencesModal: FC<Props> = ({
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                stageAdd();
+                void stageAdd();
               }
             }}
-            disabled={submitting}
+            disabled={submitting || checking}
           />
           <Button
             kind="tertiary"
             size="md"
-            renderIcon={Add}
-            onClick={stageAdd}
-            disabled={submitting || draft.trim() === ''}
+            renderIcon={checking ? BusyIcon : Add}
+            onClick={() => void stageAdd()}
+            disabled={submitting || checking || draft.trim() === ''}
           >
-            Add
+            {checking ? 'Checking…' : 'Add'}
           </Button>
         </div>
       </Stack>

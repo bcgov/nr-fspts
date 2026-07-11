@@ -443,7 +443,7 @@ const StockingStandardsTab: FC<Props> = ({
                       return (
                         <TableRow
                           key={row.id}
-                          className={`fsp-info__row${
+                          className={`fsp-info__row app-table__row--selectable${
                             isSelected ? ' fsp-info__row--selected' : ''
                           }`}
                           onClick={pick}

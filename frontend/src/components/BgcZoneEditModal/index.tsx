@@ -1,4 +1,5 @@
-import { Button, Loading, Modal, TextInput } from '@carbon/react';
+import { Button, Loading, TextInput } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { useEffect, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';

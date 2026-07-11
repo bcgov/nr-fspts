@@ -4,7 +4,6 @@ import {
   DatePicker,
   DatePickerInput,
   Loading,
-  Modal,
   Pagination,
   Select,
   SelectItem,
@@ -18,6 +17,7 @@ import {
   TextInput,
   Tile,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { Search as SearchIcon } from '@carbon/icons-react';
 import { type FC, type FormEvent, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';

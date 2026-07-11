@@ -4,6 +4,7 @@ import { env } from '@/env';
 
 import { ensureSessionFresh } from '@/context/auth/refreshSession';
 import { getActiveOrgClientNumber } from '@/context/org/useOrg';
+import { safeErrorMessage } from '@/lib/errorMessage';
 
 /**
  * Header sent on every authenticated request when a BCeID submitter
@@ -80,17 +81,30 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 export async function readErrorMessage(res: Response): Promise<string> {
   const raw = await res.text().catch(() => '');
   if (!raw) return '';
+  let candidate = '';
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === 'object') {
       const fields = parsed as Record<string, unknown>;
       for (const key of ['detail', 'message', 'title'] as const) {
         const val = fields[key];
-        if (typeof val === 'string' && val.trim()) return val.trim();
+        if (typeof val === 'string' && val.trim()) {
+          candidate = val.trim();
+          break;
+        }
       }
+      // A JSON body with no message field (e.g. Spring's default
+      // {timestamp,status,error,path}) has nothing human-readable —
+      // leave `candidate` empty so the caller uses its own fallback.
+    } else if (typeof parsed === 'string') {
+      candidate = parsed;
     }
   } catch {
-    // Body wasn't JSON — fall through and surface the raw text.
+    // Body wasn't JSON — the raw text is the only candidate.
+    candidate = raw;
   }
-  return raw;
+  // Guard the choke point: never hand a caller raw SQL/ORA/stack-trace or
+  // an error-JSON dump. Technical text collapses to '' so the caller's
+  // clean fallback message wins.
+  return safeErrorMessage(candidate, '');
 }

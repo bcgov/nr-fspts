@@ -187,6 +187,14 @@ const FspInformationPage: FC = () => {
     '';
   const amendmentSelectWidth = `${Math.max(2, selectedLabel.length) + 6}ch`;
 
+  // With only the original version there's nothing to switch between, so the
+  // picker renders as static "Version: Original" text instead of a dropdown.
+  const hasMultipleVersions = amendments.length > 1;
+  const soleVersionLabel =
+    amendments.find((a) => a.code === selectedAmendment)?.description ??
+    amendments[0]?.description ??
+    'Original';
+
   const statusDesc = fsp?.fspStatusDesc?.trim() ?? '';
   // Delete is gated by the legacy status CODE (not the human description)
   // since the description varies by locale / future renames. FSPTS
@@ -413,29 +421,31 @@ const FspInformationPage: FC = () => {
           )}
           {!fspMissing && (
             <dl className="fsp-info__meta">
-              <div className="fsp-info__meta-item fsp-info__meta-item--select">
-                <strong>Version</strong>
-                <Select
-                  id="fsp-amendment-picker"
-                  labelText=""
-                  hideLabel
-                  size="sm"
-                  style={{ width: amendmentSelectWidth }}
-                  value={selectedAmendment}
-                  onChange={(e) => handleAmendmentChange(e.target.value)}
-                  disabled={amendments.length === 0 || infoEditing}
-                >
-                  {amendments.length === 0 && (
-                    <SelectItem
-                      value={selectedAmendment}
-                      text={selectedAmendment || '—'}
-                    />
-                  )}
-                  {amendments.map((a) => (
-                    <SelectItem key={a.code} value={a.code} text={a.description} />
-                  ))}
-                </Select>
-              </div>
+              {hasMultipleVersions ? (
+                <div className="fsp-info__meta-item fsp-info__meta-item--select">
+                  <strong>Version</strong>
+                  <Select
+                    id="fsp-amendment-picker"
+                    labelText=""
+                    hideLabel
+                    size="sm"
+                    style={{ width: amendmentSelectWidth }}
+                    value={selectedAmendment}
+                    onChange={(e) => handleAmendmentChange(e.target.value)}
+                    disabled={infoEditing}
+                  >
+                    {amendments.map((a) => (
+                      <SelectItem key={a.code} value={a.code} text={a.description} />
+                    ))}
+                  </Select>
+                </div>
+              ) : (
+                <div className="fsp-info__meta-item">
+                  <span>
+                    <strong>Version</strong>: {soleVersionLabel}
+                  </span>
+                </div>
+              )}
             </dl>
           )}
         </header>
@@ -626,6 +636,12 @@ const FspInformationPage: FC = () => {
           </div>
         )}
       </Column>
+      {/* FSP-action + summary dialogs only make sense for a loaded FSP.
+          Gating them on fsp?.fspId also keeps their (always-in-DOM, even
+          when closed) bodies from leaking content — e.g. the Extension
+          Summary modal's "FSP not found" text — onto the not-found page. */}
+      {fsp?.fspId && (
+        <>
       <ConfirmationModal
         open={confirmDeleteOpen}
         heading={isAmendment ? 'Delete this amendment?' : 'Delete this draft FSP?'}
@@ -705,6 +721,8 @@ const FspInformationPage: FC = () => {
           }
         }}
       />
+        </>
+      )}
     </Grid>
   );
 };

@@ -1,4 +1,4 @@
-import { apiFetch } from '@/services/apiFetch';
+import { apiFetch, readErrorMessage } from '@/services/apiFetch';
 import type { PageableResponse } from './fspSearch';
 
 // Mirrors backend ca.bc.gov.nrs.fsp.api.struct.v1.BgcSearchRequest.
@@ -55,12 +55,8 @@ export async function searchBgcZones(
   const path = qs ? `/v1/bgc-zones/search?${qs}` : '/v1/bgc-zones/search';
   const res = await apiFetch(path);
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `BGC zone search failed (${res.status}): ${detail}`
-        : `BGC zone search failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `BGC zone search failed (${res.status})`);
   }
   return res.json() as Promise<PageableResponse<BgcSearchResult>>;
 }

@@ -134,12 +134,8 @@ export const validateSubmission = async (
   if (res.status === 200 || res.status === 422) {
     return (await res.json()) as SubmissionValidationResult;
   }
-  const detail = await res.text().catch(() => '');
-  throw new Error(
-    detail
-      ? `Validation request failed (${res.status}): ${detail}`
-      : `Validation request failed (${res.status})`,
-  );
+  const detail = await readErrorMessage(res);
+  throw new Error(detail || `Validation request failed (${res.status})`);
 };
 
 /**

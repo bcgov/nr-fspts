@@ -43,6 +43,21 @@
   }
 }
 
+// Field label + inline "retrieving suggestions" spinner. The label is a
+// flex row so the small spinner sits snugly after the text.
+.client-search__holder-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+// Carbon's `small` Loading defaults to a 1rem box; keep it label-sized and
+// aligned to the text baseline row.
+.client-search__holder-spinner {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
 .client-search__results {
   margin-block-start: 1.5rem;
 }

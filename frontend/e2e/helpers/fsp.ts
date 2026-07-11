@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 
 import { gotoProtected } from '../utils';
-import { type InMemoryFile } from './tinyFiles';
+import { type InMemoryFile, tinyPdfFile } from './tinyFiles';
 
 /** ISO yyyy-mm-dd for today, used to fill decision/effective date pickers. */
 export function isoToday(): string {
@@ -87,7 +87,7 @@ export async function addAttachment(
       (r) => /\/attachments\b/.test(r.url()) && r.request().method() === 'POST',
       { timeout: 30_000 },
     ),
-    modal.getByRole('button', { name: 'Save', exact: true }).click(),
+    modal.getByRole('button', { name: 'Add attachment', exact: true }).click(),
   ]);
   await expect(modal).toBeHidden({ timeout: 30_000 });
   return match;
@@ -100,9 +100,9 @@ export async function addAttachment(
  */
 export async function recordDdmApproval(page: Page): Promise<void> {
   await openFspTab(page, 'Workflow');
-  // "Record Decision" when no prior decision, "Edit Decision" otherwise.
+  // "Record decision" when no prior decision, "Edit decision" otherwise.
   await page
-    .getByRole('button', { name: /Record Decision|Edit Decision/ })
+    .getByRole('button', { name: /Record decision|Edit decision/i })
     .first()
     .click();
 
@@ -114,9 +114,22 @@ export async function recordDdmApproval(page: Page): Promise<void> {
   // "Approve" radio (value APP). Carbon renders the label as clickable text.
   await modal.getByText('Approve', { exact: true }).click();
 
+  // All three dates are required (Submission is now editable). Effective is
+  // shown + required because Approve is selected.
   const today = isoToday();
-  await modal.getByLabel('Decision Date', { exact: false }).fill(today);
-  await modal.getByLabel('Effective Date', { exact: false }).fill(today);
+  await modal.getByLabel('Submission date', { exact: false }).fill(today);
+  await modal.getByLabel('Decision date', { exact: false }).fill(today);
+  await modal.getByLabel('Effective date', { exact: false }).fill(today);
+
+  // Recording a decision requires the DDM decision letter; it's uploaded to
+  // the FSP attachments after the decision saves. The modal has a single
+  // file input (the letter dropzone).
+  const letter = tinyPdfFile('e2e-ddm-decision-letter.pdf');
+  await modal.locator('input[type="file"]').setInputFiles({
+    name: letter.name,
+    mimeType: letter.mimeType,
+    buffer: letter.buffer,
+  });
 
   await Promise.all([
     page.waitForResponse(

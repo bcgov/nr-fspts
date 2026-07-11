@@ -1,6 +1,7 @@
 import { ToastNotification } from '@carbon/react';
 import { useState, useEffect, type ReactNode, useCallback } from 'react';
 
+import { safeErrorMessage } from '@/lib/errorMessage';
 import { NotificationContext, type NotificationContent } from './NotificationContext';
 
 /**
@@ -19,12 +20,19 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     // error doesn't disappear before the user has read it. Success
     // and info toasts still auto-dismiss after their requested
     // timeout (typical 5-6 s).
-    const sticky =
+    const isProblem =
       content.kind === 'error'
       || content.kind === 'warning'
       || content.kind === 'warning-alt';
+    // Never let a raw backend/DB error (ORA-…, SQL, stack trace, error
+    // JSON) reach a toast — swap any technical subtitle for a friendly
+    // line. Clean messages (validation, etc.) pass through untouched.
+    const safe =
+      isProblem && content.subtitle !== undefined
+        ? { ...content, subtitle: safeErrorMessage(content.subtitle) }
+        : content;
     setNotificationClass('slide-in');
-    setNotificationContent(sticky ? { ...content, timeout: 0 } : content);
+    setNotificationContent(isProblem ? { ...safe, timeout: 0 } : safe);
   }, []);
 
   const onClose = useCallback(() => {

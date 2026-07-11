@@ -10,6 +10,7 @@
 @use './overrides';
 @use './variables' as variables;
 @use './default-grid';
+@use './tables';
 
 .back-link {
   display: inline-flex;

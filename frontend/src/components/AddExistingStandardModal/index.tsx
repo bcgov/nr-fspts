@@ -4,7 +4,6 @@ import {
   DatePicker,
   DatePickerInput,
   Loading,
-  Modal,
   Pagination,
   Select,
   SelectItem,
@@ -18,6 +17,7 @@ import {
   Tag,
   TextInput,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { Add, Search as SearchIcon } from '@carbon/icons-react';
 import {
   type FC,

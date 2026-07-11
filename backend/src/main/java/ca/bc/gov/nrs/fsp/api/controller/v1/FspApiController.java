@@ -263,6 +263,12 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
+    public ResponseEntity<LicenceExistsResponse> licenceExists(
+            String fspId, String licenceNumber) {
+        return ResponseEntity.ok(fduService.licenceExists(licenceNumber));
+    }
+
+    @Override
     public ResponseEntity<StandardRegimeDetail> getStandardRegimeDetail(
             String fspId, String regimeId, String amendmentNumber) {
         return ResponseEntity.ok(

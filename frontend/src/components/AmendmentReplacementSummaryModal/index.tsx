@@ -1,4 +1,4 @@
-import { Modal } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { type FC } from 'react';
 
 import { type FspInformation } from '@/services/fspSearch';

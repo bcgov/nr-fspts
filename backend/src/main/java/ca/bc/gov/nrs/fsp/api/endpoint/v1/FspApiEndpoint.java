@@ -260,6 +260,15 @@ public interface FspApiEndpoint {
             @PathVariable long fduId,
             @Valid @RequestBody FduLicencesUpdate body);
 
+    @GetMapping(URL.LICENCE_EXISTS)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
+    @Operation(summary =
+            "Check whether a licence number exists in PROV_FOREST_USE — "
+                    + "backs the Edit-licences dialog's Add-time validation.")
+    ResponseEntity<LicenceExistsResponse> licenceExists(
+            @PathVariable String fspId,
+            @RequestParam("licenceNumber") String licenceNumber);
+
     // --- Stocking Standards detail (FSP250 view-only) ---
 
     @GetMapping(URL.STANDARD_DETAIL)

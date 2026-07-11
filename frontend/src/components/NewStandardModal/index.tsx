@@ -3,7 +3,6 @@ import {
   DatePicker,
   DatePickerInput,
   Loading,
-  Modal,
   NumberInput,
   Select,
   SelectItem,
@@ -12,6 +11,7 @@ import {
   TextInput,
   Toggle,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { useEffect, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';

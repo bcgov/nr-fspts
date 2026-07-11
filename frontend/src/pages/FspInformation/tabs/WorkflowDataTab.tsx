@@ -820,9 +820,6 @@ const WorkflowDataTab: FC<Props> = ({
       <ExtensionDecisionEditModal
         open={extensionModalOpen}
         value={state.extensionDecision}
-        extensionLabel={
-          state.extensionIds ?? state.extensionDecision.extensionId
-        }
         onClose={() => setExtensionModalOpen(false)}
         onSubmit={handleExtensionSave}
       />

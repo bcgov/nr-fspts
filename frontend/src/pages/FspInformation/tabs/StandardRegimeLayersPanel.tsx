@@ -2,7 +2,6 @@ import {
   Button,
   DataTable,
   Loading,
-  Modal,
   NumberInput,
   Select,
   SelectItem,
@@ -20,8 +19,9 @@ import {
   TabPanels,
   Tabs,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import {Add, Edit, TrashCan} from '@carbon/icons-react';
-import {type FC, useCallback, useEffect, useMemo, useState} from 'react';
+import {type FC, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import ConfirmationModal from '@/components/ConfirmationModal';
 import {useNotification} from '@/context/notification/useNotification';
@@ -203,6 +203,8 @@ const LayerDetailPanel: FC<{
   const [detail, setDetail] = useState<StandardRegimeLayerDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
+  // Focus the first field (Tree size unit) when entering edit mode.
+  const treeUnitSelectRef = useRef<HTMLSelectElement>(null);
   const [form, setForm] = useState<LayerFormState | null>(null);
   const [errors, setErrors] = useState<LayerErrors>({});
   const [saving, setSaving] = useState(false);
@@ -325,6 +327,10 @@ const LayerDetailPanel: FC<{
     }
   }, [detail, editing]);
 
+  useEffect(() => {
+    if (editing) treeUnitSelectRef.current?.focus();
+  }, [editing]);
+
   const setField = <K extends keyof LayerFormState>(key: K, value: LayerFormState[K]) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
     if (errors[key]) {
@@ -434,6 +440,7 @@ const LayerDetailPanel: FC<{
           <div className="fsp-info__edit-grid">
             <Select
               id={`edit-layer-treeUnit-${layer.layerCode}`}
+              ref={treeUnitSelectRef}
               labelText="Tree size unit"
               value={form.treeSizeUnitCode}
               disabled={saving}
@@ -832,14 +839,14 @@ const SpeciesEditor: FC<{
                       {!readOnly && (
                         <TableCell>
                           <Button
-                            kind="ghost"
+                            kind="danger--ghost"
                             size="sm"
                             renderIcon={TrashCan}
-                            iconDescription={busy ? 'Removing…' : 'Remove'}
-                            hasIconOnly
                             disabled={busy || !row.code || !row.revisionCount}
                             onClick={() => void handleDelete(row)}
-                          />
+                          >
+                            {busy ? 'Removing…' : 'Delete'}
+                          </Button>
                         </TableCell>
                       )}
                     </TableRow>

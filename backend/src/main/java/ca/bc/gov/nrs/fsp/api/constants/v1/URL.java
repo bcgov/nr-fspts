@@ -116,6 +116,11 @@ public final class URL {
   public static final String SUBMIT_PREFLIGHT = "/{fspId}/submit/preflight";
   public static final String FDU_LIST = "/{fspId}/fdu-list";
   public static final String FDU_LICENCES = "/{fspId}/fdus/{fduId}/licences";
+  // GET — existence check for a single licence number against
+  // PROV_FOREST_USE. Lets the Edit-licences dialog validate a number
+  // the moment the user clicks Add rather than failing the whole batch
+  // at save time.
+  public static final String LICENCE_EXISTS = "/{fspId}/licence-exists";
 
   // Map View extent — bounding box of all FDU polygons for this FSP +
   // amendment. Fetched lazily by the front-end inbox/results pages so

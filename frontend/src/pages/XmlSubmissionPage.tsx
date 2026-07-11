@@ -31,9 +31,9 @@ const XML_ACCEPT = '.xml,.json,.geojson';
 // ── Per-submission-type notification copy ─────────────────────────
 // FSP Data Submission notifications spec (client-confirmed). The XML's
 // actionCode drives the wording: I (initial), A (amendment), R
-// (replacement), U (update). Minor amendments (no DDM approval) also land
-// as a draft at upload, so they share the 'A' wording — the in-effect
-// transition happens later at submit-for-decision, not here.
+// (replacement), U (update). An amendment always lands as a draft at
+// upload and goes in-effect later at DDM approval — an "amendment without
+// DDM approval" is not a valid scenario, so 'A' carries the draft wording.
 type SubmissionType = 'I' | 'A' | 'R' | 'U';
 
 interface SubmissionCopy {
@@ -41,6 +41,8 @@ interface SubmissionCopy {
   validatedTitle: string;
   /** Noun in the "[N] issue(s) found in {noun}" error title. */
   errorNoun: string;
+  /** Step 2 (Review) subtitle under the "Review" heading. */
+  reviewSubtitle: string;
   /** Step 2 (Review) primary button label — replaces the generic "Submit". */
   submitLabel: string;
   confirmTitle: string;
@@ -54,8 +56,10 @@ const SUBMISSION_COPY: Record<SubmissionType, SubmissionCopy> = {
   I: {
     validatedTitle: 'New FSP submission validated',
     errorNoun: 'new FSP submission',
+    reviewSubtitle:
+      'Review the details extracted from your file and save your draft when ready.',
     submitLabel: 'Save draft',
-    confirmTitle: 'FSP draft created',
+    confirmTitle: 'FSP draft saved',
     confirmBody:
       'has been saved as a draft. Review your draft and submit it when ready.',
     confirmCta: (id) => `Open FSP ${id} draft`,
@@ -63,8 +67,10 @@ const SUBMISSION_COPY: Record<SubmissionType, SubmissionCopy> = {
   A: {
     validatedTitle: 'FSP amendment validated',
     errorNoun: 'FSP amendment',
+    reviewSubtitle:
+      'Review the details extracted from your file and save your amendment draft when ready.',
     submitLabel: 'Save amendment draft',
-    confirmTitle: 'Amendment draft created',
+    confirmTitle: 'Amendment draft saved',
     confirmBody:
       'has been saved as an amendment draft. Review your draft and submit it when ready.',
     confirmCta: (id) => `Open FSP ${id} draft`,
@@ -72,8 +78,10 @@ const SUBMISSION_COPY: Record<SubmissionType, SubmissionCopy> = {
   R: {
     validatedTitle: 'FSP replacement validated',
     errorNoun: 'FSP replacement',
+    reviewSubtitle:
+      'Review the details extracted from your file and save your replacement draft when ready.',
     submitLabel: 'Save replacement draft',
-    confirmTitle: 'Replacement draft created',
+    confirmTitle: 'Replacement draft saved',
     confirmBody:
       'has been saved as a replacement draft. Review your draft and submit it when ready.',
     confirmCta: (id) => `Open FSP ${id} draft`,
@@ -81,6 +89,8 @@ const SUBMISSION_COPY: Record<SubmissionType, SubmissionCopy> = {
   U: {
     validatedTitle: 'FSP update validated',
     errorNoun: 'FSP update',
+    reviewSubtitle:
+      'Review the details extracted from your file and update your FSP when ready.',
     submitLabel: 'Update FSP',
     confirmTitle: 'FSP updated',
     confirmBody: 'has been updated successfully.',
@@ -687,6 +697,9 @@ const VALIDATION_CODE_LABELS: Record<string, string> = {
   PLAN_TERM_OR_EXPIRY_EXCLUSIVE: 'Plan term and expiry both supplied',
   PLAN_TERM_OR_END_DATE_REQUIRED: 'Plan term or end date required',
   PLAN_NAME_REQUIRED: 'planName required',
+  CONTACT_NAME_REQUIRED: 'Contact name required',
+  CONTACT_PHONE_REQUIRED: 'Contact telephone required',
+  CONTACT_EMAIL_REQUIRED: 'Contact email required',
   AGREEMENT_HOLDER_REQUIRED: 'Agreement holder required',
   AGREEMENT_HOLDER_NOT_FOUND: 'Unknown agreement holder client number',
   DUPLICATE_AGREEMENT_HOLDER: 'Duplicate agreement holder',
@@ -787,16 +800,15 @@ function ReviewStep({
   onBack: () => void;
   onSubmit: () => void;
 }) {
-  // Button label tracks the submission type (I/A/R/U) so it reads e.g.
-  // "Save amendment draft" instead of a generic "Submit".
-  const submitLabel = SUBMISSION_COPY[toSubmissionType(preview?.plan?.actionCode)].submitLabel;
+  // Subtitle + button label track the submission type (I/A/R/U) so they
+  // read e.g. "Save amendment draft" instead of a generic "Submit".
+  const copy = SUBMISSION_COPY[toSubmissionType(preview?.plan?.actionCode)];
+  const submitLabel = copy.submitLabel;
   return (
     <>
       <div className="page-content">
         <h2 className="section-heading">Review</h2>
-        <p className="section-subtitle">
-          Review the details extracted from your file and submit when ready
-        </p>
+        <p className="section-subtitle">{copy.reviewSubtitle}</p>
 
         {preview ? (
           <ReviewSections preview={preview} />

@@ -20,8 +20,22 @@
 .ddm-modal {
   .cds--date-picker,
   .cds--date-picker-container,
-  .cds--date-picker--single,
-  .cds--date-picker--single .cds--date-picker__input {
+  .cds--date-picker-input__wrapper,
+  .cds--date-picker--single {
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+  // The input width is the one that fights Carbon. Carbon's own rule is
+  // `.cds--date-picker.cds--date-picker--single .cds--date-picker__input`
+  // = (0,3,0). A plain `.ddm-modal … --single …__input` is ALSO (0,3,0) —
+  // it only ties and loses on source order (a rebuild reshuffling the CSS
+  // then lets Carbon's 288px win, so each field overflows its 11rem cell
+  // and overlaps its neighbour). Match Carbon's compound + the .ddm-modal
+  // ancestor to reach (0,4,0) so we win regardless of load order — same
+  // trick as the Plan-details edit pane (.fsp-info__edit-cell).
+  .cds--date-picker.cds--date-picker--single .cds--date-picker__input {
     inline-size: 100%;
     min-inline-size: 0;
     max-inline-size: 100%;

@@ -16,7 +16,7 @@ import {
   TextInput,
 } from '@carbon/react';
 import {Add, Area, Edit, LicenseThirdParty, Report, TrashCan} from '@carbon/icons-react';
-import {type FC, useEffect, useState} from 'react';
+import {type FC, useEffect, useRef, useState} from 'react';
 
 import ClientSearchModal from '@/components/ClientSearchModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -52,6 +52,23 @@ const yesNo = (value: string | null | undefined): string => {
   if (value === 'N') return 'No';
   return '—';
 };
+
+// Mask a raw phone number for display — "(250) 123-4567". Formats the
+// first 10 digits and drops any extra; partial input is masked
+// progressively while typing. Callers store the raw digits (via
+// stripPhone), not this masked string.
+const formatPhone = (value: string | null | undefined): string => {
+  const d = (value ?? '').replace(/\D/g, '').slice(0, 10);
+  if (d.length === 0) return '';
+  if (d.length <= 3) return `(${d}`;
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+};
+
+// Strip a (masked or raw) phone value back to at most 10 digits — the
+// form only ever stores the raw number.
+const stripPhone = (value: string): string =>
+  value.replace(/\D/g, '').slice(0, 10);
 
 // "5 years, 0 months" — only renders an em-dash when both halves are
 // blank so partial entry (e.g. years filled, months still empty) still
@@ -138,42 +155,69 @@ const validate = (form: EditFormState): Errors => {
   } else if (form.fspPlanName.length > MAX.fspPlanName) {
     errs.fspPlanName = `Max ${MAX.fspPlanName} characters.`;
   }
-  if (form.fspContactName.length > MAX.fspContactName) {
+  // Contact name / telephone / email are mandatory.
+  if (!form.fspContactName.trim()) {
+    errs.fspContactName = 'Contact name is required.';
+  } else if (form.fspContactName.length > MAX.fspContactName) {
     errs.fspContactName = `Max ${MAX.fspContactName} characters.`;
   }
-  if (form.fspTelephoneNumber && !/^\d{10}$/.test(form.fspTelephoneNumber)) {
+  if (!form.fspTelephoneNumber.trim()) {
+    errs.fspTelephoneNumber = 'Telephone is required.';
+  } else if (!/^\d{10}$/.test(form.fspTelephoneNumber)) {
     errs.fspTelephoneNumber = 'Must be exactly 10 digits.';
   }
-  if (
-    form.fspEmailAddress &&
-    !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.fspEmailAddress)
-  ) {
+  if (!form.fspEmailAddress.trim()) {
+    errs.fspEmailAddress = 'Email address is required.';
+  } else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.fspEmailAddress)) {
     errs.fspEmailAddress = 'Enter a valid email address.';
-  }
-  if (form.fspEmailAddress.length > MAX.fspEmailAddress) {
+  } else if (form.fspEmailAddress.length > MAX.fspEmailAddress) {
     errs.fspEmailAddress = `Max ${MAX.fspEmailAddress} characters.`;
   }
+  // Effective date, expiry date and term are mandatory (the pane states
+  // "All fields are required") — flag them so clearing shows feedback and
+  // blocks the save instead of silently reverting to the stored value.
+  if (!form.fspPlanStartDate.trim()) {
+    errs.fspPlanStartDate = 'Effective date is required.';
+  }
+  if (!form.fspExpiryDate.trim()) {
+    errs.fspExpiryDate = 'Expiry date is required.';
+  }
   const years = form.fspPlanTermYears.trim();
-  if (years && (!/^\d+$/.test(years) || Number(years) > 99)) {
+  if (!years) {
+    errs.fspPlanTermYears = 'Term years is required.';
+  } else if (!/^\d+$/.test(years) || Number(years) > 99) {
     errs.fspPlanTermYears = 'Whole number 0–99.';
   }
   const months = form.fspPlanTermMonths.trim();
-  if (months && (!/^\d+$/.test(months) || Number(months) > 11)) {
+  if (!months) {
+    errs.fspPlanTermMonths = 'Term months is required.';
+  } else if (!/^\d+$/.test(months) || Number(months) > 11) {
     errs.fspPlanTermMonths = 'Whole number 0–11.';
   }
   return errs;
 };
 
-/** Convert form state to the JSON payload the PUT endpoint accepts. */
+/**
+ * Convert form state to the JSON payload the PUT endpoint accepts.
+ *
+ * Cleared optional fields are sent as '' (empty string), NOT null. The
+ * full-form Information save is authoritative — every field it exposes is
+ * meant to overwrite. The backend's applyEdits treats null as "no change"
+ * (the signal the sparse Add-Holder / Add-District payloads rely on, since
+ * those omit these keys entirely), so sending null for a cleared date /
+ * term would leave the old value in place and it reappears on save. An
+ * explicit '' is a present value → applyEdits overwrites, and the proc
+ * receives it via nz() as its normal empty contract, clearing the column.
+ */
 const toPayload = (form: EditFormState): Partial<FspInformation> => ({
   fspPlanName: form.fspPlanName.trim(),
-  fspContactName: form.fspContactName.trim() || null,
-  fspTelephoneNumber: form.fspTelephoneNumber.trim() || null,
-  fspEmailAddress: form.fspEmailAddress.trim() || null,
-  fspPlanStartDate: form.fspPlanStartDate || null,
-  fspExpiryDate: form.fspExpiryDate || null,
-  fspPlanTermYears: form.fspPlanTermYears.trim() || null,
-  fspPlanTermMonths: form.fspPlanTermMonths.trim() || null,
+  fspContactName: form.fspContactName.trim(),
+  fspTelephoneNumber: form.fspTelephoneNumber.trim(),
+  fspEmailAddress: form.fspEmailAddress.trim(),
+  fspPlanStartDate: form.fspPlanStartDate,
+  fspExpiryDate: form.fspExpiryDate,
+  fspPlanTermYears: form.fspPlanTermYears.trim(),
+  fspPlanTermMonths: form.fspPlanTermMonths.trim(),
   transitionInd: form.transitionInd ? 'Y' : 'N',
   frpa197electionInd: form.frpa197electionInd ? 'Y' : 'N',
 });
@@ -189,6 +233,9 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
   // the Agreement Holder / District add + remove affordances below.
   const canEdit = canEditFsp(user, fsp?.fspStatusCode);
   const [editing, setEditing] = useState(false);
+  // Focused when the pane enters edit mode so the user lands on the first
+  // field (FSP name) rather than having to click into it.
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<EditFormState | null>(
     fsp ? createFormState(fsp) : null,
   );
@@ -206,6 +253,11 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
   // StandardRegimeDetailPanel.
   const [districtDeleteTarget, setDistrictDeleteTarget] =
     useState<FspDistrict | null>(null);
+  // Holds the agreement holder pending removal (and its list index, since
+  // clientNumber can repeat / be null) so the ConfirmationModal can label
+  // it and the confirm handler knows which row to drop from the PUT.
+  const [holderDeleteTarget, setHolderDeleteTarget] =
+    useState<{ holder: FspAgreementHolder; index: number } | null>(null);
 
   // Reset form whenever the underlying fsp changes (amendment switch,
   // post-save refresh, etc.) — same useEffect-guard idiom nr-rept uses.
@@ -221,6 +273,11 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
   useEffect(() => {
     onEditingChange?.(editing);
   }, [editing, onEditingChange]);
+
+  // On entering edit mode, focus the first field.
+  useEffect(() => {
+    if (editing) nameInputRef.current?.focus();
+  }, [editing]);
 
   if (!fsp || !form) return null;
 
@@ -386,6 +443,27 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
     });
   };
 
+  // Drop the targeted agreement holder and PUT the remaining list. The
+  // SAVE proc rebuilds P_FSP_LICENSES from the full list it receives, so
+  // omitting a row deletes it — the same full-list-replace mechanism the
+  // district removal above relies on. Filtered by index because
+  // clientNumber isn't guaranteed unique.
+  const handleDeleteHolderConfirmed = async () => {
+    if (!fsp?.fspId || holderDeleteTarget == null) return;
+    const merged = (fsp.agreementHolders ?? []).filter(
+      (_, i) => i !== holderDeleteTarget.index,
+    );
+    const updated = await updateFsp(fsp.fspId, { agreementHolders: merged });
+    onSaved(updated);
+    const { holder } = holderDeleteTarget;
+    display({
+      kind: 'success',
+      title: 'Agreement holder removed.',
+      subtitle: holder.clientName ?? holder.clientNumber ?? undefined,
+      timeout: 6000,
+    });
+  };
+
   // ─── Read-only field list (Plan details) ────────────────────────────
   // FSP name and the two flags span the full row so the three date
   // fields group together on a single row, matching the approved
@@ -398,14 +476,18 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
       label: 'FSP term',
       value: formatTerm(fsp.fspPlanTermYears, fsp.fspPlanTermMonths),
     },
-    { label: 'Transitional FSP', value: yesNo(fsp.transitionInd), full: true },
+    {
+      label: 'Transitional FSP',
+      value: yesNo(fsp.transitionInd),
+      full: true,
+    },
     {
       label: 'FRPA s.197 election for stocking standards',
       value: yesNo(fsp.frpa197electionInd),
       full: true,
     },
     { label: 'Contact name', value: dash(fsp.fspContactName) },
-    { label: 'Telephone', value: dash(fsp.fspTelephoneNumber) },
+    { label: 'Telephone', value: dash(formatPhone(fsp.fspTelephoneNumber)) },
     { label: 'E-mail address', value: dash(fsp.fspEmailAddress) },
   ];
 
@@ -419,6 +501,14 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
     agreement: dash(h.agreementDescription),
     associatedFoms: dash(h.associatedFoms),
   }));
+  // Recover the source holder + list index from a (possibly re-sorted)
+  // DataTable row so the Delete action targets the right record.
+  const holderByRowId = new Map(
+    agreementHolders.map((h, i) => [
+      `${h.clientNumber ?? 'ah'}-${i}`,
+      { holder: h, index: i },
+    ]),
+  );
 
   return (
     <div>
@@ -450,6 +540,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
               <div className="fsp-info__edit-cell fsp-info__edit-cell--name">
                 <TextInput
                   id="edit-fspPlanName"
+                  ref={nameInputRef}
                   labelText="FSP name"
                   value={form.fspPlanName}
                   maxLength={MAX.fspPlanName}
@@ -461,13 +552,18 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
               </div>
 
               <div className="fsp-info__edit-section">
-                <h3 className="fsp-info__edit-section-title">Dates and term</h3>
                 <div className="fsp-info__edit-row">
                   <div className="fsp-info__edit-cell fsp-info__edit-cell--date">
                     <DatePicker
                       datePickerType="single"
                       dateFormat="Y-m-d"
-                      value={form.fspPlanStartDate || undefined}
+                      value={form.fspPlanStartDate}
+                      // `invalid` must live on the DatePicker wrapper: Carbon
+                      // clones the wrapper's `invalid` onto the child input,
+                      // overriding any `invalid` set on DatePickerInput
+                      // directly. `invalidText` stays on the child (the clone
+                      // doesn't inject it).
+                      invalid={!!errors.fspPlanStartDate}
                       onChange={(dates: Date[]) =>
                         setField(
                           'fspPlanStartDate',
@@ -480,6 +576,16 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                         placeholder="YYYY-MM-DD"
                         labelText="Effective date"
                         disabled={saving}
+                        invalidText={errors.fspPlanStartDate}
+                        // Clearing the text doesn't reliably fire the
+                        // DatePicker's (flatpickr) onChange, so the form value
+                        // would keep the old date and the required-check never
+                        // trips. Catch an emptied input straight from the DOM.
+                        onChange={(e) => {
+                          if (e.target.value.trim() === '') {
+                            setField('fspPlanStartDate', '');
+                          }
+                        }}
                       />
                     </DatePicker>
                   </div>
@@ -487,7 +593,10 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                     <DatePicker
                       datePickerType="single"
                       dateFormat="Y-m-d"
-                      value={form.fspExpiryDate || undefined}
+                      value={form.fspExpiryDate}
+                      // See the Effective date picker above — `invalid` on the
+                      // wrapper, `invalidText` on the child.
+                      invalid={!!errors.fspExpiryDate}
                       onChange={(dates: Date[]) =>
                         setField('fspExpiryDate', dates[0] ? toIsoDate(dates[0]) : '')
                       }
@@ -497,6 +606,14 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                         placeholder="YYYY-MM-DD"
                         labelText="Expiry date"
                         disabled={saving}
+                        invalidText={errors.fspExpiryDate}
+                        // See the Effective date input — catch an emptied
+                        // field the flatpickr onChange misses.
+                        onChange={(e) => {
+                          if (e.target.value.trim() === '') {
+                            setField('fspExpiryDate', '');
+                          }
+                        }}
                       />
                     </DatePicker>
                   </div>
@@ -552,11 +669,10 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
               </div>
 
               <div className="fsp-info__edit-section">
-                <h3 className="fsp-info__edit-section-title">Transition</h3>
-                <div className="fsp-info__edit-radios">
+                <div className="fsp-info__edit-questions">
                   <RadioButtonGroup
                     name="transitionInd"
-                    legendText="Transitional FSP"
+                    legendText="Is this a transitional FSP?"
                     valueSelected={form.transitionInd ? 'Y' : 'N'}
                     disabled={saving}
                     onChange={(value) =>
@@ -566,9 +682,10 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                     <RadioButton id="transitionInd-yes" labelText="Yes" value="Y" />
                     <RadioButton id="transitionInd-no" labelText="No" value="N" />
                   </RadioButtonGroup>
+
                   <RadioButtonGroup
                     name="frpa197electionInd"
-                    legendText="FRPA s.197 election for stocking standards"
+                    legendText="Are you electing FRPA s.197 for stocking standards?"
                     valueSelected={form.frpa197electionInd ? 'Y' : 'N'}
                     disabled={saving}
                     onChange={(value) =>
@@ -582,7 +699,6 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
               </div>
 
               <div className="fsp-info__edit-section">
-                <h3 className="fsp-info__edit-section-title">Contact</h3>
                 <div className="fsp-info__edit-row">
                   <div className="fsp-info__edit-cell fsp-info__edit-cell--text">
                     <TextInput
@@ -600,21 +716,19 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                     <TextInput
                       id="edit-fspTelephoneNumber"
                       labelText="Telephone"
-                      helperText="10 digits, no separators"
-                      value={form.fspTelephoneNumber}
-                      maxLength={MAX.fspTelephoneNumber}
+                      placeholder="(250) 123-4567"
+                      // Display the number masked, but keep only the raw
+                      // digits in form state (and therefore in the payload).
+                      value={formatPhone(form.fspTelephoneNumber)}
                       invalid={!!errors.fspTelephoneNumber}
                       invalidText={errors.fspTelephoneNumber}
                       disabled={saving}
                       onChange={(e) =>
-                        setField(
-                          'fspTelephoneNumber',
-                          e.target.value.replace(/\D/g, ''),
-                        )
+                        setField('fspTelephoneNumber', stripPhone(e.target.value))
                       }
                     />
                   </div>
-                  <div className="fsp-info__edit-cell fsp-info__edit-cell--text">
+                  <div className="fsp-info__edit-cell fsp-info__edit-cell--email">
                     <TextInput
                       id="edit-fspEmailAddress"
                       labelText="E-mail address"
@@ -630,7 +744,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
               </div>
             </div>
           ) : (
-            <dl className="fsp-info__field-list fsp-info__field-list--emphasis">
+            <dl className="fsp-info__field-list fsp-info__field-list--emphasis fsp-info__field-list--plan-details">
               {planDetails.map((f) => (
                 <Field key={f.label} {...f} />
               ))}
@@ -690,6 +804,12 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                   { key: 'clientName', header: 'Client name' },
                   { key: 'agreement', header: 'Licence' },
                   { key: 'associatedFoms', header: 'Associated FOMs' },
+                  // Synthetic action column — only rendered when the user
+                  // can edit. DataTable walks the registered headers, so
+                  // its cell surfaces the Delete button rather than data.
+                  ...(canEdit
+                    ? [{ key: 'actions', header: '' }]
+                    : []),
                 ]}
                 isSortable
               >
@@ -699,7 +819,12 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                       <TableHead>
                         <TableRow>
                           {headers.map((h) => (
-                            <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
+                            <TableHeader
+                              {...getHeaderProps({ header: h })}
+                              key={h.key}
+                              aria-label={h.key === 'actions' ? 'Actions' : undefined}
+                              style={h.key === 'actions' ? { width: '4rem' } : undefined}
+                            >
                               {h.header}
                             </TableHeader>
                           ))}
@@ -708,9 +833,28 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                       <TableBody>
                         {rows.map((row) => (
                           <TableRow {...getRowProps({ row })} key={row.id}>
-                            {row.cells.map((cell) => (
-                              <TableCell key={cell.id}>{cell.value as string}</TableCell>
-                            ))}
+                            {row.cells.map((cell) =>
+                              cell.info.header === 'actions' ? (
+                                <TableCell key={cell.id}>
+                                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <Button
+                                      kind="danger--ghost"
+                                      size="sm"
+                                      renderIcon={TrashCan}
+                                      disabled={editing}
+                                      onClick={() => {
+                                        const target = holderByRowId.get(row.id);
+                                        if (target) setHolderDeleteTarget(target);
+                                      }}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              ) : (
+                                <TableCell key={cell.id}>{cell.value as string}</TableCell>
+                              ),
+                            )}
                           </TableRow>
                         ))}
                       </TableBody>
@@ -765,14 +909,14 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                         <TableCell>
                           {canEdit && (
                             <Button
-                              kind="ghost"
+                              kind="danger--ghost"
                               size="sm"
                               renderIcon={TrashCan}
-                              iconDescription="Remove"
-                              hasIconOnly
                               disabled={!d.orgUnitNo}
                               onClick={() => setDistrictDeleteTarget(d)}
-                            />
+                            >
+                              Delete
+                            </Button>
                           )}
                         </TableCell>
                       </TableRow>
@@ -808,6 +952,30 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
           .filter((c): c is string => !!c)}
         onSelect={handleAddDistrict}
       />
+
+      <ConfirmationModal
+        open={holderDeleteTarget != null}
+        onClose={() => setHolderDeleteTarget(null)}
+        heading="Remove agreement holder"
+        confirmLabel="Remove"
+        danger
+        errorTitle="Failed to remove agreement holder"
+        onConfirm={handleDeleteHolderConfirmed}
+      >
+        <p>
+          Remove agreement holder{' '}
+          <strong>
+            {holderDeleteTarget?.holder.clientName ??
+              holderDeleteTarget?.holder.clientNumber ??
+              '(unnamed)'}
+            {holderDeleteTarget?.holder.clientName &&
+            holderDeleteTarget?.holder.clientNumber
+              ? ` — ${holderDeleteTarget.holder.clientNumber}`
+              : ''}
+          </strong>{' '}
+          from this FSP? This cannot be undone.
+        </p>
+      </ConfirmationModal>
 
       <ConfirmationModal
         open={districtDeleteTarget != null}

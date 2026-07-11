@@ -4,11 +4,11 @@ import {
   DatePickerInput,
   InlineNotification,
   Loading,
-  Modal,
   RadioButton,
   RadioButtonGroup,
   TextArea,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { useEffect, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
@@ -33,8 +33,6 @@ interface ExtensionDecisionEditModalProps {
   open: boolean;
   /** Current persisted extension decision (if any). Used to pre-fill the form. */
   value: FspExtensionDecision;
-  /** Extension number text for the dialog header — e.g. "Extension 3". */
-  extensionLabel: string | null;
   onClose: () => void;
   /**
    * Submit handler. Modal awaits and only closes on success — throw to
@@ -91,7 +89,6 @@ const transitionBanner = (decision: ExtensionDecisionChoice): string => {
 const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
   open,
   value,
-  extensionLabel,
   onClose,
   onSubmit,
 }) => {
@@ -181,12 +178,6 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
           title={transitionBanner(decision)}
           subtitle=""
         />
-
-        {extensionLabel && (
-          <p className="ddm-modal__letter-desc">
-            <strong>Extension:</strong> {extensionLabel}
-          </p>
-        )}
 
         <RadioButtonGroup
           legendText="Decision"

@@ -8,6 +8,7 @@ import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionXmlParser;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionType;
 import ca.bc.gov.nrs.fsp.api.submission.validator.ActionCodeContextValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.AgreementHolderValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.ContactDetailsValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.DistrictCodeValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.FduUniquenessValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator;
@@ -40,6 +41,7 @@ public class SubmissionValidationService {
   private final LicenceContextValidator licenceContextValidator;
   private final PlanTermValidator planTermValidator;
   private final PlanNameValidator planNameValidator;
+  private final ContactDetailsValidator contactDetailsValidator;
   private final AgreementHolderValidator agreementHolderValidator;
   private final DistrictCodeValidator districtCodeValidator;
   private final FduUniquenessValidator fduUniquenessValidator;
@@ -122,6 +124,7 @@ public class SubmissionValidationService {
       // feature was removed, so any identified-area content in the
       // submission is neither validated nor persisted.
       errors.addAll(planNameValidator.validate(outcome.submission()));
+      errors.addAll(contactDetailsValidator.validate(outcome.submission()));
       errors.addAll(agreementHolderValidator.validate(outcome.submission()));
       errors.addAll(districtCodeValidator.validate(outcome.submission()));
       errors.addAll(fduUniquenessValidator.validate(outcome.submission()));

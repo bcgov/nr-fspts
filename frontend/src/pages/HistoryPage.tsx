@@ -25,6 +25,12 @@ import './FspInformation/fsp-info.scss';
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
 
+// Amendment 0 is the original plan — render "Original" rather than "0".
+const formatAmendment = (value: string | null | undefined): string => {
+  if (value == null || value.trim() === '') return '—';
+  return Number(value) === 0 ? 'Original' : value;
+};
+
 const HEADERS = [
   { key: 'amendmentNumber', header: 'Amnd #' },
   { key: 'extensionNumber', header: 'Ext #' },
@@ -92,7 +98,7 @@ const HistoryPage: FC = () => {
 
   const tableRows = sortedRows.map((r, i) => ({
     id: `${r.eventDateTime ?? 'ev'}-${i}`,
-    amendmentNumber: dash(r.amendmentNumber),
+    amendmentNumber: formatAmendment(r.amendmentNumber),
     extensionNumber: dash(r.extensionNumber),
     eventDateTime: dash(r.eventDateTime),
     userId: dash(r.userId),

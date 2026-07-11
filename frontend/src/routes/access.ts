@@ -126,6 +126,25 @@ export function canEditAttachments(
 }
 
 /**
+ * Role gate for the <b>DDM decision-letter</b> attachment category. The
+ * decision letter is a ministry review document, so only the internal
+ * review roles — Administrator, Decision Maker, Reviewer — may file an
+ * attachment under it. Other roles (Submitter, View-All, View-Only) never
+ * see that category in the Add-attachment dialog. Role-level only; the
+ * per-status upload affordance is still {@link canEditAttachments}.
+ */
+export function canAttachDecisionLetter(
+  user: FamLoginUser | null | undefined,
+): boolean {
+  const r = effectiveRole(user);
+  return (
+    r === 'FSPTS_ADMINISTRATOR' ||
+    r === 'FSPTS_DECISION_MAKER' ||
+    r === 'FSPTS_REVIEWER'
+  );
+}
+
+/**
  * @return true when the user should see the Workflow Data tab. It's for the
  *     internal roles — Administrator / Decision Maker action it (status-gated),
  *     Reviewer / View-All read it. Submitter / View-Only never see it.

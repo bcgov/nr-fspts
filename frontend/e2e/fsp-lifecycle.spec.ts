@@ -67,7 +67,7 @@ test.describe.serial('FSP lifecycle', () => {
     // Confirmation screen carries the assigned id; its action button
     // deep-links to the detail page where we read the id off the URL.
     const confirm = page.locator('.confirm-wrap');
-    await expect(confirm.getByText('FSP draft created')).toBeVisible({ timeout: 30_000 });
+    await expect(confirm.getByText('FSP draft saved')).toBeVisible({ timeout: 30_000 });
     await confirm.getByTestId('open-draft-button').click();
     await expect(page).toHaveURL(/\/fsp\/information\?fspId=\d+/, { timeout: 30_000 });
     fspId = new URL(page.url()).searchParams.get('fspId') ?? '';
@@ -80,7 +80,7 @@ test.describe.serial('FSP lifecycle', () => {
     await openFsp(page, fspId);
     await openFspTab(page, 'Information');
 
-    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit plan details', exact: true }).click();
 
     const planName = page.locator('#edit-fspPlanName');
     await expect(planName).toBeVisible();
@@ -93,13 +93,13 @@ test.describe.serial('FSP lifecycle', () => {
           r.request().method() === 'PUT',
         { timeout: 30_000 },
       ),
-      page.getByRole('button', { name: 'Save', exact: true }).click(),
+      page.getByRole('button', { name: 'Save changes', exact: true }).click(),
     ]);
 
     // Edit mode closes on success — the Edit button comes back.
-    await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible({
-      timeout: 30_000,
-    });
+    await expect(
+      page.getByRole('button', { name: 'Edit plan details', exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
   });
 
   test('attaches a DDM decision document and an FSP legal document', async ({ page }) => {
@@ -167,10 +167,17 @@ test.describe.serial('FSP lifecycle', () => {
     const modal = page.getByRole('dialog');
     await expect(modal.getByText('Amend FSP')).toBeVisible();
 
-    // Summary of Changes is required by the amendment proc. The textarea
+    // All fields are required: answer the FDU-boundaries, stocking-standards,
+    // and approval Y/N questions (No for a plain test amendment). Carbon
+    // radios are visually hidden inputs, so click their <label for=…>.
+    await modal.locator('label[for="create-amend-fdu-no"]').click();
+    await modal.locator('label[for="create-amend-stocking-no"]').click();
+    await modal.locator('label[for="create-amend-approval-no"]').click();
+
+    // Summary of changes is required by the amendment proc. The textarea
     // isn't label-associated (its accessible name is the placeholder), so
-    // target it by id.
-    await modal.locator('#amend-reason').fill(`e2e amendment ${suffix}`);
+    // target it by id (namespaced per mode: create-amend).
+    await modal.locator('#create-amend-reason').fill(`e2e amendment ${suffix}`);
     await Promise.all([
       page.waitForResponse(
         (r) =>
@@ -178,7 +185,7 @@ test.describe.serial('FSP lifecycle', () => {
           ['POST', 'PUT'].includes(r.request().method()),
         { timeout: 60_000 },
       ),
-      modal.getByRole('button', { name: /^Save/ }).click(),
+      modal.getByRole('button', { name: /Create amendment/ }).click(),
     ]);
 
     // We land on the new Draft amendment (amendment picker > 0, Delete
