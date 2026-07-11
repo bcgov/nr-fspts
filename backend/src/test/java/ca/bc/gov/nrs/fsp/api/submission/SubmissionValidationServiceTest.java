@@ -5,6 +5,7 @@ import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionEnvelopeStripper;
 import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionXmlParser;
 import ca.bc.gov.nrs.fsp.api.submission.validator.ActionCodeContextValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.AgreementHolderValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.ContactDetailsValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.DistrictCodeValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.FduUniquenessValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator;
@@ -56,6 +57,7 @@ class SubmissionValidationServiceTest {
         noOpValidator(LicenceContextValidator.class),
         noOpValidator(PlanTermValidator.class),
         noOpValidator(PlanNameValidator.class),
+        noOpValidator(ContactDetailsValidator.class),
         noOpValidator(AgreementHolderValidator.class),
         noOpValidator(DistrictCodeValidator.class),
         noOpValidator(FduUniquenessValidator.class),
@@ -175,6 +177,7 @@ class SubmissionValidationServiceTest {
         noOpValidator(LicenceContextValidator.class),
         noOpValidator(PlanTermValidator.class),
         noOpValidator(PlanNameValidator.class),
+        noOpValidator(ContactDetailsValidator.class),
         noOpValidator(AgreementHolderValidator.class),
         noOpValidator(DistrictCodeValidator.class),
         noOpValidator(FduUniquenessValidator.class),
