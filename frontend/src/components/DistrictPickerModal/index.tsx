@@ -2,12 +2,13 @@ import {
   Button,
   ComboBox,
   Loading,
-  Modal,
   Stack,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { useEffect, useMemo, useRef, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
+import { useAutoFocusOnOpen } from '@/hooks/useAutoFocusOnOpen';
 import { type CodeOption, getOrgUnits } from '@/services/fspSearch';
 
 interface DistrictPickerModalProps {
@@ -47,6 +48,10 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
   // flipped the flag to true — the cleanup cancelled the in-flight
   // fetch and the loading flag never cleared.)
   const fetchStarted = useRef(false);
+  // The ComboBox is disabled while its options load, so Carbon can't
+  // focus it on open. Drive focus ourselves once it's enabled (see the
+  // useAutoFocusOnOpen call below the `available` memo).
+  const comboRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open || fetchStarted.current) return;
@@ -73,6 +78,11 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
     const used = new Set(excludeOrgUnitNos);
     return orgUnits.filter((o) => o.code != null && !used.has(o.code));
   }, [orgUnits, excludeOrgUnitNos]);
+
+  // Focus the combo once the modal is open and its options have loaded
+  // (it's disabled until then). Re-arms on every open, including reopens
+  // where the options are already cached.
+  useAutoFocusOnOpen(comboRef, open && !orgUnitsLoading && available.length > 0);
 
   const closeDialog = () => {
     if (saving) return;
@@ -111,6 +121,7 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
     >
       <Stack gap={5} className="fsp-species-modal__form">
         <ComboBox
+          ref={comboRef}
           id="add-district-combobox"
           titleText="District *"
           placeholder={

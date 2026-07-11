@@ -1,7 +1,6 @@
 import {
   Button,
   Loading,
-  Modal,
   Select,
   SelectItem,
   Stack,
@@ -14,6 +13,7 @@ import {
   TableRow,
   TextArea,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { Add, Launch, TrashCan } from '@carbon/icons-react';
 import { type FC, useEffect, useMemo, useState } from 'react';
 
@@ -21,7 +21,8 @@ import DragDropFileInput from '@/components/DragDropFileInput';
 import EmptyState from '@/components/EmptyState/EmptyState';
 import { useAuth } from '@/context/auth/useAuth';
 import { useNotification } from '@/context/notification/useNotification';
-import { canEditAttachments } from '@/routes/access';
+import { canAttachDecisionLetter, canEditAttachments } from '@/routes/access';
+import { findDecisionLetterCategory } from '@/lib/attachmentCategories';
 import {
   type CodeOption,
   deleteFspAttachment,
@@ -55,6 +56,12 @@ interface Props {
 
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
+
+// Amendment 0 is the original plan — render "Original" rather than "0".
+const formatAmendment = (value: string | null | undefined): string => {
+  if (value == null || value.trim() === '') return '—';
+  return Number(value) === 0 ? 'Original' : value;
+};
 
 // Thin-stroke "document + plus" glyph for the empty state. Carbon's filled
 // DocumentAdd reads too heavy at pictogram size; a stroked SVG with
@@ -121,6 +128,17 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
   const [uploading, setUploading] = useState(false);
 
   const { display } = useNotification();
+
+  // Categories offered in the Add-attachment dialog. The DDM decision-letter
+  // category is a ministry review document — hide it from roles that may not
+  // file one (only Administrator / Decision Maker / Reviewer keep it). Uses
+  // the same category matcher the DDM decision modal files the letter under.
+  const visibleCategories = useMemo(() => {
+    if (canAttachDecisionLetter(user)) return categories;
+    const decisionLetter = findDecisionLetterCategory(categories);
+    if (!decisionLetter) return categories;
+    return categories.filter((c) => c.code !== decisionLetter.code);
+  }, [categories, user]);
 
   const refreshList = () => {
     if (!fspId) return;
@@ -344,7 +362,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
                       <TableCell>{dash(r.attachmentName)}</TableCell>
                       <TableCell>{dash(r.attachmentDescription)}</TableCell>
                       <TableCell>{dash(r.attachmentSize)}</TableCell>
-                      <TableCell>{dash(r.fspAmendmentNumber)}</TableCell>
+                      <TableCell>{formatAmendment(r.fspAmendmentNumber)}</TableCell>
                       <TableCell>{r.consolidatedInd === 'Y' ? 'Yes' : 'No'}</TableCell>
                       <TableCell>
                         {attachmentId ? (
@@ -398,7 +416,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
             id="attachment-category"
             labelText="Category *"
             value={selectedTypeCode}
-            disabled={uploading || categoriesLoading || categories.length === 0}
+            disabled={uploading || categoriesLoading || visibleCategories.length === 0}
             onChange={(e) => setSelectedTypeCode(e.target.value)}
           >
             <SelectItem
@@ -406,12 +424,12 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
               text={
                 categoriesLoading
                   ? 'Loading…'
-                  : categories.length === 0
+                  : visibleCategories.length === 0
                     ? 'No categories available'
                     : '— Select category —'
               }
             />
-            {categories.map((c) => (
+            {visibleCategories.map((c) => (
               <SelectItem
                 key={c.code ?? ''}
                 value={c.code ?? ''}

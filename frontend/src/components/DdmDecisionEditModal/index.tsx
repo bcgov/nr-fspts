@@ -4,12 +4,12 @@ import {
   DatePickerInput,
   InlineNotification,
   Loading,
-  Modal,
   RadioButton,
   RadioButtonGroup,
   TextArea,
 } from '@carbon/react';
-import { useEffect, useMemo, useState, type FC } from 'react';
+import { Modal } from '@/components/Modal';
+import { useEffect, useMemo, useRef, useState, type FC } from 'react';
 
 import DragDropFileInput from '@/components/DragDropFileInput';
 import { useNotification } from '@/context/notification/useNotification';
@@ -17,6 +17,7 @@ import {
   ACCEPTED_ATTACHMENT_EXTENSIONS,
   validateAttachmentFile,
 } from '@/lib/attachmentConstraints';
+import { findDecisionLetterCategory } from '@/lib/attachmentCategories';
 import {
   getAttachmentCategories,
   uploadFspAttachment,
@@ -112,21 +113,15 @@ const transitionBanner = (decision: DdmDecisionChoice): string => {
   return `Saving will change the FSP status to ${status}. The licensee/BCTS contact will be notified by email automatically.`;
 };
 
-// Pick the "DDM Decision" attachment category to file the letter under.
-const pickDdmCategory = (cats: CodeOption[]): CodeOption | null => {
-  const find = (re: RegExp) =>
-    cats.find((c) => re.test(`${c.description ?? ''} ${c.code ?? ''}`));
-  return find(/ddm/i) ?? find(/decision letter/i) ?? find(/decision/i) ?? null;
-};
-
 const ALL_DECISIONS: DdmDecisionChoice[] = ['APP', 'DFT', 'REJ'];
 
 /**
  * One-screen DDM decision editor — replaces the legacy three-row
  * mutually-exclusive-checkbox grid plus the {@code toggleDDM()} JS
  * hack. The RadioButtonGroup makes the mutual exclusion structural,
- * and the decision letter is uploaded to the FSP attachment list after
- * the decision saves (the DDM save proc carries no file).
+ * and the decision letter is uploaded to the FSP attachment list before
+ * the decision saves — the DDM save proc validates that a decision-letter
+ * attachment already exists, so the upload has to precede the save.
  */
 const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   open,
@@ -160,6 +155,10 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   const [letterFile, setLetterFile] = useState<File | null>(null);
   const [categories, setCategories] = useState<CodeOption[]>([]);
   const [saving, setSaving] = useState(false);
+  // Guards against re-uploading the letter when the decision save fails and
+  // the user retries — the file is uploaded before the save (see submit()),
+  // so a naive retry would attach a duplicate.
+  const letterUploadedRef = useRef(false);
 
   // Approved state — covers both APP (Approved) and INE (In Effect).
   // Used to lock the Reject / Request-Clarification radios so a DDM
@@ -179,6 +178,7 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
     setEffectiveDate(value.effectiveDate ?? '');
     setComment(value.comment ?? '');
     setLetterFile(null);
+    letterUploadedRef.current = false;
     if (fspId) {
       getAttachmentCategories(fspId)
         .then(setCategories)
@@ -220,7 +220,36 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   const submit = async () => {
     if (!canSubmit) return;
     setSaving(true);
-    // 1. Save the decision. On failure keep the modal open for retry.
+    // 1. Upload the decision letter FIRST. The DDM decision save proc
+    //    validates that a DDM decision document is already attached to the
+    //    FSP, so the file has to land in the attachment list before we save
+    //    — uploading afterward makes that check fail. Skip if it already
+    //    uploaded on a prior attempt (guarded ref) so a retry doesn't
+    //    duplicate it. On failure keep the modal open and don't save.
+    if (letterFile && !letterUploadedRef.current) {
+      try {
+        const category = findDecisionLetterCategory(categories);
+        if (!category?.code) throw new Error('No DDM Decision attachment category');
+        await uploadFspAttachment(
+          fspId,
+          category.code,
+          letterFile,
+          'DDM decision letter',
+        );
+        letterUploadedRef.current = true;
+      } catch (e) {
+        display({
+          kind: 'error',
+          title: 'Failed to upload the decision letter',
+          subtitle: e instanceof Error ? e.message : 'Unknown error',
+          timeout: 9000,
+        });
+        setSaving(false);
+        return;
+      }
+    }
+    // 2. Save the decision. On failure keep the modal open for retry — the
+    //    already-uploaded letter is reused (not re-uploaded) on the retry.
     try {
       await onSubmit({
         decision,
@@ -238,28 +267,6 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
       });
       setSaving(false);
       return;
-    }
-    // 2. Decision saved — upload the letter to the FSP attachment list
-    //    (the DDM save proc can't carry files). Best-effort: a failure
-    //    here shouldn't undo the saved decision.
-    if (letterFile) {
-      try {
-        const category = pickDdmCategory(categories);
-        if (!category?.code) throw new Error('No DDM Decision attachment category');
-        await uploadFspAttachment(
-          fspId,
-          category.code,
-          letterFile,
-          'DDM decision letter',
-        );
-      } catch {
-        display({
-          kind: 'warning',
-          title: 'Decision saved, but the letter could not be uploaded',
-          subtitle: 'Add the decision letter from the Attachments tab.',
-          timeout: 0,
-        });
-      }
     }
     setSaving(false);
     onClose();

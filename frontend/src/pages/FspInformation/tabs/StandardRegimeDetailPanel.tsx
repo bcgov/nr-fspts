@@ -22,7 +22,7 @@ import {
   Toggle,
 } from '@carbon/react';
 import {Add, Edit, TrashCan} from '@carbon/icons-react';
-import {type FC, useEffect, useState} from 'react';
+import {type FC, useEffect, useRef, useState} from 'react';
 
 import BgcZoneEditModal from '@/components/BgcZoneEditModal';
 import BgcZoneSearchModal from '@/components/BgcZoneSearchModal';
@@ -180,6 +180,8 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   // had open on, say, Layers. Form state is null until the user clicks
   // Edit — at that point we snapshot the current detail.
   const [editingOverview, setEditingOverview] = useState(false);
+  // Focused on entering overview edit mode so the first field takes focus.
+  const overviewNameRef = useRef<HTMLInputElement>(null);
   const [overviewForm, setOverviewForm] = useState<OverviewFormState | null>(null);
   const [overviewErrors, setOverviewErrors] = useState<OverviewErrors>({});
   const [savingOverview, setSavingOverview] = useState(false);
@@ -244,6 +246,11 @@ const StandardRegimeDetailPanel: FC<Props> = ({
       setOverviewErrors({});
     }
   }, [detail, editingOverview]);
+
+  // Focus the first field in the edit area when entering edit mode.
+  useEffect(() => {
+    if (editingOverview) overviewNameRef.current?.focus();
+  }, [editingOverview]);
 
   const handleOverviewEdit = () => {
     if (!detail) return;
@@ -485,6 +492,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                   <div className="fsp-info__edit-grid">
                     <TextInput
                       id="edit-ssRegimeName"
+                      ref={overviewNameRef}
                       labelText="Standards name"
                       value={overviewForm.standardsRegimeName}
                       maxLength={OVERVIEW_MAX.standardsRegimeName}
@@ -873,16 +881,16 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                                   onClick={() => openBgcEdit(b)}
                                 />
                                 <Button
-                                  kind="ghost"
+                                  kind="danger--ghost"
                                   size="sm"
                                   renderIcon={TrashCan}
-                                  iconDescription="Delete"
-                                  hasIconOnly
                                   disabled={
                                     !b.stdsRegimeSiteSeriesId || !b.revisionCount
                                   }
                                   onClick={() => setBgcDeleteTarget(b)}
-                                />
+                                >
+                                  Delete
+                                </Button>
                               </TableCell>
                             )}
                           </TableRow>

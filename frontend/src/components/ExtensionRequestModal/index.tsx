@@ -3,12 +3,12 @@ import {
   DatePicker,
   DatePickerInput,
   Loading,
-  Modal,
   NumberInput,
   RadioButton,
   RadioButtonGroup,
   TextArea,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { useEffect, useState, type FC } from 'react';
 
 import DragDropFileInput from '@/components/DragDropFileInput';

@@ -6,6 +6,7 @@ import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FduLicencesUpdate;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FduLicencesUpdated;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FduList;
+import ca.bc.gov.nrs.fsp.api.struct.v1.LicenceExistsResponse;
 import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -130,6 +131,19 @@ public class FduService {
         .map(r -> splitLicences(r.licences()))
         .orElse(Collections.emptyList());
     return new FduLicencesUpdated(updated, added, removed, skipped);
+  }
+
+  /**
+   * Existence check for a single licence number against PROV_FOREST_USE —
+   * backs the Edit-licences dialog's Add-time validation. Normalises the
+   * number the same way the DAO does so the answer matches what a later
+   * batch update would accept. A blank number is reported as not-found.
+   */
+  public LicenceExistsResponse licenceExists(String licenceNumber) {
+    String normalised =
+        licenceNumber == null ? "" : licenceNumber.trim().toUpperCase();
+    boolean exists = !normalised.isEmpty() && writeDao.licenceExists(normalised);
+    return new LicenceExistsResponse(normalised, exists);
   }
 
   /** Trim, uppercase, dedupe, drop blanks. Order-preserving. */

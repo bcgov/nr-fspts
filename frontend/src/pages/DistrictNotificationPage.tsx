@@ -365,13 +365,11 @@ const DistrictNotificationPage: FC = () => {
                                                     kind="danger--ghost"
                                                     size="sm"
                                                     renderIcon={TrashCan}
-                                                    iconDescription={
-                                                      isRemoving ? 'Removing…' : 'Remove'
-                                                    }
-                                                    hasIconOnly
                                                     onClick={() => requestDelete(designate)}
                                                     disabled={isRemoving || loading}
-                                                  />
+                                                  >
+                                                    {isRemoving ? 'Removing…' : 'Delete'}
+                                                  </Button>
                                                 ) : null}
                                               </TableCell>
                                             );

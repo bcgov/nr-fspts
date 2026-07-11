@@ -53,6 +53,12 @@ interface Props {
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
 
+// Amendment 0 is the original plan — render "Original" rather than "0".
+const formatAmendment = (value: string | null | undefined): string => {
+  if (value == null || value.trim() === '') return '—';
+  return Number(value) === 0 ? 'Original' : value;
+};
+
 // Reformat "2026-07-07 03:28:50 PM" → "Jul 07, 2026 - 03:28:50 PM".
 // Unparseable values pass through unchanged (after the empty-value dash).
 const formatEventDateTime = (value: string | null): string => {
@@ -171,7 +177,7 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
                   <ApprovalRequired value={r.approvalRequestIndicator ?? ''} />
                 </TableCell>
                 <TableCell>{dash(r.userId)}</TableCell>
-                <TableCell>{dash(r.amendmentNumber)}</TableCell>
+                <TableCell>{formatAmendment(r.amendmentNumber)}</TableCell>
                 <TableCell>{dash(r.extensionNumber)}</TableCell>
               </TableRow>
             ))}

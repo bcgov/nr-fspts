@@ -399,7 +399,16 @@
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 0.5rem;
-    align-items: end;
+    // Anchor both cells to the top and drop the button past the field
+    // label (Carbon label = 1rem line + 0.5rem margin = 1.5rem) so it
+    // lines up with the input. align-items:end used to pin the button to
+    // the cell bottom, which pushed it down when the invalid message grew
+    // the input cell; anchoring to the top keeps it put.
+    align-items: start;
+
+    > .cds--btn {
+      margin-block-start: 1.5rem;
+    }
   }
 }
 
@@ -523,11 +532,20 @@
   inline-size: 14rem;
 }
 
-// Transition flags: each Yes/No group stacked vertically.
-.fsp-info__edit-radios {
+// E-mail addresses run long — give the field more room than the other
+// text cells so the value isn't clipped.
+.fsp-info__edit-cell--email {
+  inline-size: 24rem;
+  max-inline-size: 100%;
+}
+
+// Transitional-FSP / FRPA-s.197 election questions — each a Carbon
+// RadioButtonGroup with a regular field label (legendText) over its
+// Yes/No pair, stacked with a comfortable gap between the two.
+.fsp-info__edit-questions {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 // Term group: a fieldset with a "Term" legend over a Years/Months pair.
@@ -915,6 +933,19 @@
   color: var(--cds-text-primary);
 }
 
+// The Plan-details read-only list wants more breathing room than the
+// default emphasised list (which the tighter Workflow tiles reuse) —
+// larger gaps between rows and between each label and its value. Two
+// classes give it the specificity to win over the shared --emphasis
+// row-gap at every breakpoint.
+.fsp-info__field-list--emphasis.fsp-info__field-list--plan-details {
+  row-gap: 2rem;
+
+  .fsp-info__field {
+    gap: 0.5rem;
+  }
+}
+
 .fsp-info__placeholder {
   padding: 3rem 1.5rem;
   text-align: center;
@@ -970,24 +1001,20 @@
 }
 
 // REPT-style selectable row (Properties tab pattern). Wraps a Carbon
-// TableRow that contains a TableSelectRow radio. Pointer cursor on
-// the whole row; subtle layer-selected wash + bold text when picked.
+// TableRow that contains a TableSelectRow radio. Pointer cursor on the
+// whole row; the blue hover comes from the shared selectable-row rule in
+// styles/_tables.scss (via the app-table__row--selectable marker).
 .fsp-info__row {
   cursor: pointer;
   transition: background-color 0.15s ease;
-
-  &:hover,
-  &:focus-visible {
-    background-color: var(--cds-layer-hover-01);
-  }
 }
 
-.fsp-info__row--selected {
+// Selected row: subtle layer-selected wash + bold text. Painted on the
+// cells (not the tr) at a specificity above the global zebra rule in
+// _tables.scss — otherwise the opaque zebra td background would hide it.
+.cds--data-table tbody tr.fsp-info__row.fsp-info__row--selected td {
   background-color: var(--cds-layer-selected-01);
-
-  td {
-    font-weight: 600;
-  }
+  font-weight: 600;
 }
 
 // REPT-style "inner tabs" — direct port of nr-rept's

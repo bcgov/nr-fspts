@@ -1,0 +1,136 @@
+// ── App-wide table styling ──
+// Make every Carbon table look like the FSP Search results table. Both
+// `<DataTable>` and a bare `<Table>` render `table.cds--data-table`, so a
+// single global scope covers list pages, modals, and the FSP information
+// tabs alike:
+//   • Header    — light-grey fill, 14px bold near-black label.
+//   • Body      — 16px near-black text.
+//   • Striping  — explicit white / light-grey zebra (overrides Carbon's
+//                 token-based `useZebraStyles` so every table is identical).
+//   • Hover     — a light-blue wash, but ONLY on rows that are actually
+//                 selectable (row-click navigation, tagged
+//                 `.fsp-search__row--selectable`). Non-selectable tables get
+//                 the look with no misleading hover cue.
+// The FSP Search page (SearchPage.scss) keeps its own, more specific copy of
+// these rules plus a few search-only extras (multi-line org-unit cells,
+// nowrap date columns, flat full-width container); those win by specificity
+// and resolve to the same values.
+
+.cds--data-table {
+  // Carbon renders body cells in --cds-text-secondary (#525252, a medium
+  // grey). Repoint the token within tables so even Carbon's own
+  // `color: var(--cds-text-secondary)` rule resolves to the design's
+  // near-black; the explicit cell colour below is belt-and-suspenders.
+  --cds-text-secondary: #131315;
+}
+
+// Header fill on the cell only — leave the sort button's own :hover
+// background intact for sortable columns.
+.cds--data-table thead th {
+  background-color: #dfdfe1;
+}
+
+// Header typography. Target the th (covers plain headers + cascades) plus
+// the label / sort-button so sortable columns match too.
+.cds--data-table thead th,
+.cds--data-table thead th .cds--table-header-label,
+.cds--data-table thead th .cds--table-sort {
+  color: #131315;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.16px;
+}
+
+// Body cells — 16px near-black.
+.cds--data-table tbody td,
+.cds--data-table tbody td .cds--table-cell {
+  color: #131315;
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: 0.16px;
+}
+
+// Zebra striping — odd rows white, even rows light grey.
+.cds--data-table tbody tr:nth-child(odd),
+.cds--data-table tbody tr:nth-child(odd) td {
+  background-color: #ffffff;
+}
+
+.cds--data-table tbody tr:nth-child(even),
+.cds--data-table tbody tr:nth-child(even) td {
+  background-color: #f3f3f5;
+}
+
+// Neutralise Carbon's default row-hover affordance. Carbon paints a grey
+// wash on the hovered `tr` (hidden here by the opaque `td` zebra colours
+// above) plus a 1px `$layer-hover` border on the cells. Zero out that
+// border so non-selectable rows show no hover cue at all; the blue wash
+// below is the only hover, and only for selectable rows.
+.cds--data-table tbody tr:hover td,
+.cds--data-table tbody tr:hover th {
+  border-block-start-color: transparent;
+  border-block-end-color: transparent;
+}
+
+// Selectable rows only: pointer cursor + light-blue hover/focus wash. The
+// class + pseudo bumps specificity above the zebra rules so the wash wins.
+.cds--data-table tbody tr.fsp-search__row--selectable,
+.cds--data-table tbody tr.app-table__row--selectable {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.cds--data-table tbody tr.fsp-search__row--selectable:hover td,
+.cds--data-table tbody tr.fsp-search__row--selectable:focus-visible td,
+.cds--data-table tbody tr.app-table__row--selectable:hover td,
+.cds--data-table tbody tr.app-table__row--selectable:focus-visible td {
+  background-color: #dfeaf8;
+}
+
+// ── Dark-mode (g100) flip ──
+// The light values above are hard-coded to match the FSP Search design, so
+// they don't follow the theme. Under g100 re-point every table's chrome at
+// the matching Carbon dark tokens. The `:root[data-carbon-theme='g100']`
+// attribute adds the specificity to win over the light rules above (and
+// resolves `--fsp-zebra-stripe`, defined on that same root in
+// _overrides.scss). Mirrors the per-page g100 table overrides that already
+// exist for .fsp-search__table / .fsp-inbox__table, generalised to all
+// tables now that the light styling is global.
+:root[data-carbon-theme='g100'] {
+  .cds--data-table {
+    --cds-text-secondary: var(--cds-text-primary);
+  }
+
+  .cds--data-table thead th {
+    background-color: var(--cds-layer-accent-01);
+  }
+
+  .cds--data-table thead th,
+  .cds--data-table thead th .cds--table-header-label,
+  .cds--data-table thead th .cds--table-sort {
+    color: var(--cds-text-primary);
+  }
+
+  .cds--data-table tbody td,
+  .cds--data-table tbody td .cds--table-cell {
+    color: var(--cds-text-primary);
+  }
+
+  .cds--data-table tbody tr:nth-child(odd),
+  .cds--data-table tbody tr:nth-child(odd) td {
+    background-color: var(--cds-layer-01);
+  }
+
+  .cds--data-table tbody tr:nth-child(even),
+  .cds--data-table tbody tr:nth-child(even) td {
+    background-color: var(--fsp-zebra-stripe);
+  }
+
+  .cds--data-table tbody tr.fsp-search__row--selectable:hover td,
+  .cds--data-table tbody tr.fsp-search__row--selectable:focus-visible td,
+  .cds--data-table tbody tr.app-table__row--selectable:hover td,
+  .cds--data-table tbody tr.app-table__row--selectable:focus-visible td {
+    background-color: var(--cds-layer-hover-01);
+  }
+}

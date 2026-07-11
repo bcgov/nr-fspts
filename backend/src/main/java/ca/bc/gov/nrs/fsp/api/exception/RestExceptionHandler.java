@@ -31,6 +31,14 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
   private static final Logger log = LoggerFactory.getLogger(RestExceptionHandler.class);
 
   /**
+   * Friendly fallback returned to the client whenever the real cause is
+   * technical (raw Oracle/SQL text, a stack trace, an unmapped proc code).
+   * The specifics are logged server-side; the UI only ever sees this.
+   */
+  private static final String GENERIC_ERROR_MESSAGE =
+      "An unexpected error occurred. Please try again later.";
+
+  /**
    * Handle http message not readable response entity.
    *
    * @param ex      the ex
@@ -194,11 +202,30 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
           ex.getPackageName(), ex.getProcedureName(), code, info.message());
       return buildResponseEntity(apiError);
     }
-    // Fall back to 500 + the raw Oracle message for unknown codes.
+    // Unknown code: log the raw Oracle message for diagnosis but never
+    // return it to the client — a generic 500 keeps ORA-…/SQL/stack text
+    // out of the UI.
     log.error("Unhandled proc error from {}.{}: {}",
         ex.getPackageName(), ex.getProcedureName(), oracleMessage, ex);
     ApiError apiError = new ApiError(INTERNAL_SERVER_ERROR);
-    apiError.setMessage(ex.getMessage());
+    apiError.setMessage(GENERIC_ERROR_MESSAGE);
+    return buildResponseEntity(apiError);
+  }
+
+  /**
+   * Catch-all for any Spring data-access failure that isn't wrapped as a
+   * StoredProcedureException — e.g. a DataIntegrityViolationException from
+   * ORA-01438 (value larger than column precision) raised straight out of
+   * JdbcTemplate. Without this, Spring's default handler leaks the raw
+   * Oracle/SQL text to the client. We log the full cause and return a
+   * generic 500.
+   */
+  @ExceptionHandler(org.springframework.dao.DataAccessException.class)
+  protected ResponseEntity<Object> handleDataAccessError(
+      org.springframework.dao.DataAccessException ex) {
+    log.error("Database access error", ex);
+    ApiError apiError = new ApiError(INTERNAL_SERVER_ERROR);
+    apiError.setMessage(GENERIC_ERROR_MESSAGE);
     return buildResponseEntity(apiError);
   }
 

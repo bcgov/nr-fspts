@@ -780,6 +780,33 @@ equal specificity (0,1,0) so it wins.
 }
 
 /* ---------------------------------------------------------------
+Editable form fields — bump the label and the value/input text for
+readability during data entry:
+
+  - Field labels (.cds--label): 14px (Carbon default label-01 = 12px).
+  - Value / input text: 16px (Carbon default body-compact-01 = 14px).
+
+Applies ONLY to Carbon input widgets. Read-only display uses custom
+field-list markup (.fsp-info__field dt/dd, etc.), not these classes, so
+static "editable-off" text is untouched. Loaded after Carbon at equal
+specificity so it wins.
+--------------------------------------------------------------- */
+.cds--label {
+  font-size: 0.875rem;
+}
+
+.cds--text-input,
+.cds--text-area,
+.cds--select-input,
+.cds--date-picker__input,
+.cds--number__input,
+.cds--number input[type="number"],
+.cds--list-box__label,
+.cds--list-box__menu-item__option {
+  font-size: 1rem;
+}
+
+/* ---------------------------------------------------------------
 Text colours — align Carbon's neutral greys to the BC Gov FDS palette the
 design (and the HTML mock-ups) use, so text renders the exact same shade.
 

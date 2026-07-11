@@ -4,7 +4,6 @@ import {
   DataTable,
   DataTableSkeleton,
   Loading,
-  Modal,
   Pagination,
   Table,
   TableBody,
@@ -14,10 +13,12 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { Add } from '@carbon/icons-react';
-import { useCallback, useEffect, useState, type FC } from 'react';
+import { useCallback, useEffect, useRef, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
+import { useAutoFocusOnOpen } from '@/hooks/useAutoFocusOnOpen';
 import StatusTag from '@/components/StatusTag/StatusTag';
 import {
   searchClients,
@@ -100,6 +101,14 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
   const [holderItems, setHolderItems] = useState<ClientSearchResult[]>([]);
   const [holderSelected, setHolderSelected] = useState<ClientSearchResult | null>(null);
   const [holderTerm, setHolderTerm] = useState('');
+  // True while a valid term is being debounced/fetched for the combobox
+  // suggestion list — drives the small spinner beside the field label.
+  const [holderLoading, setHolderLoading] = useState(false);
+
+  // Focus the Agreement holder combobox on open. Carbon's modal focus
+  // pass doesn't reliably land on the ComboBox input, so we drive it
+  // ourselves (ComboBox forwards its ref to the input).
+  const holderInputRef = useRef<HTMLInputElement>(null);
 
   const [results, setResults] = useState<ClientSearchResult[] | null>(null);
   const [totalElements, setTotalElements] = useState(0);
@@ -117,6 +126,8 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
     }
   }, [error, display]);
 
+  useAutoFocusOnOpen(holderInputRef, open);
+
   // Debounced Agreement Holder lookup — same shape as the main SearchPage:
   // wait 300ms after the last keystroke, skip terms under 3 chars, and
   // tolerate a failed fetch by clearing the suggestion list.
@@ -124,14 +135,30 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
     const term = holderTerm.trim();
     if (term.length < 3) {
       setHolderItems([]);
+      setHolderLoading(false);
       return;
     }
+    // Show the spinner from the first keystroke (through the debounce and
+    // the fetch); `active` guards against a stale request clearing it after
+    // the term has moved on.
+    let active = true;
+    setHolderLoading(true);
     const handle = setTimeout(() => {
       searchClientsAuto(term)
-        .then(setHolderItems)
-        .catch(() => setHolderItems([]));
+        .then((items) => {
+          if (active) setHolderItems(items);
+        })
+        .catch(() => {
+          if (active) setHolderItems([]);
+        })
+        .finally(() => {
+          if (active) setHolderLoading(false);
+        });
     }, 300);
-    return () => clearTimeout(handle);
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
   }, [holderTerm]);
 
   // Pull every location row for the picked client (the autocomplete only
@@ -233,8 +260,21 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
 
       <div className="client-search__holder">
         <ComboBox
+          ref={holderInputRef}
           id="client-search-holder"
-          titleText="Agreement holder"
+          titleText={
+            <span className="client-search__holder-label">
+              Agreement holder
+              {holderLoading && (
+                <Loading
+                  small
+                  withOverlay={false}
+                  description="Retrieving agreement holders"
+                  className="client-search__holder-spinner"
+                />
+              )}
+            </span>
+          }
           helperText="Enter name, acronym, or client number (min. 3 characters)"
           items={holderItems}
           itemToString={(item) => (item ? clientLabel(item) : '')}

@@ -1,4 +1,4 @@
-import { apiFetch } from '@/services/apiFetch';
+import { apiFetch, readErrorMessage } from '@/services/apiFetch';
 import type { PageableResponse } from './fspSearch';
 
 // Mirrors backend ca.bc.gov.nrs.fsp.api.struct.v1.ClientSearchRequest.
@@ -54,12 +54,8 @@ export async function searchClients(
   const path = qs ? `/v1/clients/search?${qs}` : '/v1/clients/search';
   const res = await apiFetch(path);
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Client search failed (${res.status}): ${detail}`
-        : `Client search failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Client search failed (${res.status})`);
   }
   return res.json() as Promise<PageableResponse<ClientSearchResult>>;
 }

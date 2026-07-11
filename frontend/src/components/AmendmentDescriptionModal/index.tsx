@@ -2,12 +2,12 @@ import {
   Button,
   Link as CarbonLink,
   Loading,
-  Modal,
   RadioButton,
   RadioButtonGroup,
   Stack,
   TextArea,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { Information } from '@carbon/icons-react';
 import { useEffect, useState, type FC } from 'react';
 import { Link as RouterLink } from 'react-router-dom';

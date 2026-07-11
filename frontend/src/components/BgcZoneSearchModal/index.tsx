@@ -2,7 +2,6 @@ import {
   Button,
   DataTable,
   Loading,
-  Modal,
   Pagination,
   Table,
   TableBody,
@@ -13,6 +12,7 @@ import {
   TableRow,
   TextInput,
 } from '@carbon/react';
+import { Modal } from '@/components/Modal';
 import { Search as SearchIcon } from '@carbon/icons-react';
 import { useCallback, useEffect, useState, type FC, type FormEvent } from 'react';
 

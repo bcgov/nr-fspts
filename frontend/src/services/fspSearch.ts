@@ -9,12 +9,10 @@ export interface CodeOption {
 async function getJson<T>(path: string, label: string): Promise<T> {
   const res = await apiFetch(path);
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `${label} failed (${res.status}): ${detail}`
-        : `${label} failed (${res.status})`,
-    );
+    // readErrorMessage sanitises the body (drops raw SQL/stack/JSON), so
+    // `detail` is a clean sentence or empty — never technical text.
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `${label} failed (${res.status})`);
   }
   return res.json() as Promise<T>;
 }
@@ -651,6 +649,34 @@ export async function updateFduLicences(
   return res.json() as Promise<FduLicencesUpdated>;
 }
 
+export interface LicenceExists {
+  licenceNumber: string;
+  exists: boolean;
+}
+
+/**
+ * GET /v1/fsp/{fspId}/licence-exists?licenceNumber=… — check whether a
+ * single licence number exists in PROV_FOREST_USE. Backs the Edit-licences
+ * dialog's Add-time validation so a bad number is caught immediately rather
+ * than failing the whole batch at save.
+ */
+export async function checkLicenceExists(
+  fspId: string,
+  licenceNumber: string,
+): Promise<boolean> {
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/licence-exists?licenceNumber=${encodeURIComponent(
+      licenceNumber,
+    )}`,
+  );
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Licence check failed (${res.status})`);
+  }
+  const data = (await res.json()) as LicenceExists;
+  return data.exists;
+}
+
 // Mirrors backend StandardRequest — single row from /standards.
 export interface FspStandardRow {
   standardsRegimeId: string | null;
@@ -773,12 +799,8 @@ export async function updateStandardRegimeOverview(
     },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Standards overview save failed (${res.status}): ${detail}`
-        : `Standards overview save failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Standards overview save failed (${res.status})`);
   }
   return res.json() as Promise<StandardRegimeDetail>;
 }
@@ -988,12 +1010,8 @@ export async function updateStandardRegimeLayer(
     },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Layer save failed (${res.status}): ${detail}`
-        : `Layer save failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Layer save failed (${res.status})`);
   }
   return res.json() as Promise<StandardRegimeLayerDetail>;
 }
@@ -1015,12 +1033,8 @@ export async function addLayerSpecies(
     },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Add species failed (${res.status}): ${detail}`
-        : `Add species failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Add species failed (${res.status})`);
   }
   return res.json() as Promise<StandardRegimeLayerDetail>;
 }
@@ -1045,12 +1059,8 @@ export async function deleteLayerSpecies(
     { method: 'DELETE' },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Delete species failed (${res.status}): ${detail}`
-        : `Delete species failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Delete species failed (${res.status})`);
   }
   return res.json() as Promise<StandardRegimeLayerDetail>;
 }
@@ -1074,12 +1084,8 @@ export async function convertStandardRegimeLayers(
     { method: 'POST' },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Layer conversion failed (${res.status}): ${detail}`
-        : `Layer conversion failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Layer conversion failed (${res.status})`);
   }
   return res.json() as Promise<StandardRegimeDetail>;
 }
@@ -1121,12 +1127,8 @@ export async function addStandardRegimeBgcZone(
     },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Add BGC zone failed (${res.status}): ${detail}`
-        : `Add BGC zone failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Add BGC zone failed (${res.status})`);
   }
   return res.json() as Promise<StandardRegimeDetail>;
 }
@@ -1146,12 +1148,8 @@ export async function deleteStandardRegimeBgcZone(
     { method: 'DELETE' },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Delete BGC zone failed (${res.status}): ${detail}`
-        : `Delete BGC zone failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Delete BGC zone failed (${res.status})`);
   }
   return res.json() as Promise<StandardRegimeDetail>;
 }
@@ -1176,12 +1174,8 @@ export async function updateStandardRegimeBgcZone(
     },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Update BGC zone failed (${res.status}): ${detail}`
-        : `Update BGC zone failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Update BGC zone failed (${res.status})`);
   }
   return res.json() as Promise<StandardRegimeDetail>;
 }
@@ -1237,12 +1231,8 @@ export async function uploadFspAttachment(
     { method: 'POST', body: form },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Attachment upload failed (${res.status}): ${detail}`
-        : `Attachment upload failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Attachment upload failed (${res.status})`);
   }
 }
 
@@ -1261,12 +1251,8 @@ export async function downloadFspAttachment(
     `/v1/fsp/${encodeURIComponent(fspId)}/attachments/${encodeURIComponent(attachmentId)}/download`,
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Attachment download failed (${res.status}): ${detail}`
-        : `Attachment download failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Attachment download failed (${res.status})`);
   }
   const blob = await res.blob();
   const disposition = res.headers.get('Content-Disposition') ?? '';
@@ -1307,12 +1293,8 @@ export async function fetchFspAttachmentBlob(
     `/v1/fsp/${encodeURIComponent(fspId)}/attachments/${encodeURIComponent(attachmentId)}/download`,
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Attachment load failed (${res.status}): ${detail}`
-        : `Attachment load failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Attachment load failed (${res.status})`);
   }
   const raw = await res.blob();
   const ext = (fileName ?? '').split('.').pop()?.toLowerCase() ?? '';
@@ -1332,12 +1314,8 @@ export async function deleteFspAttachment(
     { method: 'DELETE' },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Attachment delete failed (${res.status}): ${detail}`
-        : `Attachment delete failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Attachment delete failed (${res.status})`);
   }
 }
 
@@ -1392,10 +1370,8 @@ export async function searchFsp(
   const path = qs ? `/v1/fsp/search?${qs}` : '/v1/fsp/search';
   const res = await apiFetch(path);
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail ? `Search failed (${res.status}): ${detail}` : `Search failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Search failed (${res.status})`);
   }
   return res.json() as Promise<PageableResponse<FspSearchResult>>;
 }
@@ -1415,10 +1391,8 @@ export async function searchInbox(
   const path = qs ? `/v1/fsp/inbox?${qs}` : '/v1/fsp/inbox';
   const res = await apiFetch(path);
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail ? `Inbox load failed (${res.status}): ${detail}` : `Inbox load failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Inbox load failed (${res.status})`);
   }
   return res.json() as Promise<PageableResponse<FspSearchResult>>;
 }
@@ -1445,12 +1419,8 @@ export async function getFspExtent(
   )}/extent`;
   const res = await apiFetch(path);
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Extent load failed (${res.status}): ${detail}`
-        : `Extent load failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Extent load failed (${res.status})`);
   }
   return res.json() as Promise<FspExtentResponse>;
 }
@@ -1501,10 +1471,8 @@ export async function searchUsers(params: UserSearchParams): Promise<UserSearchR
   const path = `/v1/fsp/users/search${qs.toString() ? `?${qs}` : ''}`;
   const res = await apiFetch(path);
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail ? `User search failed (${res.status}): ${detail}` : `User search failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `User search failed (${res.status})`);
   }
   return res.json() as Promise<UserSearchResponse>;
 }
@@ -1514,10 +1482,8 @@ export async function getDistrictDesignates(orgUnitNo: string): Promise<Notifica
   const path = `/v1/fsp/admin/district-notifications?orgUnitNo=${encodeURIComponent(orgUnitNo)}`;
   const res = await apiFetch(path);
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail ? `Designate load failed (${res.status}): ${detail}` : `Designate load failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Designate load failed (${res.status})`);
   }
   return res.json() as Promise<NotificationDesignate[]>;
 }
@@ -1533,10 +1499,8 @@ export async function addDistrictDesignate(
     body: JSON.stringify({ orgUnitNo, designateIdir }),
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail ? `Add designate failed (${res.status}): ${detail}` : `Add designate failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Add designate failed (${res.status})`);
   }
 }
 
@@ -1547,11 +1511,7 @@ export async function removeDistrictDesignate(designateId: string): Promise<void
     { method: 'DELETE' },
   );
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `Remove designate failed (${res.status}): ${detail}`
-        : `Remove designate failed (${res.status})`,
-    );
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Remove designate failed (${res.status})`);
   }
 }
