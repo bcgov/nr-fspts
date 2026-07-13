@@ -63,6 +63,12 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+
+  // Give the staged-file chip a white surface so the waiting upload stands
+  // out from the grey modal body (matches the ext-modal summary tile).
+  .ddfi__chip {
+    background: var(--cds-layer-02, #ffffff);
+  }
 }
 
 .ddm-modal__section-title {

@@ -14,7 +14,7 @@ import {
   TextArea,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
-import { Add, Launch, TrashCan } from '@carbon/icons-react';
+import { Add, Document, Launch, TrashCan } from '@carbon/icons-react';
 import { type FC, useEffect, useMemo, useState } from 'react';
 
 import DragDropFileInput from '@/components/DragDropFileInput';
@@ -126,6 +126,9 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
+  // Add attachment stays enabled at all times; on click we surface the
+  // required-field errors instead of pre-disabling the button.
+  const [showValidation, setShowValidation] = useState(false);
 
   const { display } = useNotification();
 
@@ -231,6 +234,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
     setSelectedTypeCode('');
     setSelectedFile(null);
     setDescription('');
+    setShowValidation(false);
   };
 
   const openAddDialog = () => {
@@ -264,7 +268,12 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
   };
 
   const submitUpload = async () => {
-    if (!selectedTypeCode || !selectedFile) return;
+    // Category + File are both mandatory. Rather than disabling the button,
+    // reveal the inline required-field errors when either is missing.
+    if (!selectedTypeCode || !selectedFile) {
+      setShowValidation(true);
+      return;
+    }
     setUploading(true);
     try {
       await uploadFspAttachment(fspId, selectedTypeCode, selectedFile, description);
@@ -325,13 +334,17 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
         />
       ) : (
         <>
-          {canEdit && (
-            <div className="fsp-info__tab-actions">
+          <header className="fsp-info__tile-header fsp-info__tile-header--tab">
+            <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+              <Document size={20} />
+              <span>Attachments</span>
+            </h2>
+            {canEdit && (
               <Button kind="tertiary" size="sm" renderIcon={Add} onClick={openAddDialog}>
                 Add attachment
               </Button>
-            </div>
-          )}
+            )}
+          </header>
           <div className="bordered-table">
           <TableContainer>
             <Table size="md" useZebraStyles>
@@ -412,10 +425,15 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
         preventCloseOnClickOutside
       >
         <Stack gap={5} className="fsp-species-modal__form">
+          <p className="fsp-species-modal__subtitle">
+            All fields are required unless marked optional.
+          </p>
           <Select
             id="attachment-category"
-            labelText="Category *"
+            labelText="Category"
             value={selectedTypeCode}
+            invalid={showValidation && !selectedTypeCode}
+            invalidText="Category is required."
             disabled={uploading || categoriesLoading || visibleCategories.length === 0}
             onChange={(e) => setSelectedTypeCode(e.target.value)}
           >
@@ -438,11 +456,13 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
             ))}
           </Select>
           <DragDropFileInput
-            label="File *"
+            label="File"
             helperText={
               `Allowed: ${ACCEPTED_ATTACHMENT_EXTENSIONS.join(', ')}. `
               + `File name max ${MAX_ATTACHMENT_FILENAME_LEN} chars. Max 50 MB.`
             }
+            invalid={showValidation && !selectedFile}
+            invalidText="File is required."
             file={selectedFile}
             // The accept list hands the OS file picker an extension
             // allow-list; re-checked in onFileSelect because drag-and-drop
@@ -469,7 +489,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
           </Button>
           <Button
             kind="primary"
-            disabled={uploading || !selectedTypeCode || !selectedFile}
+            disabled={uploading}
             renderIcon={uploading ? UploadingIcon : undefined}
             onClick={() => void submitUpload()}
           >

@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import {CheckmarkFilled} from '@carbon/icons-react';
+import {CheckmarkFilled, RecentlyViewed} from '@carbon/icons-react';
 import {type FC, useEffect, useMemo, useState} from 'react';
 
 import {type FspWorkflowEvent, getFspWorkflow} from '@/services/fspSearch';
@@ -139,12 +139,18 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
     return <p className="fsp-info__placeholder">No workflow events recorded.</p>;
   }
 
-  // No section heading / white tile here — the History table sits
-  // directly on the gray tab canvas (per the approved layout). Sorting is
-  // handled manually (above) so we render a static Carbon table and drive
-  // the Date column's sort indicator from `sortDir`.
+  // Icon-titled section heading (matching Plan details) above the History
+  // table. Sorting is handled manually (above) so we render a static Carbon
+  // table and drive the Date column's sort indicator from `sortDir`.
   return (
-    <div className="bordered-table">
+    <>
+      <header className="fsp-info__tile-header fsp-info__tile-header--tab">
+        <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+          <RecentlyViewed size={20} />
+          <span>History</span>
+        </h2>
+      </header>
+      <div className="bordered-table">
       <TableContainer>
         <Table size="md" useZebraStyles>
           <TableHead>
@@ -184,7 +190,8 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
           </TableBody>
         </Table>
       </TableContainer>
-    </div>
+      </div>
+    </>
   );
 };
 

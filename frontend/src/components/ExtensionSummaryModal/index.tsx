@@ -8,11 +8,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tag,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
 import { useEffect, useState, type FC } from 'react';
 
+import StatusTag from '@/components/StatusTag/StatusTag';
 import { useNotification } from '@/context/notification/useNotification';
 import { type FspExtensionSummary, getFspExtensions } from '@/services/fspSearch';
 
@@ -37,18 +37,6 @@ interface Props {
 
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
-
-// Carbon Tag colour by extension status code. Codes mirror the FSP
-// status code list (APP/INE/SUB/REJ etc.). Unknown values fall back
-// to gray via the lookup default.
-const STATUS_TAG: Record<string, 'green' | 'blue' | 'gray' | 'red' | 'warm-gray'> = {
-  APP: 'green',
-  INE: 'green',
-  SUB: 'blue',
-  DFT: 'gray',
-  REJ: 'red',
-  RET: 'warm-gray',
-};
 
 const HEADERS = [
   { key: 'extensionNumber', header: 'Ext #' },
@@ -123,7 +111,7 @@ const ExtensionSummaryModal: FC<Props> = ({ open, fspId, onClose }) => {
       id: e.extensionId ?? `row-${i}`,
       extensionNumber: dash(e.extensionNumber),
       submissionDate: dash(e.submissionDate),
-      status: dash(e.statusCode),
+      status: dash(e.statusDescription ?? e.statusCode),
       decisionDate: dash(e.decisionDate),
       term: `${dash(e.planTermYears)} yr ${dash(e.planTermMonths)} mo`,
       planEndDate: dash(e.planEndDate),
@@ -186,12 +174,9 @@ const ExtensionSummaryModal: FC<Props> = ({ open, fspId, onClose }) => {
                               <TableRow {...getRowProps({ row })} key={row.id}>
                                 {row.cells.map((cell) => {
                                   if (cell.info.header === 'status' && cell.value) {
-                                    const code = cell.value as string;
                                     return (
                                       <TableCell key={cell.id}>
-                                        <Tag type={STATUS_TAG[code] ?? 'gray'} size="sm">
-                                          {code}
-                                        </Tag>
+                                        <StatusTag status={cell.value as string} />
                                       </TableCell>
                                     );
                                   }

@@ -125,9 +125,18 @@ public final class ProcErrorMessages {
       // this check.
       Map.entry("FSP.NO.ATTACHEMENT.FOUND", new Info(BAD_REQUEST,
           "Upload the FSP plan document on the Attachments tab "
-              + "(category \"FSP Document\") before approving — the "
+              + "(category \"FSP legal document\") before approving — the "
               + "DDM Decision Document is a separate, additional "
               + "attachment.")),
+      // App-level submit guard (NOT a proc code). fsp_common_validation
+      // only checks for an FSP-type attachment when transitioning to
+      // APP/INE; the Draft→Submitted branch skips it. We enforce the same
+      // "FSP Legal Document must be on this amendment" rule at submit time
+      // and surface it in the Submit preflight with this code.
+      Map.entry("FSP.NO.LEGAL.DOCUMENT", new Info(BAD_REQUEST,
+          "Upload the FSP legal document for this amendment on the "
+              + "Attachments tab (category \"FSP legal document\") before "
+              + "submitting.")),
       Map.entry("FSP.DUPLICATE.AGREEMENT.HOLDER", new Info(BAD_REQUEST,
           "Agreement holder list contains duplicates.")),
       Map.entry("FSP.DUPLICATE.FDU.NAME", new Info(BAD_REQUEST,

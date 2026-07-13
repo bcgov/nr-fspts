@@ -31,7 +31,7 @@ import {
   canSeeWorkflowTab,
   defaultRouteForUser,
 } from '@/routes/access';
-import {type CodeOption, type FspInformation, deleteFsp, getFspAmendmentNumbers, getFspById,} from '@/services/fspSearch';
+import {type CodeOption, type FspExtension, type FspInformation, deleteFsp, getFspAmendmentNumbers, getFspById, getFspExtensions,} from '@/services/fspSearch';
 
 import AttachmentsTab from './tabs/AttachmentsTab';
 import InformationTab from './tabs/InformationTab';
@@ -99,6 +99,11 @@ const FspInformationPage: FC = () => {
   // WorkflowDataTab keep showing pre-submit status because they're
   // keyed on [fspId] alone.
   const [refreshKey, setRefreshKey] = useState(0);
+  // Controlled tab index so cross-tab links (e.g. the "Attachments" links
+  // in the Workflow tab's decision sub-headings) can switch tabs.
+  // Order mirrors the <Tab> list below: 0 Information, 1 Stocking, 2 FDU/Map,
+  // 3 Attachments, 4 History, 5 Workflow.
+  const [selectedTab, setSelectedTab] = useState(0);
   /**
    * Swap the FSP DTO in place AND bump refreshKey so the tabs
    * re-fetch their own slices. Use after any mutation whose effects
@@ -140,6 +145,39 @@ const FspInformationPage: FC = () => {
       cancelled = true;
     };
   }, [fspId, amendmentNumber, display]);
+
+  // Resolve the real extension status for the header pill. Runs whenever
+  // the FSP reports an extension exists (stat other than blank/'N'); we
+  // pick the highest-numbered extension as "the latest" and let its
+  // status code/description drive the pill. Cleared when no extension.
+  const extensionStatFlag = (fsp?.fspExtensionStat ?? '').toUpperCase();
+  const hasExtension = extensionStatFlag !== '' && extensionStatFlag !== 'N';
+  useEffect(() => {
+    if (!fspId || !hasExtension) {
+      setLatestExtension(null);
+      return;
+    }
+    let cancelled = false;
+    getFspExtensions(fspId)
+      .then((summary) => {
+        if (cancelled) return;
+        const latest = summary.extensions.reduce<FspExtension | null>(
+          (best, e) =>
+            best === null ||
+            Number(e.extensionNumber ?? 0) >= Number(best.extensionNumber ?? 0)
+              ? e
+              : best,
+          null,
+        );
+        setLatestExtension(latest);
+      })
+      .catch(() => {
+        if (!cancelled) setLatestExtension(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fspId, hasExtension, refreshKey]);
 
   // Amendment-numbers fetch refreshes when the user switches FSPs OR
   // when the parent signals a mutation that may have bumped revision_count
@@ -226,15 +264,23 @@ const FspInformationPage: FC = () => {
   // that here so the button doesn't show for drafts or rejections.
   const isApprovedOrInEffect =
     fsp?.fspStatusCode === 'APP' || fsp?.fspStatusCode === 'INE';
-  const canExtend = canModify && isApprovedOrInEffect;
+  // A submitted (open) extension request is awaiting a DDM decision, so no
+  // new amendment / extension / replacement may be started until it's
+  // resolved — otherwise two lifecycle changes would be in flight against
+  // the same plan. fspExtensionStat === 'S' is the FSP300 read's flag for
+  // "an extension in SUB status exists" (see EXTENSION_STAT_LABEL). Mirrors
+  // the backend guard in ActionCodeContextValidator for XML uploads.
+  const hasOpenExtension = extensionStatFlag === 'S';
+  const canExtend = canModify && isApprovedOrInEffect && !hasOpenExtension;
   // Amend: legacy isAmendFSPEnabled also blocks while a previous
   // amendment is still unapproved (DFT/SUB/OHS) — kicking off another
   // would leave two open amendments in flight at the same time.
   const hasUnapprovedAmend = fsp?.fspUnapprovedAmendsInd === 'Y';
-  const canAmend = canModify && isApprovedOrInEffect && !hasUnapprovedAmend;
+  const canAmend =
+    canModify && isApprovedOrInEffect && !hasUnapprovedAmend && !hasOpenExtension;
   // Replace: legacy isReplaceFSPEnabled gates on APP/INE only — no
   // unapproved-amends check (a Replacement is a hard cut-over).
-  const canReplace = canModify && isApprovedOrInEffect;
+  const canReplace = canModify && isApprovedOrInEffect && !hasOpenExtension;
   // Workflow tab is hidden for Submitter-only and View-Only roles —
   // nothing on it (DDM decision / OTBH / extension review) applies to
   // them. History (read-only audit) stays visible regardless.
@@ -247,6 +293,13 @@ const FspInformationPage: FC = () => {
   // Read-only summary dialogs opened from the header type-summary card.
   const [descriptionSummaryOpen, setDescriptionSummaryOpen] = useState(false);
   const [extensionSummaryOpen, setExtensionSummaryOpen] = useState(false);
+  // Latest extension for this FSP, fetched to drive the header pill. The
+  // FSP300 read only returns a 3-state flag ('N'/'S'/'Y') that can't tell
+  // Approved from Rejected, so we pull the extension summary and use the
+  // most-recent extension's real status code/description instead.
+  const [latestExtension, setLatestExtension] = useState<FspExtension | null>(
+    null,
+  );
   // True while the Information tab's Plan details are being edited — locks
   // the page-level action buttons so a mid-edit mutation can't clobber the
   // in-flight changes.
@@ -326,8 +379,16 @@ const FspInformationPage: FC = () => {
   const showExtension = extensionStat !== '' && extensionStat !== 'N';
   const showTypeSummary =
     !fspMissing && (showAmendment || showReplacement || showExtension);
+  // Prefer the real status from the latest extension (statusDescription is
+  // already a human label; statusCode falls through the map). Only fall back
+  // to the ambiguous FSP300 flag while the summary is still loading — that
+  // flag can't distinguish Approved from Rejected (both map to 'Y').
   const extensionStatusLabel =
-    EXTENSION_STAT_LABEL[extensionStat] ?? fsp?.fspExtensionStat ?? '';
+    latestExtension?.statusDescription ??
+    (latestExtension?.statusCode
+      ? (EXTENSION_STAT_LABEL[latestExtension.statusCode.toUpperCase()] ??
+        latestExtension.statusCode)
+      : (EXTENSION_STAT_LABEL[extensionStat] ?? ''));
 
   return (
     <Grid fullWidth className="default-grid fsp-info-grid">
@@ -541,7 +602,10 @@ const FspInformationPage: FC = () => {
               so a className on it is dropped. Wrap it in a real div so the
               full-bleed gray pane styling can target the panel. */}
           <div className="fsp-info__page-tabs">
-          <Tabs>
+          <Tabs
+            selectedIndex={selectedTab}
+            onChange={({ selectedIndex }) => setSelectedTab(selectedIndex)}
+          >
             <TabList aria-label="FSP sections" contained>
               <Tab renderIcon={TableOfContents}>Information</Tab>
               <Tab renderIcon={StockingStandardsTabIcon}>Stocking standards</Tab>
@@ -608,6 +672,7 @@ const FspInformationPage: FC = () => {
                     <WorkflowDataTab
                       fspId={fspId}
                       refreshKey={refreshKey}
+                      onOpenAttachments={() => setSelectedTab(3)}
                       // Workflow read-only is decided by workflow-action
                       // capability, NOT content-edit: Decision Makers can
                       // act here (status-gated) but can't edit content.

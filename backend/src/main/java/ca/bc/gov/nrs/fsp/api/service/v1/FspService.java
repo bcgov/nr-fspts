@@ -75,6 +75,8 @@ public class FspService {
   private final ca.bc.gov.nrs.fsp.api.dao.v1.FspSearchDirectDao searchDirectDao;
   private final Fsp300InformationDao informationDao;
   private final ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao validationDao;
+  private final ca.bc.gov.nrs.fsp.api.dao.v1.FspAttachmentQueryDao attachmentQueryDao;
+  private final ca.bc.gov.nrs.fsp.api.dao.v1.FspExtensionQueryDao extensionQueryDao;
   private final ca.bc.gov.nrs.fsp.api.security.FspAccessGuard accessGuard;
   private final ca.bc.gov.nrs.fsp.api.client.FomByFspClient fomClient;
 
@@ -457,6 +459,12 @@ public class FspService {
     // AGREEMENT.HOLDER. GET the current row first so the SAVE in
     // SUBMIT runs as a no-op rewrite of the existing state.
     FspRequest current = getById(fspId, nz(amendmentNumber));
+    // App-level guard: the FSP Legal Document (attachment type 'FSP') must
+    // be on THIS amendment before we allow submit. fsp_common_validation
+    // only enforces this on the APP/INE transition — its Draft→Submitted
+    // branch deliberately skips it — so a DFT→SUB submit would otherwise
+    // go through without the legal document. Throws BAD_REQUEST when missing.
+    assertLegalDocumentPresent(fspId, current.getFspAmendmentNumber());
     callInformation(ACTION_SUBMIT, fspId, nz(amendmentNumber), current);
     // The inner submit() call updates the row's fsp_status_code, but
     // MAINLINE's IN/OUT parameters don't get refreshed from the row
@@ -464,6 +472,34 @@ public class FspService {
     // pre-submit status. Re-read so the SPA sees the new status
     // (typically SUB, or INE when approval_required_ind='N').
     return getById(fspId, nz(amendmentNumber));
+  }
+
+  // Curated code for the app-level "FSP Legal Document required on this
+  // amendment" rule. Not a proc code — see ProcErrorMessages.
+  private static final String CODE_NO_LEGAL_DOCUMENT = "FSP.NO.LEGAL.DOCUMENT";
+
+  /**
+   * True when an FSP Legal Document (attachment type {@code 'FSP'}) is
+   * linked to this exact {@code (fspId, amendmentNumber)}. Blank/unparsable
+   * amendment numbers resolve to 0 (the original), same as the rest of the
+   * submit path.
+   */
+  private boolean hasLegalDocument(String fspId, String amendmentNumber) {
+    return attachmentQueryDao.hasLegalDocument(
+        Long.parseLong(fspId), parseLongOrZero(amendmentNumber));
+  }
+
+  /**
+   * Hard submit guard — throws {@link IllegalArgumentException} (→ 400)
+   * with the curated {@link #CODE_NO_LEGAL_DOCUMENT} message when the FSP
+   * Legal Document is not attached to the amendment being submitted.
+   */
+  private void assertLegalDocumentPresent(String fspId, String amendmentNumber) {
+    if (!hasLegalDocument(fspId, amendmentNumber)) {
+      throw new IllegalArgumentException(
+          ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(
+              CODE_NO_LEGAL_DOCUMENT));
+    }
   }
 
   /**
@@ -483,25 +519,56 @@ public class FspService {
     long amendmentLong = parseLongOrZero(amendmentNumber);
     List<ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao.ValidationError> raw =
         validationDao.validate(fspIdLong, amendmentLong);
-    List<ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse.Issue> issues = raw.stream()
-        .map(e -> {
-          String curated = ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(e.code());
-          // Prefer curated message; fall back to whatever the proc
-          // formatted (FSP.COMMON.* codes include their template
-          // parameters in the proc message).
-          String surface = curated != null ? curated
-              : (e.procMessage() != null && !e.procMessage().isBlank()
-                  ? e.procMessage() : e.code());
-          return new ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse.Issue(
-              e.code(), e.procMessage(), surface);
-        })
-        .toList();
+    List<ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse.Issue> issues =
+        new java.util.ArrayList<>(raw.stream()
+            .map(e -> {
+              String curated =
+                  ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(e.code());
+              // Prefer curated message; fall back to whatever the proc
+              // formatted (FSP.COMMON.* codes include their template
+              // parameters in the proc message).
+              String surface = curated != null ? curated
+                  : (e.procMessage() != null && !e.procMessage().isBlank()
+                      ? e.procMessage() : e.code());
+              return new ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse.Issue(
+                  e.code(), e.procMessage(), surface);
+            })
+            .toList());
+    // App-level rule the proc's Draft→Submitted branch skips: the FSP
+    // Legal Document must be on this amendment. Surface it here so the SPA
+    // checklist matches what submit() will actually enforce. Guard against
+    // duplicating it if the proc ever also raises its own FSP-attachment
+    // code for this amendment.
+    if (!attachmentQueryDao.hasLegalDocument(fspIdLong, amendmentLong)
+        && issues.stream().noneMatch(i -> CODE_NO_LEGAL_DOCUMENT.equals(i.code()))) {
+      issues.add(new ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse.Issue(
+          CODE_NO_LEGAL_DOCUMENT, null,
+          ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(
+              CODE_NO_LEGAL_DOCUMENT)));
+    }
     return new ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse(issues.isEmpty(), issues);
+  }
+
+  /**
+   * Server-side enforcement of the "no concurrent lifecycle change while
+   * an extension is open" rule. Throws {@link IllegalArgumentException}
+   * (→ 400) when the FSP has a Submitted extension request awaiting a
+   * decision. The UI hides the Amend / Extend / Replace buttons in this
+   * state and the XML path checks it in ActionCodeContextValidator; this
+   * guards the direct amend/replace/extend endpoints too.
+   */
+  private void assertNoOpenExtension(String fspId, String verb) {
+    if (extensionQueryDao.hasOpenExtension(Long.parseLong(fspId))) {
+      throw new IllegalArgumentException(
+          "This FSP has an open extension request awaiting a decision, so it "
+              + "can't be " + verb + " right now. Resolve the extension first.");
+    }
   }
 
   @Transactional
   public FspRequest amend(String fspId, FspRequest request) {
     accessGuard.assertWritable(fspId, null);
+    assertNoOpenExtension(fspId, "amended");
     Fsp300InformationDao.Result r = callInformation(ACTION_AMEND, fspId, "", request);
     return toFspDto(r);
   }
@@ -526,6 +593,7 @@ public class FspService {
     // Fsp304ReplaceInformationAction.handleSave hard-set.
     request.setFspAmendmentCode("RPL");
     accessGuard.assertWritable(fspId, null);
+    assertNoOpenExtension(fspId, "replaced");
     Fsp300InformationDao.Result r = callInformation(ACTION_REPLACE, fspId, "", request);
     return toFspDto(r);
   }

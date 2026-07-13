@@ -393,6 +393,78 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.375rem;
+    align-items: center;
+  }
+
+  // Struck-through "Removed" chip shown in place of a current licence the
+  // user has staged for deletion — mirrors Carbon's red tag palette but
+  // carries an inline Undo affordance the plain filter Tag can't.
+  &__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 62.5rem;
+    font-size: 0.75rem;
+    line-height: 1.34;
+  }
+
+  &__chip--removed {
+    background: var(--cds-tag-background-red, #ffd7d9);
+    color: var(--cds-tag-color-red, #a2191f);
+  }
+
+  &__chip-lic {
+    font-weight: 500;
+    text-decoration: line-through;
+  }
+
+  &__chip-state {
+    color: var(--cds-tag-color-red, #a2191f);
+  }
+
+  &__chip-undo {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--cds-link-primary, #0f62fe);
+    font-size: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--cds-link-primary-hover, #0043ce);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  &__chip-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.0625rem;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: currentColor;
+    cursor: pointer;
+
+    svg {
+      fill: currentColor;
+    }
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.12);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
   }
 
   &__inline-form {
@@ -663,6 +735,12 @@
     gap: 1.5rem;
   }
 
+  // Give the staged-file chips a white surface so waiting uploads stand out
+  // from the grey modal body (matches the white summary tile below).
+  .ddfi__chip {
+    background: var(--cds-layer-02, #ffffff);
+  }
+
   &__intro {
     margin: 0;
     color: var(--cds-text-secondary, #525252);
@@ -803,6 +881,14 @@
   margin-block-end: 1.5rem;
 }
 
+// Tab-level section titles (Attachments / History / FDU-Map) sit directly
+// on the tab canvas above a table, not inside a tile — the 1.5rem gap above
+// is roomier than they need, so tighten it. Two classes match the rule
+// above's specificity; the later source order wins.
+.fsp-info__tile-header.fsp-info__tile-header--tab {
+  margin-block-end: 0.25rem;
+}
+
 // Inline group on the right side of a tile header — lets us cluster
 // multiple action buttons (e.g. New Standard + Copy Standard) without
 // the .fsp-info__tile-header `space-between` shoving them to opposite
@@ -836,6 +922,22 @@
   color: var(--cds-text-secondary);
   font-size: 0.875rem;
   line-height: 1.5;
+}
+
+// Inline text link rendered as a button (no href) — e.g. the "Attachments"
+// link in the DDM / Extension decision sub-headings that switches tabs.
+.fsp-info__link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--cds-link-primary, #0f62fe);
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--cds-link-primary-hover, #0043ce);
+  }
 }
 
 // Info banner at the top of the Workflow tab. Keep the notification's
@@ -917,10 +1019,16 @@
 .fsp-info__field-list--emphasis {
   justify-content: start;
 
+  // Roomier label/value spacing so the decision tiles don't read as
+  // packed-tight (matches the Plan-details list's breathing room).
+  .fsp-info__field {
+    gap: 0.5rem;
+  }
+
   @media (min-width: 672px) {
     grid-template-columns: repeat(3, minmax(0, max-content));
     column-gap: 3rem;
-    row-gap: 1.25rem;
+    row-gap: 2rem;
   }
 }
 

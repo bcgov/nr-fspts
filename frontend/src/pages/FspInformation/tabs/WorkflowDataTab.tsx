@@ -11,7 +11,7 @@ import {
   TableRow,
   Tag,
 } from '@carbon/react';
-import { Add, Edit } from '@carbon/icons-react';
+import { Add, CalendarAdd, Edit, Stamp } from '@carbon/icons-react';
 import { type FC, type ReactNode, useEffect, useState } from 'react';
 
 import DdmDecisionEditModal, {
@@ -62,6 +62,11 @@ interface Props {
    * the UI half of that gate.
    */
   readOnly?: boolean;
+  /**
+   * Switches the FSP page to the Attachments tab. Wired to the
+   * "Attachments" links in the DDM / Extension decision sub-headings.
+   */
+  onOpenAttachments?: () => void;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -130,33 +135,35 @@ const optionalTag = (
   </Tag>
 );
 
-// Neutral pill shown beside "DDM decision" before any decision is recorded.
+// Pill shown beside "DDM decision" before any decision is recorded —
+// high-contrast (black fill, white text) so the pending state stands out.
 const decisionPendingTag = (
-  <Tag type="gray" size="sm">
-    Decision pending
+  <Tag type="high-contrast" size="sm">
+    Pending
   </Tag>
 );
 
-// DDM "Decided by" field label tracks the decision outcome so it reads
-// "Approved by" / "Rejected by" instead of a generic "Decided by".
-const decidedByLabel = (code: string | null | undefined): string => {
-  switch ((code ?? '').toUpperCase()) {
-    case 'APP':
-      return 'Approved by';
-    case 'REJ':
-      return 'Rejected by';
-    default:
-      return 'Decided by';
-  }
-};
+// Inline "Attachments" link inside a decision sub-heading — switches the
+// FSP page to the Attachments tab. Falls back to plain text when no
+// navigation handler is supplied (e.g. read-only embeds).
+const AttachmentsLink: FC<{ onOpen?: () => void }> = ({ onOpen }) =>
+  onOpen ? (
+    <button type="button" className="fsp-info__link-btn" onClick={onOpen}>
+      Attachments
+    </button>
+  ) : (
+    <>Attachments</>
+  );
 
 interface FieldEntry {
   label: string;
   value: ReactNode;
+  /** Span the full field-list row (own line above/below the date group). */
+  full?: boolean;
 }
 
-const Field: FC<FieldEntry> = ({ label, value }) => (
-  <div className="fsp-info__field">
+const Field: FC<FieldEntry> = ({ label, value, full }) => (
+  <div className={`fsp-info__field${full ? ' fsp-info__field--full' : ''}`}>
     <dt>{label}</dt>
     <dd>{value}</dd>
   </div>
@@ -249,11 +256,18 @@ const enableExtensionEdit = (
   return roles.isAdministrator || roles.isDecisionMaker;
 };
 
+// A DDM decision has actually been recorded only when the workflow read
+// returns a decision status / decider / decision date. Note effectiveDate
+// and submissionDate are NOT decision signals: FSP_700_WORKFLOW.get_ddm_only
+// always fills them from plan_start_date / amendment_submission_date even on
+// a submitted-but-undecided FSP, whereas statusCode / name / decisionDate
+// only populate from an APP/INE/REJ/DFT-clarification status-history row.
+// Keying off effectiveDate here made a fresh submission read as "decided"
+// (button showed "Edit decision" and the fields rendered with no decision).
 const ddmHasData = (ddm: FspDdmDecision): boolean =>
   !isBlank(ddm.statusCode) ||
   !isBlank(ddm.name) ||
-  !isBlank(ddm.decisionDate) ||
-  !isBlank(ddm.effectiveDate);
+  !isBlank(ddm.decisionDate);
 
 const extensionExists = (
   ext: FspExtensionDecision,
@@ -427,13 +441,17 @@ const DdmDecisionTile: FC<{
   decision: FspDdmDecision;
   canEdit: boolean;
   onEdit: () => void;
-}> = ({ decision, canEdit, onEdit }) => {
+  onOpenAttachments?: () => void;
+}> = ({ decision, canEdit, onEdit, onOpenAttachments }) => {
   const hasData = ddmHasData(decision);
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
         <div className="fsp-info__title-group">
-          <h2 className="fsp-info__section-title">DDM decision</h2>
+          <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+            <Stamp size={20} />
+            <span>DDM decision</span>
+          </h2>
           {!isBlank(decision.statusCode)
             ? statusTag(decision.statusCode)
             : decisionPendingTag}
@@ -452,22 +470,24 @@ const DdmDecisionTile: FC<{
         )}
       </header>
       <p className="fsp-info__section-desc">
-        Review the final decision metadata and supporting documents.
+        Determination for this version of the FSP. Supporting documents are
+        stored under “DDM Decision” on the{' '}
+        <AttachmentsLink onOpen={onOpenAttachments} /> tab.
       </p>
       {hasData ? (
         <dl className="fsp-info__field-list fsp-info__field-list--emphasis">
+          <Field full label="Decided by" value={dash(decision.name)} />
           <Field
-            label={decidedByLabel(decision.statusCode)}
-            value={dash(decision.name)}
+            label="Submission date"
+            value={dash(decision.submissionDate)}
           />
           <Field label="Decision date" value={dash(decision.decisionDate)} />
           <Field
             label="Effective date"
             value={dash(decision.effectiveDate)}
           />
-          <Field label="Submitted" value={dash(decision.submissionDate)} />
           {!isBlank(decision.comment) && (
-            <Field label="Comment" value={dash(decision.comment)} />
+            <Field full label="Comment" value={dash(decision.comment)} />
           )}
         </dl>
       ) : (
@@ -482,13 +502,17 @@ const ExtensionRequestTile: FC<{
   extensionIds: string | null;
   canEdit: boolean;
   onEdit: () => void;
-}> = ({ decision, extensionIds, canEdit, onEdit }) => {
+  onOpenAttachments?: () => void;
+}> = ({ decision, extensionIds, canEdit, onEdit, onOpenAttachments }) => {
   const hasDecision = !isBlank(decision.statusCode);
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
         <div className="fsp-info__title-group">
-          <h2 className="fsp-info__section-title">Extension request</h2>
+          <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+            <CalendarAdd size={20} />
+            <span>Extension decision</span>
+          </h2>
           {hasDecision ? statusTag(decision.statusCode) : decisionPendingTag}
         </div>
         {canEdit && (
@@ -504,8 +528,17 @@ const ExtensionRequestTile: FC<{
           </div>
         )}
       </header>
+      <p className="fsp-info__section-desc">
+        Determination on the request to extend the FSP expiry. Applies to the
+        whole FSP.
+        <br />
+        Supporting documents are stored under “Extension DDM Decision” on the{' '}
+        <AttachmentsLink onOpen={onOpenAttachments} /> tab.
+      </p>
       <dl className="fsp-info__field-list fsp-info__field-list--emphasis">
+        <Field full label="Decided by" value={dash(decision.name)} />
         <Field
+          full
           label="Extension number"
           value={dash(extensionIds ?? decision.extensionId)}
         />
@@ -513,14 +546,13 @@ const ExtensionRequestTile: FC<{
           label="Submission date"
           value={dash(decision.submissionDate)}
         />
-        <Field label="Decision by" value={dash(decision.name)} />
         <Field label="Decision date" value={dash(decision.decisionDate)} />
         <Field
           label="Effective date"
           value={dash(decision.effectiveDate)}
         />
         {!isBlank(decision.comment) && (
-          <Field label="Comment" value={dash(decision.comment)} />
+          <Field full label="Comment" value={dash(decision.comment)} />
         )}
       </dl>
     </section>
@@ -543,6 +575,7 @@ const WorkflowDataTab: FC<Props> = ({
   refreshKey,
   onWorkflowChanged,
   readOnly = false,
+  onOpenAttachments,
 }) => {
   const [state, setState] = useState<FspWorkflowState | null>(null);
   const [loading, setLoading] = useState(false);
@@ -763,7 +796,18 @@ const WorkflowDataTab: FC<Props> = ({
           decision={state.ddmDecision}
           canEdit={ddmEditable}
           onEdit={() => setDdmModalOpen(true)}
+          onOpenAttachments={onOpenAttachments}
         />
+
+        {extensionIsPresent && (
+          <ExtensionRequestTile
+            decision={state.extensionDecision}
+            extensionIds={state.extensionIds}
+            canEdit={extensionEditable}
+            onEdit={() => setExtensionModalOpen(true)}
+            onOpenAttachments={onOpenAttachments}
+          />
+        )}
 
         <ReviewDetailsTile
           items={state.reviewItems}
@@ -783,15 +827,6 @@ const WorkflowDataTab: FC<Props> = ({
             })
           }
         />
-
-        {extensionIsPresent && (
-        <ExtensionRequestTile
-          decision={state.extensionDecision}
-          extensionIds={state.extensionIds}
-          canEdit={extensionEditable}
-          onEdit={() => setExtensionModalOpen(true)}
-        />
-      )}
 
       <ReviewMilestoneEditModal
         open={reviewEditTarget != null}
@@ -819,6 +854,7 @@ const WorkflowDataTab: FC<Props> = ({
 
       <ExtensionDecisionEditModal
         open={extensionModalOpen}
+        fspId={fspId}
         value={state.extensionDecision}
         onClose={() => setExtensionModalOpen(false)}
         onSubmit={handleExtensionSave}

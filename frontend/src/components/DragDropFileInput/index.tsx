@@ -26,6 +26,12 @@ interface Props {
   disabled?: boolean;
   /** Render the file chip in an error state (red border + warning icon). */
   invalid?: boolean;
+  /**
+   * Error message shown under the dropzone when {@link invalid} is set.
+   * Unlike the chip's error styling this renders even with no file picked,
+   * so it works for a "file is required" validation on submit.
+   */
+  invalidText?: string;
   /** Fired when a file is chosen via drop or the OS picker (single mode). */
   onSelect?: (file: File) => void;
   /** Fired when the user clears the chip (single mode). */
@@ -49,6 +55,7 @@ const DragDropFileInput: FC<Props> = ({
   accept,
   disabled = false,
   invalid = false,
+  invalidText,
   onSelect,
   onRemove,
   multiple = false,
@@ -101,7 +108,7 @@ const DragDropFileInput: FC<Props> = ({
       <div
         className={`ddfi__zone${dragOver ? ' ddfi__zone--drag' : ''}${
           disabled ? ' ddfi__zone--disabled' : ''
-        }`}
+        }${invalid && !file ? ' ddfi__zone--error' : ''}`}
         role="button"
         tabIndex={disabled ? -1 : 0}
         aria-label={zoneLabel}
@@ -167,6 +174,12 @@ const DragDropFileInput: FC<Props> = ({
               </button>
             </div>
           )}
+
+      {invalid && invalidText && (
+        <p className="ddfi__error" role="alert">
+          {invalidText}
+        </p>
+      )}
     </div>
   );
 };
