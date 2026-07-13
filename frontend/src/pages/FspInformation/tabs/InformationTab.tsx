@@ -173,26 +173,41 @@ const validate = (form: EditFormState): Errors => {
   } else if (form.fspEmailAddress.length > MAX.fspEmailAddress) {
     errs.fspEmailAddress = `Max ${MAX.fspEmailAddress} characters.`;
   }
-  // Effective date, expiry date and term are mandatory (the pane states
-  // "All fields are required") — flag them so clearing shows feedback and
-  // blocks the save instead of silently reverting to the stored value.
-  if (!form.fspPlanStartDate.trim()) {
-    errs.fspPlanStartDate = 'Effective date is required.';
-  }
-  if (!form.fspExpiryDate.trim()) {
-    errs.fspExpiryDate = 'Expiry date is required.';
-  }
+  // Plan duration is expressed as EITHER a term (years/months) OR an
+  // explicit effective+expiry date pair — the proc enforces this as
+  // FSP.NO.PLAN.TERM.AND.EXPIRY ("enter either a term or an end date") and
+  // FSP.BOTH.PLAN.TERM_OR_END_DATE ("not both"). So the dates are only
+  // mandatory when no term is supplied. Requiring them alongside a term
+  // both blocks a legitimate term-based draft (e.g. one created from an XML
+  // submission that carries only a term) from saving AND would trip the
+  // proc's "both provided" rejection on submit. Whichever side is present,
+  // any value entered is still format-checked below.
   const years = form.fspPlanTermYears.trim();
-  if (!years) {
-    errs.fspPlanTermYears = 'Term years is required.';
-  } else if (!/^\d+$/.test(years) || Number(years) > 99) {
-    errs.fspPlanTermYears = 'Whole number 0–99.';
-  }
   const months = form.fspPlanTermMonths.trim();
-  if (!months) {
+  const hasTerm = years !== '' || months !== '';
+  if (!hasTerm && !form.fspPlanStartDate.trim()) {
+    errs.fspPlanStartDate = 'Enter a plan term or an effective date.';
+  }
+  if (!hasTerm && !form.fspExpiryDate.trim()) {
+    errs.fspExpiryDate = 'Enter a plan term or an expiry date.';
+  }
+  // Term years/months are only mandatory when the plan isn't defined by
+  // dates; a value that IS present must still be a valid whole number.
+  const hasDates =
+    form.fspPlanStartDate.trim() !== '' && form.fspExpiryDate.trim() !== '';
+  if (years) {
+    if (!/^\d+$/.test(years) || Number(years) > 99) {
+      errs.fspPlanTermYears = 'Whole number 0–99.';
+    }
+  } else if (!hasDates) {
+    errs.fspPlanTermYears = 'Term years is required.';
+  }
+  if (months) {
+    if (!/^\d+$/.test(months) || Number(months) > 11) {
+      errs.fspPlanTermMonths = 'Whole number 0–11.';
+    }
+  } else if (!hasDates) {
     errs.fspPlanTermMonths = 'Term months is required.';
-  } else if (!/^\d+$/.test(months) || Number(months) > 11) {
-    errs.fspPlanTermMonths = 'Whole number 0–11.';
   }
   return errs;
 };

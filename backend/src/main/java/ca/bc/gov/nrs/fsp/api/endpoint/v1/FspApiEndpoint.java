@@ -244,6 +244,18 @@ public interface FspApiEndpoint {
             @PathVariable String fspId,
             @Valid @RequestBody ExtensionRequestSave body);
 
+    @PostMapping(value = URL.EXTENSION_ATTACHMENTS, consumes = "multipart/form-data")
+    @PreAuthorize(FspAuthorities.WORKFLOW_DECISION)
+    @Operation(summary = "Upload an extension decision attachment (EXDDMD) via "
+            + "FSP_302_EXTENSION_REQUEST.CREATE_ATTACHMENT + SAVE_ATTACHMENT_CONTENT")
+    ResponseEntity<Void> uploadExtensionAttachment(
+            @PathVariable String fspId,
+            @PathVariable String extensionId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("typeCode") String typeCode,
+            @RequestParam(name = "description", required = false) String description)
+            throws IOException;
+
     // --- FDU list (Map tab) ---
 
     @GetMapping(URL.FDU_LIST)

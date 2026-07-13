@@ -1,6 +1,7 @@
 package ca.bc.gov.nrs.fsp.api.submission.validator;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.FduWriteDao;
+import ca.bc.gov.nrs.fsp.api.dao.v1.FspExtensionQueryDao;
 import ca.bc.gov.nrs.fsp.api.submission.SubmissionValidationError;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.ActionCodeType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionType;
@@ -27,6 +28,10 @@ import java.util.List;
  *       and later raises {@code ORA-01403} inside
  *       {@code fsp_status_update}. We catch it here so the submitter
  *       sees the problem on upload, not after committing to submit.</li>
+ *   <li>That FSP must not have an <em>open</em> (Submitted) extension
+ *       request. While an extension is awaiting a DDM decision the plan
+ *       can't take on a second concurrent lifecycle change — mirrors the
+ *       UI gate that hides Amend / Extend / Replace in that state.</li>
  * </ul>
  *
  * <p>Original ({@code I}) and Update-draft ({@code U}) submissions are
@@ -38,6 +43,7 @@ import java.util.List;
 public class ActionCodeContextValidator {
 
   private final FduWriteDao fduWriteDao;
+  private final FspExtensionQueryDao extensionQueryDao;
 
   public List<SubmissionValidationError> validate(FSPSubmissionType submission) {
     List<SubmissionValidationError> errors = new ArrayList<>();
@@ -73,6 +79,21 @@ public class ActionCodeContextValidator {
           "FSP_NO_APPROVED_AMENDMENT",
           "FSP " + fspId + " cannot be " + verb
               + " — it has no Approved or In-Effect amendment to build on."));
+    }
+
+    // Block a new amendment/replacement while an extension request is open
+    // (Submitted, awaiting decision) — the plan can't have two concurrent
+    // lifecycle changes in flight. Same rule the UI enforces by hiding the
+    // Amend / Extend / Replace buttons.
+    if (extensionQueryDao.hasOpenExtension(fspId)) {
+      String verb = code == ActionCodeType.A ? "amended" : "replaced";
+      errors.add(SubmissionValidationError.of(
+          "forestStewardshipPlan/fspID",
+          "FSP_EXTENSION_OPEN",
+          "FSP " + fspId + " cannot be " + verb
+              + " — it has an open extension request awaiting a decision. "
+              + "Resolve the extension before submitting an amendment or "
+              + "replacement."));
     }
     return errors;
   }

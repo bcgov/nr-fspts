@@ -42,6 +42,9 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
   const [orgUnitsLoading, setOrgUnitsLoading] = useState(false);
   const [selected, setSelected] = useState<CodeOption | null>(null);
   const [saving, setSaving] = useState(false);
+  // Set when the user clicks Add district without a selection — surfaces
+  // the "This field is required" message on the ComboBox.
+  const [showRequired, setShowRequired] = useState(false);
   // Tracks whether we've kicked off the lazy load yet so the effect
   // can stay dep'd only on `open`. (An earlier version included
   // `orgUnitsLoading` in the deps, which re-ran the effect when we
@@ -87,11 +90,15 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
   const closeDialog = () => {
     if (saving) return;
     setSelected(null);
+    setShowRequired(false);
     onClose();
   };
 
   const submit = async () => {
-    if (!selected) return;
+    if (!selected) {
+      setShowRequired(true);
+      return;
+    }
     setSaving(true);
     try {
       await onSelect(selected);
@@ -120,10 +127,15 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
       preventCloseOnClickOutside
     >
       <Stack gap={5} className="fsp-species-modal__form">
+        <p className="fsp-species-modal__subtitle">
+          Select a district to add to this FSP
+        </p>
         <ComboBox
           ref={comboRef}
           id="add-district-combobox"
-          titleText="District *"
+          titleText="District"
+          invalid={showRequired}
+          invalidText="This field is required"
           placeholder={
             orgUnitsLoading
               ? 'Loading…'
@@ -149,7 +161,10 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
             return label.includes(inputValue.toLowerCase());
           }}
           selectedItem={selected}
-          onChange={({ selectedItem }) => setSelected(selectedItem ?? null)}
+          onChange={({ selectedItem }) => {
+            setSelected(selectedItem ?? null);
+            if (selectedItem) setShowRequired(false);
+          }}
           disabled={saving || orgUnitsLoading || available.length === 0}
         />
       </Stack>
@@ -159,7 +174,7 @@ const DistrictPickerModal: FC<DistrictPickerModalProps> = ({
         </Button>
         <Button
           kind="primary"
-          disabled={saving || !selected}
+          disabled={saving}
           renderIcon={saving ? SavingIcon : undefined}
           onClick={() => void submit()}
         >

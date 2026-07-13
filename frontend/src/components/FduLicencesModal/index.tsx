@@ -1,16 +1,10 @@
-import {
-  Button,
-  InlineNotification,
-  Loading,
-  Stack,
-  Tag,
-  TextInput,
-} from '@carbon/react';
+import { Button, Loading, Stack, Tag, TextInput } from '@carbon/react';
 import { Modal } from '@/components/Modal';
-import { Add } from '@carbon/icons-react';
-import { useEffect, useMemo, useState, type FC } from 'react';
+import { Add, Close } from '@carbon/icons-react';
+import { useEffect, useMemo, useRef, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
+import { useAutoFocusOnOpen } from '@/hooks/useAutoFocusOnOpen';
 import { checkLicenceExists, updateFduLicences } from '@/services/fspSearch';
 
 /**
@@ -63,6 +57,11 @@ const FduLicencesModal: FC<Props> = ({
   const [draftError, setDraftError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Focus the licence-number field on open. Carbon's own modal-open focus
+  // pass lands on the Close (X) button here, so re-apply across the open
+  // cycle via the shared hook.
+  const licenceInputRef = useRef<HTMLInputElement>(null);
+  useAutoFocusOnOpen(licenceInputRef, open);
 
   useEffect(() => {
     if (!open) return;
@@ -74,8 +73,13 @@ const FduLicencesModal: FC<Props> = ({
     setSubmitting(false);
   }, [open, initialSet]);
 
+  // Removing a current licence doesn't drop it from view — it flips to a
+  // struck-through "Removed" chip (kept out of `kept`) so the user can see
+  // what will be deleted on save and Undo it. restoreKept reverses that.
   const removeKept = (lic: string) =>
     setKept((cur) => cur.filter((l) => l !== lic));
+  const restoreKept = (lic: string) =>
+    setKept((cur) => (cur.includes(lic) ? cur : [...cur, lic]));
   const removeAdded = (lic: string) =>
     setAdded((cur) => cur.filter((l) => l !== lic));
 
@@ -99,7 +103,8 @@ const FduLicencesModal: FC<Props> = ({
       const exists = await checkLicenceExists(fspId, v);
       if (!exists) {
         setDraftError(
-          `${v} was not found in the provincial forest-use registry.`,
+          'Licence not found in the provincial forest-use registry. Check the '
+            + 'format (e.g. A12345) and try again.',
         );
         return;
       }
@@ -158,7 +163,7 @@ const FduLicencesModal: FC<Props> = ({
   return (
     <Modal
       open={open}
-      modalHeading={`Edit licences — ${fduName}`}
+      modalHeading={`Edit licences: ${fduName}`}
       passiveModal
       size="sm"
       className="fsp-species-modal fdu-licences-modal"
@@ -167,27 +172,57 @@ const FduLicencesModal: FC<Props> = ({
     >
       <Stack gap={5} className="fsp-species-modal__form">
         <p className="fdu-licences-modal__hint">
-          Add or remove licence numbers attached to this FDU. New licence
-          numbers must already exist in the provincial forest-use registry.
+          Add or remove licence numbers attached to this FDU. Changes apply
+          when you save.
         </p>
 
         <div>
           <h4 className="fdu-licences-modal__group-label">Current licences</h4>
-          {kept.length === 0 && added.length === 0 ? (
+          {initialSet.length === 0 && added.length === 0 ? (
             <p className="fdu-licences-modal__hint">No licences attached.</p>
           ) : (
             <div className="fdu-licences-modal__chip-row">
-              {kept.map((lic) => (
-                <Tag
-                  key={`kept-${lic}`}
-                  type="gray"
-                  filter
-                  onClose={() => removeKept(lic)}
-                  title={`Remove ${lic}`}
-                >
-                  {lic}
-                </Tag>
-              ))}
+              {initialSet.map((lic) =>
+                kept.includes(lic) ? (
+                  <Tag
+                    key={`kept-${lic}`}
+                    type="gray"
+                    filter
+                    onClose={() => removeKept(lic)}
+                    title={`Remove ${lic}`}
+                  >
+                    {lic}
+                  </Tag>
+                ) : (
+                  <span
+                    key={`removed-${lic}`}
+                    className="fdu-licences-modal__chip fdu-licences-modal__chip--removed"
+                  >
+                    <span className="fdu-licences-modal__chip-lic">{lic}</span>
+                    <span className="fdu-licences-modal__chip-state">
+                      • Removed
+                    </span>
+                    <button
+                      type="button"
+                      className="fdu-licences-modal__chip-undo"
+                      onClick={() => restoreKept(lic)}
+                      disabled={submitting}
+                    >
+                      Undo
+                    </button>
+                    <button
+                      type="button"
+                      className="fdu-licences-modal__chip-x"
+                      aria-label={`Undo removal of ${lic}`}
+                      title={`Undo removal of ${lic}`}
+                      onClick={() => restoreKept(lic)}
+                      disabled={submitting}
+                    >
+                      <Close />
+                    </button>
+                  </span>
+                ),
+              )}
               {added.map((lic) => (
                 <Tag
                   key={`add-${lic}`}
@@ -196,28 +231,19 @@ const FduLicencesModal: FC<Props> = ({
                   onClose={() => removeAdded(lic)}
                   title={`Cancel addition of ${lic}`}
                 >
-                  {lic} (new)
+                  {lic} • New
                 </Tag>
               ))}
             </div>
           )}
         </div>
 
-        {removedLicences.length > 0 && (
-          <InlineNotification
-            kind="info"
-            lowContrast
-            hideCloseButton
-            title="Pending removals"
-            subtitle={removedLicences.join(', ')}
-          />
-        )}
-
         <div className="fdu-licences-modal__inline-form">
           <TextInput
             id="fdu-licence-add"
+            ref={licenceInputRef}
             labelText="Add a licence number"
-            placeholder="e.g. A12345"
+            helperText="Format: letter followed by 5 digits, e.g. A12345"
             value={draft}
             invalid={!!draftError}
             invalidText={draftError ?? ''}
@@ -240,7 +266,7 @@ const FduLicencesModal: FC<Props> = ({
             onClick={() => void stageAdd()}
             disabled={submitting || checking || draft.trim() === ''}
           >
-            {checking ? 'Checking…' : 'Add'}
+            {checking ? 'Checking…' : 'Add licence'}
           </Button>
         </div>
       </Stack>

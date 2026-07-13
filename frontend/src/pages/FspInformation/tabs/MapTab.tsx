@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import {Edit, Launch} from '@carbon/icons-react';
+import {Edit, Launch, Map} from '@carbon/icons-react';
 import {type FC, useEffect, useMemo, useState} from 'react';
 
 import EmptyState from '@/components/EmptyState/EmptyState';
@@ -247,6 +247,13 @@ const MapTab: FC<Props> = ({
             body="FDU boundaries come from the spatial data (XML/GeoJSON) submitted for this FSP. None have been submitted for this version yet."
           />
         ) : (
+          <>
+          <header className="fsp-info__tile-header fsp-info__tile-header--tab">
+            <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+              <Map size={20} />
+              <span>{title}</span>
+            </h2>
+          </header>
           <div className="bordered-table fsp-info__fdu-table">
             <TableContainer>
               <Table size="md" useZebraStyles>
@@ -304,6 +311,7 @@ const MapTab: FC<Props> = ({
               </Table>
             </TableContainer>
           </div>
+          </>
         ))}
 
       {editTarget && (

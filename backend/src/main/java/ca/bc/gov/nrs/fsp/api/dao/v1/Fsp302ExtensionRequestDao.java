@@ -41,4 +41,22 @@ public interface Fsp302ExtensionRequestDao {
       String revisionCount) {}
 
   record SaveResult(String extensionId, String revisionCount, String errorMessage) {}
+
+  /**
+   * Creates an attachment linked to the extension via
+   * {@code FSP_302_EXTENSION_REQUEST.CREATE_ATTACHMENT} (which writes
+   * {@code fsp_extension_xref}, keyed on {@code extension_id}). This is
+   * the linkage {@code FSP_700_WORKFLOW.validate_ext_approve_reject}
+   * checks for the required EXDDMD decision letter — the FSP-level
+   * {@code FSP_400_ATTACHMENTS.CREATE_ATTACHMENT} writes a different xref
+   * table and does NOT satisfy that check.
+   */
+  CreateAttachmentResult createAttachment(
+      String extensionId, String attachmentType, String filename,
+      Long fileSize, String description, String consolidatedInd, String userId);
+
+  /** Stores the BLOB content for a previously-created attachment. */
+  String saveAttachmentContent(Long attachmentId, byte[] content);
+
+  record CreateAttachmentResult(Long createdAttachmentId, String errorMessage) {}
 }

@@ -61,7 +61,11 @@ export async function addAttachment(
   await page.getByRole('button', { name: 'Add Attachment' }).click();
 
   const modal = page.getByRole('dialog');
-  await expect(modal.getByText('Add Attachment')).toBeVisible();
+  // Target the heading specifically — "Add attachment" is also the primary
+  // button's label, so a bare getByText matches two elements.
+  await expect(
+    modal.getByRole('heading', { name: 'Add attachment', exact: true }),
+  ).toBeVisible();
 
   // Resolve the category <option> by label, preferring the requested
   // pattern. Index 0 is the "— Select category —" placeholder.

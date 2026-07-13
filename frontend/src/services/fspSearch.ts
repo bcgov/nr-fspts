@@ -1237,6 +1237,35 @@ export async function uploadFspAttachment(
 }
 
 /**
+ * Upload an attachment linked to an extension (not the FSP) via
+ * FSP_302_EXTENSION_REQUEST.CREATE_ATTACHMENT. Used for the extension
+ * decision letter (typeCode EXDDMD), which the workflow proc requires
+ * to be linked to the extension via fsp_extension_xref before an
+ * approve/reject will succeed.
+ */
+export async function uploadExtensionAttachment(
+  fspId: string,
+  extensionId: string,
+  typeCode: string,
+  file: File,
+  description?: string,
+): Promise<void> {
+  const form = new FormData();
+  form.append('file', file);
+  const params = new URLSearchParams({ typeCode });
+  if (description && description.trim()) params.set('description', description.trim());
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/extensions/${encodeURIComponent(extensionId)}` +
+      `/attachments?${params.toString()}`,
+    { method: 'POST', body: form },
+  );
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Extension attachment upload failed (${res.status})`);
+  }
+}
+
+/**
  * Triggers a browser download for a single FSP attachment. The
  * backend streams the BLOB with Content-Disposition; we resolve the
  * filename from that header (fallback: the {@code attachmentName}

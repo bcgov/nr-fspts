@@ -93,6 +93,10 @@ public final class URL {
   public static final String INBOX = "/inbox";
   public static final String HISTORY = "/{fspId}/history";
   public static final String EXTENSIONS = "/{fspId}/extensions";
+  // POST (multipart) — upload an extension-linked attachment (e.g. the
+  // EXDDMD decision letter) via FSP_302_EXTENSION_REQUEST.CREATE_ATTACHMENT.
+  public static final String EXTENSION_ATTACHMENTS =
+      "/{fspId}/extensions/{extensionId}/attachments";
   // POST — flip a Draft FSP/amendment to Submitted via
   // FSP_300_INFORMATION.MAINLINE(P_ACTION=SUBMIT). The proc transitions
   // DFT → SUB when approval_required_ind='Y' (the typical path) or
