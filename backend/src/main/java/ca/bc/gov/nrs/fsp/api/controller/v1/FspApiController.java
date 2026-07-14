@@ -149,8 +149,8 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
-    public ResponseEntity<WorkflowState> getWorkflowState(String fspId) {
-        return ResponseEntity.ok(workflowService.getWorkflowState(fspId));
+    public ResponseEntity<WorkflowState> getWorkflowState(String fspId, String amendmentNumber) {
+        return ResponseEntity.ok(workflowService.getWorkflowState(fspId, amendmentNumber));
     }
 
     @Override

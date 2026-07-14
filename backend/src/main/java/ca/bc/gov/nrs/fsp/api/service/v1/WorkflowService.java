@@ -57,6 +57,7 @@ public class WorkflowService {
   private final Fsp800HistoryDao historyDao;
   private final FspService fspService;
   private final EmailNotificationService emailService;
+  private final ca.bc.gov.nrs.fsp.api.dao.v1.FspWorkflowQueryDao workflowQueryDao;
 
   public List<WorkflowResponse> getWorkflow(String fspId) {
     // FSP id flows in via P_NEW_FSP_ID; P_FSP_ID + both amendment slots
@@ -84,10 +85,15 @@ public class WorkflowService {
    * FSP_700_WORKFLOW.MAINLINE with P_ACTION='GET' — pulls the review
    * milestones (FNR/RS/ORS/DDM/OTHER), OTBH offered/heard, DDM decision,
    * and the first non-rejected extension request. Binding follows the same
-   * P_FSP_ID-blank / P_NEW_FSP_ID-populated convention as FSP_300 GET so
-   * fsp_tombstone.get resolves the latest accessible amendment.
+   * P_FSP_ID-blank / P_NEW_FSP_ID-populated convention as FSP_300 GET.
+   *
+   * @param amendmentNumber the amendment/version to read. Blank/null lets
+   *     fsp_tombstone.get resolve the latest accessible amendment; a
+   *     specific value scopes the read (including get_ddm_only's decision
+   *     lookup) to that version, so viewing an earlier approved amendment
+   *     shows ITS decision instead of the latest draft's empty one.
    */
-  public WorkflowState getWorkflowState(String fspId) {
+  public WorkflowState getWorkflowState(String fspId, String amendmentNumber) {
     Fsp700WorkflowDao.Result r = workflowDao.mainline(
         ACTION_GET,
         fspId,                    // P_NEW_FSP_ID
@@ -96,7 +102,7 @@ public class WorkflowService {
         List.of(),                // P_FSP_ORG_UNITS (empty VARRAY, not null)
         "", "",                   // status code/desc
         "", "",                   // amendment code/desc
-        "",                       // P_NEW_FSP_AMENDMENT_NUMBER (blank → latest)
+        nz(amendmentNumber),      // P_NEW_FSP_AMENDMENT_NUMBER (blank = latest)
         "",                       // P_FSP_AMENDMENT_NUMBER
         RequestUtil.getCurrentClientNumber(),
         RequestUtil.getCurrentLegacyRoles(),
@@ -148,11 +154,33 @@ public class WorkflowService {
             r.pOtherEntryTimestamp(), r.pOtherComment())
     );
 
-    return new WorkflowState(
-        nz(r.pNewFspId()).isEmpty() ? r.pFspId() : r.pNewFspId(),
+    String resolvedFspId =
+        nz(r.pNewFspId()).isEmpty() ? r.pFspId() : r.pNewFspId();
+    String resolvedAmendmentNumber =
         nz(r.pFspAmendmentNumber()).isEmpty()
             ? r.pNewFspAmendmentNumber()
-            : r.pFspAmendmentNumber(),
+            : r.pFspAmendmentNumber();
+
+    WorkflowState.DdmDecision ddmDecision = new WorkflowState.DdmDecision(
+        r.pDdmOnlyStatusCode(),
+        r.pDdmOnlyName(),
+        r.pDdmOnlySubmissionDate(),
+        r.pDdmOnlyDecisionDate(),
+        r.pDdmOnlyEffectiveDate(),
+        r.pDdmOnlyComment());
+    // The proc's get_ddm_only only returns a decision while the amendment's
+    // current status still matches it. Once a newer amendment is approved
+    // the prior one is retired (RET), and the proc goes silent — leaving the
+    // tab showing "no decision recorded" on a version that WAS approved.
+    // Fall back to the recorded status-history decision so a superseded /
+    // retired version still shows what was decided on it.
+    if (nz(ddmDecision.statusCode()).isEmpty()) {
+      ddmDecision = ddmDecisionFallback(resolvedFspId, resolvedAmendmentNumber, ddmDecision);
+    }
+
+    return new WorkflowState(
+        resolvedFspId,
+        resolvedAmendmentNumber,
         r.pFspStatusCode(),
         r.pFspStatusDesc(),
         r.pFspAmendmentCode(),
@@ -162,13 +190,7 @@ public class WorkflowService {
             r.pOtbhOfferedComment(),
             r.pOtbhHeardDate(),
             r.pOtbhHeardComment()),
-        new WorkflowState.DdmDecision(
-            r.pDdmOnlyStatusCode(),
-            r.pDdmOnlyName(),
-            r.pDdmOnlySubmissionDate(),
-            r.pDdmOnlyDecisionDate(),
-            r.pDdmOnlyEffectiveDate(),
-            r.pDdmOnlyComment()),
+        ddmDecision,
         new WorkflowState.ExtensionDecision(
             r.pExtensionStatusCode(),
             r.pExtensionId(),
@@ -321,7 +343,7 @@ public class WorkflowService {
     // Re-fetch fresh state for the response AND so the email snapshot
     // (built below) sees the post-save status. State also carries the
     // extension submitter / submission date the extension template needs.
-    WorkflowState state = getWorkflowState(fspId);
+    WorkflowState state = getWorkflowState(fspId, amendment);
     publishEmailFor(fspId, amendment, request, oldStatusCode, state);
     return state;
   }
@@ -572,6 +594,38 @@ public class WorkflowService {
 
   private static String nz(String s) {
     return s == null ? "" : s;
+  }
+
+  /**
+   * When {@code get_ddm_only} returns no decision for the resolved amendment
+   * (it goes silent once the version is retired), look the recorded decision
+   * up straight from {@code fsp_status_history}. Returns the fallback
+   * decision when found; otherwise the original (blank) decision is kept.
+   */
+  private WorkflowState.DdmDecision ddmDecisionFallback(
+      String fspId, String amendmentNumber, WorkflowState.DdmDecision current) {
+    if (nz(fspId).isEmpty() || nz(amendmentNumber).isEmpty()) {
+      return current;
+    }
+    long fspIdLong;
+    long amendmentLong;
+    try {
+      fspIdLong = Long.parseLong(fspId.trim());
+      amendmentLong = Long.parseLong(amendmentNumber.trim());
+    } catch (NumberFormatException e) {
+      return current;
+    }
+    var recorded = workflowQueryDao.findRecordedDecision(fspIdLong, amendmentLong);
+    if (recorded == null) {
+      return current;
+    }
+    return new WorkflowState.DdmDecision(
+        recorded.statusCode(),
+        recorded.name(),
+        recorded.submissionDate(),
+        recorded.decisionDate(),
+        recorded.effectiveDate(),
+        recorded.comment());
   }
 
   /**

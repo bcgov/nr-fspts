@@ -490,12 +490,21 @@ export interface FspWorkflowState {
 /**
  * GET /api/v1/fsp/{fspId}/workflow-state — read-only projection of
  * FSP_700_WORKFLOW.MAINLINE (P_ACTION='GET'). Powers the Workflow tab.
+ *
+ * Pass {@code amendmentNumber} to scope the read to a specific version so
+ * an earlier approved amendment shows its own DDM decision; omit it to let
+ * the proc resolve the latest accessible amendment.
  */
-export function getFspWorkflowState(fspId: string): Promise<FspWorkflowState> {
-  return getJson<FspWorkflowState>(
-    `/v1/fsp/${encodeURIComponent(fspId)}/workflow-state`,
-    'Workflow state load',
-  );
+export function getFspWorkflowState(
+  fspId: string,
+  amendmentNumber?: string,
+): Promise<FspWorkflowState> {
+  const base = `/v1/fsp/${encodeURIComponent(fspId)}/workflow-state`;
+  const url =
+    amendmentNumber && amendmentNumber.trim() !== ''
+      ? `${base}?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
+      : base;
+  return getJson<FspWorkflowState>(url, 'Workflow state load');
 }
 
 /** Subset of FSP_700_WORKFLOW.MAINLINE inputs the per-section dialogs send. */
