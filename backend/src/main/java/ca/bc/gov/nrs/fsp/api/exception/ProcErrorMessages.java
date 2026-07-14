@@ -134,9 +134,8 @@ public final class ProcErrorMessages {
       // "FSP Legal Document must be on this amendment" rule at submit time
       // and surface it in the Submit preflight with this code.
       Map.entry("FSP.NO.LEGAL.DOCUMENT", new Info(BAD_REQUEST,
-          "Upload the FSP legal document for this amendment on the "
-              + "Attachments tab (category \"FSP legal document\") before "
-              + "submitting.")),
+          "Please upload the FSP Legal Document on the Attachments tab "
+              + "(category \"FSP legal document\") before submitting.")),
       Map.entry("FSP.DUPLICATE.AGREEMENT.HOLDER", new Info(BAD_REQUEST,
           "Agreement holder list contains duplicates.")),
       Map.entry("FSP.DUPLICATE.FDU.NAME", new Info(BAD_REQUEST,

@@ -23,6 +23,7 @@ import ExtensionDecisionEditModal, {
 } from '@/components/ExtensionDecisionEditModal';
 import OtbhEditModal, { type OtbhDialogValue } from '@/components/OtbhEditModal';
 import ReviewMilestoneEditModal from '@/components/ReviewMilestoneEditModal';
+import { StatusTag } from '@/components/StatusTag/StatusTag';
 import { useNotification } from '@/context/notification/useNotification';
 import {
   type FspDdmDecision,
@@ -36,6 +37,12 @@ import {
 
 interface Props {
   fspId: string;
+  /**
+   * The version being viewed. Threaded into the workflow-state fetch so an
+   * earlier approved amendment shows its own DDM/extension decision rather
+   * than the latest (possibly draft) version's. Blank resolves to latest.
+   */
+  amendmentNumber?: string;
   /**
    * Parent-supplied monotonic counter bumped after any mutation
    * (Submit, Extend, …). Threaded into the workflow-state fetch
@@ -77,21 +84,9 @@ const isBlank = (value: string | null | undefined): boolean =>
 
 // Carbon Tag palette aligned with the search-results / header status
 // badges so a user's mental colour map for "approved" / "rejected" /
-// "submitted" carries straight over from the rest of the app.
-type TagType = 'green' | 'blue' | 'gray' | 'red' | 'warm-gray';
-
-const STATUS_TAG_TYPE_BY_CODE: Record<string, TagType> = {
-  APP: 'green',
-  INE: 'green',
-  REJ: 'red',
-  SUB: 'blue',
-  DFT: 'gray',
-  OHS: 'warm-gray',
-  EXP: 'warm-gray',
-  CAN: 'warm-gray',
-  RET: 'warm-gray',
-};
-
+// FSP status-code → human label. Colour comes from the shared StatusTag
+// (its variant is derived from this label), so every status pill across the
+// app renders in one palette.
 const STATUS_LABEL_BY_CODE: Record<string, string> = {
   APP: 'Approved',
   INE: 'Effective',
@@ -107,13 +102,8 @@ const STATUS_LABEL_BY_CODE: Record<string, string> = {
 const statusTag = (code: string | null | undefined): ReactNode => {
   if (isBlank(code)) return <span>—</span>;
   const upper = (code ?? '').toUpperCase();
-  const type = STATUS_TAG_TYPE_BY_CODE[upper] ?? 'gray';
   const label = STATUS_LABEL_BY_CODE[upper] ?? upper;
-  return (
-    <Tag type={type} size="sm">
-      {label}
-    </Tag>
-  );
+  return <StatusTag status={label} />;
 };
 
 // Recorded milestones/events show a green "Complete" pill; those without
@@ -504,7 +494,14 @@ const ExtensionRequestTile: FC<{
   onEdit: () => void;
   onOpenAttachments?: () => void;
 }> = ({ decision, extensionIds, canEdit, onEdit, onOpenAttachments }) => {
-  const hasDecision = !isBlank(decision.statusCode);
+  // A decision is only "recorded" once the extension is Approved / In
+  // Effect / Rejected. A still-open (Submitted) request has a status but no
+  // decision yet — so show "Pending" + "Record decision", mirroring the DDM
+  // tile. Keying off any non-blank status made a fresh request read as
+  // already decided ("Edit decision").
+  const hasDecision = ['APP', 'INE', 'REJ'].includes(
+    (decision.statusCode ?? '').toUpperCase(),
+  );
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
@@ -572,6 +569,7 @@ const ExtensionRequestTile: FC<{
  */
 const WorkflowDataTab: FC<Props> = ({
   fspId,
+  amendmentNumber,
   refreshKey,
   onWorkflowChanged,
   readOnly = false,
@@ -595,7 +593,7 @@ const WorkflowDataTab: FC<Props> = ({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getFspWorkflowState(fspId)
+    getFspWorkflowState(fspId, amendmentNumber)
       .then((data) => {
         if (!cancelled) setState(data);
       })
@@ -609,7 +607,7 @@ const WorkflowDataTab: FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [fspId, refreshKey]);
+  }, [fspId, amendmentNumber, refreshKey]);
 
   if (loading && !state) {
     return (

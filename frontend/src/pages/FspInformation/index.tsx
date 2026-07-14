@@ -329,12 +329,27 @@ const FspInformationPage: FC = () => {
       timeout: 6000,
     });
     if (wasAmendment) {
-      // Stay on the FSP — drop the amendment query-param so the page
-      // re-fetches the most recent remaining amendment for this FSP.
+      // Stay on the FSP — drop the amendment query-param so the URL points
+      // at the most recent remaining amendment.
       const params = new URLSearchParams(searchParams);
       params.delete('amendmentNumber');
       params.set('fspId', fspIdSnapshot);
       setSearchParams(params, { replace: true });
+      // Force a full refresh of the pane. The URL change alone doesn't cut
+      // it: it leaves the header fields stale when the deleted amendment was
+      // being viewed as the latest (no amendmentNumber param to change), and
+      // it never bumps refreshKey, so the amendments dropdown, extension
+      // pill, and every tab keep showing the deleted amendment's data.
+      // Re-read the FSP against the latest remaining amendment and pipe it
+      // through refreshAfterMutation (setFsp + refreshKey bump).
+      try {
+        const fresh = await getFspById(fspIdSnapshot);
+        refreshAfterMutation(fresh);
+      } catch {
+        // Re-read failed — at least bump refreshKey so the dropdown/tabs
+        // refetch; the header will reflect the URL-driven fetch.
+        setRefreshKey((k) => k + 1);
+      }
     } else {
       navigate(defaultRouteForUser(user));
     }
@@ -671,6 +686,9 @@ const FspInformationPage: FC = () => {
                   <div className="fsp-info__tab-panel">
                     <WorkflowDataTab
                       fspId={fspId}
+                      amendmentNumber={
+                        fsp?.fspAmendmentNumber || amendmentNumber || ''
+                      }
                       refreshKey={refreshKey}
                       onOpenAttachments={() => setSelectedTab(3)}
                       // Workflow read-only is decided by workflow-action
@@ -744,6 +762,7 @@ const FspInformationPage: FC = () => {
         fallbackAmendmentNumber={amendmentNumber || null}
         onClose={() => setConfirmSubmitOpen(false)}
         onSubmitted={refreshAfterMutation}
+        onOpenAttachments={() => setSelectedTab(3)}
       />
       <AmendmentDescriptionModal
         open={confirmAmendOpen}

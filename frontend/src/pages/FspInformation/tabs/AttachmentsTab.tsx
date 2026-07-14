@@ -474,8 +474,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
           />
           <TextArea
             id="attachment-description"
-            labelText="Description"
-            placeholder="Optional — short note about this attachment."
+            labelText="Description (optional)"
             maxLength={2000}
             rows={3}
             value={description}

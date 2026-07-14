@@ -140,7 +140,9 @@ public interface FspApiEndpoint {
 
     @GetMapping(URL.WORKFLOW_STATE)
     @Operation(summary = "Get the workflow milestone/decision projection via FSP_700_WORKFLOW.MAINLINE (GET)")
-    ResponseEntity<WorkflowState> getWorkflowState(@PathVariable String fspId);
+    ResponseEntity<WorkflowState> getWorkflowState(
+            @PathVariable String fspId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
     @PostMapping(URL.WORKFLOW_ACTION)
     @PreAuthorize(FspAuthorities.WORKFLOW_DECISION)

@@ -10,12 +10,12 @@ import {
   TableHeader,
   TableRow,
   TableSelectRow,
-  Tag,
 } from '@carbon/react';
 import {Add, Checkmark, Copy, TrashCan} from '@carbon/icons-react';
 import {type FC, useCallback, useEffect, useState} from 'react';
 
 import { StandardsSearchIcon } from '@/components/Layout/navIcons';
+import { StatusTag } from '@/components/StatusTag/StatusTag';
 import AddExistingStandardModal from '@/components/AddExistingStandardModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import NewStandardModal from '@/components/NewStandardModal';
@@ -68,16 +68,6 @@ const HEADERS = [
   { key: 'standardsEffectiveDate', header: 'Effective date' },
   { key: 'defaultStandard', header: 'Default standard' },
 ];
-
-// Carbon Tag colour by status, matching the FSP search palette so a user
-// crossing between screens reads the badges consistently.
-const STATUS_TAG: Record<string, 'green' | 'blue' | 'gray' | 'red' | 'warm-gray'> = {
-  Approved: 'green',
-  Submitted: 'blue',
-  Draft: 'gray',
-  Rejected: 'red',
-  Expired: 'warm-gray',
-};
 
 const StockingStandardsTab: FC<Props> = ({
   fspId,
@@ -469,9 +459,7 @@ const StockingStandardsTab: FC<Props> = ({
                               const status = cell.value as string;
                               return (
                                 <TableCell key={cell.id}>
-                                  <Tag type={STATUS_TAG[status] ?? 'gray'} size="sm">
-                                    {status}
-                                  </Tag>
+                                  <StatusTag status={status} />
                                 </TableCell>
                               );
                             }

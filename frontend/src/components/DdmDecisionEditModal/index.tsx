@@ -404,7 +404,11 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
           <DragDropFileInput
             accept={ACCEPTED_ATTACHMENT_EXTENSIONS}
             file={letterFile}
-            invalid={letterMissing}
+            // Not flagged invalid just because it's empty on open — the
+            // requirement is already conveyed by the disabled Save button
+            // and the "Required before saving" helper text. Marking it
+            // invalid up-front painted the dropzone red the moment the
+            // dialog opened.
             disabled={saving}
             onSelect={onLetterSelect}
             onRemove={() => setLetterFile(null)}

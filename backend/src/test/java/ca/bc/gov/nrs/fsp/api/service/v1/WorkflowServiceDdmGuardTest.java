@@ -40,9 +40,12 @@ class WorkflowServiceDdmGuardTest {
   private final Fsp800HistoryDao historyDao = mock(Fsp800HistoryDao.class);
   private final FspService fspService = mock(FspService.class);
   private final EmailNotificationService emailService = mock(EmailNotificationService.class);
+  private final ca.bc.gov.nrs.fsp.api.dao.v1.FspWorkflowQueryDao workflowQueryDao =
+      mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspWorkflowQueryDao.class);
 
   private final WorkflowService service =
-      new WorkflowService(workflowDao, historyDao, fspService, emailService);
+      new WorkflowService(
+          workflowDao, historyDao, fspService, emailService, workflowQueryDao);
 
   @AfterEach
   void clearAuth() {

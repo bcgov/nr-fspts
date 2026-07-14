@@ -8,12 +8,21 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import {CheckmarkFilled, RecentlyViewed} from '@carbon/icons-react';
+import {CheckmarkFilled, RecentlyViewed, SubtractFilled} from '@carbon/icons-react';
 import {type FC, useEffect, useMemo, useState} from 'react';
 
 import {type FspWorkflowEvent, getFspWorkflow} from '@/services/fspSearch';
 
 type SortDir = 'ASC' | 'DESC';
+// Which column drives the sort. Date is the default (newest-first).
+type SortKey =
+  | 'date'
+  | 'event'
+  | 'description'
+  | 'approval'
+  | 'userId'
+  | 'amendment'
+  | 'extension';
 
 const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -37,6 +46,19 @@ const parseEventTime = (value: string | null): number => {
   if (meridiem === 'PM' && hour !== 12) hour += 12;
   if (meridiem === 'AM' && hour === 12) hour = 0;
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), hour, Number(m[5]), Number(m[6]));
+};
+
+// Per-column sort value. Numbers sort numerically (dates via epoch,
+// amendment/extension as integers); everything else compares as
+// lower-cased text so the order is case-insensitive.
+const SORT_ACCESSORS: Record<SortKey, (r: FspWorkflowEvent) => number | string> = {
+  date: (r) => parseEventTime(r.eventDateTime),
+  event: (r) => (r.event ?? '').toLowerCase(),
+  description: (r) => (r.description ?? '').toLowerCase(),
+  approval: (r) => (r.approvalRequestIndicator ?? '').toLowerCase(),
+  userId: (r) => (r.userId ?? '').toLowerCase(),
+  amendment: (r) => Number(r.amendmentNumber ?? 0) || 0,
+  extension: (r) => Number(r.extensionNumber ?? 0) || 0,
 };
 
 interface Props {
@@ -70,7 +92,8 @@ const formatEventDateTime = (value: string | null): string => {
 };
 
 // "Approval required?" cell — green checkmark + Yes when the event's
-// approval-request indicator is 'Y', plain "No" otherwise.
+// approval-request indicator is 'Y', a muted minus + No when 'N', em-dash
+// when unknown.
 const ApprovalRequired: FC<{ value: string }> = ({ value }) => {
   if (value === 'Y') {
     return (
@@ -85,7 +108,20 @@ const ApprovalRequired: FC<{ value: string }> = ({ value }) => {
       </span>
     );
   }
-  return <span>{value === 'N' ? 'No' : '—'}</span>;
+  if (value === 'N') {
+    return (
+      <span
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
+      >
+        <SubtractFilled
+          size={16}
+          style={{ fill: 'var(--cds-icon-secondary)' }}
+        />
+        No
+      </span>
+    );
+  }
+  return <span>—</span>;
 };
 
 const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
@@ -93,8 +129,22 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Default to newest-first, with the sort indicator shown on the Date
-  // column; clicking the header toggles ascending/descending.
+  // column; clicking any header sorts by that column (toggling the
+  // direction when the same header is clicked again).
+  const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('DESC');
+
+  // Clicking a header sorts by that column. Re-clicking the active header
+  // flips the direction; switching columns starts from a sensible default
+  // (Date newest-first, everything else A→Z / low→high).
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'DESC' ? 'ASC' : 'DESC'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'date' ? 'DESC' : 'ASC');
+    }
+  };
 
   useEffect(() => {
     if (!fspId) return;
@@ -116,16 +166,26 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
     };
   }, [fspId, refreshKey]);
 
-  // Frontend sort on Date and time. Parses the display string to a
-  // timestamp so months sort chronologically (a plain string sort would
-  // order "Jul" before "Jun"). Stable within equal timestamps.
+  // Frontend sort keyed on the active column. Dates compare via a parsed
+  // timestamp so months order chronologically (a plain string sort would
+  // put "Jul" before "Jun"); text columns compare case-insensitively.
+  // Stable within equal values.
   const sorted = useMemo(() => {
     if (!rows) return [];
+    const accessor = SORT_ACCESSORS[sortKey];
+    const dir = sortDir === 'ASC' ? 1 : -1;
     return [...rows].sort((a, b) => {
-      const diff = parseEventTime(a.eventDateTime) - parseEventTime(b.eventDateTime);
-      return sortDir === 'DESC' ? -diff : diff;
+      const av = accessor(a);
+      const bv = accessor(b);
+      let diff: number;
+      if (typeof av === 'number' && typeof bv === 'number') {
+        diff = av - bv;
+      } else {
+        diff = String(av).localeCompare(String(bv));
+      }
+      return diff * dir;
     });
-  }, [rows, sortDir]);
+  }, [rows, sortKey, sortDir]);
 
   if (loading && !rows) {
     return (
@@ -141,7 +201,14 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
 
   // Icon-titled section heading (matching Plan details) above the History
   // table. Sorting is handled manually (above) so we render a static Carbon
-  // table and drive the Date column's sort indicator from `sortDir`.
+  // table and drive each column's sort indicator from `sortKey`/`sortDir`.
+  const headerProps = (key: SortKey) => ({
+    isSortable: true,
+    isSortHeader: sortKey === key,
+    sortDirection: (sortKey === key ? sortDir : 'NONE') as SortDir | 'NONE',
+    onClick: () => toggleSort(key),
+  });
+
   return (
     <>
       <header className="fsp-info__tile-header fsp-info__tile-header--tab">
@@ -155,22 +222,13 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
         <Table size="md" useZebraStyles>
           <TableHead>
             <TableRow>
-              <TableHeader
-                isSortable
-                isSortHeader
-                sortDirection={sortDir}
-                onClick={() =>
-                  setSortDir((d) => (d === 'DESC' ? 'ASC' : 'DESC'))
-                }
-              >
-                Date and time
-              </TableHeader>
-              <TableHeader>Event</TableHeader>
-              <TableHeader>Description</TableHeader>
-              <TableHeader>Approval required</TableHeader>
-              <TableHeader>User ID</TableHeader>
-              <TableHeader>Amendment</TableHeader>
-              <TableHeader>Extension</TableHeader>
+              <TableHeader {...headerProps('date')}>Date and time</TableHeader>
+              <TableHeader {...headerProps('event')}>Event</TableHeader>
+              <TableHeader {...headerProps('description')}>Description</TableHeader>
+              <TableHeader {...headerProps('approval')}>Approval required</TableHeader>
+              <TableHeader {...headerProps('userId')}>User ID</TableHeader>
+              <TableHeader {...headerProps('amendment')}>Amendment</TableHeader>
+              <TableHeader {...headerProps('extension')}>Extension</TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>

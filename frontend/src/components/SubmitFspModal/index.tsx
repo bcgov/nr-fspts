@@ -1,4 +1,4 @@
-import { Button, Loading } from '@carbon/react';
+import { Button, Link, Loading } from '@carbon/react';
 import { Modal } from '@/components/Modal';
 import { useEffect, useState, type FC } from 'react';
 
@@ -21,7 +21,20 @@ interface Props {
    * parent can swap the FSP detail in place without re-navigating.
    */
   onSubmitted: (updated: FspInformation) => void;
+  /**
+   * Switches the FSP detail to the Attachments tab. Wired to the link in
+   * the "missing FSP Legal Document" view so the user lands where they can
+   * upload it; the modal closes itself first.
+   */
+  onOpenAttachments: () => void;
 }
+
+/**
+ * Preflight issue code (see FspService.CODE_NO_LEGAL_DOCUMENT) raised when
+ * the amendment has no FSP Legal Document attached. Rendered as a dedicated
+ * "missing required document" view rather than a generic issue bullet.
+ */
+const CODE_NO_LEGAL_DOCUMENT = 'FSP.NO.LEGAL.DOCUMENT';
 
 /**
  * Submit dialog with a proc-side preflight. Opens, runs
@@ -41,6 +54,7 @@ const SubmitFspModal: FC<Props> = ({
   fallbackAmendmentNumber,
   onClose,
   onSubmitted,
+  onOpenAttachments,
 }) => {
   const { display } = useNotification();
   const fspId = fsp?.fspId ?? null;
@@ -116,10 +130,27 @@ const SubmitFspModal: FC<Props> = ({
   const ready =
     !preflightLoading && !preflightError && issues !== null && !hasIssues;
 
+  // The missing FSP Legal Document gets its own view (dedicated heading +
+  // a link straight to the Attachments tab). Other validation issues fall
+  // back to the generic bullet list.
+  const missingLegalDocument =
+    hasIssues && !!issues?.some((i) => i.code === CODE_NO_LEGAL_DOCUMENT);
+  const otherIssues = issues?.filter((i) => i.code !== CODE_NO_LEGAL_DOCUMENT);
+  const hasOtherIssues = (otherIssues?.length ?? 0) > 0;
+
+  const goToAttachments = () => {
+    onClose();
+    onOpenAttachments();
+  };
+
+  const heading = missingLegalDocument
+    ? 'Missing required document'
+    : 'Submit this FSP?';
+
   return (
     <Modal
       open={open}
-      modalHeading="Submit this FSP?"
+      modalHeading={heading}
       passiveModal
       size="sm"
       className="fsp-species-modal"
@@ -138,22 +169,46 @@ const SubmitFspModal: FC<Props> = ({
           <p>Couldn't run validation: {preflightError}</p>
         )}
 
-        {!preflightLoading && !preflightError && hasIssues && issues && (
+        {!preflightLoading && !preflightError && missingLegalDocument && (
           <>
             <p>
-              <strong>{issues.length}</strong>{' '}
-              {issues.length === 1 ? 'issue needs' : 'issues need'} attention
-              before you can submit FSP <strong>{fspId}</strong>:
+              FSP <strong>{fspId}</strong> can't be submitted yet.
             </p>
-            <ul className="submit-fsp-modal__list">
-              {issues.map((issue, i) => (
-                <li key={`${issue.code}-${i}`}>
-                  {issue.message}
-                </li>
-              ))}
-            </ul>
+            <p>
+              Upload the <strong>FSP Legal Document</strong> under the{' '}
+              <Link
+                href="#"
+                style={{ fontSize: 'inherit', lineHeight: 'inherit' }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  goToAttachments();
+                }}
+              >
+                Attachments
+              </Link>{' '}
+              tab before submitting.
+            </p>
           </>
         )}
+
+        {!preflightLoading &&
+          !preflightError &&
+          !missingLegalDocument &&
+          hasOtherIssues &&
+          otherIssues && (
+            <>
+              <p>
+                <strong>{otherIssues.length}</strong>{' '}
+                {otherIssues.length === 1 ? 'issue needs' : 'issues need'}{' '}
+                attention before you can submit FSP <strong>{fspId}</strong>:
+              </p>
+              <ul className="submit-fsp-modal__list">
+                {otherIssues.map((issue, i) => (
+                  <li key={`${issue.code}-${i}`}>{issue.message}</li>
+                ))}
+              </ul>
+            </>
+          )}
 
         {ready && (
           <>
@@ -162,7 +217,7 @@ const SubmitFspModal: FC<Props> = ({
               able to make any further changes until the Ministry of Forests
               has reviewed it.
             </p>
-            <p>
+            <p style={{ marginTop: '1rem' }}>
               Before submitting, please verify that you have attached any
               required documentation.
             </p>
@@ -170,21 +225,24 @@ const SubmitFspModal: FC<Props> = ({
         )}
       </div>
 
+      {/* When validation blocks submission there's nothing to confirm —
+          the only action is to dismiss, which the modal's top X already
+          provides. Show the footer buttons only in the ready state. */}
+      {ready && (
       <div className="fsp-species-modal__actions">
         <Button kind="secondary" disabled={submitting} onClick={closeDialog}>
-          {ready ? 'Cancel' : 'Close'}
+          Cancel
         </Button>
-        {ready && (
-          <Button
-            kind="primary"
-            disabled={submitting}
-            renderIcon={submitting ? BusyIcon : undefined}
-            onClick={() => void handleSubmit()}
-          >
-            {submitting ? 'Submitting…' : 'Submit'}
-          </Button>
-        )}
+        <Button
+          kind="primary"
+          disabled={submitting}
+          renderIcon={submitting ? BusyIcon : undefined}
+          onClick={() => void handleSubmit()}
+        >
+          {submitting ? 'Submitting…' : 'Submit'}
+        </Button>
       </div>
+      )}
     </Modal>
   );
 };

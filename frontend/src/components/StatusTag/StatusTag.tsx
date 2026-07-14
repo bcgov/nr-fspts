@@ -7,8 +7,13 @@ import './StatusTag.css';
 const statusVariant = (desc: string): string => {
   const d = desc.toLowerCase();
   if (d.includes('draft')) return 'draft';
+  // The Workflow tab labels a returned-to-draft (DFT) decision as
+  // "Clarification Requested" — same lifecycle state as Draft, so share
+  // its colour.
+  if (d.includes('clarification')) return 'draft';
   if (d.includes('submit')) return 'submitted';
-  if (d.includes('in effect') || d.includes('in-effect')) return 'in-effect';
+  if (d.includes('in effect') || d.includes('in-effect') || d.includes('effective'))
+    return 'in-effect';
   if (d.includes('approv')) return 'approved';
   // Client (FOREST_CLIENT) status: "Active" is green. Guard against
   // "inactive"/"deactivated" so only a truly active client goes green.

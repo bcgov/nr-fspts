@@ -14,10 +14,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tag,
   TextInput,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
+import { StatusTag } from '@/components/StatusTag/StatusTag';
 import { Add, Search as SearchIcon } from '@carbon/icons-react';
 import {
   type FC,
@@ -76,18 +76,6 @@ const STATUS_OPTIONS: StatusOption[] = [
   { code: 'RJT', description: 'Rejected' },
   { code: 'EXP', description: 'Expired' },
 ];
-
-const STATUS_TAG_TYPE_BY_DESC: Record<
-  string,
-  'green' | 'blue' | 'gray' | 'red' | 'warm-gray' | 'purple'
-> = {
-  Approved: 'green',
-  Submitted: 'blue',
-  Draft: 'gray',
-  Rejected: 'red',
-  Expired: 'warm-gray',
-  Replaced: 'purple',
-};
 
 interface ResultRow {
   id: string;
@@ -625,12 +613,7 @@ const AddExistingStandardModal: FC<Props> = ({
                                 if (cell.info.header === 'status' && value) {
                                   return (
                                     <TableCell key={cell.id}>
-                                      <Tag
-                                        type={STATUS_TAG_TYPE_BY_DESC[value] ?? 'gray'}
-                                        size="sm"
-                                      >
-                                        {value}
-                                      </Tag>
+                                      <StatusTag status={value} />
                                     </TableCell>
                                   );
                                 }
