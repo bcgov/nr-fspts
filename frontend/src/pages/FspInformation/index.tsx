@@ -152,6 +152,14 @@ const FspInformationPage: FC = () => {
   // status code/description drive the pill. Cleared when no extension.
   const extensionStatFlag = (fsp?.fspExtensionStat ?? '').toUpperCase();
   const hasExtension = extensionStatFlag !== '' && extensionStatFlag !== 'N';
+  // The fspExtensionStat flag is scoped to the amendment currently in view
+  // (e.g. 'S' = a submitted extension exists on THIS version). The
+  // /extensions endpoint, however, returns every extension across all
+  // amendments of the plan, so we must pick the one belonging to the
+  // current amendment — otherwise a superseded amendment's cancelled
+  // extension (e.g. one auto-cancelled by a later replacement) can outrank
+  // the fresh submitted request and drive the pill to "Cancelled".
+  const pillAmendmentNumber = fsp?.fspAmendmentNumber ?? amendmentNumber ?? '0';
   useEffect(() => {
     if (!fspId || !hasExtension) {
       setLatestExtension(null);
@@ -161,7 +169,11 @@ const FspInformationPage: FC = () => {
     getFspExtensions(fspId)
       .then((summary) => {
         if (cancelled) return;
-        const latest = summary.extensions.reduce<FspExtension | null>(
+        const forThisAmendment = summary.extensions.filter(
+          (e) =>
+            Number(e.fspAmendmentNumber ?? 0) === Number(pillAmendmentNumber),
+        );
+        const latest = forThisAmendment.reduce<FspExtension | null>(
           (best, e) =>
             best === null ||
             Number(e.extensionNumber ?? 0) >= Number(best.extensionNumber ?? 0)
@@ -177,7 +189,7 @@ const FspInformationPage: FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [fspId, hasExtension, refreshKey]);
+  }, [fspId, hasExtension, pillAmendmentNumber, refreshKey]);
 
   // Amendment-numbers fetch refreshes when the user switches FSPs OR
   // when the parent signals a mutation that may have bumped revision_count

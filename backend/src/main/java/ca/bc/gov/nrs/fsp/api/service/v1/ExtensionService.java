@@ -4,6 +4,7 @@ import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp302ExtensionRequestDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp303ExtensionSummaryDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.FspExtensionQueryDao;
 import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
+import ca.bc.gov.nrs.fsp.api.struct.v1.ExtensionAttachmentResponse;
 import ca.bc.gov.nrs.fsp.api.struct.v1.ExtensionRequestSave;
 import ca.bc.gov.nrs.fsp.api.struct.v1.ExtensionSummary;
 import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
@@ -34,6 +35,18 @@ public class ExtensionService {
   private final FspExtensionQueryDao extensionQueryDao;
   private final FspAccessGuard accessGuard;
   private final VirusScanner virusScanner;
+
+  /**
+   * Attachments linked to a single extension (request letter, EXDDMD
+   * decision letter, …). Read-only lookup for the Extension Summary
+   * dialog; the files download through the shared attachment endpoint.
+   */
+  public List<ExtensionAttachmentResponse> listAttachments(String fspId, String extensionId) {
+    return extensionQueryDao.findExtensionAttachments(Long.parseLong(extensionId)).stream()
+        .map(a -> new ExtensionAttachmentResponse(
+            a.attachmentId(), a.attachmentName(), a.typeCode()))
+        .toList();
+  }
 
   public ExtensionSummary getSummary(String fspId) {
     Fsp303ExtensionSummaryDao.Result r = dao.getList(

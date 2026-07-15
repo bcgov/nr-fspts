@@ -15,7 +15,12 @@ import { baseURL, STORAGE_STATE } from './e2e/utils';
  * Override the target with E2E_BASE_URL (e.g. http://localhost:3000 for local).
  */
 export default defineConfig({
-  timeout: 180_000,
+  // 60s is a generous ceiling for a single test against the shared, slower
+  // TEST/preview infra — the proc-heavy flows still finish well under it.
+  // Keeping it tight bounds the blast radius of any hang: with retries: 2 a
+  // stuck test now costs ~3 min instead of ~9, and fails legibly rather than
+  // masquerading as "slow CI".
+  timeout: 60_000,
   testDir: './e2e',
   // Serial execution. We share one Cognito refresh token via storageState
   // across runs; parallel workers race that refresh and intermittently leave

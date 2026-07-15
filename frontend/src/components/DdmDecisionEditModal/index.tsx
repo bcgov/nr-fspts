@@ -155,6 +155,10 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   const [letterFile, setLetterFile] = useState<File | null>(null);
   const [categories, setCategories] = useState<CodeOption[]>([]);
   const [saving, setSaving] = useState(false);
+  // Required-field highlighting is held back until the first Save attempt so
+  // the form doesn't open painted red. Set true when the user clicks Save
+  // with something missing.
+  const [showValidation, setShowValidation] = useState(false);
   // Guards against re-uploading the letter when the decision save fails and
   // the user retries — the file is uploaded before the save (see submit()),
   // so a naive retry would attach a duplicate.
@@ -164,9 +168,6 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   // Used to lock the Reject / Request-Clarification radios so a DDM
   // can't pivot the decision after the FSP has been approved.
   const isApproved = prevDecision === 'APP';
-  // "Record" = first decision (no prior). The decision letter is required
-  // in this mode; an Edit of an existing decision keeps it optional.
-  const isRecordMode = !prevDecision;
 
   // Re-prefill on every open so re-opening reflects the persisted values
   // rather than whatever the user typed last time and then closed.
@@ -179,6 +180,7 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
     setComment(value.comment ?? '');
     setLetterFile(null);
     letterUploadedRef.current = false;
+    setShowValidation(false);
     if (fspId) {
       getAttachmentCategories(fspId)
         .then(setCategories)
@@ -193,14 +195,16 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   const decisionDateMissing = decisionDate.trim() === '';
   const effectiveMissing = needsEffectiveDate && effectiveDate.trim() === '';
   const commentMissing = needsComment && comment.trim() === '';
-  const letterMissing = isRecordMode && !letterFile;
-  const canSubmit =
-    !saving &&
-    !submissionMissing &&
-    !decisionDateMissing &&
-    !effectiveMissing &&
-    !commentMissing &&
-    !letterMissing;
+  // The DDM decision letter is NOT required in this dialog: the licensee may
+  // already have attached the DDM decision document on the Attachments tab.
+  // The save proc still enforces that one exists (and surfaces an error if
+  // not), so we don't block the client here — unlike the extension decision,
+  // whose letter must be uploaded through its modal.
+  const hasErrors =
+    submissionMissing ||
+    decisionDateMissing ||
+    effectiveMissing ||
+    commentMissing;
 
   const closeDialog = () => {
     if (saving) return;
@@ -218,7 +222,13 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   };
 
   const submit = async () => {
-    if (!canSubmit) return;
+    if (saving) return;
+    // Save is always enabled; on click, surface any missing required fields
+    // instead of proceeding.
+    if (hasErrors) {
+      setShowValidation(true);
+      return;
+    }
     setSaving(true);
     // 1. Upload the decision letter FIRST. The DDM decision save proc
     //    validates that a DDM decision document is already attached to the
@@ -275,8 +285,9 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
   const letterDescription =
     `Supported file types are ${ACCEPTED_ATTACHMENT_EXTENSIONS.join(', ')}. `
     + `Max file size is 50 MB.\n`
-    + (isRecordMode ? 'Required before saving the decision. ' : '')
-    + 'Stored under DDM Decision on the Attachments tab — visible to all users.';
+    + 'Optional here if the DDM decision document is already attached on the '
+    + 'Attachments tab. Stored under DDM Decision on the Attachments tab — '
+    + 'visible to all users.';
 
   return (
     <Modal
@@ -341,7 +352,11 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
         <DatePicker
           datePickerType="single"
           dateFormat="Y-m-d"
-          value={submissionDate || undefined}
+          // Carbon's DatePicker clones the child input and injects `invalid`
+          // from ITS own props, so the flag has to live here, not (only) on
+          // the DatePickerInput — otherwise the red state never shows.
+          invalid={showValidation && submissionMissing}
+          value={submissionDate}
           onChange={(dates: Date[]) =>
             setSubmissionDate(dates[0] ? toIsoDate(dates[0]) : '')
           }
@@ -351,8 +366,16 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
             placeholder="YYYY-MM-DD"
             labelText="Submission date"
             disabled={saving}
-            invalid={submissionMissing}
+            invalid={showValidation && submissionMissing}
             invalidText="Submission date is required."
+            // Carbon restores a typed-then-emptied date on calendar close and
+            // flatpickr's onChange doesn't fire on clear — so catch the raw
+            // input going empty here and push '' down (which clears flatpickr
+            // via the controlled value) so the removed date doesn't snap back.
+            // Validation highlighting is deferred to the Save click.
+            onChange={(e) => {
+              if (!e.target.value.trim()) setSubmissionDate('');
+            }}
           />
         </DatePicker>
 
@@ -361,7 +384,8 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
             <DatePicker
               datePickerType="single"
               dateFormat="Y-m-d"
-              value={decisionDate || undefined}
+              invalid={showValidation && decisionDateMissing}
+              value={decisionDate}
               onChange={(dates: Date[]) =>
                 setDecisionDate(dates[0] ? toIsoDate(dates[0]) : '')
               }
@@ -371,8 +395,11 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
                 placeholder="YYYY-MM-DD"
                 labelText="Decision date"
                 disabled={saving}
-                invalid={decisionDateMissing}
+                invalid={showValidation && decisionDateMissing}
                 invalidText="Decision date is required."
+                onChange={(e) => {
+                  if (!e.target.value.trim()) setDecisionDate('');
+                }}
               />
             </DatePicker>
           </div>
@@ -381,7 +408,8 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
             <DatePicker
               datePickerType="single"
               dateFormat="Y-m-d"
-              value={effectiveDate || undefined}
+              invalid={showValidation && effectiveMissing}
+              value={effectiveDate}
               onChange={(dates: Date[]) =>
                 setEffectiveDate(dates[0] ? toIsoDate(dates[0]) : '')
               }
@@ -391,8 +419,11 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
                 placeholder="YYYY-MM-DD"
                 labelText={needsEffectiveDate ? 'Effective date' : 'Effective date (optional)'}
                 disabled={saving || !needsEffectiveDate}
-                invalid={effectiveMissing}
-                invalidText="Effective date is required for Approve."
+                invalid={showValidation && effectiveMissing}
+                invalidText="Effective date is required."
+                onChange={(e) => {
+                  if (!e.target.value.trim()) setEffectiveDate('');
+                }}
               />
             </DatePicker>
           </div>
@@ -404,11 +435,6 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
           <DragDropFileInput
             accept={ACCEPTED_ATTACHMENT_EXTENSIONS}
             file={letterFile}
-            // Not flagged invalid just because it's empty on open — the
-            // requirement is already conveyed by the disabled Save button
-            // and the "Required before saving" helper text. Marking it
-            // invalid up-front painted the dropzone red the moment the
-            // dialog opened.
             disabled={saving}
             onSelect={onLetterSelect}
             onRemove={() => setLetterFile(null)}
@@ -428,7 +454,7 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
           rows={4}
           value={comment}
           disabled={saving}
-          invalid={commentMissing}
+          invalid={showValidation && commentMissing}
           invalidText="Comment is required for Request clarification."
           onChange={(e) => setComment(e.target.value)}
         />
@@ -439,7 +465,7 @@ const DdmDecisionEditModal: FC<DdmDecisionEditModalProps> = ({
         </Button>
         <Button
           kind="primary"
-          disabled={!canSubmit}
+          disabled={saving}
           renderIcon={saving ? SavingIcon : undefined}
           onClick={() => void submit()}
         >

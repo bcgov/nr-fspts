@@ -567,6 +567,13 @@ public class FspService {
 
   @Transactional
   public FspRequest amend(String fspId, FspRequest request) {
+    // Force fsp_amendment_code='AMD'. The FSP_300 amend proc passes this
+    // code straight through to fsp_common_db.fsp_create_amendment, which
+    // defaults a null/blank code to 'ORG' (NVL(p_fsp_amendment_code,
+    // 'ORG')). Without this the new amendment row is mis-stamped 'ORG',
+    // so the header type-summary (showAmendment === 'AMD') never renders
+    // the "Amendment" tile. Mirrors the 'RPL' hard-set in replace().
+    request.setFspAmendmentCode("AMD");
     accessGuard.assertWritable(fspId, null);
     assertNoOpenExtension(fspId, "amended");
     Fsp300InformationDao.Result r = callInformation(ACTION_AMEND, fspId, "", request);

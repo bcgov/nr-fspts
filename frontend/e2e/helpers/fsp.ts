@@ -71,10 +71,23 @@ export async function addAttachment(
   // pattern. Index 0 is the "— Select category —" placeholder.
   const categorySelect = modal.locator('#attachment-category');
   const optionTexts = await categorySelect.locator('option').allTextContents();
+  // Real, selectable options only (drop the placeholder at index 0). If the
+  // dropdown is empty, the /attachment-categories endpoint returned nothing
+  // — historically a DB grant/visibility gap for the.fsp_attachment_type_code
+  // in the deployed env. Fail fast with a diagnostic instead of letting
+  // selectOption('') spin until the 180s test timeout (×3 retries = ~9 min).
+  const selectable = optionTexts.filter((_t, i) => i > 0);
+  if (selectable.length === 0) {
+    throw new Error(
+      'Add-attachment category dropdown has no options. The ' +
+        `/attachment-categories endpoint returned an empty list at ${page.url()}. ` +
+        'Likely a DB grant/visibility gap for the.fsp_attachment_type_code ' +
+        'in this environment (categories come from a direct table SELECT, ' +
+        'unlike the proc-backed code lists that still work).',
+    );
+  }
   const match =
-    optionTexts.find((t) => categoryPattern.test(t)) ??
-    optionTexts.find((_t, i) => i > 0) ??
-    '';
+    selectable.find((t) => categoryPattern.test(t)) ?? selectable[0];
   await categorySelect.selectOption({ label: match });
 
   // Carbon's "Browse" is a <label> wrapping the real input — set files

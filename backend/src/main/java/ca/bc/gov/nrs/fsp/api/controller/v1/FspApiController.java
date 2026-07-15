@@ -252,6 +252,12 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
+    public ResponseEntity<List<ExtensionAttachmentResponse>> getExtensionAttachments(
+            String fspId, String extensionId) {
+        return ResponseEntity.ok(extensionService.listAttachments(fspId, extensionId));
+    }
+
+    @Override
     public ResponseEntity<Void> uploadExtensionAttachment(
             String fspId, String extensionId, MultipartFile file, String typeCode, String description)
             throws IOException {

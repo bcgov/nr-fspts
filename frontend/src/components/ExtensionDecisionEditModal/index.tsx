@@ -122,6 +122,10 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
   const [comment, setComment] = useState('');
   const [letterFile, setLetterFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  // Required-field highlighting is held back until the first Save attempt so
+  // the form doesn't open painted red. Set true when the user clicks Save
+  // with something missing.
+  const [showValidation, setShowValidation] = useState(false);
   // Guards against re-uploading the letter when the decision save fails and
   // the user retries — the file is uploaded before the save (see submit()),
   // so a naive retry would attach a duplicate.
@@ -142,6 +146,7 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
     setComment(value.comment ?? '');
     setLetterFile(null);
     letterUploadedRef.current = false;
+    setShowValidation(false);
   }, [open, prevDecision, value]);
 
   const needsEffectiveDate = decision === 'APP';
@@ -149,12 +154,11 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
   const decisionDateMissing = decisionDate.trim() === '';
   const effectiveMissing = needsEffectiveDate && effectiveDate.trim() === '';
   const letterMissing = isRecordMode && !letterFile;
-  const canSubmit =
-    !saving &&
-    !submissionMissing &&
-    !decisionDateMissing &&
-    !effectiveMissing &&
-    !letterMissing;
+  const hasErrors =
+    submissionMissing ||
+    decisionDateMissing ||
+    effectiveMissing ||
+    letterMissing;
 
   const closeDialog = () => {
     if (saving) return;
@@ -172,7 +176,13 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
   };
 
   const submit = async () => {
-    if (!canSubmit) return;
+    if (saving) return;
+    // Save is always enabled; on click, surface any missing required fields
+    // instead of proceeding.
+    if (hasErrors) {
+      setShowValidation(true);
+      return;
+    }
     setSaving(true);
     // 1. Upload the decision letter FIRST. FSP_700_WORKFLOW's
     //    validate_ext_approve_reject requires an extension-linked EXDDMD
@@ -293,7 +303,11 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
         <DatePicker
           datePickerType="single"
           dateFormat="Y-m-d"
-          value={submissionDate || undefined}
+          // Carbon's DatePicker clones the child input and injects `invalid`
+          // from ITS own props, so the flag has to live here, not (only) on
+          // the DatePickerInput — otherwise the red state never shows.
+          invalid={showValidation && submissionMissing}
+          value={submissionDate}
           onChange={(dates: Date[]) =>
             setSubmissionDate(dates[0] ? toIsoDate(dates[0]) : '')
           }
@@ -303,8 +317,16 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
             placeholder="YYYY-MM-DD"
             labelText="Submission date"
             disabled={saving}
-            invalid={submissionMissing}
+            invalid={showValidation && submissionMissing}
             invalidText="Submission date is required."
+            // Carbon restores a typed-then-emptied date on calendar close and
+            // flatpickr's onChange doesn't fire on clear — so catch the raw
+            // input going empty here and push '' down (which clears flatpickr
+            // via the controlled value) so the removed date doesn't snap back.
+            // Validation highlighting is deferred to the Save click.
+            onChange={(e) => {
+              if (!e.target.value.trim()) setSubmissionDate('');
+            }}
           />
         </DatePicker>
 
@@ -313,7 +335,8 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
             <DatePicker
               datePickerType="single"
               dateFormat="Y-m-d"
-              value={decisionDate || undefined}
+              invalid={showValidation && decisionDateMissing}
+              value={decisionDate}
               onChange={(dates: Date[]) =>
                 setDecisionDate(dates[0] ? toIsoDate(dates[0]) : '')
               }
@@ -323,8 +346,11 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
                 placeholder="YYYY-MM-DD"
                 labelText="Decision date"
                 disabled={saving}
-                invalid={decisionDateMissing}
+                invalid={showValidation && decisionDateMissing}
                 invalidText="Decision date is required."
+                onChange={(e) => {
+                  if (!e.target.value.trim()) setDecisionDate('');
+                }}
               />
             </DatePicker>
           </div>
@@ -334,7 +360,8 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
               <DatePicker
                 datePickerType="single"
                 dateFormat="Y-m-d"
-                value={effectiveDate || undefined}
+                invalid={showValidation && effectiveMissing}
+                value={effectiveDate}
                 onChange={(dates: Date[]) =>
                   setEffectiveDate(dates[0] ? toIsoDate(dates[0]) : '')
                 }
@@ -344,8 +371,11 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
                   placeholder="YYYY-MM-DD"
                   labelText="Effective date"
                   disabled={saving}
-                  invalid={effectiveMissing}
-                  invalidText="Effective date is required for Approve."
+                  invalid={showValidation && effectiveMissing}
+                  invalidText="Effective date is required."
+                  onChange={(e) => {
+                    if (!e.target.value.trim()) setEffectiveDate('');
+                  }}
                 />
               </DatePicker>
             </div>
@@ -358,11 +388,11 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
           <DragDropFileInput
             accept={ACCEPTED_ATTACHMENT_EXTENSIONS}
             file={letterFile}
-            // Not flagged invalid just because it's empty on open — the
-            // requirement is already conveyed by the disabled Save button
-            // and the "Required before saving" helper text. Marking it
-            // invalid up-front painted the dropzone red the moment the
-            // dialog opened.
+            // Only flagged invalid after a Save attempt with no file — not
+            // on open — so the dropzone doesn't paint red before the user
+            // has had a chance to add the required decision letter.
+            invalid={showValidation && letterMissing}
+            invalidText="A decision letter is required."
             disabled={saving}
             onSelect={onLetterSelect}
             onRemove={() => setLetterFile(null)}
@@ -386,7 +416,7 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
         </Button>
         <Button
           kind="primary"
-          disabled={!canSubmit}
+          disabled={saving}
           renderIcon={saving ? SavingIcon : undefined}
           onClick={() => void submit()}
         >

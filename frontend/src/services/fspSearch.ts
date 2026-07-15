@@ -1274,6 +1274,29 @@ export async function uploadExtensionAttachment(
   }
 }
 
+/** One attachment linked to an extension (request letter, EXDDMD, …). */
+export interface ExtensionAttachment {
+  attachmentId: string | null;
+  attachmentName: string | null;
+  typeCode: string | null;
+}
+
+/**
+ * Attachments linked to a single extension via fsp_extension_xref. The
+ * files download through the shared attachment endpoint (keyed on the
+ * attachment id), so {@link fetchFspAttachmentBlob} / {@link downloadFspAttachment}
+ * both work on these ids too.
+ */
+export function getExtensionAttachments(
+  fspId: string,
+  extensionId: string,
+): Promise<ExtensionAttachment[]> {
+  return getJson<ExtensionAttachment[]>(
+    `/v1/fsp/${encodeURIComponent(fspId)}/extensions/${encodeURIComponent(extensionId)}/attachments`,
+    'Extension attachments lookup',
+  );
+}
+
 /**
  * Triggers a browser download for a single FSP attachment. The
  * backend streams the BLOB with Content-Disposition; we resolve the
