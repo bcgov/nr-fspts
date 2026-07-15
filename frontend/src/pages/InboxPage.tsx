@@ -101,7 +101,7 @@ const MAP_VIEWER_LAYERS = '1417,1418,1419,1420';
 
 const HEADERS = [
   { key: 'fspId', header: 'FSP ID' },
-  { key: 'amendNo', header: 'Amendment #' },
+  { key: 'amendNo', header: 'Version' },
   { key: 'extNo', header: 'Ext #' },
   { key: 'name', header: 'FSP name' },
   { key: 'status', header: 'Status' },
@@ -642,12 +642,12 @@ const InboxPage: FC = () => {
                                           );
                                         }
                                         // Amendment 0 is the original plan — display
-                                        // "Original FSP" but keep the raw "0" value
+                                        // "Original" but keep the raw "0" value
                                         // (the nav URL reads it from the cell value).
                                         if (cell.info.header === 'amendNo') {
                                           return (
                                             <TableCell key={cell.id}>
-                                              {value === '0' ? 'Original FSP' : formatCellText(value)}
+                                              {value === '0' ? 'Original' : formatCellText(value)}
                                             </TableCell>
                                           );
                                         }

@@ -15,7 +15,6 @@ import {type FC, useEffect, useMemo, useState} from 'react';
 import EmptyState from '@/components/EmptyState/EmptyState';
 import FduLicencesModal from '@/components/FduLicencesModal';
 import {useNotification} from '@/context/notification/useNotification';
-import {env} from '@/env';
 import {type FspFduList, getFspExtent, getFspFduList,} from '@/services/fspSearch';
 
 interface Props {
@@ -42,9 +41,6 @@ interface Props {
 const VARIANT_TITLE: Record<Props['variant'], string> = {
   fdu: 'Forest Development Units (FDU)',
 };
-
-const MAP_VIEWER_URL = env.VITE_MAP_VIEWER_URL ?? '';
-const MAP_VIEWER_LAYERS = '1417,1418,1419,1420';
 
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
@@ -83,7 +79,6 @@ const MapTab: FC<Props> = ({
   const [extent, setExtent] = useState<string | null>(null);
   const [extentLoading, setExtentLoading] = useState(false);
   const [extentError, setExtentError] = useState<string | null>(null);
-  const [opening, setOpening] = useState(false);
 
   // FDU list loads for the FDU variant.
   const [fduList, setFduList] = useState<FspFduList | null>(null);
@@ -157,23 +152,14 @@ const MapTab: FC<Props> = ({
   }, [fspId, variant, display, refreshKey]);
 
   /**
-   * Opens the legacy arcmaps viewer in a new tab, scoped to the FSP's
-   * MBR (or to a specific FDU if {@code rowExtent} is supplied — though
-   * the proc doesn't currently give us per-FDU extents, so all rows
-   * reuse the same bulk MBR for now).
+   * Open the standalone Leaflet FDU map in a new tab, scoped to this FSP
+   * and amendment. Replaces the legacy hand-off to the external arcmaps
+   * viewer — same "opens in a new tab" behaviour, but our own reprojected
+   * outlines. Every row opens the same FSP-wide map (the geometry proc
+   * doesn't expose per-FDU extents), matching the legacy per-row links.
    */
-  const openMapView = (rowExtent?: string) => {
-    if (!MAP_VIEWER_URL) {
-      display({
-        kind: 'error',
-        title: 'Map View not configured',
-        subtitle: 'Set VITE_MAP_VIEWER_URL.',
-        timeout: 7000,
-      });
-      return;
-    }
-    const target = rowExtent ?? extent;
-    if (!target) {
+  const openMapView = () => {
+    if (!extent) {
       display({
         kind: 'warning',
         title: 'No spatial data',
@@ -182,19 +168,11 @@ const MapTab: FC<Props> = ({
       });
       return;
     }
-    setOpening(true);
-    const sep = MAP_VIEWER_URL.includes('?') ? '&' : '?';
-    const url = `${MAP_VIEWER_URL}${sep}extent=${target}&catalogLayers=${MAP_VIEWER_LAYERS}`;
-    const popup = window.open(url, '_blank');
-    if (!popup) {
-      display({
-        kind: 'error',
-        title: 'Pop-up blocked',
-        subtitle: 'Allow pop-ups for this site to use Map View.',
-        timeout: 7000,
-      });
-    }
-    setOpening(false);
+    const url = `/fsp/map?fspId=${encodeURIComponent(fspId)}&amendmentNumber=${encodeURIComponent(amendmentNumber || '0')}`;
+    // NB: passing 'noopener' makes window.open return null even on success,
+    // so we don't inspect the return value — a genuine block is rare and the
+    // browser surfaces its own indicator for it.
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const showFduTable = variant === 'fdu';
@@ -283,7 +261,7 @@ const MapTab: FC<Props> = ({
                             size="sm"
                             renderIcon={Launch}
                             onClick={() => openMapView()}
-                            disabled={!extent || opening}
+                            disabled={!extent}
                           >
                             Map view
                           </Button>

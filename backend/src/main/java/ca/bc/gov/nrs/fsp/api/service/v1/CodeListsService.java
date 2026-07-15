@@ -91,10 +91,43 @@ public class CodeListsService {
    * FSP information page to power the amendment-picker dropdown.
    */
   public List<CodeOption> getFspAmendmentNumbers(String fspId) {
+    Map<String, String> typeByNumber = fspCodeListsDao.getFspAmendmentTypeCodes(fspId);
     return fspCodeListsDao.getFspAmendmentNumbers(fspId).stream()
         .map(CodeListsService::toCodeOption)
         .filter(o -> o.getCode() != null)
+        .map(o -> withVersionContext(o, typeByNumber))
         .toList();
+  }
+
+  /**
+   * Appends the amendment TYPE to a version option's label so the picker
+   * reads "1 - Amendment", "2 - Replacement", etc. The original (code "0")
+   * keeps its plain "Original" label, and any version whose type is unknown
+   * or ORG falls back to the bare number the proc supplied.
+   */
+  private static CodeOption withVersionContext(CodeOption option, Map<String, String> typeByNumber) {
+    if ("0".equals(option.getCode())) {
+      return option;
+    }
+    String label = amendmentTypeLabel(typeByNumber.get(option.getCode()));
+    if (label == null) {
+      return option;
+    }
+    return CodeOption.builder()
+        .code(option.getCode())
+        .description(option.getDescription() + " - " + label)
+        .build();
+  }
+
+  private static String amendmentTypeLabel(String amendmentCode) {
+    if (amendmentCode == null) {
+      return null;
+    }
+    return switch (amendmentCode.toUpperCase()) {
+      case "AMD" -> "Amendment";
+      case "RPL" -> "Replacement";
+      default -> null; // ORG or anything unexpected → leave the bare number
+    };
   }
 
   /**

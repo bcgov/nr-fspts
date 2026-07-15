@@ -14,6 +14,16 @@ public interface FspCodeListsDao {
 
   List<Map<String, Object>> getFspAmendmentNumbers(String pFspId);
 
+  /**
+   * {@code amendmentNumber → fsp_amendment_code} (ORG / AMD / RPL) for every
+   * version of an FSP. The {@code get_fsp_amendment_numbers} cursor only
+   * yields the number + "Original" label, so this direct read supplies the
+   * amendment TYPE the version picker appends as context (e.g. "1 -
+   * Amendment", "2 - Replacement"). Keyed by the number as a string to line
+   * up with the CodeOption codes.
+   */
+  Map<String, String> getFspAmendmentTypeCodes(String pFspId);
+
   List<Map<String, Object>> getAttachReferenceList(String pFspId);
 
   /**

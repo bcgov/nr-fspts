@@ -378,7 +378,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
                     sortDirection={sortDir}
                     onClick={() => setSortDir((d) => (d === 'DESC' ? 'ASC' : 'DESC'))}
                   >
-                    Amendment
+                    Version
                   </TableHeader>
                   <TableHeader>Consolidated</TableHeader>
                   <TableHeader>Actions</TableHeader>

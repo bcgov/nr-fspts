@@ -131,6 +131,12 @@ public final class URL {
   // the spatial query only runs when the user actually clicks Map View.
   public static final String EXTENT = "/{fspId}/amendments/{amendmentNumber}/extent";
 
+  // FDU polygons as WGS84 GeoJSON for the embedded Leaflet map — the full
+  // ring geometry behind the EXTENT bounding box, reprojected from BC
+  // Albers so the frontend can render it directly.
+  public static final String FDU_GEOMETRY =
+      "/{fspId}/amendments/{amendmentNumber}/fdu-geometry";
+
   // District auto-notification designates — admin-only list of IDIR
   // usernames CC'd on FSP-200 notification emails for an org unit.
   // Backed by FSP_900_NOTIFICATION_DESIGNATE (GET/SAVE/REMOVE).

@@ -8,12 +8,15 @@
     "@carbon/react": "^1.105.0",
     "aws-amplify": "^6.17.0",
     "jose": "^5.9.6",
+    "leaflet": "^1.9.4",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+    "react-leaflet": "^5.0.0",
     "react-router-dom": "^6.30.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.2",
+    "@types/leaflet": "^1.9.21",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",

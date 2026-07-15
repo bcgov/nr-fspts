@@ -221,7 +221,7 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
               <TableHeader {...headerProps('description')}>Description</TableHeader>
               <TableHeader {...headerProps('approval')}>Approval required</TableHeader>
               <TableHeader {...headerProps('userId')}>User ID</TableHeader>
-              <TableHeader {...headerProps('amendment')}>Amendment</TableHeader>
+              <TableHeader {...headerProps('amendment')}>Version</TableHeader>
               <TableHeader {...headerProps('extension')}>Extension</TableHeader>
             </TableRow>
           </TableHead>

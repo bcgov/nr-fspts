@@ -283,16 +283,20 @@ const FspInformationPage: FC = () => {
   // "an extension in SUB status exists" (see EXTENSION_STAT_LABEL). Mirrors
   // the backend guard in ActionCodeContextValidator for XML uploads.
   const hasOpenExtension = extensionStatFlag === 'S';
-  const canExtend = canModify && isApprovedOrInEffect && !hasOpenExtension;
-  // Amend: legacy isAmendFSPEnabled also blocks while a previous
-  // amendment is still unapproved (DFT/SUB/OHS) — kicking off another
-  // would leave two open amendments in flight at the same time.
+  // An unapproved amendment/replacement is still in flight (DFT/SUB/OHS).
+  // While one exists, NO new lifecycle change may be started — amend,
+  // extend or replace — even when the user has navigated back to the
+  // original (Approved) version, which would otherwise pass the
+  // isApprovedOrInEffect gate. fspUnapprovedAmendsInd is a plan-level flag
+  // from the FSP300 read, so it stays 'Y' on every version until the open
+  // amendment is resolved.
   const hasUnapprovedAmend = fsp?.fspUnapprovedAmendsInd === 'Y';
+  const canExtend =
+    canModify && isApprovedOrInEffect && !hasOpenExtension && !hasUnapprovedAmend;
   const canAmend =
     canModify && isApprovedOrInEffect && !hasUnapprovedAmend && !hasOpenExtension;
-  // Replace: legacy isReplaceFSPEnabled gates on APP/INE only — no
-  // unapproved-amends check (a Replacement is a hard cut-over).
-  const canReplace = canModify && isApprovedOrInEffect && !hasOpenExtension;
+  const canReplace =
+    canModify && isApprovedOrInEffect && !hasOpenExtension && !hasUnapprovedAmend;
   // Workflow tab is hidden for Submitter-only and View-Only roles —
   // nothing on it (DDM decision / OTBH / extension review) applies to
   // them. History (read-only audit) stays visible regardless.

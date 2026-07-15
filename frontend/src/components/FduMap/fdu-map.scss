@@ -1,0 +1,39 @@
+// Embedded FDU Leaflet map. The container is positioned so the
+// loading/empty overlays can float above the map tiles.
+.fdu-map {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--cds-border-subtle, #e0e0e0);
+  border-radius: 0.25rem;
+  overflow: hidden;
+
+  // Leaflet's default panes must sit below Carbon overlays (modals,
+  // notifications). Leaflet uses z-index up to 700 internally; keep the
+  // whole map on its own low stacking context.
+  .leaflet-container {
+    z-index: 0;
+    background: var(--cds-layer-01, #f4f4f4);
+    font-family: inherit;
+  }
+
+  &__overlay {
+    position: absolute;
+    inset-block-start: 0.75rem;
+    inset-inline-start: 0.75rem;
+    z-index: 1000;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    background: var(--cds-layer, #ffffff);
+    border: 1px solid var(--cds-border-subtle, #e0e0e0);
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    color: var(--cds-text-primary);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+
+    &--msg {
+      max-inline-size: 20rem;
+    }
+  }
+}

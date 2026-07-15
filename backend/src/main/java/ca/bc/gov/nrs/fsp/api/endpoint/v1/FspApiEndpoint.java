@@ -408,6 +408,11 @@ public interface FspApiEndpoint {
     ResponseEntity<FspExtentResponse> getExtent(
             @PathVariable String fspId, @PathVariable String amendmentNumber);
 
+    @GetMapping(URL.FDU_GEOMETRY)
+    @Operation(summary = "FDU polygons as WGS84 GeoJSON (SDO_GEOMETRY decoded + reprojected from BC Albers)")
+    ResponseEntity<java.util.Map<String, Object>> getFduGeometry(
+            @PathVariable String fspId, @PathVariable String amendmentNumber);
+
     // --- District Auto-Notification (Admin) ---
 
     @GetMapping(URL.DISTRICT_DESIGNATES)

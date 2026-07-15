@@ -62,7 +62,7 @@ const HEADERS = [
   { key: 'standardsRegimeId', header: 'Standards ID' },
   { key: 'standardsRegimeName', header: 'Standards name' },
   { key: 'standardsObjective', header: 'Objective' },
-  { key: 'standardsAmndNumber', header: 'Amendment number' },
+  { key: 'standardsAmndNumber', header: 'Version' },
   { key: 'standardsBgc', header: 'BGC' },
   { key: 'standardsRegimeStatus', header: 'Status' },
   { key: 'standardsEffectiveDate', header: 'Effective date' },
@@ -390,7 +390,11 @@ const StockingStandardsTab: FC<Props> = ({
     standardsRegimeId: dash(r.standardsRegimeId),
     standardsRegimeName: dash(r.standardsRegimeName),
     standardsObjective: dash(r.standardsObjective),
-    standardsAmndNumber: dash(r.standardsAmndNumber),
+    // Version 0 is the original plan — show "Original" instead of "0".
+    standardsAmndNumber:
+      String(r.standardsAmndNumber ?? '').trim() === '0'
+        ? 'Original'
+        : dash(r.standardsAmndNumber),
     standardsBgc: dash(r.standardsBgc),
     standardsRegimeStatus: dash(r.standardsRegimeStatus),
     standardsEffectiveDate: dash(r.standardsEffectiveDate),
