@@ -14,7 +14,7 @@ import {
   TextArea,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
-import { Add, Document, Launch, TrashCan } from '@carbon/icons-react';
+import { Add, Launch, TrashCan } from '@carbon/icons-react';
 import { type FC, useEffect, useMemo, useState } from 'react';
 
 import DragDropFileInput from '@/components/DragDropFileInput';
@@ -244,7 +244,23 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
       setCategoriesLoading(true);
       getAttachmentCategories(fspId)
         .then(setCategories)
-        .catch(() => setCategories([]))
+        .catch((e) => {
+          // A genuine empty list resolves fine and falls through to the
+          // "No categories available" dropdown state. Only an actual
+          // failure (e.g. the backend can't read the attachment-type
+          // table) lands here — surface it instead of masking it as an
+          // empty dropdown, which is indistinguishable to the user.
+          setCategories([]);
+          display({
+            kind: 'error',
+            title: "Couldn't load attachment categories",
+            subtitle:
+              e instanceof Error
+                ? e.message
+                : 'The category list could not be retrieved. Please try again.',
+            timeout: 0,
+          });
+        })
         .finally(() => setCategoriesLoading(false));
     }
   };
@@ -334,17 +350,19 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
         />
       ) : (
         <>
-          <header className="fsp-info__tile-header fsp-info__tile-header--tab">
-            <h2 className="fsp-info__section-title fsp-info__section-title--icon">
-              <Document size={20} />
-              <span>Attachments</span>
-            </h2>
-            {canEdit && (
-              <Button kind="tertiary" size="sm" renderIcon={Add} onClick={openAddDialog}>
+          {canEdit && (
+            <header className="fsp-info__tile-header fsp-info__tile-header--tab">
+              <Button
+                kind="tertiary"
+                size="sm"
+                renderIcon={Add}
+                onClick={openAddDialog}
+                style={{ marginInlineStart: 'auto' }}
+              >
                 Add attachment
               </Button>
-            )}
-          </header>
+            </header>
+          )}
           <div className="bordered-table">
           <TableContainer>
             <Table size="md" useZebraStyles>

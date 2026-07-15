@@ -246,6 +246,12 @@ public interface FspApiEndpoint {
             @PathVariable String fspId,
             @Valid @RequestBody ExtensionRequestSave body);
 
+    @GetMapping(URL.EXTENSION_ATTACHMENTS)
+    @Operation(summary = "List attachments linked to an extension via fsp_extension_xref")
+    ResponseEntity<List<ExtensionAttachmentResponse>> getExtensionAttachments(
+            @PathVariable String fspId,
+            @PathVariable String extensionId);
+
     @PostMapping(value = URL.EXTENSION_ATTACHMENTS, consumes = "multipart/form-data")
     @PreAuthorize(FspAuthorities.WORKFLOW_DECISION)
     @Operation(summary = "Upload an extension decision attachment (EXDDMD) via "

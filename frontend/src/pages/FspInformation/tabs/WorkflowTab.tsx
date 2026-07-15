@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import {CheckmarkFilled, RecentlyViewed, SubtractFilled} from '@carbon/icons-react';
+import {CheckmarkFilled, SubtractFilled} from '@carbon/icons-react';
 import {type FC, useEffect, useMemo, useState} from 'react';
 
 import {type FspWorkflowEvent, getFspWorkflow} from '@/services/fspSearch';
@@ -211,12 +211,6 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
 
   return (
     <>
-      <header className="fsp-info__tile-header fsp-info__tile-header--tab">
-        <h2 className="fsp-info__section-title fsp-info__section-title--icon">
-          <RecentlyViewed size={20} />
-          <span>History</span>
-        </h2>
-      </header>
       <div className="bordered-table">
       <TableContainer>
         <Table size="md" useZebraStyles>

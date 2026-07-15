@@ -40,7 +40,7 @@ interface Props {
 }
 
 const VARIANT_TITLE: Record<Props['variant'], string> = {
-  fdu: 'FDU / Map',
+  fdu: 'Forest Development Units (FDU)',
 };
 
 const MAP_VIEWER_URL = env.VITE_MAP_VIEWER_URL ?? '';

@@ -1,69 +1,180 @@
-// Size + spacing tuning for the FSP303 Extension Summary dialog.
-// Modal at size="lg" gives the 8-column extensions table room to
-// breathe; the tombstone strip sits above it on a 2-col responsive grid.
+// FSP303 Extension Summary dialog. Modal at size="lg" gives the
+// extensions table room; a white tombstone card and a white table card
+// stack inside the modal's grey body (matching the Amendment / Replacement
+// dialogs).
 
 .fsp-extension-summary-modal {
-  // Modal body needs some breathing room around the tombstone +
-  // table. Carbon's default modal body padding is enough horizontally
-  // but a bit tight vertically when stacking two sections.
   .cds--modal-content {
     padding-block-end: 1rem;
   }
 }
 
-.fsp-extension-summary-modal__body {
+.ext-summary {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-}
+  gap: 1.25rem;
 
-.fsp-extension-summary-modal__loading {
-  display: flex;
-  justify-content: center;
-  padding-block: 2rem;
-}
-
-.fsp-extension-summary-modal__tombstone {
-  background-color: var(--cds-layer-01);
-  padding: 1rem 1.25rem;
-}
-
-.fsp-extension-summary-modal__fields {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.75rem 1.5rem;
-  margin: 0;
-
-  @media (min-width: 672px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  &__loading {
+    display: flex;
+    justify-content: center;
+    padding-block: 2rem;
   }
 
-  @media (min-width: 1056px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  // White card wrapper used by both the tombstone strip and the table.
+  &__card {
+    background: var(--cds-layer, #ffffff);
+    border: 1px solid var(--cds-border-subtle, #e0e0e0);
+    border-radius: 0.5rem;
+    padding: 1.25rem 1.5rem;
+
+    &--table {
+      padding: 1rem 1.25rem 0.5rem;
+    }
   }
-}
 
-.fsp-extension-summary-modal__field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-
-  dt {
+  &__tombstone {
+    display: grid;
+    grid-template-columns: 1.6fr repeat(4, 1fr);
+    gap: 0.75rem 1.5rem;
     margin: 0;
-    font-size: 0.75rem;
+
+    @media (max-width: 800px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  &__tombstone-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    dt {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--cds-text-primary);
+    }
+
+    dd {
+      margin: 0;
+      font-size: 1rem;
+      color: var(--cds-text-primary);
+      word-break: break-word;
+    }
+  }
+
+  &__section-title {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--cds-text-primary);
+  }
+
+  &__empty {
+    margin: 0 0 0.75rem;
     color: var(--cds-text-secondary);
   }
 
-  dd {
-    margin: 0;
+  // Chevron expand control in the table's leading column.
+  &__expand-col {
+    inline-size: 2.5rem;
+    padding-inline: 0.5rem !important;
+  }
+
+  &__expand-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--cds-icon-primary, #161616);
+
+    svg {
+      transition: transform 120ms ease;
+    }
+
+    &--open svg {
+      transform: rotate(180deg);
+    }
+  }
+
+  // Expanded detail row — remove the zebra/hover treatment and give the
+  // detail block room.
+  &__detail-row td {
+    background: var(--cds-layer, #ffffff);
+    padding: 0 !important;
+  }
+
+  &__detail {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem 1.5rem 1.25rem 3rem;
+  }
+
+  &__pending-chip {
+    align-self: flex-start;
+    padding: 0.125rem 0.75rem;
+    border: 1px solid var(--cds-border-strong, #8d8d8d);
+    border-radius: 1rem;
     font-size: 0.875rem;
     color: var(--cds-text-primary);
   }
-}
 
-.fsp-extension-summary-modal__section-title {
-  margin: 0 0 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--cds-text-primary);
+  &__detail-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  &__detail-label {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--cds-text-primary);
+  }
+
+  &__detail-value {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--cds-text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__attachments {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  &__attachment-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 1rem;
+    color: var(--cds-link-primary, #0f62fe);
+
+    &:hover:not(:disabled) {
+      text-decoration: underline;
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    svg {
+      flex: 0 0 auto;
+    }
+  }
 }

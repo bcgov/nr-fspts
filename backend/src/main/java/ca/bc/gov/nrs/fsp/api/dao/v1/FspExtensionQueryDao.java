@@ -17,4 +17,16 @@ public interface FspExtensionQueryDao {
    * open no new amendment / extension / replacement may be started.
    */
   boolean hasOpenExtension(long fspId);
+
+  /**
+   * Attachments linked to a single extension via {@code fsp_extension_xref}
+   * (e.g. the extension request letter and the DDM decision letter EXDDMD).
+   * Backs the Extension Summary dialog's per-extension "Attachments" list.
+   * Distinct from the FSP-linked attachments returned by the FSP_400 procs,
+   * which are joined through {@code fsp_attachment_xref} instead.
+   */
+  java.util.List<ExtensionAttachment> findExtensionAttachments(long extensionId);
+
+  /** One attachment row linked to an extension. */
+  record ExtensionAttachment(String attachmentId, String attachmentName, String typeCode) {}
 }
