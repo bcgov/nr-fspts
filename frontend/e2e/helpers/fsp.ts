@@ -67,25 +67,26 @@ export async function addAttachment(
     modal.getByRole('heading', { name: 'Add attachment', exact: true }),
   ).toBeVisible();
 
-  // Resolve the category <option> by label, preferring the requested
-  // pattern. Index 0 is the "— Select category —" placeholder.
+  // Categories are fetched asynchronously when the dialog opens, so the
+  // <select> starts with just the "— Select category —" placeholder and
+  // fills in once the request resolves. Against the deployed env that
+  // fetch is slower than the modal open, so wait for a real option to
+  // appear before reading — otherwise we race the fetch and see only the
+  // placeholder. Index 0 is always the placeholder, so > 1 option means at
+  // least one real category is present.
   const categorySelect = modal.locator('#attachment-category');
-  const optionTexts = await categorySelect.locator('option').allTextContents();
-  // Real, selectable options only (drop the placeholder at index 0). If the
-  // dropdown is empty, the /attachment-categories endpoint returned nothing
-  // — historically a DB grant/visibility gap for the.fsp_attachment_type_code
-  // in the deployed env. Fail fast with a diagnostic instead of letting
-  // selectOption('') spin until the 180s test timeout (×3 retries = ~9 min).
+  const options = categorySelect.locator('option');
+  await expect
+    .poll(() => options.count(), {
+      timeout: 20_000,
+      message: 'Attachment category options never loaded',
+    })
+    .toBeGreaterThan(1);
+
+  // Resolve the category <option> by label, preferring the requested
+  // pattern; fall back to the first real category.
+  const optionTexts = await options.allTextContents();
   const selectable = optionTexts.filter((_t, i) => i > 0);
-  if (selectable.length === 0) {
-    throw new Error(
-      'Add-attachment category dropdown has no options. The ' +
-        `/attachment-categories endpoint returned an empty list at ${page.url()}. ` +
-        'Likely a DB grant/visibility gap for the.fsp_attachment_type_code ' +
-        'in this environment (categories come from a direct table SELECT, ' +
-        'unlike the proc-backed code lists that still work).',
-    );
-  }
   const match =
     selectable.find((t) => categoryPattern.test(t)) ?? selectable[0];
   await categorySelect.selectOption({ label: match });

@@ -1486,6 +1486,28 @@ export async function getFspExtent(
   return res.json() as Promise<FspExtentResponse>;
 }
 
+/**
+ * Fetches the FDU polygons for an FSP + amendment as a WGS84 GeoJSON
+ * FeatureCollection (SDO_GEOMETRY decoded + reprojected from BC Albers
+ * server-side). Backs the embedded Leaflet map on the FDU tab — the
+ * outlines the legacy app only showed by handing an extent off to the
+ * external arcmaps viewer.
+ */
+export async function getFspFduGeometry(
+  fspId: string,
+  amendmentNumber: string,
+): Promise<GeoJSON.FeatureCollection> {
+  const path = `/v1/fsp/${encodeURIComponent(fspId)}/amendments/${encodeURIComponent(
+    amendmentNumber,
+  )}/fdu-geometry`;
+  const res = await apiFetch(path);
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `FDU geometry load failed (${res.status})`);
+  }
+  return res.json() as Promise<GeoJSON.FeatureCollection>;
+}
+
 // ── District Auto-Notification (Admin) ────────────────────────────
 
 export interface NotificationDesignate {

@@ -440,7 +440,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
     { label: 'Regulation', value: dash(detail.regulationDescription) },
     { label: 'Effective date', value: dash(detail.effectiveDate) },
     { label: 'Expiry date', value: dash(detail.expiryDate) },
-    { label: 'Amendment #', value: dash(detail.standardsAmendNumber) },
+    { label: 'Version', value: dash(detail.standardsAmendNumber) },
     { label: 'Submitted by', value: dash(detail.submittedByUserid) },
     {
       label: 'Regen obligation',

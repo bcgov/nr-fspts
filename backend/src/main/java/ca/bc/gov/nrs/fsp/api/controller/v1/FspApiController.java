@@ -29,6 +29,7 @@ public class FspApiController implements FspApiEndpoint {
     private final StandardRegimeService standardRegimeService;
     private final CodeListsService codeListsService;
     private final FspExtentService fspExtentService;
+    private final FduGeometryGeoJsonService fduGeometryGeoJsonService;
     private final DistrictNotificationService districtNotificationService;
     private final UserDirectoryService userDirectoryService;
 
@@ -41,6 +42,7 @@ public class FspApiController implements FspApiEndpoint {
                             FduService fduService,
                             StandardRegimeService standardRegimeService,
                             CodeListsService codeListsService, FspExtentService fspExtentService,
+                            FduGeometryGeoJsonService fduGeometryGeoJsonService,
                             DistrictNotificationService districtNotificationService,
                             UserDirectoryService userDirectoryService) {
         this.fspService = fspService;
@@ -55,6 +57,7 @@ public class FspApiController implements FspApiEndpoint {
         this.standardRegimeService = standardRegimeService;
         this.codeListsService = codeListsService;
         this.fspExtentService = fspExtentService;
+        this.fduGeometryGeoJsonService = fduGeometryGeoJsonService;
         this.districtNotificationService = districtNotificationService;
         this.userDirectoryService = userDirectoryService;
     }
@@ -382,6 +385,14 @@ public class FspApiController implements FspApiEndpoint {
         int fsp = Integer.parseInt(fspId);
         int amend = Integer.parseInt(amendmentNumber);
         return ResponseEntity.ok(fspExtentService.getExtent(fsp, amend));
+    }
+
+    @Override
+    public ResponseEntity<java.util.Map<String, Object>> getFduGeometry(
+            String fspId, String amendmentNumber) {
+        int fsp = Integer.parseInt(fspId);
+        int amend = Integer.parseInt(amendmentNumber);
+        return ResponseEntity.ok(fduGeometryGeoJsonService.getFeatureCollection(fsp, amend));
     }
 
     // --- District Auto-Notification (Admin) ---

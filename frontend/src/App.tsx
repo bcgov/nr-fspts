@@ -14,6 +14,7 @@ import SearchPage from './pages/SearchPage';
 import StandardsSearchPage from './pages/StandardsSearchPage';
 import InboxPage from './pages/InboxPage';
 import FspInformationPage from './pages/FspInformation';
+import FspMapPage from './pages/FspMap';
 import HistoryPage from './pages/HistoryPage';
 import DistrictNotificationPage from './pages/DistrictNotificationPage';
 import OrgSelectionPage from './pages/OrgSelectionPage';
@@ -114,6 +115,10 @@ export default function App() {
               Replace remain separate destinations (the legacy treats
               them as dedicated sub-pages, not tabs). */}
           <Route path="/fsp/information"        element={guarded(withLayout(<FspInformationPage />))} />
+          {/* Full-screen FDU map, opened in a new tab from the Map tab's
+              per-row "Map view" links. Chrome-free (no Layout) — it's a
+              focused map popup, not a navigational page. */}
+          <Route path="/fsp/map"                element={guarded(<FspMapPage />)} />
           {/* Amendment + Replacement Description, New Extension Request,
               and Extension Summary are all dialogs now — no standalone
               routes. */}

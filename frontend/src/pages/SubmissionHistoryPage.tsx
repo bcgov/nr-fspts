@@ -59,7 +59,7 @@ interface SearchResult {
 
 const HEADERS = [
   { key: 'fspId', header: 'FSP ID' },
-  { key: 'amendNo', header: 'Amendment #' },
+  { key: 'amendNo', header: 'Version' },
   { key: 'name', header: 'FSP name' },
   { key: 'amendName', header: 'Amendment name' },
   { key: 'status', header: 'Status' },
@@ -498,13 +498,13 @@ const SubmissionHistoryPage: FC = () => {
                                           );
                                         }
                                         // Amendment 0 is the original plan — display
-                                        // "Original FSP" but keep the raw "0" value
+                                        // "Original" but keep the raw "0" value
                                         // (the nav URL reads it from the cell value).
                                         if (cell.info.header === 'amendNo') {
                                           return (
                                             <TableCell key={cell.id}>
                                               {value === '0'
-                                                ? 'Original FSP'
+                                                ? 'Original'
                                                 : formatCellText(value as string)}
                                             </TableCell>
                                           );

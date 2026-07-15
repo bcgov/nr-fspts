@@ -75,7 +75,7 @@ interface SearchResult {
 
 const HEADERS = [
   { key: 'fspId', header: 'FSP ID' },
-  { key: 'amendNo', header: 'Amendment #' },
+  { key: 'amendNo', header: 'Version' },
   { key: 'name', header: 'FSP name' },
   { key: 'amendName', header: 'Amendment name' },
   { key: 'status', header: 'Status' },
@@ -804,7 +804,7 @@ const SearchPage: FC = () => {
                                         if (cell.info.header === 'amendNo') {
                                           return (
                                             <TableCell key={cell.id}>
-                                              {value === '0' ? 'Original FSP' : formatCellText(value)}
+                                              {value === '0' ? 'Original' : formatCellText(value)}
                                             </TableCell>
                                           );
                                         }

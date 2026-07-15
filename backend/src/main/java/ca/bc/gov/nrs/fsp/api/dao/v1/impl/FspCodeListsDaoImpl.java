@@ -55,6 +55,31 @@ public class FspCodeListsDaoImpl extends AbstractStoredProcedureDao implements F
     return callOneInOneCursor("get_fsp_amendment_numbers", pFspId);
   }
 
+  @Override public Map<String, String> getFspAmendmentTypeCodes(String pFspId) {
+    // Direct read alongside the code-list proc (which doesn't expose the
+    // amendment type). fsp_id is a NUMBER column — bind it as a long so
+    // Oracle uses the PK index instead of an implicit string conversion.
+    long fspId;
+    try {
+      fspId = Long.parseLong(pFspId.trim());
+    } catch (NumberFormatException | NullPointerException e) {
+      return Map.of();
+    }
+    List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+        "SELECT DISTINCT fsp_amendment_number AS num, fsp_amendment_code AS code "
+            + "  FROM the.forest_stewardship_plan "
+            + " WHERE fsp_id = ?", fspId);
+    Map<String, String> out = new HashMap<>(rows.size());
+    for (Map<String, Object> row : rows) {
+      Object num = row.get("NUM");
+      Object code = row.get("CODE");
+      if (num instanceof Number n) {
+        out.put(Integer.toString(n.intValue()), code == null ? null : code.toString().trim());
+      }
+    }
+    return out;
+  }
+
   @Override public List<Map<String, Object>> getAttachReferenceList(String pFspId) {
     return callOneInOneCursor("get_attach_reference_list", pFspId);
   }

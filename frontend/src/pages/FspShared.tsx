@@ -22,7 +22,7 @@ export function FspTombstone({
   return (
     <div className="tombstone">
       <div className="tombstone__field"><span className="tombstone__label">FSP ID</span><span className="tombstone__value">{fspId}</span></div>
-      <div className="tombstone__field"><span className="tombstone__label">Amendment #</span><span className="tombstone__value">{amendNo}</span></div>
+      <div className="tombstone__field"><span className="tombstone__label">Version</span><span className="tombstone__value">{amendNo}</span></div>
       <div className="tombstone__field"><span className="tombstone__label">Status</span><span className="tombstone__value">{status}</span></div>
       <div className="tombstone__field"><span className="tombstone__label">Organization unit</span><span className="tombstone__value">{orgUnit}</span></div>
       <div className="tombstone__field"><span className="tombstone__label">Agreement holder</span><span className="tombstone__value">{holder}</span></div>

@@ -1,0 +1,54 @@
+// Full-screen standalone FDU map view (opened in its own browser tab).
+// A simple column: a slim header bar over a map that fills the rest of
+// the viewport. The FduMap's own border is redundant here, so it's
+// flattened against the header.
+.fsp-map-page {
+  display: flex;
+  flex-direction: column;
+  block-size: 100vh;
+  inline-size: 100vw;
+  background: var(--cds-background, #ffffff);
+
+  &__header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-block-end: 1px solid var(--cds-border-subtle, #e0e0e0);
+    color: var(--cds-text-primary);
+  }
+
+  &__title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  &__subtitle {
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--cds-text-secondary);
+  }
+
+  &__body {
+    flex: 1 1 auto;
+    min-block-size: 0; // let the flex child shrink so the map gets real height
+
+    // The map fills the body; drop its embedded border/radius since it's
+    // edge-to-edge here.
+    .fdu-map {
+      block-size: 100%;
+      border: 0;
+      border-radius: 0;
+    }
+  }
+
+  &__empty {
+    padding: 2rem 1rem;
+    color: var(--cds-text-secondary);
+  }
+}
