@@ -230,6 +230,33 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
         });
   }
 
+  // FSP_550_STDS_PROPOSAL.REMOVE positional params (5):
+  //   1. p_standards_regime_id IN
+  //   2. p_standards_regime_status_code IN — proc audit hook only
+  //   3. p_update_userid IN
+  //   4. p_revision_count IN — optimistic-lock token on standards_regime
+  //   5. p_error_message INOUT
+  private static final int REMOVE_PARAM_COUNT = 5;
+  private static final String REMOVE_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_REMOVE, REMOVE_PARAM_COUNT);
+
+  @Override
+  public void removeRegime(RemoveRequest req) {
+    executeCall(REMOVE_CALL,
+        cs -> {
+          cs.setString(1, req.standardsRegimeId());          // IN
+          cs.setString(2, req.standardsRegimeStatusCode());  // IN
+          cs.setString(3, req.updateUserid());               // IN
+          cs.setString(4, req.revisionCount());              // IN
+          setInOutString(cs, 5, "");                         // INOUT p_error_message
+        },
+        cs -> {
+          String error = cs.getString(5);
+          throwIfError(PACKAGE_NAME, PROCEDURE_REMOVE, error);
+          return null;
+        });
+  }
+
   // FSP_550_STDS_PROPOSAL.COPY positional params (8):
   //   1. p_standards_regime_id INOUT — source id in, new id out
   //   2. p_fsp_id IN

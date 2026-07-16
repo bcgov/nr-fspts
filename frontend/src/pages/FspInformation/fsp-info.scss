@@ -1205,6 +1205,49 @@
   background-color: var(--cds-layer-02);
 }
 
+// Centered "No stocking standards" empty state — blue add-document glyph,
+// bold title, muted body, and (when editable) the create / add actions
+// inline. Fills the tab so it reads as a first-run call to action rather
+// than a stray line of text.
+.fsp-info__empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.5rem;
+  min-block-size: 24rem;
+  padding: 3rem 1.5rem;
+}
+
+.fsp-info__empty-state-icon {
+  fill: var(--cds-link-primary, #0f62fe);
+  margin-block-end: 0.5rem;
+}
+
+.fsp-info__empty-state-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+}
+
+.fsp-info__empty-state-body {
+  margin: 0;
+  max-inline-size: 32rem;
+  color: var(--cds-text-secondary);
+  line-height: 1.4;
+}
+
+.fsp-info__empty-state-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-block-start: 1rem;
+}
+
 // Selected-standard detail panel header: document icon + "Standards ID:
 // …" + status tag on the left, "Copy standard" on the right.
 .fsp-info__detail-header {
@@ -1407,12 +1450,22 @@
 // TableRow that contains a TableSelectRow radio. Pointer cursor on the
 // whole row; the blue hover comes from the shared selectable-row rule in
 // styles/_tables.scss (via the app-table__row--selectable marker).
-// Selection is indicated by the row's radio button alone — the row keeps
-// the shared zebra striping (no selected-row wash or bold), matching the
-// FSP search results look.
+// Selection is indicated by the row's radio button alone — no selected-row
+// wash or bold.
 .fsp-info__row {
   cursor: pointer;
   transition: background-color 0.15s ease;
+}
+
+// Stocking-standards table (under FSP details): solid white rows, no zebra.
+// Kill the global even-row stripe (src/styles/_tables.scss) — match its
+// selector shape + our extra class so specificity (0,3,3) beats the
+// (0,2,3) zebra rule.
+.fsp-info__standards-table {
+  .cds--data-table tbody tr:nth-child(even),
+  .cds--data-table tbody tr:nth-child(even) td {
+    background-color: #ffffff;
+  }
 }
 
 // REPT-style "inner tabs" — direct port of nr-rept's

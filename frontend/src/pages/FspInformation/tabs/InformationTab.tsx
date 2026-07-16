@@ -33,15 +33,11 @@ import {
   updateFsp,
 } from '@/services/fspSearch';
 
+import { EDIT_PANE, useEditLock, useEditRegistration } from '../editLock';
+
 interface Props {
   fsp: FspInformation | null;
   onSaved: (updated: FspInformation) => void;
-  /**
-   * Notifies the parent page whenever Plan details enters/leaves edit
-   * mode, so it can disable the page-level action buttons (Amend,
-   * Extend, Replace, Submit, Delete) while an edit is in progress.
-   */
-  onEditingChange?: (editing: boolean) => void;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -239,7 +235,7 @@ const toPayload = (form: EditFormState): Partial<FspInformation> => ({
 
 // ─── Component ─────────────────────────────────────────────────────────
 
-const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
+const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
   const { display } = useNotification();
   const { user } = useAuth();
   // Master edit gate — View-Only never edits; Submitter-only is locked
@@ -283,11 +279,12 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
     }
   }, [fsp, editing]);
 
-  // Surface edit-mode state so the parent page can lock its action
-  // buttons while Plan details are being edited.
-  useEffect(() => {
-    onEditingChange?.(editing);
-  }, [editing, onEditingChange]);
+  // Register Plan-details edit mode into the page-wide edit lock so every
+  // other action button (page header, districts, agreement holders, other
+  // tabs) disables while this pane is open. `anyEditing` is true whenever
+  // ANY pane on the page — including this one — holds the lock.
+  useEditRegistration(EDIT_PANE.infoPlan, editing);
+  const { anyEditing } = useEditLock();
 
   // On entering edit mode, focus the first field.
   useEffect(() => {
@@ -540,6 +537,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                 kind="tertiary"
                 size="sm"
                 renderIcon={Edit}
+                disabled={anyEditing}
                 onClick={handleEdit}
               >
                 Edit plan details
@@ -801,7 +799,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                 kind="tertiary"
                 size="sm"
                 renderIcon={Add}
-                disabled={editing}
+                disabled={anyEditing}
                 onClick={() => setClientPickerOpen(true)}
               >
                 Add agreement holder
@@ -856,7 +854,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                                       kind="danger--ghost"
                                       size="sm"
                                       renderIcon={TrashCan}
-                                      disabled={editing}
+                                      disabled={anyEditing}
                                       onClick={() => {
                                         const target = holderByRowId.get(row.id);
                                         if (target) setHolderDeleteTarget(target);
@@ -894,7 +892,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                 kind="tertiary"
                 size="sm"
                 renderIcon={Add}
-                disabled={editing}
+                disabled={anyEditing}
                 onClick={() => setDistrictPickerOpen(true)}
               >
                 Add district
@@ -927,7 +925,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, onEditingChange }) => {
                               kind="danger--ghost"
                               size="sm"
                               renderIcon={TrashCan}
-                              disabled={!d.orgUnitNo}
+                              disabled={!d.orgUnitNo || anyEditing}
                               onClick={() => setDistrictDeleteTarget(d)}
                             >
                               Delete

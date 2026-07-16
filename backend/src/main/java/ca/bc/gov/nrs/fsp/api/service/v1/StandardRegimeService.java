@@ -280,6 +280,37 @@ public class StandardRegimeService {
   }
 
   /**
+   * Deletes a whole standards regime (and its layers, species, org units,
+   * clients, attachments, BGC site series, and FSP xref) via
+   * {@code FSP_550_STDS_PROPOSAL.REMOVE}. The revision_count is read
+   * fresh through the lightweight {@link Fsp550StdsProposalDao#getRevisionCount(String)}
+   * helper and passed as the proc's optimistic-lock token — a stale
+   * regime (edited elsewhere since it loaded) fails the proc's
+   * "modified record" guard rather than deleting silently.
+   *
+   * <p>This is the correct delete path: FSP_500_STOCKING_STANDARDS has no
+   * regime-id parameter (it's FSP-scoped), so a "delete" routed there
+   * targeted nothing — hence the old "success but the standard is still
+   * there" behaviour.
+   */
+  @Transactional
+  public void deleteRegime(String fspId, String regimeId) {
+    accessGuard.assertContentEditable(fspId, null);
+    String userId = RequestUtil.getCurrentAuditUserId();
+    String revisionCount = dao.getRevisionCount(regimeId);
+    if (revisionCount == null) {
+      throw new IllegalArgumentException(
+          "Standards regime " + regimeId + " not found.");
+    }
+    dao.removeRegime(new Fsp550StdsProposalDao.RemoveRequest(
+        regimeId,
+        "",            // status code — proc only references it in its audit hook
+        userId,
+        revisionCount));
+    log.info("Deleted standards regime {} on fsp {} by {}", regimeId, fspId, userId);
+  }
+
+  /**
    * Loads the per-layer detail (densities + species lists) for one
    * layer of a regime. Composes FSP_550_SUB_LAYERS.GET with two
    * FSP_550_SUB_SPECIES.GET calls (preferred + acceptable). The

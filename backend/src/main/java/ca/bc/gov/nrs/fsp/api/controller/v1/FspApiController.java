@@ -190,7 +190,7 @@ public class FspApiController implements FspApiEndpoint {
 
     @Override
     public ResponseEntity<Void> deleteStandard(String fspId, String standardId) {
-        standardsService.delete(standardId);
+        standardRegimeService.deleteRegime(fspId, standardId);
         return ResponseEntity.noContent().build();
     }
 

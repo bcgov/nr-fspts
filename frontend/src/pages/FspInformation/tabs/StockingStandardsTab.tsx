@@ -11,7 +11,7 @@ import {
   TableRow,
   TableSelectRow,
 } from '@carbon/react';
-import {Add, CheckmarkFilled, SubtractAlt} from '@carbon/icons-react';
+import {Add, CheckmarkFilled, DocumentAdd, SubtractAlt} from '@carbon/icons-react';
 import {type FC, type SVGProps, useCallback, useEffect, useRef, useState} from 'react';
 
 import { StandardsSearchIcon } from '@/components/Layout/navIcons';
@@ -30,6 +30,7 @@ import {
   getFspStandards,
 } from '@/services/fspSearch';
 
+import { useEditLock } from '../editLock';
 import StandardRegimeDetailPanel from './StandardRegimeDetailPanel';
 
 // Adapter so the custom Stocking-standards nav icon renders at Carbon's
@@ -100,6 +101,10 @@ const StockingStandardsTab: FC<Props> = ({
   // scroll it into view (top-aligned) — the panel is well below the fold
   // on longer standards lists.
   const detailRef = useRef<HTMLDivElement>(null);
+  // While any pane (e.g. the selected regime's Overview / Layers) is being
+  // edited, lock the regime-level actions so the user can't create / add /
+  // copy / delete a standard mid-edit.
+  const { anyEditing } = useEditLock();
   const [newStandardOpen, setNewStandardOpen] = useState(false);
   const [addExistingOpen, setAddExistingOpen] = useState(false);
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
@@ -244,6 +249,7 @@ const StockingStandardsTab: FC<Props> = ({
             size="sm"
             className="fsp-info__link-icon-btn"
             renderIcon={CreateStandardIcon}
+            disabled={anyEditing}
             onClick={() => setNewStandardOpen(true)}
           >
             Create stocking standard
@@ -254,6 +260,7 @@ const StockingStandardsTab: FC<Props> = ({
             kind="tertiary"
             size="sm"
             renderIcon={Add}
+            disabled={anyEditing}
             onClick={() => setAddExistingOpen(true)}
           >
             Add existing standard
@@ -364,10 +371,39 @@ const StockingStandardsTab: FC<Props> = ({
     return (
       <>
         <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
-          {headerNode}
-          <p className="fsp-info__placeholder">
-            No stocking standards on this FSP.
-          </p>
+          <div className="fsp-info__empty-state">
+            <DocumentAdd size={48} className="fsp-info__empty-state-icon" />
+            <h3 className="fsp-info__empty-state-title">
+              No stocking standards for this FSP
+            </h3>
+            <p className="fsp-info__empty-state-body">
+              {canCreate
+                ? 'Add an existing standards regime or create a new one to '
+                  + 'define the regeneration and free-growing requirements for '
+                  + 'this plan.'
+                : 'None have been added for this version. Standards can be '
+                  + 'added while the FSP amendment is in Draft.'}
+            </p>
+            {canCreate && (
+              <div className="fsp-info__empty-state-actions">
+                <Button
+                  kind="ghost"
+                  className="fsp-info__link-icon-btn"
+                  renderIcon={CreateStandardIcon}
+                  onClick={() => setNewStandardOpen(true)}
+                >
+                  Create stocking standard
+                </Button>
+                <Button
+                  kind="tertiary"
+                  renderIcon={Add}
+                  onClick={() => setAddExistingOpen(true)}
+                >
+                  Add existing standard
+                </Button>
+              </div>
+            )}
+          </div>
         </section>
         {newStandardModal}
         {addExistingStandardModal}
@@ -400,7 +436,7 @@ const StockingStandardsTab: FC<Props> = ({
     <>
       <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
         {headerNode}
-        <div className="bordered-table">
+        <div className="bordered-table fsp-info__standards-table">
           <DataTable rows={tableRows} headers={HEADERS} isSortable>
             {({ rows: r, headers, getTableProps, getHeaderProps }) => (
               <TableContainer>
@@ -425,6 +461,10 @@ const StockingStandardsTab: FC<Props> = ({
                         regimeId !== null && regimeId === selectedRegimeId;
                       const pick = () => {
                         if (!regimeId) return;
+                        // Locked while a pane is being edited — switching the
+                        // selected standard would unmount the open editor and
+                        // discard the in-progress changes.
+                        if (anyEditing) return;
                         setSelectedRegimeId(regimeId);
                         // Wait for the panel to (re)render, then bring its
                         // top up to the top of the viewport so the user
@@ -439,7 +479,11 @@ const StockingStandardsTab: FC<Props> = ({
                       return (
                         <TableRow
                           key={row.id}
-                          className="fsp-info__row app-table__row--selectable"
+                          className={
+                            anyEditing
+                              ? 'fsp-info__row'
+                              : 'fsp-info__row app-table__row--selectable'
+                          }
                           onClick={pick}
                         >
                           {row.cells.map((cell) => {
@@ -452,6 +496,7 @@ const StockingStandardsTab: FC<Props> = ({
                                   name="ss-selection"
                                   ariaLabel={`Select standards regime ${row.id}`}
                                   checked={isSelected}
+                                  disabled={anyEditing && !isSelected}
                                   onSelect={pick}
                                 />
                               );

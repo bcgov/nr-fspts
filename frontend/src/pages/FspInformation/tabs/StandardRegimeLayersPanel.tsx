@@ -21,7 +21,7 @@ import {
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
 import {Add, Copy, Launch, TrashCan} from '@carbon/icons-react';
-import {type FC, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {type FC, useCallback, useEffect, useId, useMemo, useRef, useState} from 'react';
 
 import ConfirmationModal from '@/components/ConfirmationModal';
 import {useNotification} from '@/context/notification/useNotification';
@@ -40,6 +40,8 @@ import {
   type StandardRegimeSpecies,
   updateStandardRegimeLayer,
 } from '@/services/fspSearch';
+
+import { EDIT_PANE, useEditLock, useEditRegistration } from '../editLock';
 
 // Small Carbon spinner sized to fit a Button icon slot — matches the
 // pattern used in AttachmentsTab / BgcZoneSearchModal so every dialog
@@ -232,6 +234,14 @@ const LayerDetailPanel: FC<{
   const [detail, setDetail] = useState<StandardRegimeLayerDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
+  // Register this layer's edit mode into the page-wide edit lock. A unique
+  // per-instance id (multiple layer panels can be mounted at once in a
+  // multi-layer regime) means `lockedFor(paneId)` is false only for the
+  // layer actually being edited — so its own Convert action stays live
+  // while every other pane's actions lock. `anyEditing` covers all panes.
+  const paneId = `${EDIT_PANE.stdLayers}:${useId()}`;
+  useEditRegistration(paneId, editing);
+  const { anyEditing } = useEditLock();
   // Focus the first density input when entering edit mode.
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<LayerFormState | null>(null);
@@ -463,7 +473,13 @@ const LayerDetailPanel: FC<{
     <div className="fsp-info__tab-panel">
       {!editing && !readOnly && (
         <div className="fsp-info__tab-actions">
-          <Button kind="tertiary" size="sm" renderIcon={Launch} onClick={handleEdit}>
+          <Button
+            kind="tertiary"
+            size="sm"
+            renderIcon={Launch}
+            disabled={anyEditing}
+            onClick={handleEdit}
+          >
             Edit layers
           </Button>
         </div>
@@ -585,7 +601,7 @@ const LayerDetailPanel: FC<{
         idPrefix={`pref-${layer.layerCode}`}
         preferred
         readOnly={readOnly}
-        disabled={editing}
+        disabled={anyEditing}
         layerExists={!!layer.layerId}
         speciesCodes={speciesCodes}
         speciesCodesLoading={speciesCodesLoading}
@@ -601,7 +617,7 @@ const LayerDetailPanel: FC<{
         idPrefix={`acc-${layer.layerCode}`}
         preferred={false}
         readOnly={readOnly}
-        disabled={editing}
+        disabled={anyEditing}
         layerExists={!!layer.layerId}
         speciesCodes={speciesCodes}
         speciesCodesLoading={speciesCodesLoading}
