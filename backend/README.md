@@ -85,6 +85,8 @@ src/main/java/ca/bc/gov/nrs/fsp/api/
 - **Uploads are virus-scanned** (ClamAV `clamd` over raw TCP) before parse or
   storage. Locally there's no clamd, so the `local` profile fails open — see
   [../docs/virus-scanning.md](../docs/virus-scanning.md) for config, the
-  fail-open policy, and the cross-namespace NetworkPolicy the deploy needs.
+  fail-open policy, and cross-namespace networking. **Note:** an ingress
+  `NetworkPolicy` inside the ClamAV (tools) namespace is required to reach clamd
+  and must be applied **manually** — the deploy pipeline doesn't create it.
 - Keep services thin; push business rules to the procs (they own the schema and
   the transitions).
