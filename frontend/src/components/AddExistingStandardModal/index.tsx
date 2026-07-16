@@ -18,7 +18,7 @@ import {
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
-import { Add, Search as SearchIcon } from '@carbon/icons-react';
+import { Add, Information, Search as SearchIcon } from '@carbon/icons-react';
 import {
   type FC,
   type FormEvent,
@@ -361,8 +361,6 @@ const AddExistingStandardModal: FC<Props> = ({
     >
       <p className="add-std-modal__intro">
         Search for an existing standards regime, then add it to this FSP.
-        The selected regime is copied onto the FSP as a new Draft — the
-        original is left untouched.
       </p>
 
       <form className="add-std-modal__form" onSubmit={handleSubmit}>
@@ -422,7 +420,7 @@ const AddExistingStandardModal: FC<Props> = ({
 
           <TextInput
             id="add-std-clientNumber"
-            labelText="Client #"
+            labelText="Client number"
             value={form.clientNumber}
             onChange={setDigitsOnly('clientNumber')}
             maxLength={8}
@@ -558,6 +556,13 @@ const AddExistingStandardModal: FC<Props> = ({
             </p>
           ) : (
             <>
+              <div className="add-std-modal__banner" role="note">
+                <Information className="add-std-modal__banner-icon" size={20} />
+                <span>
+                  The selected regime is copied onto the FSP as a new Draft —
+                  the original is left untouched.
+                </span>
+              </div>
               <div className="add-std-modal__results-header">
                 {totalElements.toLocaleString()}{' '}
                 {totalElements === 1 ? 'standard' : 'standards'} found

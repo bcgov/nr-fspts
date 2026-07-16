@@ -25,6 +25,7 @@ import {useNavigate} from 'react-router-dom';
 
 import {type ClientSearchResult, searchClientsAuto} from '@/services/clientSearch';
 import {useNotification} from '@/context/notification/useNotification';
+import {safeErrorMessage} from '@/lib/errorMessage';
 import {type CodeOption, type FspSearchResult, getFspStatusCodes, getOrgUnits, searchFsp,} from '@/services/fspSearch';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
@@ -378,7 +379,7 @@ const SearchPage: FC = () => {
         setPage(data.page.number);
         setPageSize(data.page.size);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(safeErrorMessage(e));
         setResults([]);
         setTotalElements(0);
       } finally {

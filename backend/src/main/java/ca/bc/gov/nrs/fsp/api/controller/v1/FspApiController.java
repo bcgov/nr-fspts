@@ -135,13 +135,13 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
-    public ResponseEntity<FspRequest> amendFsp(String fspId) {
-        return ResponseEntity.ok(fspService.amend(fspId, new FspRequest()));
+    public ResponseEntity<FspRequest> amendFsp(String fspId, FspRequest request) {
+        return ResponseEntity.ok(fspService.amend(fspId, request == null ? new FspRequest() : request));
     }
 
     @Override
-    public ResponseEntity<FspRequest> replaceFsp(String fspId) {
-        return ResponseEntity.ok(fspService.replace(fspId, new FspRequest()));
+    public ResponseEntity<FspRequest> replaceFsp(String fspId, FspRequest request) {
+        return ResponseEntity.ok(fspService.replace(fspId, request == null ? new FspRequest() : request));
     }
 
     // --- Workflow ---

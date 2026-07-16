@@ -997,7 +997,7 @@ function ReviewSections({
         ) : (
           <DTable
             ariaLabel="Agreement holders"
-            headers={['Client #', 'Name']}
+            headers={['Client number', 'Name']}
             rows={preview.agreementHolders.map((h) => [h.clientNumber, h.clientName ?? '—'])}
           />
         )}

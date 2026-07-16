@@ -1,6 +1,7 @@
 import {
   Button,
   DataTable,
+  DataTableSkeleton,
   Loading,
   Pagination,
   Table,
@@ -13,10 +14,11 @@ import {
   TextInput,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
-import { Search as SearchIcon } from '@carbon/icons-react';
+import { Add, Search as SearchIcon } from '@carbon/icons-react';
 import { useCallback, useEffect, useState, type FC, type FormEvent } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import { searchBgcZones, type BgcSearchResult } from '@/services/bgcSearch';
 import './BgcZoneSearchModal.scss';
 
@@ -38,6 +40,9 @@ interface CriteriaState {
   bgcSubzoneCode: string;
   bgcVariant: string;
   bgcPhase: string;
+  becSiteSeriesCd: string;
+  becSiteSeriesPhaseCd: string;
+  becSeral: string;
 }
 
 const EMPTY_CRITERIA: CriteriaState = {
@@ -45,6 +50,9 @@ const EMPTY_CRITERIA: CriteriaState = {
   bgcSubzoneCode: '',
   bgcVariant: '',
   bgcPhase: '',
+  becSiteSeriesCd: '',
+  becSiteSeriesPhaseCd: '',
+  becSeral: '',
 };
 
 // Column max-lengths from STANDARDS_REGIME_SITE_SERIES (matches the
@@ -54,6 +62,9 @@ const FIELD_LENGTHS = {
   bgcSubzoneCode: 3,
   bgcVariant: 1,
   bgcPhase: 1,
+  becSiteSeriesCd: 4,
+  becSiteSeriesPhaseCd: 3,
+  becSeral: 4,
 } as const;
 
 const HEADERS = [
@@ -62,12 +73,12 @@ const HEADERS = [
   { key: 'bgcVariant', header: 'Variant' },
   { key: 'bgcPhase', header: 'Phase' },
   { key: 'becSiteSeriesCd', header: 'Site series' },
-  { key: 'becSiteSeriesPhaseCd', header: 'Site series phase' },
+  { key: 'becSiteSeriesPhaseCd', header: 'Site phase' },
   { key: 'becSeral', header: 'Seral' },
   { key: 'siteSeriesDesc', header: 'Description' },
   // Synthetic action column. DataTable iterates row.cells over the
-  // registered headers, so we surface a header for the Select button.
-  { key: 'select', header: '' },
+  // registered headers, so we surface a header for the Add button.
+  { key: 'select', header: 'Action' },
 ];
 
 const formatCell = (value: string | null | undefined) =>
@@ -138,7 +149,7 @@ const BgcZoneSearchModal: FC<BgcZoneSearchModalProps> = ({ open, onClose, onSele
         setPage(data.page.number);
         setPageSize(data.page.size);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(safeErrorMessage(e));
         setResults([]);
         setTotalElements(0);
       } finally {
@@ -155,6 +166,17 @@ const BgcZoneSearchModal: FC<BgcZoneSearchModalProps> = ({ open, onClose, onSele
     },
     [runSearch, pageSize],
   );
+
+  // Clear resets the criteria and wipes any prior result set, returning
+  // the dialog to its pristine "search for a zone" state.
+  const handleClear = useCallback(() => {
+    if (loading) return;
+    setCriteria(EMPTY_CRITERIA);
+    setResults(null);
+    setTotalElements(0);
+    setPage(0);
+    setError(null);
+  }, [loading]);
 
   const handlePagination = useCallback(
     ({ page: newPage, pageSize: newSize }: { page: number; pageSize: number }) => {
@@ -212,10 +234,13 @@ const BgcZoneSearchModal: FC<BgcZoneSearchModalProps> = ({ open, onClose, onSele
       // Carbon "lg" — the results table is 7 visible columns plus the
       // Select button so wider is better.
       size="lg"
-      modalHeading="BGC zone search"
+      modalHeading="Add BGC zone"
       passiveModal
       className="bgc-search-modal"
     >
+      <p className="bgc-search__intro">
+        Search for a BGC zone to add to this stocking standard.
+      </p>
       <form className="bgc-search__form" onSubmit={handleSubmit}>
         <div className="bgc-search__field-grid">
           <TextInput
@@ -250,9 +275,42 @@ const BgcZoneSearchModal: FC<BgcZoneSearchModalProps> = ({ open, onClose, onSele
             maxLength={FIELD_LENGTHS.bgcPhase}
             autoComplete="off"
           />
+          <TextInput
+            id="bgc-search-site-series"
+            labelText="Site series"
+            value={criteria.becSiteSeriesCd}
+            onChange={(e) => set('becSiteSeriesCd', e.target.value)}
+            maxLength={FIELD_LENGTHS.becSiteSeriesCd}
+            autoComplete="off"
+          />
+          <TextInput
+            id="bgc-search-site-phase"
+            labelText="Site phase"
+            value={criteria.becSiteSeriesPhaseCd}
+            onChange={(e) => set('becSiteSeriesPhaseCd', e.target.value)}
+            maxLength={FIELD_LENGTHS.becSiteSeriesPhaseCd}
+            autoComplete="off"
+          />
+          <TextInput
+            id="bgc-search-seral"
+            labelText="Seral"
+            value={criteria.becSeral}
+            onChange={(e) => set('becSeral', e.target.value)}
+            maxLength={FIELD_LENGTHS.becSeral}
+            autoComplete="off"
+          />
         </div>
 
         <div className="bgc-search__actions">
+          <Button
+            type="button"
+            kind="tertiary"
+            size="md"
+            onClick={handleClear}
+            disabled={loading}
+          >
+            Clear
+          </Button>
           <Button
             type="submit"
             size="md"
@@ -264,94 +322,101 @@ const BgcZoneSearchModal: FC<BgcZoneSearchModalProps> = ({ open, onClose, onSele
         </div>
       </form>
 
-      {hasResults && (
+      {/* Searching state — skeleton rows stand in for the results table
+          (mirrors the mockup's loading treatment). */}
+      {loading && (
         <div className="bgc-search__results">
-          <div className="bgc-search__table-container">
-            <div className={loading ? 'bgc-search__table--loading' : undefined}>
-              <div className="bordered-table">
-                <DataTable
-                  rows={results!.map((r, i) => ({ ...r, id: rowKey(r, i) }))}
-                  headers={HEADERS}
-                >
-                  {({ rows, headers, getTableProps, getHeaderProps }) => (
-                    <TableContainer>
-                      <Table {...getTableProps()} size="sm" useZebraStyles>
-                        <TableHead>
-                          <TableRow>
-                            {headers.map((h) => (
-                              <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
-                                {h.header}
-                              </TableHeader>
-                            ))}
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {rows.map((row, idx) => {
-                            // Pull the original record back so the
-                            // Select handler hands the parent a clean
-                            // typed object rather than DataTable's
-                            // augmented row shape.
-                            const original = results![idx];
-                            const isSelecting = selectingKey === row.id;
-                            const otherBusy =
-                              selectingKey !== null && !isSelecting;
-                            return (
-                              <TableRow key={row.id}>
-                                {row.cells.map((cell) => {
-                                  if (cell.info.header === 'select') {
-                                    return (
-                                      <TableCell key={cell.id}>
-                                        <Button
-                                          kind="ghost"
-                                          size="sm"
-                                          disabled={isSelecting || otherBusy}
-                                          renderIcon={
-                                            isSelecting ? SearchingIcon : undefined
-                                          }
-                                          onClick={() =>
-                                            void handleSelect(row.id, original)
-                                          }
-                                        >
-                                          {isSelecting ? 'Saving…' : 'Select'}
-                                        </Button>
-                                      </TableCell>
-                                    );
-                                  }
-                                  return (
-                                    <TableCell key={cell.id}>
-                                      {formatCell(cell.value as string | null | undefined)}
-                                    </TableCell>
-                                  );
-                                })}
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
-                </DataTable>
-              </div>
-            </div>
-            {loading && (
-              <div className="bgc-search__table-overlay" role="status" aria-live="polite">
-                <Loading description="Loading…" withOverlay={false} />
-              </div>
-            )}
-          </div>
-
-          <Pagination
-            page={page + 1}
-            pageSize={pageSize}
-            pageSizes={[10, 25, 50, 100]}
-            totalItems={totalElements}
-            onChange={handlePagination}
-            size="md"
+          <DataTableSkeleton
+            columnCount={HEADERS.length}
+            rowCount={5}
+            showHeader={false}
+            showToolbar={false}
+            compact
           />
         </div>
       )}
 
-      {results !== null && !hasResults && !error && (
+      {!loading && hasResults && (
+        <div className="bgc-search__results">
+          {/* Count banner + table + pagination read as one connected
+              block inside a single rounded border: white banner on top,
+              gray column headers, gray pagination footer. */}
+          <div className="bordered-table bgc-search__results-panel">
+            <div className="bgc-search__results-header">
+              {totalElements} BGC{totalElements === 1 ? '' : 's'} found
+            </div>
+            <DataTable
+              rows={results!.map((r, i) => ({ ...r, id: rowKey(r, i) }))}
+              headers={HEADERS}
+            >
+              {({ rows, headers, getTableProps, getHeaderProps }) => (
+                <TableContainer>
+                  <Table {...getTableProps()} size="sm" useZebraStyles>
+                    <TableHead>
+                      <TableRow>
+                        {headers.map((h) => (
+                          <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
+                            {h.header}
+                          </TableHeader>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {rows.map((row, idx) => {
+                        // Pull the original record back so the Add
+                        // handler hands the parent a clean typed object
+                        // rather than DataTable's augmented row shape.
+                        const original = results![idx];
+                        const isSelecting = selectingKey === row.id;
+                        const otherBusy = selectingKey !== null && !isSelecting;
+                        return (
+                          <TableRow key={row.id}>
+                            {row.cells.map((cell) => {
+                              if (cell.info.header === 'select') {
+                                return (
+                                  <TableCell key={cell.id}>
+                                    <Button
+                                      kind="ghost"
+                                      size="sm"
+                                      disabled={isSelecting || otherBusy}
+                                      renderIcon={isSelecting ? SearchingIcon : Add}
+                                      onClick={() =>
+                                        void handleSelect(row.id, original)
+                                      }
+                                    >
+                                      {isSelecting ? 'Adding…' : 'Add'}
+                                    </Button>
+                                  </TableCell>
+                                );
+                              }
+                              return (
+                                <TableCell key={cell.id}>
+                                  {formatCell(cell.value as string | null | undefined)}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </DataTable>
+
+            <Pagination
+              page={page + 1}
+              pageSize={pageSize}
+              pageSizes={[10, 25, 50, 100]}
+              totalItems={totalElements}
+              onChange={handlePagination}
+              size="md"
+            />
+          </div>
+        </div>
+      )}
+
+      {!loading && results !== null && !hasResults && !error && (
         <p className="bgc-search__summary">No BGC zones match your search.</p>
       )}
     </Modal>

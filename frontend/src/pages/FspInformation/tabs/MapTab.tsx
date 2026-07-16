@@ -15,6 +15,7 @@ import {type FC, useEffect, useMemo, useState} from 'react';
 import EmptyState from '@/components/EmptyState/EmptyState';
 import FduLicencesModal from '@/components/FduLicencesModal';
 import {useNotification} from '@/context/notification/useNotification';
+import {safeErrorMessage} from '@/lib/errorMessage';
 import {type FspFduList, getFspExtent, getFspFduList,} from '@/services/fspSearch';
 
 interface Props {
@@ -116,7 +117,7 @@ const MapTab: FC<Props> = ({
       })
       .catch((e) => {
         if (!cancelled)
-          setExtentError(e instanceof Error ? e.message : 'Extent load failed.');
+          setExtentError(safeErrorMessage(e, 'Extent load failed.'));
       })
       .finally(() => {
         if (!cancelled) setExtentLoading(false);

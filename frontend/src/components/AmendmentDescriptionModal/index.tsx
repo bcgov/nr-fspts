@@ -142,9 +142,20 @@ const AmendmentDescriptionModal: FC<Props> = ({
       let targetFspId = fsp.fspId;
       let targetAmendmentNumber: string | null = fsp.fspAmendmentNumber;
       if (mode !== 'edit' && createdAmendmentNumber == null) {
+        // Seed the AMEND / REPLACE proc with the reason + indicators. The
+        // proc persists the "summary of changes" onto the new amendment's
+        // DRAFT status-history row; the follow-up SAVE drops it, so it has
+        // to ride the create call to stick.
+        const seed = {
+          amendmentReason: reasonTrimmed,
+          fduUpdateInd: fduUpdate ? 'Y' : 'N',
+          identifiedAreasUpdateInd: 'N',
+          stockingStandardUpdateInd: stockingStandardUpdate ? 'Y' : 'N',
+          approvalRequiredInd: approvalRequired ? 'Y' : 'N',
+        };
         const created = isReplace
-          ? await replaceFsp(fsp.fspId)
-          : await amendFsp(fsp.fspId);
+          ? await replaceFsp(fsp.fspId, seed)
+          : await amendFsp(fsp.fspId, seed);
         targetFspId = created.fspId ?? fsp.fspId;
         targetAmendmentNumber = created.fspAmendmentNumber;
         setCreatedFspIdForAmendment(targetFspId);

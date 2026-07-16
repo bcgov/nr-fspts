@@ -72,19 +72,45 @@ clamav scan: 'doc.pdf' (1024 bytes) → UNAVAILABLE (connection refused) — fai
 
 ## Deployment — reaching clamd across namespaces
 
+> ⚠️ **Required manual step:** a `NetworkPolicy` must exist **inside the ClamAV
+> (tools) namespace** to let this app's backend reach clamd. The deploy pipeline
+> does **not** create it — you (or whoever owns the tools namespace) must apply
+> it by hand, once per app namespace/environment. Without it every upload fails
+> closed with "Virus scan unavailable". The manifest is below (policy #1).
+
 clamd runs in the shared **tools** namespace, not the app namespace. Reaching it
 cross-namespace can be blocked on **either side**, so there are two policies:
 
-**1. Ingress on clamd (tools namespace) — usually the one you need.** The clamd
-pod only accepts traffic an ingress `NetworkPolicy` in the tools namespace
-allows. `backend/openshift.clamav-netpol.yml` creates, in the tools namespace,
-an ingress rule letting one app namespace open TCP 3310 to the clamd pods
-(`podSelector: app.kubernetes.io/name=clamav` — the standard ClamAV Helm
-chart's pod label, overridable via `CLAMAV_POD_LABEL_KEY`/`CLAMAV_POD_APP`; one
-`allow-<app-ns>-to-clamav` policy per
-environment). Applied by the **"Allow backend → clamav (NetworkPolicy in
-tools)"** step, which targets the tools namespace with a tools-scoped token.
-Skipped unless the tools secrets are configured.
+**1. Ingress on clamd (tools namespace) — created MANUALLY.** The clamd pod only
+accepts traffic an ingress `NetworkPolicy` in the tools namespace allows. This
+rule must let the app namespace open TCP 3310 to the clamd pods (e.g.
+`podSelector: app.kubernetes.io/name=clamav` — the standard ClamAV Helm chart's
+pod label; one `allow-<app-ns>-to-clamav` policy per environment). **The deploy
+pipeline does not create this** — the tools namespace is managed out of band, so
+apply this policy by hand (or via whatever manages the tools namespace). A
+starting-point manifest:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-<app-namespace>-to-clamav
+  namespace: <tools-namespace>
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: clamav
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <app-namespace>
+      ports:
+        - protocol: TCP
+          port: 3310
+  policyTypes:
+    - Ingress
+```
 
 **2. Egress from the backend (app namespace) — always applied.** The backend
 `openshift.deploy.yml` includes an egress `NetworkPolicy`
@@ -99,9 +125,8 @@ blocks clamd.
 
 > **Diagnosing "can't connect to clamd":** the egress side (#2) is handled
 > automatically, so a failure almost always means the tools **ingress** (#1) —
-> confirm `backend/openshift.clamav-netpol.yml` was applied into clamd's
-> namespace (needs `OC_NAMESPACE_TOOLS` / `OC_TOKEN_TOOLS`) and that its
-> `podSelector` matches the real clamd pod labels
+> confirm the manual `allow-<app-ns>-to-clamav` policy was applied into clamd's
+> namespace and that its `podSelector` matches the real clamd pod labels
 > (`oc -n <tools-ns> get pods --show-labels`). Note clamd must be in a namespace
 > your app namespace is allowed to reach — cross-license-plate connections are
 > generally blocked.
@@ -114,20 +139,10 @@ Set these per GitHub Environment (`dev`, `test`, later `prod`), threaded through
 | Secret | Value |
 |--------|-------|
 | `CLAMAV_HOST` | clamd host — **required** for the backend deploy (the template has no default) |
-| `OC_NAMESPACE_TOOLS` | the tools namespace where clamd runs (only for the NetworkPolicy step) |
-| `OC_TOKEN_TOOLS` | token for a service account in that namespace with `edit` (only for the NetworkPolicy step) |
 
-The app-namespace `oc_token` has no rights in tools, hence the separate token.
-Minting one:
-
-```bash
-oc -n <tools-namespace> create sa fspts-netpol
-oc -n <tools-namespace> adm policy add-role-to-user edit -z fspts-netpol
-oc -n <tools-namespace> create token fspts-netpol --duration=8760h
-```
-
-The clamd pod selector defaults to `app: clamav`; override without code changes
-via `vars.CLAMAV_POD_LABEL_KEY` / `vars.CLAMAV_POD_APP`.
+The pipeline no longer touches the tools namespace, so no tools-scoped token or
+`OC_NAMESPACE_TOOLS` / `OC_TOKEN_TOOLS` secrets are needed — the clamd ingress
+policy (#1 above) is applied manually.
 
 ## Local development
 
@@ -155,4 +170,5 @@ against its target — see [../frontend/e2e/README.md](../frontend/e2e/README.md
 | Scan result value | `client/ScanResult` |
 | Throw-style rejection → `422` | `exception/VirusDetectedException` (+ `RestExceptionHandler`) |
 | UI issue labels | `frontend/src/pages/XmlSubmissionPage.tsx` |
-| Cross-namespace NetworkPolicy | `backend/openshift.clamav-netpol.yml` |
+| Backend egress NetworkPolicy | `backend/openshift.deploy.yml` (`${NAME}-backend-${ZONE}-egress`) |
+| Clamd ingress NetworkPolicy (tools ns) | applied manually — see "Deployment" above |

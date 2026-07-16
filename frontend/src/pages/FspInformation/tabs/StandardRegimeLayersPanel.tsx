@@ -1,6 +1,5 @@
 import {
   Button,
-  DataTable,
   Loading,
   NumberInput,
   Select,
@@ -18,9 +17,10 @@ import {
   TabPanel,
   TabPanels,
   Tabs,
+  TextInput,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
-import {Add, Edit, TrashCan} from '@carbon/icons-react';
+import {Add, Copy, Launch, TrashCan} from '@carbon/icons-react';
 import {type FC, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -113,6 +113,24 @@ const toLayerPayload = (form: LayerFormState): StandardRegimeLayerUpdate => ({
   heightRelativeToComp: form.heightRelativeToComp.trim() || null,
 });
 
+// Density matrix: five rows × three value columns, matching the legacy
+// layer table. Each cell names the layer field it edits (or null for a
+// cell that column doesn't use — rendered as a dash). Only the named
+// cells become editable inputs in edit mode.
+type DensityField = keyof LayerFormState & keyof StandardRegimeLayerDetail;
+const DENSITY_ROWS: {
+  label: string;
+  well: DensityField | null;
+  basal: DensityField | null;
+  post: DensityField | null;
+}[] = [
+  { label: 'Target', well: 'targetStocking', basal: null, post: null },
+  { label: 'Min horiz', well: 'minHorizontalDistance', basal: null, post: null },
+  { label: 'Min pref', well: 'minPrefStockingStandard', basal: null, post: null },
+  { label: 'Min', well: 'minStockingStandard', basal: 'residualBasalArea', post: 'minPostSpacing' },
+  { label: 'Max', well: null, basal: null, post: 'maxPostSpacing' },
+];
+
 interface Props {
   fspId: string;
   regimeId: string;
@@ -192,6 +210,14 @@ const LayerDetailPanel: FC<{
    *  synthetic empty Single tab) so the parent can refetch the regime
    *  detail and rebuild its tab strip with the real layer flags. */
   onLayerCreated?: () => void;
+  /** Single-layer regimes render this panel directly (no sub-tab
+   *  strip); the card header shows "Single layer" + the convert link. */
+  singleLayer?: boolean;
+  /** Opens the convert-layers confirmation (shown in the edit card
+   *  header for single-layer regimes). Omitted when convert isn't
+   *  available (e.g. an unsaved synthetic layer). */
+  onConvert?: () => void;
+  convertLabel?: string;
 }> = ({
   fspId,
   regimeId,
@@ -199,12 +225,15 @@ const LayerDetailPanel: FC<{
   layer,
   readOnly = false,
   onLayerCreated,
+  singleLayer = false,
+  onConvert,
+  convertLabel,
 }) => {
   const [detail, setDetail] = useState<StandardRegimeLayerDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
-  // Focus the first field (Tree size unit) when entering edit mode.
-  const treeUnitSelectRef = useRef<HTMLSelectElement>(null);
+  // Focus the first density input when entering edit mode.
+  const firstFieldRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<LayerFormState | null>(null);
   const [errors, setErrors] = useState<LayerErrors>({});
   const [saving, setSaving] = useState(false);
@@ -328,7 +357,7 @@ const LayerDetailPanel: FC<{
   }, [detail, editing]);
 
   useEffect(() => {
-    if (editing) treeUnitSelectRef.current?.focus();
+    if (editing) firstFieldRef.current?.focus();
   }, [editing]);
 
   const setField = <K extends keyof LayerFormState>(key: K, value: LayerFormState[K]) => {
@@ -406,245 +435,149 @@ const LayerDetailPanel: FC<{
   }
   if (!detail) return <p>No layer data available.</p>;
 
-  // Three-column density block mirrors the legacy layer table:
-  //   col 1: Well Spaced Trees / ha    (target/min*/max stocking)
-  //   col 2: Residual Basal Area (m2/ha)  (only one row populated)
-  //   col 3: Post Spacing Density (st/ha)  (min/max spacing)
-  const densityRows = [
-    { label: 'Target', well: detail.targetStocking, basal: '', post: '' },
-    { label: 'Min horiz', well: detail.minHorizontalDistance, basal: '', post: '' },
-    { label: 'Min pref', well: detail.minPrefStockingStandard, basal: '', post: '' },
-    {
-      label: 'Min',
-      well: detail.minStockingStandard,
-      basal: detail.residualBasalArea,
-      post: detail.minPostSpacing,
-    },
-    { label: 'Max', well: '', basal: '', post: detail.maxPostSpacing },
-  ];
-
-  // Pretty unit label used inside read-mode and edit-mode helper text.
+  // Renders one density-matrix cell: a gray editable input while
+  // editing (for the cells this column actually uses), a dash otherwise.
+  const densityCell = (field: DensityField | null, first = false) => {
+    if (!field) return '—';
+    if (editing && form) {
+      return (
+        <TextInput
+          id={`edit-layer-${field}-${layer.layerCode}`}
+          ref={first ? firstFieldRef : undefined}
+          labelText={field}
+          hideLabel
+          size="sm"
+          inputMode="decimal"
+          value={form[field]}
+          invalid={!!errors[field]}
+          invalidText={errors[field]}
+          disabled={saving}
+          onChange={(e) => setField(field, e.target.value)}
+        />
+      );
+    }
+    return dash(detail[field]);
+  };
 
   return (
     <div className="fsp-info__tab-panel">
       {!editing && !readOnly && (
         <div className="fsp-info__tab-actions">
-          <Button kind="tertiary" size="sm" renderIcon={Edit} onClick={handleEdit}>
-            Edit
+          <Button kind="tertiary" size="sm" renderIcon={Launch} onClick={handleEdit}>
+            Edit layers
           </Button>
         </div>
       )}
 
+      {/* Density matrix — same table shape in both modes; the editable
+          cells become gray inputs while editing. In edit mode the card
+          gains a header, and single-layer regimes surface the convert
+          link there. */}
+      <section className="fsp-info__layer-card">
+        <div
+          className={
+            editing
+              ? 'bordered-table fsp-info__density-table fsp-info__density-table--editing'
+              : 'bordered-table fsp-info__density-table'
+          }
+        >
+          {editing && singleLayer && (
+            <div className="fsp-info__layer-card-header">
+              <h3 className="fsp-info__layer-card-title">Single layer</h3>
+              {onConvert && (
+                <Button
+                  kind="ghost"
+                  size="sm"
+                  renderIcon={Copy}
+                  disabled={saving}
+                  onClick={onConvert}
+                >
+                  {convertLabel ?? 'Convert to multi-layer'}
+                </Button>
+              )}
+            </div>
+          )}
+          <Table size="md">
+            <TableHead>
+              <TableRow>
+                <TableHeader aria-label="Metric" />
+                <TableHeader>Well spaced trees / ha</TableHeader>
+                <TableHeader>Residual basal area</TableHeader>
+                <TableHeader>Post spacing density</TableHeader>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {DENSITY_ROWS.map((r, i) => (
+                <TableRow key={r.label}>
+                  <TableCell>{r.label}</TableCell>
+                  <TableCell>{densityCell(r.well, i === 0)}</TableCell>
+                  <TableCell>{densityCell(r.basal)}</TableCell>
+                  <TableCell>{densityCell(r.post)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      {/* Max coniferous / Height relative to comp — white inputs while
+          editing, bold-label fields in read-only. */}
       {editing && form ? (
-        <>
-          <div className="fsp-info__edit-grid">
-            <Select
-              id={`edit-layer-treeUnit-${layer.layerCode}`}
-              ref={treeUnitSelectRef}
-              labelText="Tree size unit"
-              value={form.treeSizeUnitCode}
-              disabled={saving}
-              onChange={(e) => setField('treeSizeUnitCode', e.target.value)}
-            >
-              <SelectItem value="CM" text="Centimetres" />
-              <SelectItem value="PCT" text="Percent" />
-            </Select>
-            <NumberInput
-              id={`edit-layer-targetStocking-${layer.layerCode}`}
-              label="Target stocking"
-              min={0}
-              allowEmpty
-              hideSteppers
-              value={form.targetStocking === '' ? '' : Number(form.targetStocking)}
-              invalid={!!errors.targetStocking}
-              invalidText={errors.targetStocking}
-              disabled={saving}
-              onChange={(_e, { value }) =>
-                setField('targetStocking', value === '' ? '' : String(value))
-              }
-            />
-            <NumberInput
-              id={`edit-layer-minHoriz-${layer.layerCode}`}
-              label="Min horizontal distance"
-              min={0}
-              allowEmpty
-              hideSteppers
-              value={form.minHorizontalDistance === '' ? '' : Number(form.minHorizontalDistance)}
-              invalid={!!errors.minHorizontalDistance}
-              invalidText={errors.minHorizontalDistance}
-              disabled={saving}
-              onChange={(_e, { value }) =>
-                setField('minHorizontalDistance', value === '' ? '' : String(value))
-              }
-            />
-            <NumberInput
-              id={`edit-layer-minPref-${layer.layerCode}`}
-              label="Min preferred stocking"
-              min={0}
-              allowEmpty
-              hideSteppers
-              value={form.minPrefStockingStandard === '' ? '' : Number(form.minPrefStockingStandard)}
-              invalid={!!errors.minPrefStockingStandard}
-              invalidText={errors.minPrefStockingStandard}
-              disabled={saving}
-              onChange={(_e, { value }) =>
-                setField('minPrefStockingStandard', value === '' ? '' : String(value))
-              }
-            />
-            <NumberInput
-              id={`edit-layer-minStocking-${layer.layerCode}`}
-              label="Min stocking"
-              min={0}
-              allowEmpty
-              hideSteppers
-              value={form.minStockingStandard === '' ? '' : Number(form.minStockingStandard)}
-              invalid={!!errors.minStockingStandard}
-              invalidText={errors.minStockingStandard}
-              disabled={saving}
-              onChange={(_e, { value }) =>
-                setField('minStockingStandard', value === '' ? '' : String(value))
-              }
-            />
-            <NumberInput
-              id={`edit-layer-basalArea-${layer.layerCode}`}
-              label="Residual basal area"
-              min={0}
-              allowEmpty
-              hideSteppers
-              value={form.residualBasalArea === '' ? '' : Number(form.residualBasalArea)}
-              invalid={!!errors.residualBasalArea}
-              invalidText={errors.residualBasalArea}
-              disabled={saving}
-              onChange={(_e, { value }) =>
-                setField('residualBasalArea', value === '' ? '' : String(value))
-              }
-            />
-            <NumberInput
-              id={`edit-layer-minPost-${layer.layerCode}`}
-              label="Min post spacing"
-              min={0}
-              allowEmpty
-              hideSteppers
-              value={form.minPostSpacing === '' ? '' : Number(form.minPostSpacing)}
-              invalid={!!errors.minPostSpacing}
-              invalidText={errors.minPostSpacing}
-              disabled={saving}
-              onChange={(_e, { value }) =>
-                setField('minPostSpacing', value === '' ? '' : String(value))
-              }
-            />
-            <NumberInput
-              id={`edit-layer-maxPost-${layer.layerCode}`}
-              label="Max post spacing"
-              min={0}
-              allowEmpty
-              hideSteppers
-              value={form.maxPostSpacing === '' ? '' : Number(form.maxPostSpacing)}
-              invalid={!!errors.maxPostSpacing}
-              invalidText={errors.maxPostSpacing}
-              disabled={saving}
-              onChange={(_e, { value }) =>
-                setField('maxPostSpacing', value === '' ? '' : String(value))
-              }
-            />
-            <NumberInput
-              id={`edit-layer-maxConifer-${layer.layerCode}`}
-              label="Max coniferous"
-              min={0}
-              allowEmpty
-              hideSteppers
-              value={form.maxConifer === '' ? '' : Number(form.maxConifer)}
-              invalid={!!errors.maxConifer}
-              invalidText={errors.maxConifer}
-              disabled={saving}
-              onChange={(_e, { value }) =>
-                setField('maxConifer', value === '' ? '' : String(value))
-              }
-            />
-            <NumberInput
-              id={`edit-layer-heightRel-${layer.layerCode}`}
-              label="Height relative to comp"
-              min={0}
-              allowEmpty
-              hideSteppers
-              value={form.heightRelativeToComp === '' ? '' : Number(form.heightRelativeToComp)}
-              invalid={!!errors.heightRelativeToComp}
-              invalidText={errors.heightRelativeToComp}
-              disabled={saving}
-              onChange={(_e, { value }) =>
-                setField('heightRelativeToComp', value === '' ? '' : String(value))
-              }
-            />
-          </div>
-
-          <div className="fsp-info__form-actions">
-            <Button kind="secondary" size="sm" disabled={saving} onClick={handleCancel}>
-              Cancel
-            </Button>
-            <Button kind="primary" size="sm" disabled={saving} onClick={handleSave}>
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </>
+        <div className="fsp-info__edit-grid fsp-info__layer-extra">
+          <NumberInput
+            id={`edit-layer-maxConifer-${layer.layerCode}`}
+            label="Max coniferous (st/ha)"
+            min={0}
+            allowEmpty
+            hideSteppers
+            value={form.maxConifer === '' ? '' : Number(form.maxConifer)}
+            invalid={!!errors.maxConifer}
+            invalidText={errors.maxConifer}
+            disabled={saving}
+            onChange={(_e, { value }) =>
+              setField('maxConifer', value === '' ? '' : String(value))
+            }
+          />
+          <NumberInput
+            id={`edit-layer-heightRel-${layer.layerCode}`}
+            label="Height relative to comp (cm/%)"
+            min={0}
+            allowEmpty
+            hideSteppers
+            value={form.heightRelativeToComp === '' ? '' : Number(form.heightRelativeToComp)}
+            invalid={!!errors.heightRelativeToComp}
+            invalidText={errors.heightRelativeToComp}
+            disabled={saving}
+            onChange={(_e, { value }) =>
+              setField('heightRelativeToComp', value === '' ? '' : String(value))
+            }
+          />
+        </div>
       ) : (
-        <>
-          <section>
-            <div className="bordered-table">
-              <DataTable
-                rows={densityRows.map((r, i) => ({
-                  id: `${r.label}-${i}`,
-                  label: r.label,
-                  well: dash(r.well),
-                  basal: dash(r.basal),
-                  post: dash(r.post),
-                }))}
-                headers={[
-                  { key: 'label', header: '' },
-                  { key: 'well', header: 'Well spaced trees / ha' },
-                  { key: 'basal', header: 'Residual basal area' },
-                  { key: 'post', header: 'Post spacing density' },
-                ]}
-              >
-                {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
-                  <TableContainer>
-                    <Table {...getTableProps()} size="md">
-                      <TableHead>
-                        <TableRow>
-                          {headers.map((h) => (
-                            <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
-                              {h.header}
-                            </TableHeader>
-                          ))}
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {rows.map((row) => (
-                          <TableRow {...getRowProps({ row })} key={row.id}>
-                            {row.cells.map((cell) => (
-                              <TableCell key={cell.id}>{cell.value as string}</TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-              </DataTable>
-            </div>
-          </section>
-
-          <dl className="fsp-info__field-list">
-            <div className="fsp-info__field">
-              <dt>Max coniferous</dt>
-              <dd>{dash(detail.maxConifer)}</dd>
-            </div>
-            <div className="fsp-info__field">
-              <dt>Height relative to comp</dt>
-              <dd>{dash(detail.heightRelativeToComp)}</dd>
-            </div>
-          </dl>
-        </>
+        <dl className="fsp-info__field-list fsp-info__field-list--overview">
+          <div className="fsp-info__field">
+            <dt>Max coniferous (st/ha)</dt>
+            <dd>{dash(detail.maxConifer)}</dd>
+          </div>
+          <div className="fsp-info__field">
+            <dt>Height relative to comp (cm/%)</dt>
+            <dd>{dash(detail.heightRelativeToComp)}</dd>
+          </div>
+        </dl>
       )}
+
+      {editing && (
+        <div className="fsp-info__form-actions">
+          <Button kind="secondary" size="sm" disabled={saving} onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button kind="primary" size="sm" disabled={saving} onClick={handleSave}>
+            {saving ? 'Saving…' : 'Save changes'}
+          </Button>
+        </div>
+      )}
+
+      <hr className="fsp-info__divider" />
 
       <SpeciesEditor
         title="Preferred species"
@@ -652,6 +585,7 @@ const LayerDetailPanel: FC<{
         idPrefix={`pref-${layer.layerCode}`}
         preferred
         readOnly={readOnly}
+        disabled={editing}
         layerExists={!!layer.layerId}
         speciesCodes={speciesCodes}
         speciesCodesLoading={speciesCodesLoading}
@@ -659,12 +593,15 @@ const LayerDetailPanel: FC<{
         onDelete={handleSpeciesDelete}
       />
 
+      <hr className="fsp-info__divider" />
+
       <SpeciesEditor
         title="Acceptable species"
         rows={detail.acceptableSpecies}
         idPrefix={`acc-${layer.layerCode}`}
         preferred={false}
         readOnly={readOnly}
+        disabled={editing}
         layerExists={!!layer.layerId}
         speciesCodes={speciesCodes}
         speciesCodesLoading={speciesCodesLoading}
@@ -689,6 +626,10 @@ const SpeciesEditor: FC<{
   idPrefix: string;
   preferred: boolean;
   readOnly?: boolean;
+  /** True while the parent layer's density form is being edited — the
+   *  species Add/Delete actions are suppressed so the two edit flows
+   *  don't overlap (matches the screenshot's greyed-out Add buttons). */
+  disabled?: boolean;
   /** False when the parent layer has no id yet (synthetic empty Single
    *  on a regime with no layers). Add stays disabled until the user
    *  saves the layer densities first. */
@@ -711,6 +652,7 @@ const SpeciesEditor: FC<{
   idPrefix,
   preferred,
   readOnly = false,
+  disabled = false,
   layerExists = true,
   speciesCodes,
   speciesCodesLoading,
@@ -752,19 +694,31 @@ const SpeciesEditor: FC<{
   };
 
   const [modalOpen, setModalOpen] = useState(false);
+  // Deferred validation — matches the other dialogs: the Save button stays
+  // enabled and clicking it with missing values reveals inline field errors
+  // rather than silently doing nothing.
+  const [showErrors, setShowErrors] = useState(false);
+
+  const codeError = !composerCode;
+  const minHeightError = !composerMinHeight.trim();
 
   const closeModal = () => {
     if (adding) return; // don't allow closing mid-save
     setModalOpen(false);
+    setShowErrors(false);
     resetComposer();
   };
 
   const submitModal = async () => {
-    if (!composerCode || !composerMinHeight.trim()) return;
+    if (codeError || minHeightError) {
+      setShowErrors(true);
+      return;
+    }
     setAdding(true);
     try {
       await onAdd(composerCode, composerMinHeight.trim(), preferred);
       resetComposer();
+      setShowErrors(false);
       setModalOpen(false);
     } catch (e) {
       display({
@@ -788,16 +742,18 @@ const SpeciesEditor: FC<{
             size="sm"
             renderIcon={Add}
             disabled={
+              disabled ||
               !layerExists ||
               speciesCodesLoading ||
               availableCodes.length === 0
             }
             onClick={() => {
               resetComposer();
+              setShowErrors(false);
               setModalOpen(true);
             }}
           >
-            {`Add ${title}`}
+            {`Add ${title.toLowerCase()}`}
           </Button>
         )}
       </header>
@@ -842,7 +798,7 @@ const SpeciesEditor: FC<{
                             kind="danger--ghost"
                             size="sm"
                             renderIcon={TrashCan}
-                            disabled={busy || !row.code || !row.revisionCount}
+                            disabled={disabled || busy || !row.code || !row.revisionCount}
                             onClick={() => void handleDelete(row)}
                           >
                             {busy ? 'Removing…' : 'Delete'}
@@ -870,9 +826,11 @@ const SpeciesEditor: FC<{
         <Stack gap={5} className="fsp-species-modal__form">
           <Select
             id={`${idPrefix}-modal-species`}
-            labelText="Species *"
+            labelText="Species"
             value={composerCode}
             disabled={adding || speciesCodesLoading || availableCodes.length === 0}
+            invalid={showErrors && codeError}
+            invalidText="Select a species."
             onChange={(e) => setComposerCode(e.target.value)}
           >
             <SelectItem
@@ -895,12 +853,14 @@ const SpeciesEditor: FC<{
           </Select>
           <NumberInput
             id={`${idPrefix}-modal-minHeight`}
-            label="Min height *"
+            label="Min height"
             min={0}
             allowEmpty
             hideSteppers
             value={composerMinHeight === '' ? '' : Number(composerMinHeight)}
             disabled={adding}
+            invalid={showErrors && minHeightError}
+            invalidText="Enter a minimum height."
             onChange={(_e, { value }) =>
               setComposerMinHeight(value === '' ? '' : String(value))
             }
@@ -912,7 +872,7 @@ const SpeciesEditor: FC<{
           </Button>
           <Button
             kind="primary"
-            disabled={adding || !composerCode || !composerMinHeight.trim()}
+            disabled={adding}
             renderIcon={adding ? SavingIcon : undefined}
             onClick={() => void submitModal()}
           >
@@ -1031,39 +991,62 @@ const StandardRegimeLayersPanel: FC<Props> = ({
   };
 
   return (
-    <div className="fsp-info__inner-tabs fsp-info__inner-tabs--gray">
-      {!readOnly && canConvert && (
-        <div className="fsp-info__tab-actions">
-          <Button
-            kind="tertiary"
-            size="sm"
-            onClick={() => setConvertConfirmOpen(true)}
-          >
-            {convertLabel}
-          </Button>
-        </div>
+    <div className="fsp-info__inner-tabs fsp-info__inner-tabs--detail">
+      {isSingleLayer ? (
+        // Single-layer regime: no sub-tab strip — render the one layer
+        // directly. The convert action moves into the edit card header.
+        <LayerDetailPanel
+          fspId={fspId}
+          regimeId={regimeId}
+          amendmentNumber={amendmentNumber}
+          layer={tabs[0]}
+          readOnly={readOnly}
+          onLayerCreated={refreshRegime}
+          singleLayer
+          onConvert={
+            !readOnly && canConvert
+              ? () => setConvertConfirmOpen(true)
+              : undefined
+          }
+          convertLabel={convertLabel}
+        />
+      ) : (
+        <>
+          {!readOnly && canConvert && (
+            <div className="fsp-info__tab-actions">
+              <Button
+                kind="tertiary"
+                size="sm"
+                renderIcon={Copy}
+                onClick={() => setConvertConfirmOpen(true)}
+              >
+                {convertLabel}
+              </Button>
+            </div>
+          )}
+          <Tabs selectedIndex={activeIndex} onChange={({ selectedIndex }) => setActiveIndex(selectedIndex)}>
+            <TabList aria-label="Standards regime layers">
+              {tabs.map((l) => (
+                <Tab key={l.layerCode}>{LAYER_LABEL[l.layerCode] ?? `Layer ${l.layerCode}`}</Tab>
+              ))}
+            </TabList>
+            <TabPanels>
+              {tabs.map((l) => (
+                <TabPanel key={l.layerCode}>
+                  <LayerDetailPanel
+                    fspId={fspId}
+                    regimeId={regimeId}
+                    amendmentNumber={amendmentNumber}
+                    layer={l}
+                    readOnly={readOnly}
+                    onLayerCreated={refreshRegime}
+                  />
+                </TabPanel>
+              ))}
+            </TabPanels>
+          </Tabs>
+        </>
       )}
-      <Tabs selectedIndex={activeIndex} onChange={({ selectedIndex }) => setActiveIndex(selectedIndex)}>
-        <TabList aria-label="Standards regime layers" contained>
-          {tabs.map((l) => (
-            <Tab key={l.layerCode}>{LAYER_LABEL[l.layerCode] ?? `Layer ${l.layerCode}`}</Tab>
-          ))}
-        </TabList>
-        <TabPanels>
-          {tabs.map((l) => (
-            <TabPanel key={l.layerCode}>
-              <LayerDetailPanel
-                fspId={fspId}
-                regimeId={regimeId}
-                amendmentNumber={amendmentNumber}
-                layer={l}
-                readOnly={readOnly}
-                onLayerCreated={refreshRegime}
-              />
-            </TabPanel>
-          ))}
-        </TabPanels>
-      </Tabs>
       <ConfirmationModal
         open={convertConfirmOpen}
         onClose={() => setConvertConfirmOpen(false)}

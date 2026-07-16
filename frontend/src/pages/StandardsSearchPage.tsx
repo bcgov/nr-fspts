@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import StandardRegimeDetailPanel from '@/pages/FspInformation/tabs/StandardRegimeDetailPanel';
 
 import { useNotification } from '@/context/notification/useNotification';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import {
   type CodeOption,
   getOrgUnits,
@@ -288,7 +289,7 @@ const StandardsSearchPage: FC = () => {
         setPage(data.page.number);
         setPageSize(data.page.size);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(safeErrorMessage(e));
         setResults([]);
         setTotalElements(0);
       } finally {
@@ -418,7 +419,7 @@ const StandardsSearchPage: FC = () => {
               {/* Row 3 (at lg): agreement holder + standards identification */}
               <TextInput
                 id="ss-clientNumber"
-                labelText="Client #"
+                labelText="Client number"
                 value={form.clientNumber}
                 onChange={setDigitsOnly('clientNumber')}
                 maxLength={8}

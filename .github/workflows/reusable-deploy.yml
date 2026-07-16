@@ -90,17 +90,6 @@ on:
       user_lookup_base_url:
         description: nr-user-lookup-api base URL for this environment.
         required: false
-      oc_namespace_tools:
-        description: |
-          Namespace of the shared clamav clamd (the tools namespace). Set to
-          apply the ingress NetworkPolicy that lets this env's backend reach
-          clamav cross-namespace. Omit to skip (e.g. if clamav isn't used).
-        required: false
-      oc_token_tools:
-        description: |
-          OpenShift token with edit rights in oc_namespace_tools, used only to
-          apply the clamav ingress NetworkPolicy there. Omit to skip.
-        required: false
       clamav_host:
         description: |
           clamd host for the backend's CLAMAV_HOST (e.g.
@@ -151,8 +140,6 @@ jobs:
       # Job-level so the step `if:` below can read it (a step's own `env` isn't
       # available to that step's `if`).
       KC_SA_CLIENT_ID: ${{ secrets.keycloak_sa_client_id }}
-      # Same reasoning — gates the clamav NetworkPolicy step below.
-      OC_NAMESPACE_TOOLS: ${{ secrets.oc_namespace_tools }}
     steps:
       # The deployer action checks out internally, but the Keycloak script runs
       # before it, so check out here to make ./.github/scripts available.
@@ -227,26 +214,10 @@ jobs:
             -p KEYSTORE_SECRET="$KEYSTORE_SECRET"
           triggers: ${{ inputs.triggers }}
 
-      # Allow this environment's backend to reach the shared clamav clamd,
-      # which lives in a DIFFERENT namespace (tools). The rule is an ingress
-      # policy on the clamav pod, so it's applied INTO tools using a
-      # tools-scoped token — not this app namespace. Skipped when the tools
-      # secrets aren't configured, so deploys without clamav are unaffected.
-      - name: Allow backend → clamav (NetworkPolicy in tools)
-        if: ${{ env.OC_NAMESPACE_TOOLS != '' }}
-        uses: bcgov/action-deployer-openshift@f7bd61ec357fb1dfd1d43f1287bcd21382d06348 # v4.1.0
-        with:
-          file: backend/openshift.clamav-netpol.yml
-          oc_namespace: ${{ secrets.oc_namespace_tools }}
-          oc_server: ${{ vars.oc_server }}
-          oc_token: ${{ secrets.oc_token_tools }}
-          overwrite: true
-          parameters:
-            -p TOOLS_NAMESPACE="${{ secrets.oc_namespace_tools }}"
-            -p SOURCE_NAMESPACE="${{ secrets.oc_namespace }}"
-            -p CLAMAV_POD_LABEL_KEY="${{ vars.CLAMAV_POD_LABEL_KEY || 'app.kubernetes.io/name' }}"
-            -p CLAMAV_POD_APP="${{ vars.CLAMAV_POD_APP || 'clamav' }}"
-            -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"
+      # NOTE: the ingress NetworkPolicy in the shared clamav (tools) namespace
+      # that permits this backend → clamd is created MANUALLY, out of band.
+      # The app side of the rule (the backend egress NetworkPolicy) is still
+      # applied automatically by openshift.deploy.yml above.
 
   frontend:
     name: Deploy (frontend)

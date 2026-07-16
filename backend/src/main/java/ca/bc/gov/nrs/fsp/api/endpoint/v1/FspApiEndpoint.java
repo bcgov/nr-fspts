@@ -122,7 +122,9 @@ public interface FspApiEndpoint {
                     + "fsp_300_information.MAINLINE(P_ACTION=AMEND). Returns the "
                     + "freshly-assigned amendment as an FspRequest DTO so the SPA "
                     + "can navigate to it.")
-    ResponseEntity<FspRequest> amendFsp(@PathVariable String fspId);
+    ResponseEntity<FspRequest> amendFsp(
+            @PathVariable String fspId,
+            @RequestBody(required = false) FspRequest request);
 
     @PostMapping(URL.REPLACE)
     @PreAuthorize(FspAuthorities.CONTENT_EDIT)
@@ -130,7 +132,9 @@ public interface FspApiEndpoint {
             "Create a new replacement amendment row on an existing FSP via "
                     + "fsp_300_information.MAINLINE(P_ACTION=REPLACE). Proc stamps "
                     + "fsp_amendment_code='RPL' and forces approval-required.")
-    ResponseEntity<FspRequest> replaceFsp(@PathVariable String fspId);
+    ResponseEntity<FspRequest> replaceFsp(
+            @PathVariable String fspId,
+            @RequestBody(required = false) FspRequest request);
 
     // --- Workflow ---
 

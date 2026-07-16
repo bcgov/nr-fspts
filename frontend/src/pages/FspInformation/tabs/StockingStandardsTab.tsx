@@ -11,8 +11,8 @@ import {
   TableRow,
   TableSelectRow,
 } from '@carbon/react';
-import {Add, Checkmark, Copy, TrashCan} from '@carbon/icons-react';
-import {type FC, useCallback, useEffect, useState} from 'react';
+import {Add, CheckmarkFilled, SubtractAlt} from '@carbon/icons-react';
+import {type FC, type SVGProps, useCallback, useEffect, useRef, useState} from 'react';
 
 import { StandardsSearchIcon } from '@/components/Layout/navIcons';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
@@ -21,6 +21,7 @@ import ConfirmationModal from '@/components/ConfirmationModal';
 import NewStandardModal from '@/components/NewStandardModal';
 import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
+import {safeErrorMessage} from '@/lib/errorMessage';
 import {canEditFsp} from '@/routes/access';
 import {
   copyStandardRegime,
@@ -30,6 +31,19 @@ import {
 } from '@/services/fspSearch';
 
 import StandardRegimeDetailPanel from './StandardRegimeDetailPanel';
+
+// Adapter so the custom Stocking-standards nav icon renders at Carbon's
+// button-icon size. Carbon passes renderIcon `{ size: 16, className,
+// aria-hidden }`; the nav icon ignores `size`, so map it onto
+// width/height and forward the rest (className carries Carbon's
+// `cds--btn__icon` spacing). Same icon the parent "Stocking standards"
+// tab uses.
+const CreateStandardIcon = ({
+  size = 16,
+  ...props
+}: { size?: number } & SVGProps<SVGSVGElement>) => (
+  <StandardsSearchIcon width={size} height={size} {...props} />
+);
 
 interface Props {
   fspId: string;
@@ -82,6 +96,10 @@ const StockingStandardsTab: FC<Props> = ({
   // Drives the FSP250 detail panel below the table. null = nothing
   // picked yet; setting it back to null collapses the panel.
   const [selectedRegimeId, setSelectedRegimeId] = useState<string | null>(null);
+  // Wraps the detail panel below the table so a fresh row selection can
+  // scroll it into view (top-aligned) — the panel is well below the fold
+  // on longer standards lists.
+  const detailRef = useRef<HTMLDivElement>(null);
   const [newStandardOpen, setNewStandardOpen] = useState(false);
   const [addExistingOpen, setAddExistingOpen] = useState(false);
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
@@ -108,9 +126,10 @@ const StockingStandardsTab: FC<Props> = ({
     canEdit
     && (status === 'DFT'
       || (!!isAdmin && status !== '' && !TERMINAL_STATUSES.includes(status)));
-  // Copy is strictly Draft-only — once an FSP has been submitted /
-  // approved we don't let the user spawn a side-copy from this UI.
-  const canCopy = canEdit && status === 'DFT';
+  // Copy + Delete share the same gate: an editable, non-terminal FSP.
+  // Both act only on a DRAFT standard (enforced via selectedIsDraft where
+  // they're passed to the panel), so they surface together in the header.
+  const canCopy = canEdit && status !== '' && !TERMINAL_STATUSES.includes(status);
 
   const refetch = useCallback(() => {
     if (!fspId) return;
@@ -123,7 +142,7 @@ const StockingStandardsTab: FC<Props> = ({
       })
       .catch((e) => {
         if (!cancelled)
-          setError(e instanceof Error ? e.message : 'Standards load failed.');
+          setError(safeErrorMessage(e, 'Standards load failed.'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -144,7 +163,7 @@ const StockingStandardsTab: FC<Props> = ({
       })
       .catch((e) => {
         if (!cancelled)
-          setError(e instanceof Error ? e.message : 'Standards load failed.');
+          setError(safeErrorMessage(e, 'Standards load failed.'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -215,31 +234,19 @@ const StockingStandardsTab: FC<Props> = ({
   // on an empty FSP.
   const headerNode = (
     <header className="fsp-info__tile-header">
-      <h2 className="fsp-info__section-title fsp-info__section-title--icon">
-        <StandardsSearchIcon width={20} height={20} />
-        <span>Stocking standards</span>
-      </h2>
+      <p className="fsp-info__tile-instruction">
+        Select a standard to view its details below.
+      </p>
       <div className="fsp-info__tile-header-actions">
-        {canCopy && (
+        {canCreate && (
           <Button
-            kind="tertiary"
+            kind="ghost"
             size="sm"
-            renderIcon={Copy}
-            onClick={() => setCopyConfirmOpen(true)}
-            disabled={!selectedRegimeId}
+            className="fsp-info__link-icon-btn"
+            renderIcon={CreateStandardIcon}
+            onClick={() => setNewStandardOpen(true)}
           >
-            Copy standard
-          </Button>
-        )}
-        {canDelete && (
-          <Button
-            kind="danger--tertiary"
-            size="sm"
-            renderIcon={TrashCan}
-            onClick={() => setDeleteConfirmOpen(true)}
-            disabled={!selectedRegimeId || !selectedIsDraft}
-          >
-            Delete standard
+            Create stocking standard
           </Button>
         )}
         {canCreate && (
@@ -250,16 +257,6 @@ const StockingStandardsTab: FC<Props> = ({
             onClick={() => setAddExistingOpen(true)}
           >
             Add existing standard
-          </Button>
-        )}
-        {canCreate && (
-          <Button
-            kind="tertiary"
-            size="sm"
-            renderIcon={Add}
-            onClick={() => setNewStandardOpen(true)}
-          >
-            New standard
           </Button>
         )}
       </div>
@@ -298,19 +295,14 @@ const StockingStandardsTab: FC<Props> = ({
     <ConfirmationModal
       open={copyConfirmOpen}
       onClose={() => setCopyConfirmOpen(false)}
-      heading="Copy stocking standard"
+      heading={`Copy ${selectedRow?.standardsRegimeId ?? ''} onto this FSP?`}
       confirmLabel="Copy"
       errorTitle="Failed to copy standard"
       onConfirm={performCopy}
     >
       <p>
-        Duplicate{' '}
-        <strong>
-          {selectedRow?.standardsRegimeName?.trim()
-            || `Regime ${selectedRow?.standardsRegimeId ?? ''}`}
-        </strong>{' '}
-        on this FSP? The new standards regime will start as a Draft with
-        all of the source regime's layers, species, and BGC site series
+        The copy will be assigned a new Standards ID and start as a Draft,
+        with the source regime's layers, species, and BGC site series
         copied over.
       </p>
     </ConfirmationModal>
@@ -341,7 +333,7 @@ const StockingStandardsTab: FC<Props> = ({
   if (loading && !rows) {
     return (
       <>
-        <section className="fsp-info__tile fsp-info__tile--full">
+        <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
           {headerNode}
           <div className="fsp-info__loading" role="status" aria-live="polite">
             <Loading description="Loading standards…" withOverlay={false} />
@@ -357,7 +349,7 @@ const StockingStandardsTab: FC<Props> = ({
   if (error) {
     return (
       <>
-        <section className="fsp-info__tile fsp-info__tile--full">
+        <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
           {headerNode}
           <p className="fsp-info__error">{error}</p>
         </section>
@@ -371,7 +363,7 @@ const StockingStandardsTab: FC<Props> = ({
   if (!rows || rows.length === 0) {
     return (
       <>
-        <section className="fsp-info__tile fsp-info__tile--full">
+        <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
           {headerNode}
           <p className="fsp-info__placeholder">
             No stocking standards on this FSP.
@@ -406,7 +398,7 @@ const StockingStandardsTab: FC<Props> = ({
 
   return (
     <>
-      <section className="fsp-info__tile fsp-info__tile--full">
+      <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
         {headerNode}
         <div className="bordered-table">
           <DataTable rows={tableRows} headers={HEADERS} isSortable>
@@ -432,14 +424,22 @@ const StockingStandardsTab: FC<Props> = ({
                       const isSelected =
                         regimeId !== null && regimeId === selectedRegimeId;
                       const pick = () => {
-                        if (regimeId) setSelectedRegimeId(regimeId);
+                        if (!regimeId) return;
+                        setSelectedRegimeId(regimeId);
+                        // Wait for the panel to (re)render, then bring its
+                        // top up to the top of the viewport so the user
+                        // lands on the Overview panel.
+                        requestAnimationFrame(() => {
+                          detailRef.current?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                          });
+                        });
                       };
                       return (
                         <TableRow
                           key={row.id}
-                          className={`fsp-info__row app-table__row--selectable${
-                            isSelected ? ' fsp-info__row--selected' : ''
-                          }`}
+                          className="fsp-info__row app-table__row--selectable"
                           onClick={pick}
                         >
                           {row.cells.map((cell) => {
@@ -471,11 +471,16 @@ const StockingStandardsTab: FC<Props> = ({
                               return (
                                 <TableCell key={cell.id}>
                                   {cell.value === 'Y' ? (
-                                    <Checkmark
-                                      size={16}
-                                      aria-label="Default standard"
-                                    />
-                                  ) : null}
+                                    <span className="fsp-search__bool fsp-search__bool--yes">
+                                      <CheckmarkFilled size={16} />
+                                      Yes
+                                    </span>
+                                  ) : (
+                                    <span className="fsp-search__bool fsp-search__bool--no">
+                                      <SubtractAlt size={16} />
+                                      No
+                                    </span>
+                                  )}
                                 </TableCell>
                               );
                             }
@@ -494,7 +499,8 @@ const StockingStandardsTab: FC<Props> = ({
         </div>
       </section>
 
-      {selectedRegimeId && (
+      <div ref={detailRef}>
+      {selectedRegimeId ? (
         <StandardRegimeDetailPanel
           fspId={fspId}
           amendmentNumber={amendmentNumber}
@@ -504,8 +510,22 @@ const StockingStandardsTab: FC<Props> = ({
           // the user can't edit the FSP. !canEdit covers Submitter-on-
           // SUB and View-Only across all statuses.
           readOnly={!canEdit}
+          // Copy + Delete standard live in the panel header (both act on
+          // the selected regime); the confirm dialogs + persist stay here.
+          // Delete only shows for a draft regime on an editable FSP.
+          canCopy={canCopy && selectedIsDraft}
+          onCopy={() => setCopyConfirmOpen(true)}
+          canDelete={canDelete && selectedIsDraft}
+          onDelete={() => setDeleteConfirmOpen(true)}
         />
+      ) : (
+        <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
+          <div className="fsp-info__detail-empty">
+            Select a standard above to see its details here.
+          </div>
+        </section>
       )}
+      </div>
       {newStandardModal}
       {addExistingStandardModal}
       {copyConfirmModal}

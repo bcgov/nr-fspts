@@ -247,6 +247,7 @@ public class FspService {
     Fsp300InformationDao.Result r = callInformation(ACTION_GET, fspId, amendmentNumber, null);
     FspRequest dto = toFspDto(r);
     enrichAgreementHoldersWithFoms(fspId, dto);
+    enrichAmendmentReason(fspId, dto);
     return dto;
   }
 
@@ -267,6 +268,30 @@ public class FspService {
     }
     for (FspRequest.AgreementHolder holder : dto.getAgreementHolders()) {
       holder.setAssociatedFoms(fomsByClient.get(holder.getClientNumber()));
+    }
+  }
+
+  /**
+   * Backfills {@code amendmentReason} (the amendment's "summary of changes")
+   * when the plain FSP GET proc leaves it blank. The proc only surfaces the
+   * reason via its VIEW_AMEND / VIEW_REPLACE actions; on a normal load it
+   * stays empty even though the value is recorded on the amendment's original
+   * DRAFT status-history row. We read it directly so the replacement /
+   * amendment description popup shows the comment. Best-effort — a lookup
+   * failure leaves the field as the proc returned it.
+   */
+  private void enrichAmendmentReason(String fspId, FspRequest dto) {
+    if (dto == null
+        || (dto.getAmendmentReason() != null && !dto.getAmendmentReason().isBlank())) {
+      return;
+    }
+    String amendmentNumber = dto.getFspAmendmentNumber();
+    if (amendmentNumber == null || amendmentNumber.isBlank()) {
+      return;
+    }
+    String reason = searchDirectDao.getAmendmentReason(fspId, amendmentNumber);
+    if (reason != null && !reason.isBlank()) {
+      dto.setAmendmentReason(reason);
     }
   }
 

@@ -11,6 +11,7 @@ import {
 import {CheckmarkFilled, SubtractFilled} from '@carbon/icons-react';
 import {type FC, useEffect, useMemo, useState} from 'react';
 
+import {safeErrorMessage} from '@/lib/errorMessage';
 import {type FspWorkflowEvent, getFspWorkflow} from '@/services/fspSearch';
 
 type SortDir = 'ASC' | 'DESC';
@@ -156,7 +157,7 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
         if (!cancelled) setRows(data);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Workflow load failed.');
+        if (!cancelled) setError(safeErrorMessage(e, 'Workflow load failed.'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
