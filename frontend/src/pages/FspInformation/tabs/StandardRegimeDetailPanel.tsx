@@ -4,7 +4,7 @@ import {
   DatePicker,
   DatePickerInput,
   Loading,
-  NumberInput,
+  RadioButton,
   Tab,
   Table,
   TableBody,
@@ -19,14 +19,14 @@ import {
   Tabs,
   TextArea,
   TextInput,
-  Toggle,
 } from '@carbon/react';
-import {Add, Edit, TrashCan} from '@carbon/icons-react';
+import {Add, Copy, Edit, TrashCan} from '@carbon/icons-react';
 import {type FC, useEffect, useRef, useState} from 'react';
 
-import BgcZoneEditModal from '@/components/BgcZoneEditModal';
 import BgcZoneSearchModal from '@/components/BgcZoneSearchModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import {StandardsSearchIcon} from '@/components/Layout/navIcons';
+import {StatusTag} from '@/components/StatusTag/StatusTag';
 import {useNotification} from '@/context/notification/useNotification';
 import type {BgcSearchResult} from '@/services/bgcSearch';
 import {
@@ -34,10 +34,8 @@ import {
   deleteStandardRegimeBgcZone,
   getStandardRegimeDetail,
   type StandardRegimeBgcZone,
-  type StandardRegimeBgcZoneUpsert,
   type StandardRegimeDetail,
   type StandardRegimeOverviewUpdate,
-  updateStandardRegimeBgcZone,
   updateStandardRegimeOverview,
 } from '@/services/fspSearch';
 
@@ -56,6 +54,8 @@ interface OverviewFormState {
   regenDelayOffsetYrs: string;
   freeGrowingEarlyOffsetYrs: string;
   freeGrowingLateOffsetYrs: string;
+  noRegenEarlyOffsetYrs: string;
+  noRegenLateOffsetYrs: string;
 }
 
 const createOverviewForm = (d: StandardRegimeDetail): OverviewFormState => ({
@@ -69,6 +69,8 @@ const createOverviewForm = (d: StandardRegimeDetail): OverviewFormState => ({
   regenDelayOffsetYrs: d.regenDelayOffsetYrs ?? '',
   freeGrowingEarlyOffsetYrs: d.freeGrowingEarlyOffsetYrs ?? '',
   freeGrowingLateOffsetYrs: d.freeGrowingLateOffsetYrs ?? '',
+  noRegenEarlyOffsetYrs: d.noRegenEarlyOffsetYrs ?? '',
+  noRegenLateOffsetYrs: d.noRegenLateOffsetYrs ?? '',
 });
 
 const OVERVIEW_MAX = {
@@ -97,24 +99,33 @@ const validateOverview = (form: OverviewFormState): OverviewErrors => {
     errs.additionalStandards = `Max ${OVERVIEW_MAX.additionalStandards} characters.`;
   }
   const nonNeg = (s: string) => /^\d+$/.test(s);
-  // Required-when rules (FRPA stocking-standards spec):
-  //   - Regen Delay is required ONLY when Regen Obligation is on.
-  //   - Free Growing Early is always optional.
-  //   - Free Growing Late is always required.
-  // Required checks come before format checks so a blank required
-  // field shows "Required" rather than passing the format gate silently.
-  if (form.regenObligation && !form.regenDelayOffsetYrs.trim()) {
-    errs.regenDelayOffsetYrs = 'Required when Regen Obligation is on.';
-  } else if (form.regenDelayOffsetYrs && !nonNeg(form.regenDelayOffsetYrs)) {
-    errs.regenDelayOffsetYrs = 'Whole number ≥ 0.';
-  }
-  if (form.freeGrowingEarlyOffsetYrs && !nonNeg(form.freeGrowingEarlyOffsetYrs)) {
-    errs.freeGrowingEarlyOffsetYrs = 'Whole number ≥ 0.';
-  }
-  if (!form.freeGrowingLateOffsetYrs.trim()) {
-    errs.freeGrowingLateOffsetYrs = 'Required.';
-  } else if (!nonNeg(form.freeGrowingLateOffsetYrs)) {
-    errs.freeGrowingLateOffsetYrs = 'Whole number ≥ 0.';
+  // Each obligation row owns a distinct pair of offset columns and only
+  // the selected row's inputs are editable:
+  //   - "Regen obligations" → Regen (delay) / Early / Late free-growing.
+  //       Regen and Late are required; Early is optional.
+  //   - "No regen obligations" → Early / Late only (Regen is N/A).
+  //       Both are optional but must be whole numbers when supplied.
+  if (form.regenObligation) {
+    if (!form.regenDelayOffsetYrs.trim()) {
+      errs.regenDelayOffsetYrs = 'Required.';
+    } else if (!nonNeg(form.regenDelayOffsetYrs)) {
+      errs.regenDelayOffsetYrs = 'Whole number ≥ 0.';
+    }
+    if (form.freeGrowingEarlyOffsetYrs && !nonNeg(form.freeGrowingEarlyOffsetYrs)) {
+      errs.freeGrowingEarlyOffsetYrs = 'Whole number ≥ 0.';
+    }
+    if (!form.freeGrowingLateOffsetYrs.trim()) {
+      errs.freeGrowingLateOffsetYrs = 'Required.';
+    } else if (!nonNeg(form.freeGrowingLateOffsetYrs)) {
+      errs.freeGrowingLateOffsetYrs = 'Whole number ≥ 0.';
+    }
+  } else {
+    if (form.noRegenEarlyOffsetYrs && !nonNeg(form.noRegenEarlyOffsetYrs)) {
+      errs.noRegenEarlyOffsetYrs = 'Whole number ≥ 0.';
+    }
+    if (form.noRegenLateOffsetYrs && !nonNeg(form.noRegenLateOffsetYrs)) {
+      errs.noRegenLateOffsetYrs = 'Whole number ≥ 0.';
+    }
   }
   return errs;
 };
@@ -124,12 +135,22 @@ const toOverviewPayload = (form: OverviewFormState): StandardRegimeOverviewUpdat
   standardsObjective: form.standardsObjective.trim() || null,
   geographicDescription: form.geographicDescription.trim() || null,
   additionalStandards: form.additionalStandards.trim() || null,
-  effectiveDate: form.effectiveDate || null,
+  // Regulation (SILV_STATUTE_CODE) is not editable — omitted so the
+  // service round-trips the current value. Effective date likewise.
   expiryDate: form.expiryDate || null,
   regenObligationInd: form.regenObligation ? 'Y' : 'N',
-  regenDelayOffsetYrs: form.regenDelayOffsetYrs.trim() || null,
-  freeGrowingEarlyOffsetYrs: form.freeGrowingEarlyOffsetYrs.trim() || null,
-  freeGrowingLateOffsetYrs: form.freeGrowingLateOffsetYrs.trim() || null,
+  // Each obligation row owns its own offset columns. Only send the
+  // selected row's values; clear the other row's (empty string, not
+  // null) so stale numbers don't linger in the read-only view.
+  regenDelayOffsetYrs: form.regenObligation ? form.regenDelayOffsetYrs.trim() || null : '',
+  freeGrowingEarlyOffsetYrs: form.regenObligation
+    ? form.freeGrowingEarlyOffsetYrs.trim() || null
+    : '',
+  freeGrowingLateOffsetYrs: form.regenObligation
+    ? form.freeGrowingLateOffsetYrs.trim() || null
+    : '',
+  noRegenEarlyOffsetYrs: form.regenObligation ? '' : form.noRegenEarlyOffsetYrs.trim() || null,
+  noRegenLateOffsetYrs: form.regenObligation ? '' : form.noRegenLateOffsetYrs.trim() || null,
 });
 
 function toIsoDate(d: Date): string {
@@ -149,6 +170,20 @@ interface Props {
    * to false so existing call sites stay editable.
    */
   readOnly?: boolean;
+  /**
+   * Whether the "Copy standard" action is available for this regime.
+   * When true (and {@link onCopy} is provided) a Copy button renders in
+   * the panel header; the parent owns the confirm dialog + persist.
+   */
+  canCopy?: boolean;
+  onCopy?: () => void;
+  /**
+   * Whether the "Delete standard" action is available for this regime.
+   * When true (and {@link onDelete} is provided) a red Delete button
+   * renders in the panel header; the parent owns the confirm + persist.
+   */
+  canDelete?: boolean;
+  onDelete?: () => void;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -172,6 +207,10 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   amendmentNumber,
   regimeId,
   readOnly = false,
+  canCopy = false,
+  onCopy,
+  canDelete = false,
+  onDelete,
 }) => {
   const [detail, setDetail] = useState<StandardRegimeDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -185,16 +224,12 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   const [overviewForm, setOverviewForm] = useState<OverviewFormState | null>(null);
   const [overviewErrors, setOverviewErrors] = useState<OverviewErrors>({});
   const [savingOverview, setSavingOverview] = useState(false);
-  // BGC Zones tab — Add and Edit are two separate dialogs:
-  //   Add  → BgcZoneSearchModal (SIL52A-style search picker)
-  //   Edit → BgcZoneEditModal (7 text inputs, pre-filled from the row)
-  // Two open flags so closing one mid-fade can't blow away the other's
-  // target. {@code bgcEditTarget} is always set for the edit path; the
-  // search path posts immediately on select with no in-between form.
+  // BGC Zones tab — zones are linked via the search picker and removed
+  // via the per-row Delete; there's no inline edit (change a zone by
+  // removing it and adding the correct one).
+  //   Add → BgcZoneSearchModal (SIL52A-style search picker; posts
+  //   immediately on select with no in-between form).
   const [bgcSearchOpen, setBgcSearchOpen] = useState(false);
-  const [bgcEditOpen, setBgcEditOpen] = useState(false);
-  const [bgcEditTarget, setBgcEditTarget] =
-    useState<StandardRegimeBgcZone | null>(null);
   // Delete-confirm dialog state. Holds the row pending removal so the
   // ConfirmationModal can render its label + the actual DELETE can
   // resolve the right siteSeriesId + revisionCount on Confirm.
@@ -303,16 +338,9 @@ const StandardRegimeDetailPanel: FC<Props> = ({
     setBgcSearchOpen(true);
   };
 
-  const openBgcEdit = (row: StandardRegimeBgcZone) => {
-    setBgcEditTarget(row);
-    setBgcEditOpen(true);
-  };
-
   /**
    * Add path — the search modal hands back a row from SIL_52_BGC_SEARCH_V003.
-   * Each row carries the full 7-field BEC tuple, so we persist all of
-   * it; site-series / phase / seral can still be tweaked afterwards
-   * via the per-row Edit dialog if needed.
+   * Each row carries the full 7-field BEC tuple, so we persist all of it.
    */
   const handleBgcSearchSelect = async (row: BgcSearchResult) => {
     try {
@@ -350,28 +378,6 @@ const StandardRegimeDetailPanel: FC<Props> = ({
       // can retry without re-running the search.
       throw e;
     }
-  };
-
-  /** Edit path — only used by the per-row Edit dialog (search→add is
-   *  immediate so it never routes through here). */
-  const handleBgcEditSubmit = async (payload: StandardRegimeBgcZoneUpsert) => {
-    if (!bgcEditTarget?.stdsRegimeSiteSeriesId) return;
-    const updated = await updateStandardRegimeBgcZone(
-      fspId,
-      regimeId,
-      bgcEditTarget.stdsRegimeSiteSeriesId,
-      // The proc's optimistic-lock check needs the row's current
-      // revision_count — empty would be read as INSERT.
-      bgcEditTarget.revisionCount ?? '',
-      amendmentNumber || undefined,
-      payload,
-    );
-    setDetail(updated);
-    display({
-      kind: 'success',
-      title: 'BGC zone updated.',
-      timeout: 6000,
-    });
   };
 
   const handleBgcDeleteConfirmed = async () => {
@@ -415,8 +421,12 @@ const StandardRegimeDetailPanel: FC<Props> = ({
 
   if (loading && !detail) {
     return (
-      <section className="fsp-info__tile fsp-info__tile--full">
-        <div className="fsp-info__loading" role="status" aria-live="polite">
+      <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
+        <div
+          className="fsp-info__detail-empty"
+          role="status"
+          aria-live="polite"
+        >
           <Loading description="Loading standards detail…" withOverlay={false} />
         </div>
       </section>
@@ -424,47 +434,67 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   }
   if (!detail) {
     return (
-      <section className="fsp-info__tile fsp-info__tile--full">
-        <p className="fsp-info__placeholder">
+      <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
+        <div className="fsp-info__detail-empty">
           Standards regime {regimeId} not found.
-        </p>
+        </div>
       </section>
     );
   }
 
-  const overview: { label: string; value: string }[] = [
-    { label: 'SS ID', value: dash(detail.standardsRegimeId) },
+  // Standards ID + Status now live in the panel header; Version is in
+  // the standards table; the regen / free-growing offsets render as
+  // their own matrix below. What's left is the plain field grid.
+  const overview: { label: string; value: string; newRow?: boolean }[] = [
     { label: 'Standards name', value: dash(detail.standardsRegimeName) },
-    { label: 'Status', value: dash(detail.statusDescription) },
     { label: 'Default standard', value: yesNo(detail.mofDefaultStandardInd) },
-    { label: 'Regulation', value: dash(detail.regulationDescription) },
-    { label: 'Effective date', value: dash(detail.effectiveDate) },
-    { label: 'Expiry date', value: dash(detail.expiryDate) },
-    { label: 'Version', value: dash(detail.standardsAmendNumber) },
     { label: 'Submitted by', value: dash(detail.submittedByUserid) },
-    {
-      label: 'Regen obligation',
-      value: yesNo(detail.regenObligationInd),
-    },
-    {
-      label: 'Regen delay',
-      value: dash(detail.regenDelayOffsetYrs),
-    },
-    {
-      label: 'Free growing early',
-      value: dash(detail.freeGrowingEarlyOffsetYrs),
-    },
-    {
-      label: 'Free growing late',
-      value: dash(detail.freeGrowingLateOffsetYrs),
-    },
+    // Effective date breaks to its own row, taking Expiry date with it.
+    { label: 'Effective date', value: dash(detail.effectiveDate), newRow: true },
+    { label: 'Expiry date', value: dash(detail.expiryDate) },
   ];
 
   return (
     <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--detail">
-      <div className="fsp-info__inner-tabs">
+      <header className="fsp-info__detail-header">
+        <div className="fsp-info__detail-heading">
+          {/* Match the Information tab's "Plan details" heading: same
+              regular-weight icon+title style, with the Stocking-standards
+              nav icon used by the parent tab. */}
+          <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+            <StandardsSearchIcon width={20} height={20} />
+            <span>Standards ID: {dash(detail.standardsRegimeId)}</span>
+          </h2>
+          {detail.statusDescription && (
+            <StatusTag status={detail.statusDescription} />
+          )}
+        </div>
+        {((canCopy && onCopy) || (canDelete && onDelete)) && (
+          <div className="fsp-info__detail-actions">
+            {canCopy && onCopy && (
+              <Button kind="tertiary" size="sm" renderIcon={Copy} onClick={onCopy}>
+                Copy standard
+              </Button>
+            )}
+            {canDelete && onDelete && (
+              <Button
+                kind="danger--tertiary"
+                size="sm"
+                renderIcon={TrashCan}
+                onClick={onDelete}
+              >
+                Delete standard
+              </Button>
+            )}
+          </div>
+        )}
+      </header>
+      {detail.fspIdList && (
+        <p className="fsp-info__detail-subtitle">FSP ID: {detail.fspIdList}</p>
+      )}
+      <div className="fsp-info__inner-tabs fsp-info__inner-tabs--detail">
       <Tabs>
-        <TabList aria-label="Standards regime sections" contained>
+        <TabList aria-label="Standards regime sections">
           <Tab>Overview</Tab>
           <Tab>Layers</Tab>
           <Tab>Districts</Tab>
@@ -482,13 +512,15 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     renderIcon={Edit}
                     onClick={handleOverviewEdit}
                   >
-                    Edit
+                    Edit overview
                   </Button>
                 </div>
               )}
 
               {editingOverview && overviewForm ? (
                 <>
+                  {/* Standards name on its own row; Expiry date drops to
+                      the next row (Effective date is not editable here). */}
                   <div className="fsp-info__edit-grid">
                     <TextInput
                       id="edit-ssRegimeName"
@@ -503,24 +535,8 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                         setOverviewField('standardsRegimeName', e.target.value)
                       }
                     />
-                    <DatePicker
-                      datePickerType="single"
-                      dateFormat="Y-m-d"
-                      value={overviewForm.effectiveDate || undefined}
-                      onChange={(dates: Date[]) =>
-                        setOverviewField(
-                          'effectiveDate',
-                          dates[0] ? toIsoDate(dates[0]) : '',
-                        )
-                      }
-                    >
-                      <DatePickerInput
-                        id="edit-ssEffectiveDate"
-                        placeholder="YYYY-MM-DD"
-                        labelText="Effective date"
-                        disabled={savingOverview}
-                      />
-                    </DatePicker>
+                  </div>
+                  <div className="fsp-info__edit-grid">
                     <DatePicker
                       datePickerType="single"
                       dateFormat="Y-m-d"
@@ -539,92 +555,169 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                         disabled={savingOverview}
                       />
                     </DatePicker>
-                    <Toggle
-                      id="edit-ssRegenObligation"
-                      labelText="Regen obligation"
-                      labelA="No"
-                      labelB="Yes"
-                      toggled={overviewForm.regenObligation}
-                      disabled={savingOverview}
-                      onToggle={(v) => setOverviewField('regenObligation', v)}
-                    />
-                    <NumberInput
-                      id="edit-ssRegenDelayYrs"
-                      // Asterisk follows Carbon's convention for
-                      // required-field markers — added conditionally
-                      // because Regen Delay is only required when the
-                      // Regen Obligation toggle is on.
-                      label={overviewForm.regenObligation ? 'Regen delay *' : 'Regen delay'}
-                      min={0}
-                      max={99}
-                      allowEmpty
-                      hideSteppers
-                      value={
-                        overviewForm.regenDelayOffsetYrs === ''
-                          ? ''
-                          : Number(overviewForm.regenDelayOffsetYrs)
-                      }
-                      invalid={!!overviewErrors.regenDelayOffsetYrs}
-                      invalidText={overviewErrors.regenDelayOffsetYrs}
-                      disabled={savingOverview}
-                      onChange={(_e, { value }) =>
-                        setOverviewField(
-                          'regenDelayOffsetYrs',
-                          value === '' ? '' : String(value),
-                        )
-                      }
-                    />
-                    <NumberInput
-                      id="edit-ssFgEarlyYrs"
-                      label="Free growing early"
-                      min={0}
-                      max={99}
-                      allowEmpty
-                      hideSteppers
-                      value={
-                        overviewForm.freeGrowingEarlyOffsetYrs === ''
-                          ? ''
-                          : Number(overviewForm.freeGrowingEarlyOffsetYrs)
-                      }
-                      invalid={!!overviewErrors.freeGrowingEarlyOffsetYrs}
-                      invalidText={overviewErrors.freeGrowingEarlyOffsetYrs}
-                      disabled={savingOverview}
-                      onChange={(_e, { value }) =>
-                        setOverviewField(
-                          'freeGrowingEarlyOffsetYrs',
-                          value === '' ? '' : String(value),
-                        )
-                      }
-                    />
-                    <NumberInput
-                      id="edit-ssFgLateYrs"
-                      label="Free growing late *"
-                      min={0}
-                      max={99}
-                      allowEmpty
-                      hideSteppers
-                      value={
-                        overviewForm.freeGrowingLateOffsetYrs === ''
-                          ? ''
-                          : Number(overviewForm.freeGrowingLateOffsetYrs)
-                      }
-                      invalid={!!overviewErrors.freeGrowingLateOffsetYrs}
-                      invalidText={overviewErrors.freeGrowingLateOffsetYrs}
-                      disabled={savingOverview}
-                      onChange={(_e, { value }) =>
-                        setOverviewField(
-                          'freeGrowingLateOffsetYrs',
-                          value === '' ? '' : String(value),
-                        )
-                      }
-                    />
+                  </div>
+
+                  {/* Editable regen / free-growing matrix. The radio picks
+                      the obligation type; the Regen / Early / Late offset
+                      inputs are only active on the "Regen obligations"
+                      row. */}
+                  <div className="bordered-table fsp-info__regen-table fsp-info__regen-table--editing">
+                    <Table size="sm">
+                      <TableHead>
+                        <TableRow>
+                          <TableHeader aria-label="Obligation" />
+                          <TableHeader>Regen</TableHeader>
+                          <TableHeader>Early</TableHeader>
+                          <TableHeader>Late</TableHeader>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>
+                            <RadioButton
+                              id="edit-ssRegen-yes"
+                              name="edit-ssRegenObligation"
+                              labelText="Regen obligations"
+                              checked={overviewForm.regenObligation}
+                              disabled={savingOverview}
+                              onChange={() =>
+                                setOverviewField('regenObligation', true)
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {overviewForm.regenObligation ? (
+                              <TextInput
+                                id="edit-ssRegenDelayYrs"
+                                labelText="Regen years"
+                                hideLabel
+                                size="sm"
+                                maxLength={2}
+                                inputMode="numeric"
+                                value={overviewForm.regenDelayOffsetYrs}
+                                invalid={!!overviewErrors.regenDelayOffsetYrs}
+                                invalidText={overviewErrors.regenDelayOffsetYrs}
+                                disabled={savingOverview}
+                                onChange={(e) =>
+                                  setOverviewField('regenDelayOffsetYrs', e.target.value)
+                                }
+                              />
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {overviewForm.regenObligation ? (
+                              <TextInput
+                                id="edit-ssFgEarlyYrs"
+                                labelText="Early years"
+                                hideLabel
+                                size="sm"
+                                maxLength={2}
+                                inputMode="numeric"
+                                value={overviewForm.freeGrowingEarlyOffsetYrs}
+                                invalid={!!overviewErrors.freeGrowingEarlyOffsetYrs}
+                                invalidText={overviewErrors.freeGrowingEarlyOffsetYrs}
+                                disabled={savingOverview}
+                                onChange={(e) =>
+                                  setOverviewField('freeGrowingEarlyOffsetYrs', e.target.value)
+                                }
+                              />
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {overviewForm.regenObligation ? (
+                              <TextInput
+                                id="edit-ssFgLateYrs"
+                                labelText="Late years"
+                                hideLabel
+                                size="sm"
+                                maxLength={2}
+                                inputMode="numeric"
+                                value={overviewForm.freeGrowingLateOffsetYrs}
+                                invalid={!!overviewErrors.freeGrowingLateOffsetYrs}
+                                invalidText={overviewErrors.freeGrowingLateOffsetYrs}
+                                disabled={savingOverview}
+                                onChange={(e) =>
+                                  setOverviewField('freeGrowingLateOffsetYrs', e.target.value)
+                                }
+                              />
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>
+                            <RadioButton
+                              id="edit-ssRegen-no"
+                              name="edit-ssRegenObligation"
+                              labelText="No regen obligations"
+                              checked={!overviewForm.regenObligation}
+                              disabled={savingOverview}
+                              onChange={() =>
+                                setOverviewField('regenObligation', false)
+                              }
+                            />
+                          </TableCell>
+                          {/* Regen (delay) doesn't apply to the no-obligation
+                              case — only Early / Late are captured. */}
+                          <TableCell>—</TableCell>
+                          <TableCell>
+                            {!overviewForm.regenObligation ? (
+                              <TextInput
+                                id="edit-ssNoRegenEarlyYrs"
+                                labelText="Early years"
+                                hideLabel
+                                size="sm"
+                                maxLength={2}
+                                inputMode="numeric"
+                                value={overviewForm.noRegenEarlyOffsetYrs}
+                                invalid={!!overviewErrors.noRegenEarlyOffsetYrs}
+                                invalidText={overviewErrors.noRegenEarlyOffsetYrs}
+                                disabled={savingOverview}
+                                onChange={(e) =>
+                                  setOverviewField('noRegenEarlyOffsetYrs', e.target.value)
+                                }
+                              />
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {!overviewForm.regenObligation ? (
+                              <TextInput
+                                id="edit-ssNoRegenLateYrs"
+                                labelText="Late years"
+                                hideLabel
+                                size="sm"
+                                maxLength={2}
+                                inputMode="numeric"
+                                value={overviewForm.noRegenLateOffsetYrs}
+                                invalid={!!overviewErrors.noRegenLateOffsetYrs}
+                                invalidText={overviewErrors.noRegenLateOffsetYrs}
+                                disabled={savingOverview}
+                                onChange={(e) =>
+                                  setOverviewField('noRegenLateOffsetYrs', e.target.value)
+                                }
+                              />
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
                   </div>
 
                   <TextArea
                     id="edit-ssObjective"
                     labelText="Objective"
                     value={overviewForm.standardsObjective}
-                    maxLength={OVERVIEW_MAX.standardsObjective}
+                    enableCounter
+                    maxCount={OVERVIEW_MAX.standardsObjective}
                     rows={3}
                     invalid={!!overviewErrors.standardsObjective}
                     invalidText={overviewErrors.standardsObjective}
@@ -635,9 +728,10 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                   />
                   <TextArea
                     id="edit-ssGeoDesc"
-                    labelText="Geographic description"
+                    labelText="Geographic"
                     value={overviewForm.geographicDescription}
-                    maxLength={OVERVIEW_MAX.geographicDescription}
+                    enableCounter
+                    maxCount={OVERVIEW_MAX.geographicDescription}
                     rows={3}
                     invalid={!!overviewErrors.geographicDescription}
                     invalidText={overviewErrors.geographicDescription}
@@ -650,7 +744,8 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     id="edit-ssAdditional"
                     labelText="Additional standards"
                     value={overviewForm.additionalStandards}
-                    maxLength={OVERVIEW_MAX.additionalStandards}
+                    enableCounter
+                    maxCount={OVERVIEW_MAX.additionalStandards}
                     rows={4}
                     invalid={!!overviewErrors.additionalStandards}
                     invalidText={overviewErrors.additionalStandards}
@@ -675,20 +770,59 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                       disabled={savingOverview}
                       onClick={handleOverviewSave}
                     >
-                      {savingOverview ? 'Saving…' : 'Save'}
+                      {savingOverview ? 'Saving…' : 'Save changes'}
                     </Button>
                   </div>
                 </>
               ) : (
                 <>
-                  <dl className="fsp-info__field-list">
+                  <dl className="fsp-info__field-list fsp-info__field-list--overview">
                     {overview.map((f) => (
-                      <div key={f.label} className="fsp-info__field">
+                      <div
+                        key={f.label}
+                        className={
+                          f.newRow
+                            ? 'fsp-info__field fsp-info__field--new-row'
+                            : 'fsp-info__field'
+                        }
+                      >
                         <dt>{f.label}</dt>
                         <dd>{f.value}</dd>
                       </div>
                     ))}
                   </dl>
+
+                  {/* Regen / free-growing offset matrix: the "Regen
+                      obligations" row carries the regen-delay + free-
+                      growing offsets; "No regen obligations" carries the
+                      no-regen offsets. */}
+                  <div className="bordered-table fsp-info__regen-table">
+                    <Table size="sm">
+                      <TableHead>
+                        <TableRow>
+                          <TableHeader aria-label="Obligation" />
+                          <TableHeader>Regen</TableHeader>
+                          <TableHeader>Early</TableHeader>
+                          <TableHeader>Late</TableHeader>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>Regen obligations</TableCell>
+                          <TableCell>{dash(detail.regenDelayOffsetYrs)}</TableCell>
+                          <TableCell>{dash(detail.freeGrowingEarlyOffsetYrs)}</TableCell>
+                          <TableCell>{dash(detail.freeGrowingLateOffsetYrs)}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>No regen obligations</TableCell>
+                          <TableCell>—</TableCell>
+                          <TableCell>{dash(detail.noRegenEarlyOffsetYrs)}</TableCell>
+                          <TableCell>{dash(detail.noRegenLateOffsetYrs)}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+
                   {detail.standardsObjective && (
                     <div>
                       <h3 className="fsp-info__section-title">Objective</h3>
@@ -697,7 +831,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                   )}
                   {detail.geographicDescription && (
                     <div>
-                      <h3 className="fsp-info__section-title">Geographic description</h3>
+                      <h3 className="fsp-info__section-title">Geographic</h3>
                       <p>{detail.geographicDescription}</p>
                     </div>
                   )}
@@ -787,7 +921,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                       name: dash(h.clientName),
                     }))}
                     headers={[
-                      { key: 'number', header: 'Client #' },
+                      { key: 'number', header: 'Client number' },
                       { key: 'acronym', header: 'Acronym' },
                       { key: 'name', header: 'Name' },
                     ]}
@@ -833,7 +967,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     renderIcon={Add}
                     onClick={openBgcSearch}
                   >
-                    Add BGC zone
+                    Add existing BGC zone
                   </Button>
                 </div>
               )}
@@ -850,7 +984,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                           <TableHeader>Variant</TableHeader>
                           <TableHeader>Phase</TableHeader>
                           <TableHeader>Site series</TableHeader>
-                          <TableHeader>Site series phase</TableHeader>
+                          <TableHeader>Site phase</TableHeader>
                           <TableHeader>Seral</TableHeader>
                           {!readOnly && (
                             <TableHeader style={{ width: '8rem' }} aria-label="Actions" />
@@ -871,15 +1005,6 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                             <TableCell>{dash(b.becSeral)}</TableCell>
                             {!readOnly && (
                               <TableCell>
-                                <Button
-                                  kind="ghost"
-                                  size="sm"
-                                  renderIcon={Edit}
-                                  iconDescription="Edit"
-                                  hasIconOnly
-                                  disabled={!b.stdsRegimeSiteSeriesId}
-                                  onClick={() => openBgcEdit(b)}
-                                />
                                 <Button
                                   kind="danger--ghost"
                                   size="sm"
@@ -909,12 +1034,6 @@ const StandardRegimeDetailPanel: FC<Props> = ({
         open={bgcSearchOpen}
         onClose={() => setBgcSearchOpen(false)}
         onSelect={handleBgcSearchSelect}
-      />
-      <BgcZoneEditModal
-        open={bgcEditOpen}
-        value={bgcEditTarget}
-        onClose={() => setBgcEditOpen(false)}
-        onSubmit={handleBgcEditSubmit}
       />
       <ConfirmationModal
         open={bgcDeleteTarget != null}

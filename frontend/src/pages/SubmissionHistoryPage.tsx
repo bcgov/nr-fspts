@@ -28,6 +28,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useNotification } from '@/context/notification/useNotification';
 import { useOrg } from '@/context/org/useOrg';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import {
   type CodeOption,
   type FspSearchResult,
@@ -212,9 +213,7 @@ const SubmissionHistoryPage: FC = () => {
       })
       .catch((e) => {
         if (!cancelled) {
-          setError(
-            `Failed to load status codes: ${e instanceof Error ? e.message : String(e)}`,
-          );
+          setError(safeErrorMessage(e, 'Failed to load status codes.'));
         }
       })
       .finally(() => {
@@ -286,7 +285,7 @@ const SubmissionHistoryPage: FC = () => {
         setPage(data.page.number);
         setPageSize(data.page.size);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(safeErrorMessage(e));
         setResults([]);
         setTotalElements(0);
       } finally {

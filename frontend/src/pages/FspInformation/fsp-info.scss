@@ -495,6 +495,13 @@
   @media (min-width: 672px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  // Stacked edit-grids (e.g. Standards name row + Expiry date row) need
+  // the same vertical rhythm the in-grid row gap gives, since the gap
+  // doesn't reach across separate grid containers.
+  + .fsp-info__edit-grid {
+    margin-block-start: 1rem;
+  }
 }
 
 // Toggles are intrinsically narrow — stacking them in a 2-col grid
@@ -676,14 +683,29 @@
 // form runs past the viewport, the modal-content region is turned into
 // a flex column — the form region scrolls, the actions stay pinned.
 .new-std-modal {
+  // Gray dialog surface with white input fields (matches the standards
+  // detail-panel aesthetic in the screenshot). The container flip paints
+  // header + content + footer gray in one shot; the field-token overrides
+  // keep the inputs white so they stand out against it.
+  .cds--modal-container {
+    background-color: var(--cds-layer-01, #f4f4f4);
+    // Let the dialog grow taller before the form starts scrolling — the
+    // content easily fits ~90vh now, so only very short viewports scroll.
+    max-block-size: 92vh;
+  }
+
+  --cds-field-01: #ffffff;
+  --cds-field-02: #ffffff;
+
   .cds--modal-content {
     display: flex;
     flex-direction: column;
     // Cap the modal-content height so the actions row never falls off
     // the screen on small viewports. Carbon's modal already caps the
-    // outer modal height ~85vh; this is the inner cap that triggers
-    // form scrolling first.
-    max-block-size: calc(85vh - 6rem);
+    // outer modal height; this is the inner cap that triggers form
+    // scrolling first. Raised to ~92vh (minus header + actions) so the
+    // form only scrolls on short viewports rather than always.
+    max-block-size: calc(92vh - 5rem);
     // Extra horizontal padding so the form fields aren't smashed
     // against the modal edges. Carbon's default modal-content padding
     // is roughly 1rem inline; bump it to 1.5rem (matches the modal
@@ -702,6 +724,45 @@
     padding-block-end: 1rem;
     // Avoid the scrollbar overlapping field content on Windows / Linux.
     padding-inline-end: 0.25rem;
+  }
+
+  // Helper paragraph directly under the heading.
+  &__intro {
+    margin: 0;
+    color: var(--cds-text-secondary);
+    line-height: 1.4;
+  }
+
+  // Sub-label under the regen offset grid ("Max 20 years…"). Matches
+  // Carbon's field helper text (12px secondary grey).
+  &__field-help {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.75rem;
+    line-height: 1.34;
+    color: var(--cds-text-secondary);
+  }
+
+  // Info banner pinned above the actions — the app's standard low-contrast
+  // info notification look (blue left accent, tinted fill, info glyph).
+  // Mirrors .amend-modal__banner.
+  &__banner {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    margin-block-start: 1rem;
+    background: var(--cds-notification-background-info, #edf5ff);
+    border-inline-start: 3px solid var(--cds-support-info, #0043ce);
+    border-radius: 2px;
+    color: var(--cds-text-primary, #161616);
+    line-height: 1.4;
+  }
+
+  &__banner-icon {
+    flex: 0 0 auto;
+    margin-block-start: 0.0625rem;
+    fill: var(--cds-support-info, #0043ce);
   }
 
   // Identical to .fsp-species-modal__actions visually — just adds
@@ -854,6 +915,18 @@
   grid-column: 1 / -1;
 }
 
+// Plain variant — strips the white card fill/shadow/padding so the
+// section sits directly on the gray tab canvas. Used for the standards
+// table + empty/loading placeholders, which the approved layout shows
+// on the gray canvas (only the selected-standard detail panel below is
+// a white card).
+.fsp-info__tile--plain {
+  background-color: transparent;
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+}
+
 // Thin gray outline around the Information-tab section cards (Plan
 // details / Agreement holders / Districts). Scoped via :has so only
 // the icon-titled sections get the border, leaving other tabs' tiles
@@ -897,6 +970,14 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+// Carbon paints ghost-button icons with --cds-icon-primary (black) via
+// `.cds--btn--ghost:not([disabled]) svg` (0,2,1), even though the label
+// is link-blue. Match that selector shape + our class (0,3,1) so the
+// icon tracks the blue text instead.
+.fsp-info__link-icon-btn.cds--btn--ghost:not([disabled]) svg {
+  fill: var(--cds-link-primary, #0f62fe);
 }
 
 .fsp-info__section-title {
@@ -1012,6 +1093,45 @@
   grid-column: 1 / -1;
 }
 
+// Standards Overview field grid — bold dark labels stacked over regular
+// values, content-sized columns packed left (four across on the first
+// row: Standards name / Default standard / Regulation / Submitted by;
+// the Effective / Expiry pair wraps to the next row). Placed after the
+// base .fsp-info__field-list so it wins the grid-template-columns +
+// label overrides at equal specificity.
+.fsp-info__field-list--overview {
+  justify-content: start;
+  column-gap: 3rem;
+  row-gap: 2rem;
+
+  @media (min-width: 672px) {
+    grid-template-columns: repeat(4, minmax(0, max-content));
+  }
+
+  // Force a field to start a fresh row (the identity fields sit on row 1;
+  // Effective / Expiry date drop to row 2).
+  .fsp-info__field--new-row {
+    @media (min-width: 672px) {
+      grid-column-start: 1;
+    }
+  }
+
+  .fsp-info__field {
+    gap: 0.375rem;
+
+    dt {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--cds-text-primary);
+    }
+
+    dd {
+      font-size: 1rem;
+      color: var(--cds-text-primary);
+    }
+  }
+}
+
 // Plan-details field grid: pack the columns to the left (content-sized,
 // not stretched edge-to-edge) so Effective / Expiry / FSP term sit as a
 // tight group and the rest of the card breathes — matching the approved
@@ -1059,6 +1179,181 @@
   text-align: center;
   color: var(--cds-text-secondary);
   background-color: var(--cds-layer-01);
+}
+
+// Instruction line above the standards table (replaces the section
+// title — the tab label already reads "Stocking standards").
+.fsp-info__tile-instruction {
+  margin: 0;
+  color: var(--cds-text-secondary);
+}
+
+// Bordered placeholder box shown below the standards table when no
+// standard is selected yet — reused (centered) for the detail panel's
+// own loading spinner.
+.fsp-info__detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 8rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--cds-text-secondary);
+  border: 1px solid var(--cds-border-subtle-01, #c6c6c6);
+  border-radius: 0.5rem;
+  // White box on the gray canvas (matches the detail card's fill).
+  background-color: var(--cds-layer-02);
+}
+
+// Selected-standard detail panel header: document icon + "Standards ID:
+// …" + status tag on the left, "Copy standard" on the right.
+.fsp-info__detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.fsp-info__detail-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+// Copy standard + Delete standard button pair on the right of the detail
+// panel header.
+.fsp-info__detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fsp-info__detail-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.fsp-info__detail-subtitle {
+  margin: 0.25rem 0 1.75rem;
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+}
+
+// Regen / free-growing offset matrix on the Overview tab — full width.
+.fsp-info__regen-table {
+  margin-block: 0.5rem 1.5rem;
+
+  // In edit mode the cells hold radios + compact number inputs. Keep the
+  // inputs narrow (offsets are ≤ 2 digits) and vertically centred against
+  // the row's radio button.
+  td {
+    vertical-align: middle;
+  }
+
+  // Carbon's <Table> renders `.cds--data-table`, which ships a rule
+  // (`.cds--data-table .cds--text-input`) pinning inputs to the white
+  // field token — the SAME specificity (0,2,0) as a plain
+  // `.fsp-info__regen-table .cds--text-input`, so it wins on source
+  // order (Carbon loads after us) and leaves the offset fields
+  // white-on-white. Qualify with `.cds--data-table` to out-rank it
+  // (0,3,0) and hard-code the gray fill — the panel's layer context
+  // maps BOTH field tokens to white, so a token can't be trusted here.
+  .cds--data-table .cds--text-input {
+    min-inline-size: 0;
+    max-inline-size: 6rem;
+    background-color: #f4f4f4;
+
+    &:hover,
+    &:focus,
+    &:active {
+      background-color: #e8e8e8;
+    }
+  }
+}
+
+// In edit mode the regen matrix reads as one solid white surface (same
+// treatment as the density table below) so the gray editable inputs
+// stand out — kill the global zebra stripe (src/styles/_tables.scss).
+// Match its selector shape + our extra class so specificity (0,3,3)
+// beats the (0,2,3) zebra rule.
+.fsp-info__regen-table--editing {
+  .cds--data-table tbody tr:nth-child(even),
+  .cds--data-table tbody tr:nth-child(even) td {
+    background-color: #ffffff;
+  }
+}
+
+// Layers tab — the density matrix (Well spaced / Residual / Post) shares
+// the regen-table treatment: editable cells are gray-filled inputs on
+// white table rows. Unlike the regen offsets these fill their column
+// (no narrow cap), matching the layer layout.
+.fsp-info__density-table {
+  td {
+    vertical-align: middle;
+  }
+
+  // Same Carbon `.cds--data-table .cds--text-input` override battle as the
+  // regen table (0,3,0 to beat Carbon's 0,2,0 white-field rule); hard-code
+  // the gray fill since the detail panel maps both field tokens to white.
+  .cds--data-table .cds--text-input {
+    min-inline-size: 0;
+    background-color: #f4f4f4;
+
+    &:hover,
+    &:focus,
+    &:active {
+      background-color: #e8e8e8;
+    }
+  }
+}
+
+// In edit mode the density rows must read as one solid white surface so
+// the gray editable inputs stand out — kill the global zebra stripe
+// (src/styles/_tables.scss). Match its selector shape + our extra class
+// so specificity (0,3,3) beats the (0,2,3) zebra rule.
+.fsp-info__density-table--editing {
+  .cds--data-table tbody tr:nth-child(even),
+  .cds--data-table tbody tr:nth-child(even) td {
+    background-color: #ffffff;
+  }
+}
+
+// "Single layer" + Convert banner. Rendered inside the density
+// `.bordered-table` (rounded, overflow-hidden) so it reads as a white
+// header bar connected to the gray column headers below — same connected
+// pattern as the BGC search results header.
+.fsp-info__layer-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  background-color: var(--cds-layer-02, #ffffff);
+  border-block-end: 1px solid var(--cds-border-subtle-01, #c6c6c6);
+}
+
+.fsp-info__layer-card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+}
+
+// The two standalone layer fields (Max coniferous / Height relative)
+// sit below the density table with a little breathing room.
+.fsp-info__layer-extra {
+  margin-block-start: 1.5rem;
+}
+
+// Thin section rule between the density/species blocks on the Layers tab.
+.fsp-info__divider {
+  border: 0;
+  border-block-start: 1px solid var(--cds-border-subtle-01, #c6c6c6);
+  margin-block: 1.5rem;
 }
 
 // Right-align numeric column headers + cells so values track the
@@ -1112,17 +1407,12 @@
 // TableRow that contains a TableSelectRow radio. Pointer cursor on the
 // whole row; the blue hover comes from the shared selectable-row rule in
 // styles/_tables.scss (via the app-table__row--selectable marker).
+// Selection is indicated by the row's radio button alone — the row keeps
+// the shared zebra striping (no selected-row wash or bold), matching the
+// FSP search results look.
 .fsp-info__row {
   cursor: pointer;
   transition: background-color 0.15s ease;
-}
-
-// Selected row: subtle layer-selected wash + bold text. Painted on the
-// cells (not the tr) at a specificity above the global zebra rule in
-// _tables.scss — otherwise the opaque zebra td background would hide it.
-.cds--data-table tbody tr.fsp-info__row.fsp-info__row--selected td {
-  background-color: var(--cds-layer-selected-01);
-  font-weight: 600;
 }
 
 // REPT-style "inner tabs" — direct port of nr-rept's
@@ -1202,15 +1492,22 @@
 // don't blend visually with the white parent tabs. Re-revert
 // `--cds-layer` back to layer-01 and bump form fields up to layer-02
 // (white) inside the panel for input contrast.
-.fsp-info__inner-tabs--gray {
-  --cds-layer: var(--cds-layer-01);
-
-  .cds--tab-content {
-    --cds-field: var(--cds-field-02);
-    --cds-field-hover: var(--cds-field-hover-02);
-    --cds-border-subtle: var(--cds-border-subtle-02);
-    --cds-border-subtle-selected: var(--cds-border-subtle-selected-02);
-  }
+// Standards detail panel: line (non-contained) tabs so the tab strip
+// stays white with the selected indicator UNDER the label; only the tab
+// PANEL content is inverted to the gray canvas colour so the fields /
+// regen table read as an inset area. Form fields bump to white for
+// contrast against the now-gray panel.
+//
+// The panel `.cds--tab-content` is a sibling of the `.cds--tabs` list;
+// qualify with our class (0,3,0 > Carbon's 0,2,0) so the gray fill wins
+// deterministically. `--cds-layer` stays white so tables / tags inside
+// keep white rows on the gray.
+.fsp-info__inner-tabs--detail .cds--tabs ~ .cds--tab-content {
+  background-color: var(--cds-layer-01);
+  --cds-field: var(--cds-field-02);
+  --cds-field-hover: var(--cds-field-hover-02);
+  --cds-border-subtle: var(--cds-border-subtle-02);
+  --cds-border-subtle-selected: var(--cds-border-subtle-selected-02);
 }
 
 // Detail tile sits directly under the standards table — pull it up

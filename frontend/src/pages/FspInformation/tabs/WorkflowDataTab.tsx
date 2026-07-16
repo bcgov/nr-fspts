@@ -25,6 +25,7 @@ import OtbhEditModal, { type OtbhDialogValue } from '@/components/OtbhEditModal'
 import ReviewMilestoneEditModal from '@/components/ReviewMilestoneEditModal';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
 import { useNotification } from '@/context/notification/useNotification';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import {
   type FspDdmDecision,
   type FspExtensionDecision,
@@ -599,7 +600,7 @@ const WorkflowDataTab: FC<Props> = ({
       })
       .catch((e) => {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : 'Workflow load failed.');
+        setError(safeErrorMessage(e, 'Workflow load failed.'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

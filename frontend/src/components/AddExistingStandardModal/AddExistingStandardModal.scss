@@ -66,18 +66,67 @@
   padding-block-start: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  // No gap: the count banner, table, and footer read as one connected
+  // block (matches .fsp-search__results). The info banner above supplies
+  // its own margin-block-end for separation.
 }
 
-// Gray banner directly above the table — same treatment the
-// FSP-Search / Inbox / Standards results panes use, scaled to fit
-// inside the modal width.
+// Info banner directly above the results table — the app's standard
+// low-contrast info notification look (blue left accent, tinted fill,
+// info glyph). Mirrors .amend-modal__banner.
+.add-std-modal__banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  margin-block-end: 0.5rem;
+  background: var(--cds-notification-background-info, #edf5ff);
+  border-inline-start: 3px solid var(--cds-support-info, #0043ce);
+  border-radius: 2px;
+  color: var(--cds-text-primary, #161616);
+  line-height: 1.4;
+}
+
+.add-std-modal__banner-icon {
+  flex: 0 0 auto;
+  margin-block-start: 0.0625rem;
+  fill: var(--cds-support-info, #0043ce);
+}
+
+// Result-count banner directly above the table. White surface (matches
+// the table body) so the count reads as the table's own header strip;
+// the gray in this results block lives in the footer instead.
 .add-std-modal__results-header {
-  background-color: var(--cds-layer-01);
+  background-color: #ffffff;
   padding: 0.5rem 0.75rem;
   font-weight: 600;
   font-size: 0.875rem;
   color: var(--cds-text-primary);
+}
+
+// Footer / pagination bar — gray surface (design's --fds-table-footer
+// #dfdfe1) with a subtle top divider, matching the FSP-Search / Standards
+// results footers. Scoped to this modal so global pagination stays intact.
+.add-std-modal__results .cds--pagination * {
+  border-color: transparent !important;
+}
+
+.add-std-modal__results .cds--pagination {
+  background-color: #dfdfe1;
+  border: none;
+  border-block-start: 1px solid #c6c6c8;
+  color: #606062;
+  font-size: 14px;
+}
+
+// Let the gray show through Carbon's inner select / button / text surfaces
+// (which otherwise paint their own white background).
+.add-std-modal__results .cds--pagination .cds--select-input,
+.add-std-modal__results .cds--pagination .cds--pagination__button,
+.add-std-modal__results .cds--pagination .cds--pagination__text,
+.add-std-modal__results .cds--pagination .cds--pagination__pages-text {
+  background-color: transparent;
+  color: #606062;
 }
 
 .add-std-modal__empty {

@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState, type FC, type FormEvent } fr
 
 import { Modal } from '@/components/Modal';
 import { useNotification } from '@/context/notification/useNotification';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import { searchUsers, type UserSearchParams, type UserSummary } from '@/services/fspSearch';
 
 import './user-search-modal.scss';
@@ -86,7 +87,7 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
       })
       .catch((e) => {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : String(e));
+        setError(safeErrorMessage(e));
         setResults([]);
         setTotal(0);
       })

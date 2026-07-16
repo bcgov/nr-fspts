@@ -23,6 +23,7 @@ import { useAuth } from '@/context/auth/useAuth';
 import { useNotification } from '@/context/notification/useNotification';
 import { canAttachDecisionLetter, canEditAttachments } from '@/routes/access';
 import { findDecisionLetterCategory } from '@/lib/attachmentCategories';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import {
   type CodeOption,
   deleteFspAttachment,
@@ -154,7 +155,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
       })
       .catch((e) => {
         if (!cancelled)
-          setError(e instanceof Error ? e.message : 'Attachments load failed.');
+          setError(safeErrorMessage(e, 'Attachments load failed.'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

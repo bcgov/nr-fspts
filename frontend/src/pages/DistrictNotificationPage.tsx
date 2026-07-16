@@ -21,6 +21,7 @@ import { DestructiveModal } from '@/components/core/DestructiveModal';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { UserSearchModal } from '@/components/UserSearchModal';
 import { useNotification } from '@/context/notification/useNotification';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import {
   addDistrictDesignate,
   getDistrictDesignates,
@@ -95,7 +96,7 @@ const DistrictNotificationPage: FC = () => {
       })
       .catch((e) => {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Failed to load org units.');
+          setError(safeErrorMessage(e, 'Failed to load org units.'));
         }
       })
       .finally(() => {
@@ -125,7 +126,7 @@ const DistrictNotificationPage: FC = () => {
         void enrichDesignates(orgUnit, rows);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load designates.');
+      setError(safeErrorMessage(e, 'Failed to load designates.'));
       setDesignates([]);
     } finally {
       setLoading(false);
@@ -200,7 +201,7 @@ const DistrictNotificationPage: FC = () => {
         await addDistrictDesignate(orgUnitNo, user.userId);
         await loadDesignates(orgUnitNo);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to add designate.');
+        setError(safeErrorMessage(e, 'Failed to add designate.'));
       } finally {
         setAdding(false);
       }
@@ -233,7 +234,7 @@ const DistrictNotificationPage: FC = () => {
       setPendingDelete(null);
       await loadDesignates(orgUnitNo);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to remove designate.');
+      setError(safeErrorMessage(e, 'Failed to remove designate.'));
     } finally {
       setRemovingId(null);
     }

@@ -135,6 +135,33 @@ public class FspSearchDirectDaoImpl implements FspSearchDirectDao {
     return new Page(jdbc.query(pageSql, pageParams, ROW_MAPPER), totalCount);
   }
 
+  @Override
+  public String getAmendmentReason(String fspId, String amendmentNumber) {
+    if (isBlank(fspId) || isBlank(amendmentNumber)) return null;
+    long id;
+    long amd;
+    try {
+      id = Long.parseLong(fspId.trim());
+      amd = Long.parseLong(amendmentNumber.trim());
+    } catch (NumberFormatException e) {
+      return null;
+    }
+    try {
+      MapSqlParameterSource params = new MapSqlParameterSource()
+          .addValue("fspId", id)
+          .addValue("amd", amd);
+      return jdbc.queryForObject(
+          "SELECT status_comment FROM the.fsp_status_history "
+              + "WHERE fsp_status_history_id = ("
+              + "  SELECT MIN(fsp_status_history_id) FROM the.fsp_status_history "
+              + "  WHERE fsp_id = :fspId AND fsp_amendment_number = :amd "
+              + "    AND fsp_status_code = 'DFT')",
+          params, String.class);
+    } catch (EmptyResultDataAccessException e) {
+      return null;
+    }
+  }
+
   /** Region-vs-district org filtering keys off org_level_code, same as the proc. */
   private String resolveOrgLevel(String orgUnitNo) {
     if (isBlank(orgUnitNo)) return null;

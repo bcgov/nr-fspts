@@ -24,6 +24,7 @@ import ExtensionSummaryModal from '@/components/ExtensionSummaryModal';
 import SubmitFspModal from '@/components/SubmitFspModal';
 import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
+import {safeErrorMessage} from '@/lib/errorMessage';
 import {
   canActionWorkflow,
   canEditFsp,
@@ -129,7 +130,7 @@ const FspInformationPage: FC = () => {
       })
       .catch((e) => {
         if (cancelled) return;
-        const message = e instanceof Error ? e.message : 'Failed to load FSP.';
+        const message = safeErrorMessage(e, 'Failed to load FSP.');
         setError(message);
         display({
           kind: 'error',

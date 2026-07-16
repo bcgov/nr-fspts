@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
 import { useAutoFocusOnOpen } from '@/hooks/useAutoFocusOnOpen';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import StatusTag from '@/components/StatusTag/StatusTag';
 import {
   searchClients,
@@ -175,7 +176,7 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
         setPage(data.page.number);
         setPageSize(data.page.size);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(safeErrorMessage(e));
         setResults([]);
         setTotalElements(0);
       } finally {

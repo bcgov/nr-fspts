@@ -356,16 +356,42 @@ export async function submitFsp(
 }
 
 /**
+ * Seed carried into the AMEND / REPLACE proc call. Unlike the follow-up
+ * SAVE (which drops these), the FSP_300 AMEND/REPLACE action persists the
+ * "summary of changes" (amendmentReason) onto the new amendment's DRAFT
+ * status-history row and stamps the change indicators — so the seed must
+ * ride the create call, not the later SAVE, for the reason to stick.
+ */
+export interface AmendmentSeed {
+  amendmentReason?: string;
+  fduUpdateInd?: string;
+  stockingStandardUpdateInd?: string;
+  identifiedAreasUpdateInd?: string;
+  approvalRequiredInd?: string;
+}
+
+/**
  * POST /v1/fsp/{fspId}/amend — create a new amendment row on an
  * existing approved FSP via FSP_300_INFORMATION.MAINLINE(P_ACTION=AMEND).
  * The proc assigns the next amendment_number and seeds the row with
  * carry-forward data from the prior approved amendment. Returns the
  * new amendment as an FspInformation DTO so the SPA can navigate to it.
  */
-export async function amendFsp(fspId: string): Promise<FspInformation> {
+export async function amendFsp(
+  fspId: string,
+  seed?: AmendmentSeed,
+): Promise<FspInformation> {
   const res = await apiFetch(
     `/v1/fsp/${encodeURIComponent(fspId)}/amend`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      ...(seed
+        ? {
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(seed),
+          }
+        : {}),
+    },
   );
   if (!res.ok) {
     const detail = await readErrorMessage(res);
@@ -379,10 +405,21 @@ export async function amendFsp(fspId: string): Promise<FspInformation> {
  * row. Same shape as amend but stamps fsp_amendment_code='RPL' and
  * forces approval-required.
  */
-export async function replaceFsp(fspId: string): Promise<FspInformation> {
+export async function replaceFsp(
+  fspId: string,
+  seed?: AmendmentSeed,
+): Promise<FspInformation> {
   const res = await apiFetch(
     `/v1/fsp/${encodeURIComponent(fspId)}/replace`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      ...(seed
+        ? {
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(seed),
+          }
+        : {}),
+    },
   );
   if (!res.ok) {
     const detail = await readErrorMessage(res);
@@ -782,12 +819,17 @@ export interface StandardRegimeOverviewUpdate {
   standardsObjective?: string | null;
   geographicDescription?: string | null;
   additionalStandards?: string | null;
+  /** SILV_STATUTE_CODE (the "Regulation" radio). */
+  regulationCode?: string | null;
   effectiveDate?: string | null;
   expiryDate?: string | null;
   regenObligationInd?: string | null;
   regenDelayOffsetYrs?: string | null;
   freeGrowingEarlyOffsetYrs?: string | null;
   freeGrowingLateOffsetYrs?: string | null;
+  /** "No regen obligations" offsets — Early / Late only (no Regen delay). */
+  noRegenEarlyOffsetYrs?: string | null;
+  noRegenLateOffsetYrs?: string | null;
 }
 
 export async function updateStandardRegimeOverview(

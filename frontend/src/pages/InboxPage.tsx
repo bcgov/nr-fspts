@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
 import { useNotification } from '@/context/notification/useNotification';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import { type ClientSearchResult, searchClientsAuto } from '@/services/clientSearch';
 import { formatDate } from '@/utils/formatDate';
 import { env } from '@/env';
@@ -235,7 +236,7 @@ const InboxPage: FC = () => {
       })
       .catch((e: unknown) => {
         if (cancelled) return;
-        setError(`Failed to load org units: ${e instanceof Error ? e.message : String(e)}`);
+        setError(safeErrorMessage(e, 'Failed to load org units.'));
       })
       .finally(() => {
         if (cancelled) return;
@@ -330,7 +331,7 @@ const InboxPage: FC = () => {
         setPage(data.page.number);
         setPageSize(data.page.size);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(safeErrorMessage(e));
         setResults([]);
         setTotalElements(0);
       } finally {
@@ -420,9 +421,7 @@ const InboxPage: FC = () => {
         popup.location.replace(url);
       } catch (e) {
         popup.close();
-        setError(
-          e instanceof Error ? e.message : `Could not load Map View for FSP ${fspId}.`,
-        );
+        setError(safeErrorMessage(e, `Could not load Map View for FSP ${fspId}.`));
       } finally {
         setMapExtentLoadingRowId(null);
       }

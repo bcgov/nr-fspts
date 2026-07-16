@@ -159,6 +159,8 @@ public class StandardRegimeService {
     String regenDelay = pick(edits.getRegenDelayOffsetYrs(), current.regenDelayOffsetYrs());
     String fgEarly = pick(edits.getFreeGrowingEarlyOffsetYrs(), current.freeGrowingEarlyOffsetYrs());
     String fgLate = pick(edits.getFreeGrowingLateOffsetYrs(), current.freeGrowingLateOffsetYrs());
+    String noRegenEarly = pick(edits.getNoRegenEarlyOffsetYrs(), current.noRegenEarlyOffsetYrs());
+    String noRegenLate = pick(edits.getNoRegenLateOffsetYrs(), current.noRegenLateOffsetYrs());
 
     Fsp550StdsProposalDao.SaveRequest req = new Fsp550StdsProposalDao.SaveRequest(
         regimeId,
@@ -166,7 +168,7 @@ public class StandardRegimeService {
         amendmentNumber == null ? "" : amendmentNumber,
         name,
         objective,
-        current.regulationCode(),       // not editable on this tab
+        pick(edits.getRegulationCode(), current.regulationCode()),
         geo,
         current.standardsRegimeStatusCode(), // workflow-managed
         effective,
@@ -175,8 +177,8 @@ public class StandardRegimeService {
         regenDelay,
         fgEarly,
         fgLate,
-        current.noRegenEarlyOffsetYrs(),
-        current.noRegenLateOffsetYrs(),
+        noRegenEarly,
+        noRegenLate,
         additional,
         RequestUtil.getCurrentAuditUserId(),
         current.revisionCount());

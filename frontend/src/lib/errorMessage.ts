@@ -26,6 +26,14 @@ const TECHNICAL_MARKERS: readonly RegExp[] = [
   /"(?:timestamp|status|error|path|trace)"\s*:/, // Spring default error JSON
   /server_http_/,
   /JdbcTemplate|Undertow|Servlet|DataIntegrityViolation|DataAccess/i,
+  // Spring request-plumbing phrases — technical, never meant for a user.
+  /malformed json/i,
+  /json parse error/i,
+  /required request (?:body|parameter)/i,
+  /failed to read (?:request|http message)/i,
+  /HttpMessage(?:NotReadable|NotWritable|Conversion)/i,
+  /MethodArgument(?:NotValid|TypeMismatch)/i,
+  /could not (?:read|parse|resolve)/i,
 ];
 
 /**

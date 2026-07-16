@@ -3,6 +3,7 @@ import { Modal } from '@/components/Modal';
 import { useEffect, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import {
   preflightSubmitFsp,
   submitFsp,
@@ -77,9 +78,7 @@ const SubmitFspModal: FC<Props> = ({
       })
       .catch((e) => {
         if (!cancelled)
-          setPreflightError(
-            e instanceof Error ? e.message : 'Preflight check failed.',
-          );
+          setPreflightError(safeErrorMessage(e, 'Preflight check failed.'));
       })
       .finally(() => {
         if (!cancelled) setPreflightLoading(false);

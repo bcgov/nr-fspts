@@ -184,7 +184,7 @@ container connecting to the shared Oracle. Local dev mirrors this with
 
 The backend also scans uploads against a **ClamAV clamd** that lives in the
 shared **tools** namespace. Reaching it cross-namespace needs an ingress
-`NetworkPolicy` applied into tools (`backend/openshift.clamav-netpol.yml`, via
-the "Allow backend → clamav" deploy step), which requires the `OC_NAMESPACE_TOOLS`
-/ `OC_TOKEN_TOOLS` secrets. Everything ClamAV — config env vars, the fail-open
-policy, and this networking — is in [virus-scanning.md](virus-scanning.md).
+`NetworkPolicy` in tools; that policy is created **manually** (the pipeline only
+applies the backend's own egress policy in `openshift.deploy.yml`). Everything
+ClamAV — config env vars, the fail-open policy, and this networking — is in
+[virus-scanning.md](virus-scanning.md).

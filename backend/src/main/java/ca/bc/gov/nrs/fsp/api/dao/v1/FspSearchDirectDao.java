@@ -73,4 +73,15 @@ public interface FspSearchDirectDao {
    * through an allow-list (unknown → fspId); {@code sortDir} is asc/desc.
    */
   Page searchPage(SearchCriteria criteria, int page, int size, String sortBy, String sortDir);
+
+  /**
+   * Reads an amendment's "summary of changes" — stored by
+   * FSP_300_INFORMATION as the {@code status_comment} on the amendment's
+   * original DRAFT status-history row. The plain FSP GET proc never
+   * surfaces it (only VIEW_AMEND / VIEW_REPLACE do), so we read it
+   * directly to populate {@code amendmentReason} on the FSP load.
+   *
+   * @return the reason, or {@code null} when none is recorded.
+   */
+  String getAmendmentReason(String fspId, String amendmentNumber);
 }
