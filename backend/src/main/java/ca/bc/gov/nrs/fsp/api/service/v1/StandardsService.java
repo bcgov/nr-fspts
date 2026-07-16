@@ -24,7 +24,6 @@ public class StandardsService {
   // — that string returns the noRecordsFound branch). Same convention as
   // FSP_100_SEARCH / FSP_300_INFORMATION / FSP_400_ATTACHMENTS.
   private static final String ACTION_GET = "GET";
-  private static final String ACTION_DELETE = "DELETE";
 
   private final Fsp500StockingStandardsDao stockingStandardsDao;
 
@@ -39,11 +38,6 @@ public class StandardsService {
     // standard is its own INSERT/UPDATE per-row. Until per-row save semantics
     // are confirmed with the DBAs, return the current list.
     return getByFspId(fspId);
-  }
-
-  @Transactional
-  public void delete(String standardId) {
-    call(ACTION_DELETE, standardId);
   }
 
   private Fsp500StockingStandardsDao.Result call(String action, String fspId) {

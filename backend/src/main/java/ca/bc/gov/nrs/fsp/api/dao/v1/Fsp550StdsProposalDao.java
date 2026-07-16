@@ -16,6 +16,7 @@ public interface Fsp550StdsProposalDao {
   String PROCEDURE_SAVE = "SAVE";
   String PROCEDURE_SAVE_BGC_ITEM = "SAVE_BGC_ITEM";
   String PROCEDURE_REMOVE_BGC_ITEM = "REMOVE_BGC_ITEM";
+  String PROCEDURE_REMOVE = "REMOVE";
   String PROCEDURE_COPY = "COPY";
 
   /**
@@ -108,6 +109,24 @@ public interface Fsp550StdsProposalDao {
       String updateUserid,
       String revisionCount,           // row-level optimistic-lock token
       String standardsRevisionCount   // parent regime revision, bumped on success
+  ) {}
+
+  /**
+   * Wraps {@code FSP_550_STDS_PROPOSAL.REMOVE}. Deletes an entire
+   * standards regime and all of its child rows (layers, species, org
+   * units, clients, attachments, BGC site series, and the FSP xref).
+   * The final {@code DELETE} on STANDARDS_REGIME is guarded by
+   * {@code revision_count = p_revision_count}; a mismatch (someone else
+   * edited the regime meanwhile) surfaces as the proc's
+   * "modified record" error.
+   */
+  void removeRegime(RemoveRequest req);
+
+  record RemoveRequest(
+      String standardsRegimeId,
+      String standardsRegimeStatusCode, // referenced only by the proc's audit hook
+      String updateUserid,
+      String revisionCount              // optimistic-lock token
   ) {}
 
   /**

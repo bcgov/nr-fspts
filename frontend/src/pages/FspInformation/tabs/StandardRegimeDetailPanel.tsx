@@ -39,6 +39,7 @@ import {
   updateStandardRegimeOverview,
 } from '@/services/fspSearch';
 
+import { EDIT_PANE, useEditLock, useEditRegistration } from '../editLock';
 import StandardRegimeLayersPanel from './StandardRegimeLayersPanel';
 
 // ─── Overview-tab edit form ─────────────────────────────────────────
@@ -219,6 +220,13 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   // had open on, say, Layers. Form state is null until the user clicks
   // Edit — at that point we snapshot the current detail.
   const [editingOverview, setEditingOverview] = useState(false);
+  // Register Overview edit mode into the page-wide edit lock, and read back
+  // `anyEditing` (true while THIS Overview, the sibling Layers pane, or any
+  // other pane on the page is open) so this panel's non-edit actions —
+  // Copy / Delete standard, BGC add/delete, the Edit button itself — lock
+  // while something is being edited.
+  useEditRegistration(EDIT_PANE.stdOverview, editingOverview);
+  const { anyEditing } = useEditLock();
   // Focused on entering overview edit mode so the first field takes focus.
   const overviewNameRef = useRef<HTMLInputElement>(null);
   const [overviewForm, setOverviewForm] = useState<OverviewFormState | null>(null);
@@ -472,7 +480,13 @@ const StandardRegimeDetailPanel: FC<Props> = ({
         {((canCopy && onCopy) || (canDelete && onDelete)) && (
           <div className="fsp-info__detail-actions">
             {canCopy && onCopy && (
-              <Button kind="tertiary" size="sm" renderIcon={Copy} onClick={onCopy}>
+              <Button
+                kind="tertiary"
+                size="sm"
+                renderIcon={Copy}
+                disabled={anyEditing}
+                onClick={onCopy}
+              >
                 Copy standard
               </Button>
             )}
@@ -481,6 +495,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                 kind="danger--tertiary"
                 size="sm"
                 renderIcon={TrashCan}
+                disabled={anyEditing}
                 onClick={onDelete}
               >
                 Delete standard
@@ -510,6 +525,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     kind="tertiary"
                     size="sm"
                     renderIcon={Edit}
+                    disabled={anyEditing}
                     onClick={handleOverviewEdit}
                   >
                     Edit overview
@@ -965,6 +981,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                     kind="tertiary"
                     size="sm"
                     renderIcon={Add}
+                    disabled={anyEditing}
                     onClick={openBgcSearch}
                   >
                     Add existing BGC zone
@@ -1010,7 +1027,9 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                                   size="sm"
                                   renderIcon={TrashCan}
                                   disabled={
-                                    !b.stdsRegimeSiteSeriesId || !b.revisionCount
+                                    !b.stdsRegimeSiteSeriesId ||
+                                    !b.revisionCount ||
+                                    anyEditing
                                   }
                                   onClick={() => setBgcDeleteTarget(b)}
                                 >

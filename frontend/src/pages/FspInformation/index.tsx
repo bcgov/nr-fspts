@@ -34,6 +34,7 @@ import {
 } from '@/routes/access';
 import {type CodeOption, type FspExtension, type FspInformation, deleteFsp, getFspAmendmentNumbers, getFspById, getFspExtensions,} from '@/services/fspSearch';
 
+import { useProvideEditLock } from './editLock';
 import AttachmentsTab from './tabs/AttachmentsTab';
 import InformationTab from './tabs/InformationTab';
 import MapTab from './tabs/MapTab';
@@ -317,10 +318,13 @@ const FspInformationPage: FC = () => {
   const [latestExtension, setLatestExtension] = useState<FspExtension | null>(
     null,
   );
-  // True while the Information tab's Plan details are being edited — locks
-  // the page-level action buttons so a mid-edit mutation can't clobber the
-  // in-flight changes.
-  const [infoEditing, setInfoEditing] = useState(false);
+  // Page-wide edit lock. While any inline edit pane (Plan details, a
+  // standards Overview, a regime's Layers, …) is open, `anyEditing` is true
+  // and every other action button on the page disables so a mid-edit
+  // mutation can't clobber the in-flight changes. Panes register themselves
+  // through the provider below; the header reads the flag directly.
+  const editLock = useProvideEditLock();
+  const anyEditing = editLock.anyEditing;
 
   // ConfirmationModal manages its own busy + error-toast lifecycle:
   // it awaits the promise, closes on success, and shows an "Action
@@ -456,7 +460,7 @@ const FspInformationPage: FC = () => {
                     kind="tertiary"
                     size="sm"
                     renderIcon={DocumentAdd}
-                    disabled={infoEditing}
+                    disabled={anyEditing}
                     onClick={() => setConfirmAmendOpen(true)}
                   >
                     Amend FSP
@@ -467,7 +471,7 @@ const FspInformationPage: FC = () => {
                     kind="tertiary"
                     size="sm"
                     renderIcon={CalendarAdd}
-                    disabled={infoEditing}
+                    disabled={anyEditing}
                     onClick={() => setExtensionDialogOpen(true)}
                   >
                     Extend FSP
@@ -478,7 +482,7 @@ const FspInformationPage: FC = () => {
                     kind="tertiary"
                     size="sm"
                     renderIcon={Renew}
-                    disabled={infoEditing}
+                    disabled={anyEditing}
                     onClick={() => setConfirmReplaceOpen(true)}
                   >
                     Replace FSP
@@ -489,7 +493,7 @@ const FspInformationPage: FC = () => {
                     kind="primary"
                     size="sm"
                     renderIcon={SendAlt}
-                    disabled={infoEditing}
+                    disabled={anyEditing}
                     onClick={() => setConfirmSubmitOpen(true)}
                   >
                     Submit FSP
@@ -500,7 +504,7 @@ const FspInformationPage: FC = () => {
                     kind="danger--tertiary"
                     size="sm"
                     renderIcon={TrashCan}
-                    disabled={infoEditing}
+                    disabled={anyEditing}
                     onClick={() => setConfirmDeleteOpen(true)}
                   >
                     {isAmendment ? 'Delete amendment' : 'Delete FSP'}
@@ -525,7 +529,7 @@ const FspInformationPage: FC = () => {
                     style={{ width: amendmentSelectWidth }}
                     value={selectedAmendment}
                     onChange={(e) => handleAmendmentChange(e.target.value)}
-                    disabled={infoEditing}
+                    disabled={anyEditing}
                   >
                     {amendments.map((a) => (
                       <SelectItem key={a.code} value={a.code} text={a.description} />
@@ -634,26 +638,39 @@ const FspInformationPage: FC = () => {
               so a className on it is dropped. Wrap it in a real div so the
               full-bleed gray pane styling can target the panel. */}
           <div className="fsp-info__page-tabs">
+          <editLock.Provider value={editLock.value}>
           <Tabs
             selectedIndex={selectedTab}
-            onChange={({ selectedIndex }) => setSelectedTab(selectedIndex)}
+            // While a pane is being edited the page is locked: block tab
+            // switching so the user can't navigate away from (and abandon)
+            // an open editor, and so other tabs' action buttons stay out of
+            // reach. The non-active tabs are also visually disabled below.
+            onChange={({ selectedIndex }) => {
+              if (!anyEditing) setSelectedTab(selectedIndex);
+            }}
           >
             <TabList aria-label="FSP sections" contained>
-              <Tab renderIcon={TableOfContents}>Information</Tab>
-              <Tab renderIcon={StockingStandardsTabIcon}>Stocking standards</Tab>
-              <Tab renderIcon={Map}>FDU / Map</Tab>
-              <Tab renderIcon={DocumentAttachment}>Attachments</Tab>
-              <Tab renderIcon={RecentlyViewed}>History</Tab>
-              {showWorkflowTab && <Tab renderIcon={Flow}>Workflow</Tab>}
+              <Tab renderIcon={TableOfContents} disabled={anyEditing && selectedTab !== 0}>
+                Information
+              </Tab>
+              <Tab renderIcon={StockingStandardsTabIcon} disabled={anyEditing && selectedTab !== 1}>
+                Stocking standards
+              </Tab>
+              <Tab renderIcon={Map} disabled={anyEditing && selectedTab !== 2}>FDU / Map</Tab>
+              <Tab renderIcon={DocumentAttachment} disabled={anyEditing && selectedTab !== 3}>
+                Attachments
+              </Tab>
+              <Tab renderIcon={RecentlyViewed} disabled={anyEditing && selectedTab !== 4}>
+                History
+              </Tab>
+              {showWorkflowTab && (
+                <Tab renderIcon={Flow} disabled={anyEditing && selectedTab !== 5}>Workflow</Tab>
+              )}
             </TabList>
             <TabPanels>
               <TabPanel>
                 <div className="fsp-info__tab-panel">
-                  <InformationTab
-                    fsp={fsp}
-                    onSaved={setFsp}
-                    onEditingChange={setInfoEditing}
-                  />
+                  <InformationTab fsp={fsp} onSaved={setFsp} />
                 </div>
               </TabPanel>
               <TabPanel>
@@ -732,6 +749,7 @@ const FspInformationPage: FC = () => {
               )}
             </TabPanels>
           </Tabs>
+          </editLock.Provider>
           </div>
           </div>
         )}
