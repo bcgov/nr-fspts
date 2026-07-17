@@ -63,7 +63,13 @@ public class Fsp501StdsSrchDaoImpl extends AbstractStoredProcedureDao implements
               rs.getString("CLIENT_NUMBER"),
               rs.getString("STATUS"),
               rs.getString("EXPIRY_DATE"),
-              rs.getString("FSP_ID_LIST")
+              rs.getString("FSP_ID_LIST"),
+              // MAINLINE's result cursor doesn't surface mof_default_standard_ind
+              // (it's only a scalar OUT echo of the search filter). This proc DAO
+              // is superseded by Fsp501StdsSrchDirectDao — which the search
+              // service actually uses and which DOES project the flag — so null
+              // here is harmless.
+              null
           ), maxRows);
           Header header = new Header(
               cs.getString(1), cs.getString(2), cs.getString(3), cs.getString(4),

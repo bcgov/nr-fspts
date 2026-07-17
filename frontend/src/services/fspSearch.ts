@@ -943,6 +943,55 @@ export async function deleteStandardRegime(
   }
 }
 
+/**
+ * POST /api/v1/fsp/{fspId}/standards/{regimeId}/link — legacy "Add default
+ * standard": LINK an existing shared MoF default regime onto the FSP via
+ * FSP_550_STDS_PROPOSAL.ASSOC_FSP_TO_STD_REGIME. Unlike copy, no new regime
+ * is created. Returns the linked regime's detail so the caller can select it.
+ */
+export async function linkDefaultStandard(
+  fspId: string,
+  regimeId: string,
+  amendmentNumber?: string,
+): Promise<StandardRegimeDetail> {
+  const qs = amendmentNumber
+    ? `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
+    : '';
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/link${qs}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Standards link failed (${res.status})`);
+  }
+  return res.json() as Promise<StandardRegimeDetail>;
+}
+
+/**
+ * POST /api/v1/fsp/{fspId}/standards/{regimeId}/unlink — legacy "Unlink
+ * Default Standard": remove the FSP↔regime link only via
+ * FSP_550_STDS_PROPOSAL.UNLINK_DEFAULT_STANDARDS. The shared default regime
+ * survives. Only valid for MoF default standards (enforced proc-side too).
+ */
+export async function unlinkDefaultStandard(
+  fspId: string,
+  regimeId: string,
+  amendmentNumber?: string,
+): Promise<void> {
+  const qs = amendmentNumber
+    ? `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
+    : '';
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/unlink${qs}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Standards unlink failed (${res.status})`);
+  }
+}
+
 export function getStandardRegimeDetail(
   fspId: string,
   regimeId: string,

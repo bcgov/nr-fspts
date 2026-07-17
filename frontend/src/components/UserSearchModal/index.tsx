@@ -1,11 +1,14 @@
 import {
   Button,
   DataTable,
-  InlineLoading,
+  DataTableSkeleton,
+  InlineNotification,
+  Loading,
   Pagination,
   TextInput,
   type DataTableHeader,
 } from '@carbon/react';
+import { Add, Search } from '@carbon/icons-react';
 import { useCallback, useEffect, useMemo, useState, type FC, type FormEvent } from 'react';
 
 import { Modal } from '@/components/Modal';
@@ -19,13 +22,18 @@ type UserSearchModalProps = {
   open: boolean;
   onClose: () => void;
   onSelect: (user: UserSummary) => void;
+  /** District context shown as the modal's small label line above the title. */
+  districtLabel?: string;
+  /** Bare, UPPER-CASED IDIR usernames already designated for this district —
+   *  their Add button is disabled so a user can't be added twice. */
+  existingUserIds?: Set<string>;
   pageSize?: number;
 };
 
 const HEADERS: DataTableHeader[] = [
   { key: 'userId', header: 'User ID' },
   { key: 'displayName', header: 'Name' },
-  { key: 'email', header: 'Email' },
+  { key: 'email', header: 'Email address' },
   { key: 'actions', header: 'Actions' },
 ];
 
@@ -39,6 +47,8 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
   open,
   onClose,
   onSelect,
+  districtLabel,
+  existingUserIds,
   pageSize = 25,
 }) => {
   const [userId, setUserId] = useState('');
@@ -50,6 +60,9 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Submit-time validation message (needs ≥2 chars in a field). Shown as an
+  // inline banner below the fields; cleared as soon as a field is edited.
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const { display } = useNotification();
   useEffect(() => {
@@ -70,6 +83,7 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
       setTotal(0);
       setPage(0);
       setError(null);
+      setValidationError(null);
     }
   }, [open]);
 
@@ -104,11 +118,20 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
     const normUserId = userId.trim();
     const normFirstName = firstName.trim();
     const normLastName = lastName.trim();
-    if (!normUserId && !normFirstName && !normLastName) {
-      setSubmitted(null);
-      setResults(null);
+    // Require ≥2 chars in at least one field — an empty/1-char search would
+    // return the whole directory (or nothing useful).
+    const longest = Math.max(
+      normUserId.length,
+      normFirstName.length,
+      normLastName.length,
+    );
+    if (longest < 2) {
+      setValidationError(
+        'Enter at least 2 characters in one of the fields to search.',
+      );
       return;
     }
+    setValidationError(null);
     setSubmitted({
       userId: normUserId || undefined,
       firstName: normFirstName || undefined,
@@ -124,6 +147,18 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
     },
     [onSelect, onClose],
   );
+
+  const handleClear = useCallback(() => {
+    setUserId('');
+    setFirstName('');
+    setLastName('');
+    setSubmitted(null);
+    setResults(null);
+    setTotal(0);
+    setPage(0);
+    setError(null);
+    setValidationError(null);
+  }, []);
 
   const rows = useMemo(() => {
     if (!results) return [];
@@ -144,53 +179,104 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
     <Modal
       open={open}
       onRequestClose={onClose}
-      modalHeading="Find IDIR user"
+      modalLabel={districtLabel}
+      modalHeading="Add designate"
       passiveModal
       size="lg"
+      className="add-designate-modal"
     >
+      <p className="user-search-form__desc">
+        Search the IDIR directory for the user to add.
+        <br />
+        Designates receive an email when an FSP, amendment, or extension is
+        submitted for this district.
+      </p>
+
       <form className="user-search-form" onSubmit={handleSubmit}>
         <div className="user-search-form__fields">
           <TextInput
             id="user-search-user-id"
             labelText="User ID"
             value={userId}
-            onChange={(e) => setUserId(e.target.value)}
+            onChange={(e) => {
+              setUserId(e.target.value);
+              setValidationError(null);
+            }}
           />
           <TextInput
             id="user-search-first-name"
             labelText="First name"
             value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
+            onChange={(e) => {
+              setFirstName(e.target.value);
+              setValidationError(null);
+            }}
           />
           <TextInput
             id="user-search-last-name"
             labelText="Last name"
             value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
+            onChange={(e) => {
+              setLastName(e.target.value);
+              setValidationError(null);
+            }}
           />
-          <Button type="submit" size="md" className="user-search-form__submit">
-            Search
+        </div>
+
+        {validationError && (
+          <InlineNotification
+            className="user-search-form__validation"
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title={validationError}
+          />
+        )}
+
+        <div className="user-search-form__search-actions">
+          <Button
+            kind="secondary"
+            size="md"
+            onClick={handleClear}
+            disabled={loading}
+          >
+            Clear
+          </Button>
+          <Button
+            type="submit"
+            kind="primary"
+            size="md"
+            disabled={loading}
+            renderIcon={loading ? SearchingIcon : Search}
+          >
+            {loading ? 'Searching' : 'Search'}
           </Button>
         </div>
       </form>
 
       {loading && (
-        <div className="user-search-form__loading">
-          <InlineLoading description="Searching users…" />
-        </div>
+        <DataTableSkeleton
+          className="user-search-form__skeleton"
+          headers={HEADERS}
+          rowCount={4}
+          showToolbar={false}
+          showHeader={false}
+        />
       )}
 
       {!loading && submitted !== null && !hasResults && !error && (
-        <p className="user-search-form__empty">No users matched your search.</p>
+        <p className="user-search-form__empty">
+          No IDIR users found. Check the spelling and try again.
+        </p>
       )}
 
-      {hasResults && (
+      {!loading && hasResults && (
         <DataTable
           rows={rows}
           headers={HEADERS}
-          size="sm"
+          size="md"
           render={({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps }) => (
-            <DataTable.TableContainer>
+            <DataTable.TableContainer className="user-search-form__results">
               <DataTable.Table>
                 <DataTable.TableHead>
                   <DataTable.TableRow>
@@ -205,14 +291,24 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
                   {tableRows.map((row) => {
                     const source = rows.find((r) => r.id === row.id);
                     const user = source?.user;
+                    const alreadyDesignate =
+                      !!user &&
+                      (existingUserIds?.has(user.userId.trim().toUpperCase()) ??
+                        false);
                     return (
                       <DataTable.TableRow {...getRowProps({ row })} key={row.id}>
                         {row.cells.map((cell) => (
                           <DataTable.TableCell key={cell.id}>
                             {cell.info.header === 'actions' ? (
                               user ? (
-                                <Button kind="ghost" size="sm" onClick={() => handleSelect(user)}>
-                                  Select
+                                <Button
+                                  kind="ghost"
+                                  size="sm"
+                                  renderIcon={alreadyDesignate ? undefined : Add}
+                                  disabled={alreadyDesignate}
+                                  onClick={() => handleSelect(user)}
+                                >
+                                  {alreadyDesignate ? 'Added' : 'Add'}
                                 </Button>
                               ) : (
                                 '—'
@@ -232,7 +328,7 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
         />
       )}
 
-      {shouldShowPagination && (
+      {!loading && shouldShowPagination && (
         <div className="user-search-form__pagination">
           <Pagination
             totalItems={total}
@@ -246,14 +342,11 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
           />
         </div>
       )}
-
-      <div className="user-search-form__actions">
-        <Button kind="secondary" size="md" onClick={onClose}>
-          Close
-        </Button>
-      </div>
     </Modal>
   );
 };
+
+// Small spinner sized for the Search button's icon slot while a lookup runs.
+const SearchingIcon = () => <Loading small withOverlay={false} description="" />;
 
 export default UserSearchModal;

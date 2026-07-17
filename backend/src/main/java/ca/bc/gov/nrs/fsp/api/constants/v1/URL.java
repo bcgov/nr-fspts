@@ -47,6 +47,13 @@ public final class URL {
   // amendment via FSP_550_STDS_PROPOSAL.COPY. Used by the Copy Standard
   // button on the Stocking Standards tab (DFT-only).
   public static final String STANDARD_COPY = "/{fspId}/standards/{regimeId}/copy";
+  // Legacy "Add default standard" — LINK a shared MoF default regime onto the
+  // FSP (ASSOC_FSP_TO_STD_REGIME). Distinct from COPY (which clones a draft).
+  public static final String STANDARD_LINK = "/{fspId}/standards/{regimeId}/link";
+  // Legacy "Unlink Default Standard" — remove the FSP↔regime link only
+  // (UNLINK_DEFAULT_STANDARDS); the shared regime survives. POST (an action),
+  // not DELETE (which would tear the regime down).
+  public static final String STANDARD_UNLINK = "/{fspId}/standards/{regimeId}/unlink";
   // Regime-only GET (no FSP context). Used by the standards-search
   // modal where the user lands on a regime without picking an FSP.
   public static final String STANDARD_REGIME_DETAIL = "/standards/{regimeId}/detail";

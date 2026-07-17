@@ -43,6 +43,8 @@ export interface StandardsSearchResult {
   status: string | null;
   expiryDate: string | null;
   fspIdList: string | null;
+  /** 'Y' for MoF default standards — gates Add(link) vs Copy in the modal. */
+  mofDefaultStandardInd: string | null;
 }
 
 function buildSearchQuery(criteria: Record<string, unknown>): string {

@@ -48,7 +48,8 @@ public interface Fsp501StdsSrchDao {
       String clientNumber,
       String status,
       String expiryDate,
-      String fspIdList
+      String fspIdList,
+      String mofDefaultStandardInd
   ) {}
 
   record Result(Header header, List<Row> rows) {}

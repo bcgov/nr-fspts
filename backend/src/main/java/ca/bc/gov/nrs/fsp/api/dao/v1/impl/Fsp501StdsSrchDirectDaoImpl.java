@@ -56,7 +56,8 @@ public class Fsp501StdsSrchDirectDaoImpl implements Fsp501StdsSrchDirectDao {
                 FROM (SELECT fsrx.fsp_id
                         FROM the.fsp_standards_regime_xref fsrx
                        WHERE fsrx.standards_regime_id = sr.standards_regime_id
-                         AND rownum < 5) x) fsp_id_list""";
+                         AND rownum < 5) x) fsp_id_list,
+             NVL(sr.mof_default_standard_ind, 'N') mof_default_standard_ind""";
 
   // The status code is LEFT-joined for the description (the proc outer-joins
   // it); it never drops rows. The count query doesn't need it. Leads with a
@@ -92,7 +93,8 @@ public class Fsp501StdsSrchDirectDaoImpl implements Fsp501StdsSrchDirectDao {
       rs.getString("client_number"),
       rs.getString("status"),
       rs.getString("expiry_date"),
-      rs.getString("fsp_id_list"));
+      rs.getString("fsp_id_list"),
+      rs.getString("mof_default_standard_ind"));
 
   @Override
   public List<Fsp501StdsSrchDao.Row> search(SearchCriteria c) {

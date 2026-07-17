@@ -20,7 +20,7 @@ import {
   TextArea,
   TextInput,
 } from '@carbon/react';
-import {Add, Copy, Edit, TrashCan} from '@carbon/icons-react';
+import {Add, Copy, Edit, TrashCan, Unlink} from '@carbon/icons-react';
 import {type FC, useEffect, useRef, useState} from 'react';
 
 import BgcZoneSearchModal from '@/components/BgcZoneSearchModal';
@@ -185,6 +185,14 @@ interface Props {
    */
   canDelete?: boolean;
   onDelete?: () => void;
+  /**
+   * Whether the "Unlink" action is available — legacy "Unlink Default
+   * Standard". Only for MoF default standards (the counterpart of Delete,
+   * which is for drafts). When true (and {@link onUnlink} is provided) an
+   * Unlink button renders in the header; the parent owns confirm + persist.
+   */
+  canUnlink?: boolean;
+  onUnlink?: () => void;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -212,6 +220,8 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   onCopy,
   canDelete = false,
   onDelete,
+  canUnlink = false,
+  onUnlink,
 }) => {
   const [detail, setDetail] = useState<StandardRegimeDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -477,7 +487,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
             <StatusTag status={detail.statusDescription} />
           )}
         </div>
-        {((canCopy && onCopy) || (canDelete && onDelete)) && (
+        {((canCopy && onCopy) || (canDelete && onDelete) || (canUnlink && onUnlink)) && (
           <div className="fsp-info__detail-actions">
             {canCopy && onCopy && (
               <Button
@@ -488,6 +498,17 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                 onClick={onCopy}
               >
                 Copy standard
+              </Button>
+            )}
+            {canUnlink && onUnlink && (
+              <Button
+                kind="danger--tertiary"
+                size="sm"
+                renderIcon={Unlink}
+                disabled={anyEditing}
+                onClick={onUnlink}
+              >
+                Unlink standard
               </Button>
             )}
             {canDelete && onDelete && (

@@ -81,6 +81,14 @@ public final class ProcErrorMessages {
           "One of the supplied district codes isn't recognized.")),
       Map.entry("FSP.NO.ORG.UNIT", new Info(BAD_REQUEST,
           "FSP must have at least one district code.")),
+      // FSP_550_STDS_PROPOSAL.ASSOC_FSP_TO_STD_REGIME (Add default standard):
+      // the proc rejects the link when the standard's org unit isn't one of
+      // the FSP's org units. Not a server fault — surface as a friendly 400
+      // rather than an unhandled 500.
+      Map.entry("fsp.db.error.org.mismatch", new Info(BAD_REQUEST,
+          "This default standard can't be added — its district (org unit) "
+              + "isn't associated with this FSP. Only standards for one of "
+              + "the FSP's districts can be added.")),
       Map.entry("FSP.NO.NAME", new Info(BAD_REQUEST,
           "Plan name is required.")),
       Map.entry("FSP.NO.CONTACT.PERSON", new Info(BAD_REQUEST,
