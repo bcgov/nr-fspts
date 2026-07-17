@@ -471,7 +471,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
               nav icon used by the parent tab. */}
           <h2 className="fsp-info__section-title fsp-info__section-title--icon">
             <StandardsSearchIcon width={20} height={20} />
-            <span>Standards ID: {dash(detail.standardsRegimeId)}</span>
+            <span>Stocking standard {dash(detail.standardsRegimeId)}</span>
           </h2>
           {detail.statusDescription && (
             <StatusTag status={detail.statusDescription} />
@@ -505,7 +505,14 @@ const StandardRegimeDetailPanel: FC<Props> = ({
         )}
       </header>
       {detail.fspIdList && (
-        <p className="fsp-info__detail-subtitle">FSP ID: {detail.fspIdList}</p>
+        <p className="fsp-info__detail-subtitle">
+          Associated FSPs:{' '}
+          {detail.fspIdList
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .join(', ')}
+        </p>
       )}
       <div className="fsp-info__inner-tabs fsp-info__inner-tabs--detail">
       <Tabs>

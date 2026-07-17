@@ -3,6 +3,7 @@ import {
   DataTable,
   DatePicker,
   DatePickerInput,
+  Link,
   NumberInput,
   RadioButton,
   RadioButtonGroup,
@@ -16,11 +17,12 @@ import {
   TextInput,
 } from '@carbon/react';
 import {Add, Area, Edit, LicenseThirdParty, Report, TrashCan} from '@carbon/icons-react';
-import {type FC, useEffect, useRef, useState} from 'react';
+import {type FC, Fragment, type ReactNode, useEffect, useRef, useState} from 'react';
 
 import ClientSearchModal from '@/components/ClientSearchModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import DistrictPickerModal from '@/components/DistrictPickerModal';
+import { env } from '@/env';
 import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
 import {canEditFsp} from '@/routes/access';
@@ -42,6 +44,40 @@ interface Props {
 
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
+
+// Public FOM project page. The Associated FOMs column holds a ", "-joined
+// list of FOM ids (see FomByFspClient); render each as a link to its public
+// project details, opening in a new tab.
+//
+// The site host is env-driven (runtime VITE_FOM_PUBLIC_URL): the test FOM
+// instance for TEST/local, prod for PROD — matching whichever host the
+// backend's FOM_API_URL pulled the ids from, so the links resolve. Falls
+// back to prod when unset. See openshift.deploy.yml / reusable-deploy.yml.
+const FOM_PROJECT_URL =
+  (env.VITE_FOM_PUBLIC_URL?.trim() || 'https://fom.nrs.gov.bc.ca').replace(
+    /\/+$/,
+    '',
+  ) + '/public/projects';
+
+const renderAssociatedFoms = (value: string): ReactNode => {
+  const ids = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s !== '' && s !== '—');
+  if (ids.length === 0) return value; // '—' or blank — nothing to link
+  return ids.map((id, i) => (
+    <Fragment key={id}>
+      {i > 0 && ', '}
+      <Link
+        href={`${FOM_PROJECT_URL}?id=${encodeURIComponent(id)}#details`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {id}
+      </Link>
+    </Fragment>
+  ));
+};
 
 const yesNo = (value: string | null | undefined): string => {
   if (value === 'Y') return 'Yes';
@@ -863,6 +899,10 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
                                       Delete
                                     </Button>
                                   </div>
+                                </TableCell>
+                              ) : cell.info.header === 'associatedFoms' ? (
+                                <TableCell key={cell.id}>
+                                  {renderAssociatedFoms(cell.value as string)}
                                 </TableCell>
                               ) : (
                                 <TableCell key={cell.id}>{cell.value as string}</TableCell>

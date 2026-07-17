@@ -91,6 +91,12 @@ parameters:
   - name: CLAMAV_FAIL_OPEN
     required: false
     value: "false"
+  # Master kill-switch for automatic outbound email. Non-sensitive plain
+  # env. OFF by default — set "true" (via the EMAIL_SEND_ENABLED deploy var,
+  # typically only on PROD) to let workflow / designate emails actually send.
+  - name: EMAIL_SEND_ENABLED
+    required: false
+    value: "false"
   - name: DATABASE_HOST
     required: true
   - name: DATABASE_SERVICE_NAME
@@ -208,6 +214,8 @@ objects:
                   value: ${CLAMAV_PORT}
                 - name: CLAMAV_FAIL_OPEN
                   value: ${CLAMAV_FAIL_OPEN}
+                - name: EMAIL_SEND_ENABLED
+                  value: ${EMAIL_SEND_ENABLED}
                 - name: DATABASE_HOST
                   value: ${DATABASE_HOST}
                 - name: DATABASE_SERVICE_NAME

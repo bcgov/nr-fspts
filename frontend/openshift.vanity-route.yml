@@ -1,0 +1,67 @@
+---
+# PROD vanity (custom-hostname) Route for the frontend.
+#
+# Applied SEPARATELY from frontend/openshift.deploy.yml and ONLY on the PROD
+# deploy (see the "Vanity Route (PROD)" step in reusable-deploy.yml). It adds
+# a SECOND edge Route — the default ${NAME}-${SLOT}.${DOMAIN} route from the
+# main template stays live alongside it, so both hostnames serve the app.
+#
+# It lives in its own template because OpenShift v1 templates can't render an
+# object conditionally (`oc process` emits every object), so a vanity Route
+# baked into the main template would also be created — with an auto-assigned
+# junk hostname — on TEST / PR-preview deploys. Keeping it here and gating the
+# apply step on PROD avoids that.
+#
+# TLS is edge-terminated with the Entrust-issued cert for VANITY_HOST:
+#   certificate   = the leaf/server cert (CN/SAN = VANITY_HOST)
+#   key           = its matching unencrypted private key
+#   caCertificate = the intermediate + root chain
+# All three are non-secret-in-template PARAMETERS fed from GitHub Environment
+# secrets at deploy time (VANITY_TLS_*). insecureEdgeTerminationPolicy:
+# Redirect sends http → https, matching the default Route.
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: nr-fspts-frontend-vanity-route
+parameters:
+  - name: NAME
+    description: App name prefix (must match the main deploy)
+    value: nr-fspts
+  - name: ZONE
+    description: Deploy zone — 'prod' (must match the main deploy's object suffix)
+    required: true
+  - name: VANITY_HOST
+    description: Custom public hostname, e.g. fspts.nrs.gov.bc.ca
+    required: true
+  - name: VANITY_TLS_CERTIFICATE
+    description: PEM leaf/server certificate for VANITY_HOST
+    required: true
+  - name: VANITY_TLS_KEY
+    description: PEM private key matching VANITY_TLS_CERTIFICATE (unencrypted)
+    required: true
+  - name: VANITY_TLS_CA_CERTIFICATE
+    description: PEM CA chain (intermediates + root) for VANITY_HOST
+    required: true
+objects:
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      # Distinct name from the default Route so both coexist in the namespace.
+      name: ${NAME}-frontend-${ZONE}-vanity
+      labels:
+        app: ${NAME}-frontend-${ZONE}
+        app.kubernetes.io/instance: ${ZONE}
+    spec:
+      host: ${VANITY_HOST}
+      to:
+        kind: Service
+        # Same Service the default Route targets.
+        name: ${NAME}-frontend-${ZONE}
+      port:
+        targetPort: http
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+        certificate: ${VANITY_TLS_CERTIFICATE}
+        key: ${VANITY_TLS_KEY}
+        caCertificate: ${VANITY_TLS_CA_CERTIFICATE}

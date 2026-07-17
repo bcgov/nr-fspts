@@ -71,50 +71,53 @@ jobs:
     with:
       target: test
 
-#  deploy-prod:
-#    name: PROD Deploys (${{ needs.init.outputs.pr }})
-#    needs: [tests, init]
-#    permissions:
-#      contents: read
-#    uses: ./.github/workflows/reusable-deploy.yml
-#    secrets:
-#      oc_namespace: ${{ secrets.oc_namespace }}
-#      oc_token: ${{ secrets.oc_token }}
-#      database_user: ${{ secrets.database_user }}
-#      database_password: ${{ secrets.database_password }}
-#      database_host: ${{ secrets.database_host }}
-#      database_service_name: ${{ secrets.database_service_name }}
-#      keystore_secret: ${{ secrets.keystore_secret }}
-#      keycloak_sa_client_id: ${{ secrets.KEYCLOAK_SA_CLIENT_ID }}
-#      keycloak_sa_client_secret: ${{ secrets.KEYCLOAK_SA_CLIENT_SECRET }}
-#      keycloak_issuer_uri: ${{ secrets.KEYCLOAK_ISSUER_URI }}
-#      user_lookup_base_url: ${{ secrets.USER_LOOKUP_BASE_URL }}
-#      clamav_host: ${{ secrets.CLAMAV_HOST }}
-#      fom_api_url: ${{ secrets.FOM_API_URL }}
-#    with:
-#      environment: prod
-#      target: prod
-#      tag: ${{ needs.init.outputs.pr }}
-#      backend_replicas: "3"
-#      frontend_replicas: "3"
-#
-#  # After PROD is up, alias the PR image as :prod in GHCR. Creates a durable
-#  # record of "this is the image running in production right now" and a
-#  # rollback target.
-#  promote:
-#    name: Promote Images
-#    needs: [deploy-prod, init]
-#    runs-on: ubuntu-slim
-#    permissions:
-#      packages: write
-#    strategy:
-#      matrix:
-#        package: [backend, frontend]
-#    timeout-minutes: 1
-#    steps:
-#      - uses: shrink/actions-docker-registry-tag@e6aaef25c595b6e0edd18bf4c7dbfea3abd43299 # v5
-#        with:
-#          registry: ghcr.io
-#          repository: ${{ github.repository }}/${{ matrix.package }}
-#          target: ${{ needs.init.outputs.pr }}
-#          tags: prod
+  deploy-prod:
+    name: PROD Deploys (${{ needs.init.outputs.pr }})
+    needs: [tests, init]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-deploy.yml
+    secrets:
+      oc_namespace: ${{ secrets.oc_namespace }}
+      oc_token: ${{ secrets.oc_token }}
+      database_user: ${{ secrets.database_user }}
+      database_password: ${{ secrets.database_password }}
+      database_host: ${{ secrets.database_host }}
+      database_service_name: ${{ secrets.database_service_name }}
+      keystore_secret: ${{ secrets.keystore_secret }}
+      keycloak_sa_client_id: ${{ secrets.KEYCLOAK_SA_CLIENT_ID }}
+      keycloak_sa_client_secret: ${{ secrets.KEYCLOAK_SA_CLIENT_SECRET }}
+      keycloak_issuer_uri: ${{ secrets.KEYCLOAK_ISSUER_URI }}
+      user_lookup_base_url: ${{ secrets.USER_LOOKUP_BASE_URL }}
+      clamav_host: ${{ secrets.CLAMAV_HOST }}
+      fom_api_url: ${{ secrets.FOM_API_URL }}
+      vanity_tls_certificate: ${{ secrets.VANITY_TLS_CERTIFICATE }}
+      vanity_tls_key: ${{ secrets.VANITY_TLS_KEY }}
+      vanity_tls_ca_certificate: ${{ secrets.VANITY_TLS_CA_CERTIFICATE }}
+    with:
+      environment: prod
+      target: prod
+      tag: ${{ needs.init.outputs.pr }}
+      backend_replicas: "3"
+      frontend_replicas: "3"
+
+  # After PROD is up, alias the PR image as :prod in GHCR. Creates a durable
+  # record of "this is the image running in production right now" and a
+  # rollback target.
+  promote:
+    name: Promote Images
+    needs: [deploy-prod, init]
+    runs-on: ubuntu-slim
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        package: [backend, frontend]
+    timeout-minutes: 1
+    steps:
+      - uses: shrink/actions-docker-registry-tag@e6aaef25c595b6e0edd18bf4c7dbfea3abd43299 # v5
+        with:
+          registry: ghcr.io
+          repository: ${{ github.repository }}/${{ matrix.package }}
+          target: ${{ needs.init.outputs.pr }}
+          tags: prod

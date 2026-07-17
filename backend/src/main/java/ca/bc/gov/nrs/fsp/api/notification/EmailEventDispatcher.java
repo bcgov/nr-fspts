@@ -5,6 +5,8 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
@@ -38,6 +40,29 @@ public class EmailEventDispatcher {
 
   @Value("${fsp.mail.from:donotreply.fsp@gov.bc.ca}")
   private String fromAddress;
+
+  /**
+   * Master kill-switch for automatic outbound email. Off by default —
+   * an environment must explicitly opt in (ConfigMap / env
+   * {@code EMAIL_SEND_ENABLED=true}) for any email to actually leave the
+   * app. When off the workflow event is still processed and logged, but
+   * the SMTP send is skipped. Set on PROD only once the mail path is
+   * signed off; every other environment stays silent by default.
+   */
+  @Value("${fsp.mail.send-enabled:false}")
+  private boolean sendEnabled;
+
+  /** Announce the kill-switch state in the pod log at boot. */
+  @EventListener(ApplicationReadyEvent.class)
+  public void logMailStateAtStartup() {
+    if (sendEnabled) {
+      log.info("Automatic email sending is ENABLED (fsp.mail.send-enabled=true)");
+    } else {
+      log.warn(
+          "Automatic email sending is DISABLED (fsp.mail.send-enabled=false) "
+              + "— workflow emails will be prepared and logged but NOT sent");
+    }
+  }
 
   /**
    * Fired AFTER_COMMIT — if the workflow save rolls back, no email
@@ -83,6 +108,16 @@ public class EmailEventDispatcher {
     }
 
     String body = renderer.render(event.templateName(), ctx);
+
+    if (!sendEnabled) {
+      log.info(
+          "Email sending disabled — would have sent {} email to {} for FSP {}/{}",
+          event.getClass().getSimpleName(),
+          to,
+          fsp.fspId(),
+          fsp.amendmentNumber());
+      return;
+    }
 
     SimpleMailMessage msg = new SimpleMailMessage();
     msg.setFrom(fromAddress);

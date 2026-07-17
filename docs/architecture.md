@@ -162,7 +162,7 @@ See [roles-and-security.md](roles-and-security.md) for steps 2–5 and
 
 ## External integrations
 
-The API depends on five BC Gov services:
+The API depends on six BC Gov services:
 
 | System | Used for | Doc |
 |--------|----------|-----|
@@ -171,6 +171,7 @@ The API depends on five BC Gov services:
 | **FAM** | IDIR identity lookup (user picker + digest email resolution) | [fam-integration.md](fam-integration.md) |
 | **SMTP** | Outgoing email (workflow events + designate digest) | [notifications.md](notifications.md) |
 | **ClamAV** | Virus-scanning every uploaded file (clamd over raw TCP) | [virus-scanning.md](virus-scanning.md) |
+| **nr-fom** | "Associated FOMs" links on the agreement-holders table (best-effort) | [below](#fom-integration-associated-foms) |
 
 Submissions used to arrive via a fifth — the external **ESF** queue — now
 replaced by direct upload ([submissions.md](submissions.md#background-bringing-esf-in-house)).
@@ -188,3 +189,73 @@ shared **tools** namespace. Reaching it cross-namespace needs an ingress
 applies the backend's own egress policy in `openshift.deploy.yml`). Everything
 ClamAV — config env vars, the fail-open policy, and this networking — is in
 [virus-scanning.md](virus-scanning.md).
+
+### Vanity route (PROD only)
+
+Every environment gets the default edge Route from `openshift.deploy.yml`
+(`nr-fspts-<slot>.apps.silver.devops.gov.bc.ca`). PROD **additionally** serves
+the public custom hostname **`fspts.nrs.gov.bc.ca`** via a second edge Route.
+
+Both Routes stay live and point at the same frontend Service — the default one is
+not removed. The vanity Route lives in its **own** template
+(`frontend/openshift.vanity-route.yml`, object `nr-fspts-frontend-<zone>-vanity`)
+because OpenShift v1 templates can't render an object conditionally; baking it
+into the main template would also create it (with a junk auto-hostname) on TEST
+and PR-preview deploys. Instead `reusable-deploy.yml` has a separate
+**Vanity Route (PROD)** step gated on `inputs.target == 'prod' && env.VANITY_HOST != ''`.
+
+TLS is edge-terminated with the Entrust-issued cert for the hostname. The three
+PEM inputs are fed as template params from GitHub Environment secrets:
+
+| GitHub Environment config | Kind | Scope | Value |
+|---------------------------|------|-------|-------|
+| `VANITY_HOST` | **variable** (`vars.VANITY_HOST`) | PROD | Custom public hostname — `fspts.nrs.gov.bc.ca`. Empty/unset ⇒ the vanity step is skipped, so only PROD grows the second Route. |
+| `VANITY_TLS_CERTIFICATE` | **secret** | PROD | Leaf/server cert (CN/SAN = the hostname) → Route `spec.tls.certificate`. File: `fspts.nrs.gov.bc.ca.pem`. |
+| `VANITY_TLS_KEY` | **secret** | PROD | Unencrypted private key matching the leaf → `spec.tls.key`. File: `fspts.nrs.gov.bc.ca.key` (PKCS#8). **Never committed to Git.** |
+| `VANITY_TLS_CA_CERTIFICATE` | **secret** | PROD | Intermediate + root chain → `spec.tls.caCertificate`. Concatenate, in order: `Entrust OV TLS Issuing RSA CA 2.pem`, `Sectigo Public Server Authentication Root R46.pem`, `USERTrust RSA Certification Authority.pem`. |
+
+The three cert secrets are passed the same way as `DATABASE_PASSWORD` — as step
+`env:` values dereferenced once in a single-bash-expansion `-p VANITY_*="$VAR"` —
+so the multi-line PEM newlines survive intact. On cert renewal, update the three
+secrets in the PROD Environment and re-run the deploy; no code change is needed.
+
+### FOM integration (Associated FOMs)
+
+The agreement-holders table's **Associated FOMs** column is filled from the
+public **nr-fom** API (best-effort — a FOM outage just leaves the column blank),
+and each id renders as a link to the public FOM project page. Two config values
+— one per side, backend and frontend — and they **must point at the same FOM
+host per environment**:
+
+| GitHub Environment config | Kind | Purpose |
+|---------------------------|------|---------|
+| `FOM_API_URL` | **secret** | Backend API the enrichment calls (`fsp.fom.base-url`) — `<fom-host>/api/external/fom-by-fsp`. Empty ⇒ column stays blank (enrichment disabled). |
+| `VITE_FOM_PUBLIC_URL` | **variable** (`vars.VITE_FOM_PUBLIC_URL`) | Frontend public FOM **site** base for the links — just the origin `<fom-host>`; the link is `<base>/public/projects?id=<id>#details`. Empty ⇒ code falls back to the prod host. |
+
+Hosts per environment (both values must match):
+
+| Env | FOM host |
+|-----|----------|
+| TEST / local | `https://fom-test.apps.silver.devops.gov.bc.ca` |
+| PROD | `https://fom.nrs.gov.bc.ca` |
+
+The API host is where the FOM ids come from; the site host is where the links
+resolve them. A mismatch (e.g. API=test, site=prod) hands back ids that 404 on
+the other site. Note `FOM_API_URL` carries the `/api/external/fom-by-fsp` path
+while `VITE_FOM_PUBLIC_URL` is only the origin; and `FOM_API_URL` is stored as a
+secret even though it's a non-sensitive public URL. In the workflow
+`VITE_FOM_PUBLIC_URL` has a prod fallback, so PROD works without the var set —
+but **TEST must set `vars.VITE_FOM_PUBLIC_URL`** to the test host, else it falls
+back to prod and re-introduces the id mismatch. Local dev points both at the test
+host via `backend/.../application-local.properties` (`fsp.fom.base-url`) and
+`frontend/.env.local` (`VITE_FOM_PUBLIC_URL`).
+
+### Maps
+
+The Inbox "Map View" link and the FSP detail Map tab both open an in-app
+**Leaflet** FDU map (`/fsp/map`, rendering our own reprojected FDU outlines) in a
+new tab — there is no external map viewer and **no map-viewer env var**. (The old
+`VITE_MAP_VIEWER_URL` ArcMaps hand-off was removed; delete any leftover
+`vars.VITE_MAP_VIEWER_URL` from the GitHub Environments.) The new tab opens with
+`noopener`, so the active BCeID org is threaded through the URL (`&activeOrg=…`)
+and adopted by `OrgProvider` to avoid re-prompting multi-org users.

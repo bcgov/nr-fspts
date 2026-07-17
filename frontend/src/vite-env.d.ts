@@ -12,10 +12,10 @@ interface ImportMetaEnv {
   // Display / theming
   readonly VITE_APP_NAME: string;
   readonly VITE_ZONE: string;
-  // External Map Viewer base URL — read by src/pages/InboxPage.tsx. The
-  // click handler appends &extent=… &catalogLayers=… at runtime. Empty
-  // suppresses the Map View column.
-  readonly VITE_MAP_VIEWER_URL: string;
+  // Public FOM site base URL — read by the InformationTab "Associated FOMs"
+  // links. Should match the host the backend's FOM_API_URL points at (test
+  // FOM for TEST/local, prod for PROD). Empty falls back to the prod host.
+  readonly VITE_FOM_PUBLIC_URL: string;
 }
 
 interface ImportMeta {

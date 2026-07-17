@@ -1353,11 +1353,13 @@
   }
 }
 
-// In edit mode the density rows must read as one solid white surface so
-// the gray editable inputs stand out — kill the global zebra stripe
-// (src/styles/_tables.scss). Match its selector shape + our extra class
-// so specificity (0,3,3) beats the (0,2,3) zebra rule.
-.fsp-info__density-table--editing {
+// The density rows read as one solid white surface in BOTH modes — in
+// edit so the gray editable inputs stand out, and in view so the card
+// matches (a clean white "Single layer" card under its white header bar,
+// no zebra). Kill the global zebra stripe (src/styles/_tables.scss);
+// match its selector shape + our extra class so specificity (0,3,3)
+// beats the (0,2,3) zebra rule.
+.fsp-info__density-table {
   .cds--data-table tbody tr:nth-child(even),
   .cds--data-table tbody tr:nth-child(even) td {
     background-color: #ffffff;
@@ -1384,6 +1386,69 @@
   font-size: 1rem;
   font-weight: 600;
   color: var(--cds-text-primary);
+}
+
+// Multi-layer variant: the header hosts the white layer sub-tab strip
+// instead of a static title. The tabs own their own vertical padding and
+// left inset, so zero the header's block + leading padding and let each
+// tab's underline meet the header's bottom border for a connected,
+// "tabs are the top of the table" look.
+.fsp-info__layer-card-header--tabs {
+  padding-block: 0;
+  padding-inline-start: 0;
+  flex-wrap: nowrap;
+}
+
+// White line sub-tabs living inside the density card header. Matches the
+// parent detail tabs (white strip, selected label bold with a blue
+// underline) so the nesting reads consistently.
+.fsp-info__layer-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  // Overlap the header's 1px bottom border so the active tab's 2px
+  // underline sits on the same line (classic tab-to-body join).
+  margin-block-end: -1px;
+}
+
+.fsp-info__layer-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0.75rem 1rem;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--cds-text-secondary, #525252);
+  cursor: pointer;
+  border-block-end: 2px solid transparent;
+  transition:
+    background-color 0.11s ease,
+    color 0.11s ease,
+    border-color 0.11s ease;
+
+  &:hover:not(:disabled) {
+    background-color: var(--cds-layer-hover-01, #e8e8e8);
+    color: var(--cds-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--cds-focus, #0f62fe);
+    outline-offset: -2px;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    color: var(--cds-text-disabled, #c6c6c6);
+  }
+}
+
+.fsp-info__layer-tab--active {
+  color: var(--cds-text-primary);
+  font-weight: 600;
+  border-block-end-color: var(--cds-border-interactive, #0f62fe);
 }
 
 // The two standalone layer fields (Max coniferous / Height relative)
@@ -1461,11 +1526,62 @@
 // Kill the global even-row stripe (src/styles/_tables.scss) — match its
 // selector shape + our extra class so specificity (0,3,3) beats the
 // (0,2,3) zebra rule.
+// Stocking-standards table card: search + CSV toolbar on top, zebra rows
+// (the global stripe in styles/_tables.scss applies — intentionally kept),
+// and a client-side pagination footer.
 .fsp-info__standards-table {
-  .cds--data-table tbody tr:nth-child(even),
-  .cds--data-table tbody tr:nth-child(even) td {
+  // Whiten the whole toolbar surface — Carbon paints the toolbar, its
+  // content row, the persistent-search container, and the search input from
+  // gray layer/field tokens; force white so the row matches the table.
+  .cds--table-toolbar,
+  .cds--toolbar-content,
+  .fsp-info__standards-toolbar .cds--toolbar-search-container-persistent,
+  .fsp-info__standards-toolbar .cds--search,
+  .fsp-info__standards-toolbar .cds--search-input {
     background-color: #ffffff;
   }
+  // Toolbar row — search fills the full length, then a subtle gray
+  // separator, then Download (.csv) on the right.
+  .fsp-info__standards-toolbar {
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+  // Full-length search with a thin vertical divider on its trailing edge
+  // that reads as a separator between the search and the Download link.
+  .fsp-info__standards-toolbar .cds--toolbar-search-container-persistent {
+    flex: 1 1 auto;
+    border-inline-end: 1px solid var(--cds-border-subtle-01, #e0e0e0);
+  }
+  // Keep the Download (.csv) link a natural-height inline button so the
+  // full-height toolbar doesn't stretch it and drop its icon out of line
+  // with the label.
+  .fsp-info__standards-toolbar .cds--btn {
+    align-self: center;
+    block-size: auto;
+    min-block-size: 0;
+    align-items: center;
+  }
+  .fsp-info__standards-toolbar .cds--btn__icon {
+    align-self: center;
+    margin-block: 0;
+  }
+}
+
+// Two-line heading above the standards table: "{n} stocking standards" over
+// a muted "Select one to view details below." subtitle.
+.fsp-info__tile-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.fsp-info__standards-heading {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--cds-text-primary);
 }
 
 // REPT-style "inner tabs" — direct port of nr-rept's

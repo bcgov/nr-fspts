@@ -5,7 +5,6 @@ import {
   Select,
   SelectItem,
   Stack,
-  Tab,
   Table,
   TableBody,
   TableCell,
@@ -13,15 +12,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TabList,
-  TabPanel,
-  TabPanels,
-  Tabs,
   TextInput,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
 import {Add, Copy, Launch, TrashCan} from '@carbon/icons-react';
-import {type FC, useCallback, useEffect, useId, useMemo, useRef, useState} from 'react';
+import {type FC, forwardRef, type ReactNode, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from 'react';
 
 import ConfirmationModal from '@/components/ConfirmationModal';
 import {useNotification} from '@/context/notification/useNotification';
@@ -202,7 +197,21 @@ const EMPTY_LAYER_DETAIL = (layerCode: string): StandardRegimeLayerDetail => ({
   acceptableSpecies: [],
 });
 
-const LayerDetailPanel: FC<{
+/** Imperative surface a multi-layer regime uses to drive one regime-level
+ *  Save all / Cancel all across every mounted layer panel. */
+interface LayerPanelHandle {
+  isEditing: () => boolean;
+  /** Validate this layer's form; sets inline errors and returns validity. */
+  validate: () => boolean;
+  /** Persist this layer (assumes validate() already passed). Returns success. */
+  persist: () => Promise<boolean>;
+  /** Leave edit mode without reverting (used after a successful save-all). */
+  finishEdit: () => void;
+  /** Revert this layer's form and leave edit mode. */
+  cancel: () => void;
+}
+
+interface LayerDetailPanelProps {
   fspId: string;
   regimeId: string;
   amendmentNumber: string;
@@ -212,35 +221,63 @@ const LayerDetailPanel: FC<{
    *  synthetic empty Single tab) so the parent can refetch the regime
    *  detail and rebuild its tab strip with the real layer flags. */
   onLayerCreated?: () => void;
-  /** Single-layer regimes render this panel directly (no sub-tab
-   *  strip); the card header shows "Single layer" + the convert link. */
-  singleLayer?: boolean;
-  /** Opens the convert-layers confirmation (shown in the edit card
-   *  header for single-layer regimes). Omitted when convert isn't
-   *  available (e.g. an unsaved synthetic layer). */
+  /** Title for the white card header bar on a single-layer regime
+   *  ("Single layer"). Ignored when headerContent is supplied. */
+  cardTitle?: string;
+  /** Custom content for the white card header bar — the multi-layer sub-tab
+   *  strip. When set it replaces cardTitle so the layer tabs live INSIDE the
+   *  primary density table (white), not as a separate strip above it. */
+  headerContent?: ReactNode;
+  /** Opens the convert-layers confirmation (rendered as the convert link
+   *  in the card header). Omitted when convert isn't available (e.g. an
+   *  unsaved synthetic layer, or a read-only regime). */
   onConvert?: () => void;
   convertLabel?: string;
-}> = ({
+  /** Monotonic counter bumped by the parent when the user clicks
+   *  "Edit layers". Every mounted layer panel watches it and enters edit
+   *  together, so a multi-layer regime edits all tabs at once. */
+  editSignal?: number;
+  /** Handler for this panel's "Edit layers" button. In a multi-layer regime
+   *  it asks the parent to bump editSignal (edit-all); when absent (single
+   *  layer) the button falls back to editing just this panel. */
+  onEditRequest?: () => void;
+  /** Reports this panel's edit state up so the parent can drive the single
+   *  page-wide edit-lock registration for the whole Layers pane. */
+  onEditingChange?: (layerCode: string | null, editing: boolean) => void;
+  /** When set (multi-layer), the in-card Save/Cancel bar drives a single
+   *  regime-level Save all / Cancel all instead of saving just this layer. */
+  onSaveAll?: () => void;
+  onCancelAll?: () => void;
+  /** True while a regime-level save-all is in flight — disables the bar. */
+  savingAll?: boolean;
+}
+
+const LayerDetailPanel = forwardRef<LayerPanelHandle, LayerDetailPanelProps>(({
   fspId,
   regimeId,
   amendmentNumber,
   layer,
   readOnly = false,
   onLayerCreated,
-  singleLayer = false,
+  cardTitle,
+  headerContent,
   onConvert,
   convertLabel,
-}) => {
+  editSignal,
+  onEditRequest,
+  onEditingChange,
+  onSaveAll,
+  onCancelAll,
+  savingAll = false,
+}, ref) => {
   const [detail, setDetail] = useState<StandardRegimeLayerDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
-  // Register this layer's edit mode into the page-wide edit lock. A unique
-  // per-instance id (multiple layer panels can be mounted at once in a
-  // multi-layer regime) means `lockedFor(paneId)` is false only for the
-  // layer actually being edited — so its own Convert action stays live
-  // while every other pane's actions lock. `anyEditing` covers all panes.
-  const paneId = `${EDIT_PANE.stdLayers}:${useId()}`;
-  useEditRegistration(paneId, editing);
+  // The page-wide edit lock is registered once by the PARENT for the whole
+  // Layers pane (based on "any layer editing") — not per panel — so that
+  // saving one tab doesn't clear the lock while other tabs are still being
+  // edited. Here we only READ the lock (anyEditing) and REPORT this panel's
+  // edit state up via onEditingChange (below).
   const { anyEditing } = useEditLock();
   // Focus the first density input when entering edit mode.
   const firstFieldRef = useRef<HTMLInputElement>(null);
@@ -370,6 +407,27 @@ const LayerDetailPanel: FC<{
     if (editing) firstFieldRef.current?.focus();
   }, [editing]);
 
+  // Report edit state up so the parent can drive one page-wide edit-lock
+  // registration for the whole Layers pane (see the parent's aggregation).
+  useEffect(() => {
+    onEditingChange?.(layer.layerCode, editing);
+  }, [editing, layer.layerCode, onEditingChange]);
+
+  // Enter edit whenever the parent bumps editSignal ("Edit layers" clicked)
+  // — this is what makes a multi-layer regime edit ALL tabs at once. Skipped
+  // for read-only regimes, until the layer detail has loaded, and (crucially)
+  // for a panel that's ALREADY editing — so re-broadcasting after one tab was
+  // saved re-enters the view-mode tabs without wiping in-progress edits.
+  const lastEditSignal = useRef(editSignal);
+  useEffect(() => {
+    if (editSignal === lastEditSignal.current) return;
+    lastEditSignal.current = editSignal;
+    if (readOnly || !detail || editing) return;
+    setForm(createLayerForm(detail));
+    setErrors({});
+    setEditing(true);
+  }, [editSignal, readOnly, detail, editing]);
+
   const setField = <K extends keyof LayerFormState>(key: K, value: LayerFormState[K]) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
     if (errors[key]) {
@@ -394,14 +452,32 @@ const LayerDetailPanel: FC<{
     setEditing(false);
   };
 
-  const handleSave = async () => {
-    if (!form || !layer.layerCode) return;
+  // Validate this layer's form; sets inline errors and returns validity.
+  const validate = (): boolean => {
+    if (!form) return true;
     const found = validateLayer(form);
-    if (Object.keys(found).length > 0) {
-      setErrors(found);
-      return;
-    }
+    setErrors(found);
+    return Object.keys(found).length === 0;
+  };
+
+  // Has the form diverged from the loaded detail? Used to skip a no-op save
+  // of an untouched layer during Save all.
+  const isDirty = (): boolean => {
+    if (!form || !detail) return true;
+    const base = createLayerForm(detail);
+    return (Object.keys(form) as (keyof LayerFormState)[]).some(
+      (k) => form[k] !== base[k],
+    );
+  };
+
+  // Persist this layer (caller validates first). No success toast — the
+  // caller decides (single-layer save vs one aggregate save-all toast).
+  const persist = async (): Promise<boolean> => {
+    if (!form || !layer.layerCode) return true;
     const isCreate = !layer.layerId;
+    // Skip a no-op re-save of an existing, unchanged layer (Save all re-saves
+    // every editing tab); always run for a create so the layer row is made.
+    if (!isCreate && !isDirty()) return true;
     setSaving(true);
     try {
       const updated = await updateStandardRegimeLayer(
@@ -413,17 +489,12 @@ const LayerDetailPanel: FC<{
         amendmentNumber || undefined,
       );
       setDetail(updated);
-      setEditing(false);
-      display({
-        kind: 'success',
-        title: isCreate ? 'Layer created.' : 'Layer updated.',
-        timeout: 7000,
-      });
       // On the first save of a synthetic Single tab, ask the parent to
-      // refetch the regime so its layer flags reflect the new row and
-      // the tab strip rebuilds against real ids (lets the Species
-      // editors enable Add).
+      // refetch the regime so its layer flags reflect the new row and the
+      // tab strip rebuilds against real ids (lets the Species editors
+      // enable Add).
       if (isCreate) onLayerCreated?.();
+      return true;
     } catch (e) {
       display({
         kind: 'error',
@@ -431,10 +502,35 @@ const LayerDetailPanel: FC<{
         subtitle: e instanceof Error ? e.message : 'Unknown error',
         timeout: 9000,
       });
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  // Single-layer regimes save just this one layer directly.
+  const handleSave = async () => {
+    if (!validate()) return;
+    const isCreate = !layer.layerId;
+    if (!(await persist())) return;
+    setEditing(false);
+    display({
+      kind: 'success',
+      title: isCreate ? 'Layer created.' : 'Layer updated.',
+      timeout: 7000,
+    });
+  };
+
+  // Imperative surface for the parent's regime-level Save all / Cancel all
+  // (multi-layer). No dep array → recreated each render so the closures
+  // always see the current form/detail/editing.
+  useImperativeHandle(ref, () => ({
+    isEditing: () => editing,
+    validate,
+    persist,
+    finishEdit: () => setEditing(false),
+    cancel: handleCancel,
+  }));
 
   if (loading && !detail) {
     return (
@@ -478,7 +574,7 @@ const LayerDetailPanel: FC<{
             size="sm"
             renderIcon={Launch}
             disabled={anyEditing}
-            onClick={handleEdit}
+            onClick={onEditRequest ?? handleEdit}
           >
             Edit layers
           </Button>
@@ -486,9 +582,11 @@ const LayerDetailPanel: FC<{
       )}
 
       {/* Density matrix — same table shape in both modes; the editable
-          cells become gray inputs while editing. In edit mode the card
-          gains a header, and single-layer regimes surface the convert
-          link there. */}
+          cells become gray inputs while editing. Every layer card gets a
+          white header bar in BOTH view and edit modes: single-layer shows
+          the "Single layer" title, multi-layer hosts the white layer
+          sub-tabs (headerContent) inside this same primary table so both
+          shapes read consistently. The convert link sits on the right. */}
       <section className="fsp-info__layer-card">
         <div
           className={
@@ -497,15 +595,23 @@ const LayerDetailPanel: FC<{
               : 'bordered-table fsp-info__density-table'
           }
         >
-          {editing && singleLayer && (
-            <div className="fsp-info__layer-card-header">
-              <h3 className="fsp-info__layer-card-title">Single layer</h3>
+          {(headerContent || cardTitle) && (
+            <div
+              className={
+                headerContent
+                  ? 'fsp-info__layer-card-header fsp-info__layer-card-header--tabs'
+                  : 'fsp-info__layer-card-header'
+              }
+            >
+              {headerContent ?? (
+                <h3 className="fsp-info__layer-card-title">{cardTitle}</h3>
+              )}
               {onConvert && (
                 <Button
                   kind="ghost"
                   size="sm"
                   renderIcon={Copy}
-                  disabled={saving}
+                  disabled={editing ? saving : anyEditing}
                   onClick={onConvert}
                 >
                   {convertLabel ?? 'Convert to multi-layer'}
@@ -582,13 +688,26 @@ const LayerDetailPanel: FC<{
         </dl>
       )}
 
+      {/* Save/Cancel bar. Multi-layer (onSaveAll set) drives a single
+          regime-level Save all / Cancel all; single-layer saves just itself.
+          Only the active tab's bar is visible, so the user sees one bar. */}
       {editing && (
         <div className="fsp-info__form-actions">
-          <Button kind="secondary" size="sm" disabled={saving} onClick={handleCancel}>
+          <Button
+            kind="secondary"
+            size="sm"
+            disabled={saving || savingAll}
+            onClick={onCancelAll ?? handleCancel}
+          >
             Cancel
           </Button>
-          <Button kind="primary" size="sm" disabled={saving} onClick={handleSave}>
-            {saving ? 'Saving…' : 'Save changes'}
+          <Button
+            kind="primary"
+            size="sm"
+            disabled={saving || savingAll}
+            onClick={onSaveAll ?? handleSave}
+          >
+            {saving || savingAll ? 'Saving…' : 'Save changes'}
           </Button>
         </div>
       )}
@@ -626,7 +745,8 @@ const LayerDetailPanel: FC<{
       />
     </div>
   );
-};
+});
+LayerDetailPanel.displayName = 'LayerDetailPanel';
 
 /**
  * Editable species list for one layer side (preferred OR acceptable).
@@ -917,11 +1037,41 @@ const StandardRegimeLayersPanel: FC<Props> = ({
   const [convertConfirmOpen, setConvertConfirmOpen] = useState(false);
   const { display } = useNotification();
 
-  // Reset to first tab when the regime changes (the parent already
-  // remounts on regime change via its key, but defensive in case it
-  // ever stops doing that).
+  // "Edit layers" broadcast: bumping this counter makes every mounted layer
+  // panel enter edit together, so a multi-layer regime edits all tabs at once.
+  const [editSignal, setEditSignal] = useState(0);
+  const requestEditAll = useCallback(() => setEditSignal((n) => n + 1), []);
+
+  // Aggregate each layer panel's edit state into ONE page-wide edit-lock
+  // registration for the whole Layers pane. Registering per panel would let
+  // saving one tab clear the lock while other tabs are still being edited.
+  const [editingByLayer, setEditingByLayer] = useState<Record<string, boolean>>(
+    {},
+  );
+  const handleLayerEditingChange = useCallback(
+    (layerCode: string | null, editing: boolean) => {
+      if (!layerCode) return;
+      setEditingByLayer((prev) =>
+        prev[layerCode] === editing ? prev : { ...prev, [layerCode]: editing },
+      );
+    },
+    [],
+  );
+  const anyLayerEditing = Object.values(editingByLayer).some(Boolean);
+  useEditRegistration(EDIT_PANE.stdLayers, anyLayerEditing);
+
+  // Refs to each mounted layer panel so a multi-layer regime can drive one
+  // regime-level Save all / Cancel all across every layer at once.
+  const panelRefs = useRef<Record<string, LayerPanelHandle | null>>({});
+  const [savingAll, setSavingAll] = useState(false);
+
+  // Reset to first tab + clear any edit state when the regime changes (the
+  // parent already remounts on regime change via its key, but defensive in
+  // case it ever stops doing that). Clearing editingByLayer prevents a stale
+  // per-layer flag from holding the page-wide edit lock across regimes.
   useEffect(() => {
     setActiveIndex(0);
+    setEditingByLayer({});
   }, [regimeId]);
 
   // Real layers as the backend reported them. Only filter out entries
@@ -1006,6 +1156,81 @@ const StandardRegimeLayersPanel: FC<Props> = ({
     });
   };
 
+  // Regime-level Save all: validate every editing layer first (switching to
+  // the first tab with an error so its inline messages are visible), then
+  // persist them in order, then leave edit mode on all. Aborts on the first
+  // persist failure, surfacing that tab.
+  const handleSaveAll = async () => {
+    const editing = tabs
+      .map((l, i) => ({ index: i, handle: panelRefs.current[l.layerCode] }))
+      .filter(
+        (e): e is { index: number; handle: LayerPanelHandle } =>
+          !!e.handle && e.handle.isEditing(),
+      );
+    if (editing.length === 0) return;
+
+    for (const e of editing) {
+      if (!e.handle.validate()) {
+        setActiveIndex(e.index);
+        return;
+      }
+    }
+
+    setSavingAll(true);
+    try {
+      for (const e of editing) {
+        if (!(await e.handle.persist())) {
+          setActiveIndex(e.index);
+          return;
+        }
+      }
+      editing.forEach((e) => e.handle.finishEdit());
+      display({
+        kind: 'success',
+        title:
+          editing.length > 1 ? 'All layers saved.' : 'Layer saved.',
+        timeout: 6000,
+      });
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
+  // Regime-level Cancel all: revert every layer's form and leave edit mode.
+  const handleCancelAll = () => {
+    tabs.forEach((l) => panelRefs.current[l.layerCode]?.cancel());
+  };
+
+  // Multi-layer sub-tab strip, handed to every layer panel as headerContent
+  // so the tabs render INSIDE each density card's white header (part of the
+  // primary table) rather than as a separate strip above it. All layer
+  // panels stay mounted (inactive ones just `hidden`) so switching tabs
+  // never remounts/refetches and preserves each layer's in-progress edits.
+  const layerTabs = (
+    <div
+      className="fsp-info__layer-tabs"
+      role="tablist"
+      aria-label="Standards regime layers"
+    >
+      {tabs.map((l, i) => (
+        <button
+          key={l.layerCode}
+          type="button"
+          role="tab"
+          aria-selected={i === activeIndex}
+          className={
+            i === activeIndex
+              ? 'fsp-info__layer-tab fsp-info__layer-tab--active'
+              : 'fsp-info__layer-tab'
+          }
+          onClick={() => setActiveIndex(i)}
+        >
+          {LAYER_LABEL[l.layerCode] ?? `Layer ${l.layerCode}`}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="fsp-info__inner-tabs fsp-info__inner-tabs--detail">
       {isSingleLayer ? (
@@ -1018,50 +1243,48 @@ const StandardRegimeLayersPanel: FC<Props> = ({
           layer={tabs[0]}
           readOnly={readOnly}
           onLayerCreated={refreshRegime}
-          singleLayer
+          cardTitle="Single layer"
           onConvert={
             !readOnly && canConvert
               ? () => setConvertConfirmOpen(true)
               : undefined
           }
           convertLabel={convertLabel}
+          onEditingChange={handleLayerEditingChange}
         />
       ) : (
-        <>
-          {!readOnly && canConvert && (
-            <div className="fsp-info__tab-actions">
-              <Button
-                kind="tertiary"
-                size="sm"
-                renderIcon={Copy}
-                onClick={() => setConvertConfirmOpen(true)}
-              >
-                {convertLabel}
-              </Button>
-            </div>
-          )}
-          <Tabs selectedIndex={activeIndex} onChange={({ selectedIndex }) => setActiveIndex(selectedIndex)}>
-            <TabList aria-label="Standards regime layers">
-              {tabs.map((l) => (
-                <Tab key={l.layerCode}>{LAYER_LABEL[l.layerCode] ?? `Layer ${l.layerCode}`}</Tab>
-              ))}
-            </TabList>
-            <TabPanels>
-              {tabs.map((l) => (
-                <TabPanel key={l.layerCode}>
-                  <LayerDetailPanel
-                    fspId={fspId}
-                    regimeId={regimeId}
-                    amendmentNumber={amendmentNumber}
-                    layer={l}
-                    readOnly={readOnly}
-                    onLayerCreated={refreshRegime}
-                  />
-                </TabPanel>
-              ))}
-            </TabPanels>
-          </Tabs>
-        </>
+        // Multi-layer: keep EVERY layer panel mounted and hide the inactive
+        // ones. Switching tabs then just toggles visibility — no remount, no
+        // refetch, and any layer mid-edit keeps its edit state. The shared
+        // tab strip lives in each card's header (only the visible one shows).
+        tabs.map((l, i) => (
+          <div key={l.layerCode} hidden={i !== activeIndex}>
+            <LayerDetailPanel
+              ref={(h) => {
+                panelRefs.current[l.layerCode] = h;
+              }}
+              fspId={fspId}
+              regimeId={regimeId}
+              amendmentNumber={amendmentNumber}
+              layer={l}
+              readOnly={readOnly}
+              onLayerCreated={refreshRegime}
+              headerContent={layerTabs}
+              onConvert={
+                !readOnly && canConvert
+                  ? () => setConvertConfirmOpen(true)
+                  : undefined
+              }
+              convertLabel={convertLabel}
+              editSignal={editSignal}
+              onEditRequest={requestEditAll}
+              onEditingChange={handleLayerEditingChange}
+              onSaveAll={() => void handleSaveAll()}
+              onCancelAll={handleCancelAll}
+              savingAll={savingAll}
+            />
+          </div>
+        ))
       )}
       <ConfirmationModal
         open={convertConfirmOpen}

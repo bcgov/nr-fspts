@@ -24,12 +24,11 @@ import { useNavigate } from 'react-router-dom';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
 import { useNotification } from '@/context/notification/useNotification';
+import { useOrg } from '@/context/org/useOrg';
 import { safeErrorMessage } from '@/lib/errorMessage';
 import { type ClientSearchResult, searchClientsAuto } from '@/services/clientSearch';
 import { formatDate } from '@/utils/formatDate';
-import { env } from '@/env';
 import {
-  getFspExtent,
   getOrgUnits,
   searchInbox,
   type CodeOption,
@@ -77,28 +76,12 @@ interface InboxRow {
   submitted: string;
   submittedBy: string;
   holder: string;
-  // "1" if the FSP has at least one FDU polygon (legacy gate on whether
-  // to render the Map View link); "0" otherwise. Stored as a cell so
-  // Carbon's DataTable carries it through; the renderer reads it to
-  // decide whether to render the trigger.
+  // "1" if the FSP has at least one FDU polygon (gate on whether to render
+  // the Map View link); "0" otherwise. Stored as a cell so Carbon's
+  // DataTable carries it through; the renderer reads it to decide whether
+  // to render the trigger.
   hasMapView: '0' | '1';
 }
-
-// Map View base URL (configurable per environment). The legacy app
-// fed this to a JS function that appended `&extent=...&catalogLayers=...`;
-// we do the same here, but only after the user clicks (the extent
-// comes from a per-row backend fetch). Falls back to empty so the
-// trigger is suppressed when the env isn't configured. Read via
-// env() (NOT import.meta.env) so runtime values from window.config
-// (injected by docker-entrypoint.sh) win over build-time values —
-// without this, deployed containers always see "" because the CI
-// build never has .env.local set.
-const MAP_VIEWER_URL = env.VITE_MAP_VIEWER_URL ?? '';
-
-// Catalog-layer IDs the legacy fsp200Inbox.jsp appended to the inbox
-// map URL. Per nr-fsp/.../javascript/navigation.js openMapView():
-//   url + "&extent=" + extent + "&catalogLayers=1417,1418,1419,1420"
-const MAP_VIEWER_LAYERS = '1417,1418,1419,1420';
 
 const HEADERS = [
   { key: 'fspId', header: 'FSP ID' },
@@ -220,11 +203,9 @@ const InboxPage: FC = () => {
   const [holderItems, setHolderItems] = useState<ClientSearchResult[]>([]);
   const [holderSelected, setHolderSelected] = useState<ClientSearchResult | null>(null);
 
-  // Tracks which row's Map View extent fetch is currently in flight.
-  // Single value rather than a per-row map: the legacy UX opened one
-  // map at a time, multi-fire would just race anyway, and limiting to
-  // one keeps the cell spinner state easy to reason about.
-  const [mapExtentLoadingRowId, setMapExtentLoadingRowId] = useState<string | null>(null);
+  // Active BCeID org — carried into the Leaflet map tab so a multi-org user
+  // isn't re-prompted (the tab opens with noopener → fresh sessionStorage).
+  const { activeOrgClientNumber } = useOrg();
 
   useEffect(() => {
     let cancelled = false;
@@ -378,55 +359,23 @@ const InboxPage: FC = () => {
   }, []);
 
   /**
-   * Open the legacy Map View for a single row. Lazy: fetches the MBR
-   * from /extent only when the user clicks, then redirects a
-   * pre-opened blank tab to
-   *   MAP_VIEWER_URL + &extent=<mbr>&catalogLayers=1417,1418,1419,1420
-   *
-   * The popup is opened with no `noopener` flag — that flag would
-   * make Chrome/Firefox/Safari return `null` from window.open even
-   * when the popup itself opens successfully, leaving us no handle to
-   * navigate it. Since we replace the popup's URL with a cross-origin
-   * arcmaps page immediately, the opener-access risk is effectively
-   * neutered by the same-origin policy after navigation anyway.
+   * Open the standalone Leaflet FDU map for a row in a new tab — the same
+   * `/fsp/map` page the FSP detail Map tab uses (our own reprojected FDU
+   * outlines; replaces the old external arcmaps hand-off). The page fetches
+   * its own geometry from the query params, so this is a plain synchronous
+   * window.open on the click gesture (no extent pre-fetch, no popup dance).
+   * The active org is threaded through so a multi-org user isn't re-prompted
+   * in the noopener'd new tab (OrgProvider adopts + revalidates it).
    */
   const handleOpenMapView = useCallback(
-    async (rowId: string, fspId: string, amendNo: string) => {
-      if (mapExtentLoadingRowId) return;
-      if (!MAP_VIEWER_URL) {
-        setError('Map View base URL is not configured. Set VITE_MAP_VIEWER_URL.');
-        return;
-      }
-      const popup = window.open('about:blank', '_blank');
-      if (!popup) {
-        setError('Pop-up was blocked. Allow pop-ups for this site to use Map View.');
-        return;
-      }
-      setMapExtentLoadingRowId(rowId);
-      try {
-        const { extent } = await getFspExtent(fspId, amendNo);
-        if (!extent) {
-          popup.close();
-          setError(`FSP ${fspId} has no spatial data — Map View unavailable.`);
-          return;
-        }
-        const sep = MAP_VIEWER_URL.includes('?') ? '&' : '?';
-        // Legacy navigation.js#openMapView built the URL by raw string
-        // concat — no encodeURIComponent on either value. Match that
-        // byte-for-byte: commas in extent/catalogLayers are reserved
-        // but not delimiters here, and arcmaps' parser keys off the
-        // exact literal form. Encoding the commas would technically be
-        // RFC-correct but breaks parity with the legacy app.
-        const url = `${MAP_VIEWER_URL}${sep}extent=${extent}&catalogLayers=${MAP_VIEWER_LAYERS}`;
-        popup.location.replace(url);
-      } catch (e) {
-        popup.close();
-        setError(safeErrorMessage(e, `Could not load Map View for FSP ${fspId}.`));
-      } finally {
-        setMapExtentLoadingRowId(null);
-      }
+    (fspId: string, amendNo: string) => {
+      const orgParam = activeOrgClientNumber
+        ? `&activeOrg=${encodeURIComponent(activeOrgClientNumber)}`
+        : '';
+      const url = `/fsp/map?fspId=${encodeURIComponent(fspId)}&amendmentNumber=${encodeURIComponent(amendNo || '0')}${orgParam}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
     },
-    [mapExtentLoadingRowId],
+    [activeOrgClientNumber],
   );
 
   const hasResults = results !== null && results.length > 0;
@@ -660,7 +609,6 @@ const InboxPage: FC = () => {
                                         // placeholder).
                                         if (cell.info.header === 'hasMapView') {
                                           const showLink = value === '1';
-                                          const isLoading = mapExtentLoadingRowId === row.id;
                                           // The fsp/amend cells live on this
                                           // same row — read them directly so we
                                           // don't have to thread the full row
@@ -676,14 +624,13 @@ const InboxPage: FC = () => {
                                                   // Stop the click from bubbling
                                                   // to the row-level navigate
                                                   // handler — Map View opens the
-                                                  // legacy popup, not the FSP page.
+                                                  // Leaflet map tab, not the FSP page.
                                                   onClick={(e) => {
                                                     e.stopPropagation();
-                                                    void handleOpenMapView(row.id, fspIdCell, amendCell ?? '0');
+                                                    handleOpenMapView(fspIdCell, amendCell ?? '0');
                                                   }}
-                                                  disabled={isLoading}
                                                 >
-                                                  {isLoading ? 'Loading…' : 'Map View'}
+                                                  Map View
                                                 </button>
                                               ) : null}
                                             </TableCell>

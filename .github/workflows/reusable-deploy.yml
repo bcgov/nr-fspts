@@ -102,6 +102,19 @@ on:
           Fills the FSP-300 "Associated FOMs" column. Omit to disable the
           lookup (column stays blank).
         required: false
+      vanity_tls_certificate:
+        description: |
+          PEM leaf/server certificate for the PROD vanity Route hostname
+          (vars.VANITY_HOST). Applied only on PROD when VANITY_HOST is set.
+        required: false
+      vanity_tls_key:
+        description: |
+          PEM private key (unencrypted) matching vanity_tls_certificate.
+        required: false
+      vanity_tls_ca_certificate:
+        description: |
+          PEM CA chain (intermediates + root) for the vanity certificate.
+        required: false
 
     outputs:
       triggered:
@@ -207,6 +220,7 @@ jobs:
             -p CLAMAV_HOST="$CLAMAV_HOST"
             -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"
             -p CLAMAV_FAIL_OPEN="${{ vars.CLAMAV_FAIL_OPEN || 'false' }}"
+            -p EMAIL_SEND_ENABLED="${{ vars.EMAIL_SEND_ENABLED || 'false' }}"
             -p DATABASE_HOST="${{ secrets.database_host }}"
             -p DATABASE_SERVICE_NAME="${{ secrets.database_service_name }}"
             -p DATABASE_USER="${{ secrets.database_user }}"
@@ -229,6 +243,11 @@ jobs:
       contents: read
     outputs:
       triggered: ${{ steps.deploy.outputs.triggered }}
+    # Job-level so the vanity step's `if:` can read it (a step's own `env` is
+    # not available to that step's `if`). Environment-scoped var — set only on
+    # the `prod` environment; empty everywhere else, which skips the step.
+    env:
+      VANITY_HOST: ${{ vars.VANITY_HOST }}
     steps:
       - uses: bcgov/action-deployer-openshift@f7bd61ec357fb1dfd1d43f1287bcd21382d06348 # v4.1.0
         id: deploy
@@ -257,5 +276,34 @@ jobs:
             -p VITE_API_BASE_URL="${{ vars.VITE_API_BASE_URL || '/api' }}"
             -p VITE_APP_NAME="${{ vars.VITE_APP_NAME }}"
             -p VITE_ZONE="${{ vars.VITE_ZONE }}"
-            -p VITE_MAP_VIEWER_URL="${{ vars.VITE_MAP_VIEWER_URL }}"
+            -p VITE_FOM_PUBLIC_URL="${{ vars.VITE_FOM_PUBLIC_URL || 'https://fom.nrs.gov.bc.ca' }}"
           triggers: ${{ inputs.triggers }}
+
+      # PROD vanity Route (e.g. fspts.nrs.gov.bc.ca). Adds a SECOND edge Route
+      # alongside the default one from the step above — both hostnames stay
+      # live. Runs only on PROD and only when the vanity host + cert secrets
+      # are configured (VANITY_HOST unset → skipped). The cert / key / chain
+      # are multiline PEM secrets, routed through env and passed as "$VAR"
+      # (single bash expansion) so their newlines survive — same reasoning as
+      # DATABASE_PASSWORD in the backend job.
+      - name: Vanity Route (PROD)
+        if: ${{ inputs.target == 'prod' && env.VANITY_HOST != '' }}
+        uses: bcgov/action-deployer-openshift@f7bd61ec357fb1dfd1d43f1287bcd21382d06348 # v4.1.0
+        env:
+          VANITY_TLS_CERTIFICATE: ${{ secrets.vanity_tls_certificate }}
+          VANITY_TLS_KEY: ${{ secrets.vanity_tls_key }}
+          VANITY_TLS_CA_CERTIFICATE: ${{ secrets.vanity_tls_ca_certificate }}
+        with:
+          file: frontend/openshift.vanity-route.yml
+          oc_namespace: ${{ secrets.oc_namespace }}
+          oc_server: ${{ vars.oc_server }}
+          oc_token: ${{ secrets.oc_token }}
+          debug: false
+          overwrite: true
+          parameters:
+            -p NAME="nr-fspts"
+            -p ZONE="${{ inputs.target }}"
+            -p VANITY_HOST="$VANITY_HOST"
+            -p VANITY_TLS_CERTIFICATE="$VANITY_TLS_CERTIFICATE"
+            -p VANITY_TLS_KEY="$VANITY_TLS_KEY"
+            -p VANITY_TLS_CA_CERTIFICATE="$VANITY_TLS_CA_CERTIFICATE"
