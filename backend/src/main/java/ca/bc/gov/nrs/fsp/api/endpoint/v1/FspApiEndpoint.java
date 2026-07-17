@@ -194,6 +194,31 @@ public interface FspApiEndpoint {
     ResponseEntity<Void> deleteStandard(
             @PathVariable String fspId, @PathVariable String standardId);
 
+    @PostMapping(URL.STANDARD_LINK)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
+    @Operation(summary =
+            "Add (LINK) an existing shared MoF default standards regime onto "
+                    + "the given FSP + amendment via "
+                    + "FSP_550_STDS_PROPOSAL.ASSOC_FSP_TO_STD_REGIME. Unlike COPY "
+                    + "this creates no new regime — it references the shared one. "
+                    + "Returns the linked regime as a StandardRegimeDetail.")
+    ResponseEntity<ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail> linkStandardRegime(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
+
+    @PostMapping(URL.STANDARD_UNLINK)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
+    @Operation(summary =
+            "Unlink a default standard from the given FSP + amendment via "
+                    + "FSP_550_STDS_PROPOSAL.UNLINK_DEFAULT_STANDARDS. Removes only "
+                    + "the FSP↔regime link; the shared default regime survives. "
+                    + "Rejected (400) if the regime is not a MoF default standard.")
+    ResponseEntity<Void> unlinkStandardRegime(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
+
     // --- Attachments ---
 
     @GetMapping(URL.ATTACHMENTS)

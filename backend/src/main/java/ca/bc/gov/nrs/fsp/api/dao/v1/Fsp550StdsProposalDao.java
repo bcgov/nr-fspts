@@ -18,6 +18,8 @@ public interface Fsp550StdsProposalDao {
   String PROCEDURE_REMOVE_BGC_ITEM = "REMOVE_BGC_ITEM";
   String PROCEDURE_REMOVE = "REMOVE";
   String PROCEDURE_COPY = "COPY";
+  String PROCEDURE_ASSOC = "ASSOC_FSP_TO_STD_REGIME";
+  String PROCEDURE_UNLINK = "UNLINK_DEFAULT_STANDARDS";
 
   /**
    * @param displayFspOrgClients {@code "Y"} scopes the org-unit + client
@@ -153,6 +155,39 @@ public interface Fsp550StdsProposalDao {
   ) {}
 
   record CopyResult(String newRegimeId, String errorMessage) {}
+
+  /**
+   * Wraps {@code FSP_550_STDS_PROPOSAL.ASSOC_FSP_TO_STD_REGIME} — the
+   * legacy "Add default standard" action. LINKS an existing (shared, MoF
+   * default) standards regime to this FSP/amendment by inserting a
+   * FSP_STANDARDS_REGIME_XREF row; it does NOT copy the regime. The proc
+   * validates the regime's org unit is one of the FSP's org units before
+   * linking. The counterpart of {@link #unlinkDefault(UnlinkRequest)}.
+   */
+  void assocRegime(AssocRequest req);
+
+  record AssocRequest(
+      String fspId,
+      String fspAmendmentNumber,
+      String standardsRegimeId,
+      String updateUserid
+  ) {}
+
+  /**
+   * Wraps {@code FSP_550_STDS_PROPOSAL.UNLINK_DEFAULT_STANDARDS} — the
+   * legacy "Unlink Default Standard" action. Removes ONLY the
+   * FSP_STANDARDS_REGIME_XREF row tying the (shared) default regime to
+   * this FSP; the regime itself and its children are left intact (unlike
+   * {@link #removeRegime(RemoveRequest)}, which tears the whole regime
+   * down). Only valid for MoF default standards.
+   */
+  void unlinkDefault(UnlinkRequest req);
+
+  record UnlinkRequest(
+      String fspId,
+      String fspAmendmentNumber,
+      String standardsRegimeId
+  ) {}
 
   /** The three cursor lists + the scalar header row. */
   record Result(

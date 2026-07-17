@@ -32,6 +32,7 @@ import {
   deleteStandardRegime,
   type FspStandardRow,
   getFspStandards,
+  unlinkDefaultStandard,
 } from '@/services/fspSearch';
 
 import { useEditLock } from '../editLock';
@@ -113,6 +114,7 @@ const StockingStandardsTab: FC<Props> = ({
   const [addExistingOpen, setAddExistingOpen] = useState(false);
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [unlinkConfirmOpen, setUnlinkConfirmOpen] = useState(false);
   // Client-side search + pagination over the full standards list (loaded
   // once). Search matches ID / name / objective / BGC.
   const [searchTerm, setSearchTerm] = useState('');
@@ -211,6 +213,12 @@ const StockingStandardsTab: FC<Props> = ({
   const canDelete = canEdit && status !== '' && !TERMINAL_STATUSES.includes(status);
   const selectedIsDraft =
     selectedRow?.standardsRegimeStatus?.trim().toLowerCase() === 'draft';
+  // Unlink is the default-standard counterpart of Delete: legacy
+  // "Unlink Default Standard" (StandardsButtonManager.get250UnlinkEnabled)
+  // applies only to MoF default standards. Same FSP-level edit gate as
+  // Delete (canEdit already encodes APP/INE→admin, DFT→submitter-or-admin);
+  // a standard is either a draft (Delete) or a default (Unlink), never both.
+  const selectedIsDefault = selectedRow?.defaultStandardInd === 'Y';
 
   const performCopy = async () => {
     if (!selectedRegimeId) return;
@@ -238,6 +246,18 @@ const StockingStandardsTab: FC<Props> = ({
     display({
       kind: 'success',
       title: 'Stocking standard deleted.',
+      timeout: 5000,
+    });
+  };
+
+  const performUnlink = async () => {
+    if (!selectedRegimeId) return;
+    await unlinkDefaultStandard(fspId, selectedRegimeId, amendmentNumber);
+    setSelectedRegimeId(null);
+    refetch();
+    display({
+      kind: 'success',
+      title: 'Default standard unlinked.',
       timeout: 5000,
     });
   };
@@ -353,6 +373,27 @@ const StockingStandardsTab: FC<Props> = ({
     </ConfirmationModal>
   );
 
+  const unlinkConfirmModal = (
+    <ConfirmationModal
+      open={unlinkConfirmOpen}
+      onClose={() => setUnlinkConfirmOpen(false)}
+      heading="Unlink default standard"
+      confirmLabel="Unlink"
+      errorTitle="Failed to unlink standard"
+      onConfirm={performUnlink}
+    >
+      <p>
+        Remove the default standard{' '}
+        <strong>
+          {selectedRow?.standardsRegimeName?.trim()
+            || `Standard ${selectedRow?.standardsRegimeId ?? ''}`}
+        </strong>{' '}
+        from this FSP? Only the link is removed — the shared default standard
+        itself is not deleted and can be added again later.
+      </p>
+    </ConfirmationModal>
+  );
+
   if (loading && !rows) {
     return (
       <>
@@ -366,6 +407,7 @@ const StockingStandardsTab: FC<Props> = ({
         {addExistingStandardModal}
         {copyConfirmModal}
         {deleteConfirmModal}
+        {unlinkConfirmModal}
       </>
     );
   }
@@ -380,6 +422,7 @@ const StockingStandardsTab: FC<Props> = ({
         {addExistingStandardModal}
         {copyConfirmModal}
         {deleteConfirmModal}
+        {unlinkConfirmModal}
       </>
     );
   }
@@ -425,6 +468,7 @@ const StockingStandardsTab: FC<Props> = ({
         {addExistingStandardModal}
         {copyConfirmModal}
         {deleteConfirmModal}
+        {unlinkConfirmModal}
       </>
     );
   }
@@ -672,13 +716,17 @@ const StockingStandardsTab: FC<Props> = ({
           // the user can't edit the FSP. !canEdit covers Submitter-on-
           // SUB and View-Only across all statuses.
           readOnly={!canEdit}
-          // Copy + Delete standard live in the panel header (both act on
-          // the selected regime); the confirm dialogs + persist stay here.
-          // Delete only shows for a draft regime on an editable FSP.
-          canCopy={canCopy && selectedIsDraft}
+          // Copy / Delete / Unlink live in the panel header (all act on the
+          // selected regime); the confirm dialogs + persist stay here.
+          // Legacy parity: Copy works on drafts AND default standards;
+          // Delete only on drafts; Unlink only on default standards (the
+          // two removals are mutually exclusive by regime type).
+          canCopy={canCopy && (selectedIsDraft || selectedIsDefault)}
           onCopy={() => setCopyConfirmOpen(true)}
           canDelete={canDelete && selectedIsDraft}
           onDelete={() => setDeleteConfirmOpen(true)}
+          canUnlink={canDelete && selectedIsDefault}
+          onUnlink={() => setUnlinkConfirmOpen(true)}
         />
       ) : (
         <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
@@ -692,6 +740,7 @@ const StockingStandardsTab: FC<Props> = ({
       {addExistingStandardModal}
       {copyConfirmModal}
       {deleteConfirmModal}
+      {unlinkConfirmModal}
     </>
   );
 };

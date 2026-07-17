@@ -24,4 +24,7 @@ public class StandardsSearchResult {
   private String status;
   private String expiryDate;
   private String fspIdList;
+  // 'Y' when this is a MoF default standard — drives the Add(link) vs Copy
+  // choice in the Add-existing-standard modal (legacy parity).
+  private String mofDefaultStandardInd;
 }

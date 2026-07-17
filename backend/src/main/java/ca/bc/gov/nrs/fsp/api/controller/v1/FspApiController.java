@@ -194,6 +194,20 @@ public class FspApiController implements FspApiEndpoint {
         return ResponseEntity.noContent().build();
     }
 
+    @Override
+    public ResponseEntity<ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail> linkStandardRegime(
+            String fspId, String regimeId, String amendmentNumber) {
+        return ResponseEntity.ok(
+                standardRegimeService.assocRegime(fspId, amendmentNumber, regimeId));
+    }
+
+    @Override
+    public ResponseEntity<Void> unlinkStandardRegime(
+            String fspId, String regimeId, String amendmentNumber) {
+        standardRegimeService.unlinkDefault(fspId, amendmentNumber, regimeId);
+        return ResponseEntity.noContent().build();
+    }
+
     // --- Attachments ---
 
     @Override

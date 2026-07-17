@@ -66,6 +66,7 @@ public class StandardsSearchService {
         .status(r.status())
         .expiryDate(r.expiryDate())
         .fspIdList(r.fspIdList())
+        .mofDefaultStandardInd(r.mofDefaultStandardInd())
         .build();
   }
 

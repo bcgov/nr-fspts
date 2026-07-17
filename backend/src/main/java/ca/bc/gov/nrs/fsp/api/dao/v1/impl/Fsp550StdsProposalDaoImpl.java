@@ -257,6 +257,56 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
         });
   }
 
+  // FSP_550_STDS_PROPOSAL.ASSOC_FSP_TO_STD_REGIME positional params (5):
+  //   1. p_fsp_id IN
+  //   2. p_fsp_amendment_number IN
+  //   3. p_standards_regime_id IN
+  //   4. p_update_userid IN
+  //   5. p_error_message INOUT
+  private static final int ASSOC_PARAM_COUNT = 5;
+  private static final String ASSOC_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_ASSOC, ASSOC_PARAM_COUNT);
+
+  @Override
+  public void assocRegime(AssocRequest req) {
+    executeCall(ASSOC_CALL,
+        cs -> {
+          cs.setString(1, req.fspId());              // IN
+          cs.setString(2, req.fspAmendmentNumber()); // IN
+          cs.setString(3, req.standardsRegimeId());  // IN
+          cs.setString(4, req.updateUserid());       // IN
+          setInOutString(cs, 5, "");                 // INOUT p_error_message
+        },
+        cs -> {
+          throwIfError(PACKAGE_NAME, PROCEDURE_ASSOC, cs.getString(5));
+          return null;
+        });
+  }
+
+  // FSP_550_STDS_PROPOSAL.UNLINK_DEFAULT_STANDARDS positional params (4):
+  //   1. p_fsp_id IN
+  //   2. p_fsp_amendment_number IN — accepted but unused by the proc's DELETE
+  //   3. p_standards_regime_id IN
+  //   4. p_error_message INOUT
+  private static final int UNLINK_PARAM_COUNT = 4;
+  private static final String UNLINK_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_UNLINK, UNLINK_PARAM_COUNT);
+
+  @Override
+  public void unlinkDefault(UnlinkRequest req) {
+    executeCall(UNLINK_CALL,
+        cs -> {
+          cs.setString(1, req.fspId());              // IN
+          cs.setString(2, req.fspAmendmentNumber()); // IN
+          cs.setString(3, req.standardsRegimeId());  // IN
+          setInOutString(cs, 4, "");                 // INOUT p_error_message
+        },
+        cs -> {
+          throwIfError(PACKAGE_NAME, PROCEDURE_UNLINK, cs.getString(4));
+          return null;
+        });
+  }
+
   // FSP_550_STDS_PROPOSAL.COPY positional params (8):
   //   1. p_standards_regime_id INOUT — source id in, new id out
   //   2. p_fsp_id IN

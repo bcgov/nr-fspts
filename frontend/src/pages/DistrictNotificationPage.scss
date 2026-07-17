@@ -69,13 +69,6 @@
 
 // Right-align the Add user… trigger so it sits at the far edge of the
 // form Tile, in line with the district selector above.
-.fsp-district__add-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
-}
-
 .fsp-district__add-trigger.cds--btn {
   flex: 0 0 auto;
 }
@@ -126,17 +119,21 @@
   flex-direction: column;
 }
 
-// Gray banner directly attached to the table top.
+// Gray banner: designate count on the left, "Add designate" on the right.
 .fsp-district__results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   background-color: var(--cds-layer-01);
-  padding: 0.75rem 1rem;
-  font-weight: 600;
-  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
   color: var(--cds-text-primary);
 }
 
 .fsp-district__results-count {
   display: inline-block;
+  font-weight: 600;
+  font-size: 0.875rem;
 }
 
 // Drop the table's outer border/rounded-corner wrapper — flat

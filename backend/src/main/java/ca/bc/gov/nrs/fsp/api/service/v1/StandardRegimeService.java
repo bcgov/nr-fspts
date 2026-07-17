@@ -311,6 +311,56 @@ public class StandardRegimeService {
   }
 
   /**
+   * "Add default standard" — LINKS an existing shared MoF default standards
+   * regime onto this FSP/amendment via
+   * {@code FSP_550_STDS_PROPOSAL.ASSOC_FSP_TO_STD_REGIME}. Unlike
+   * {@link #copyRegime}, no new regime is created: the shared regime is
+   * referenced through a FSP_STANDARDS_REGIME_XREF row. The proc validates
+   * the regime's org unit against the FSP's org units before linking.
+   * Returns the freshly-linked regime's detail (like copy).
+   */
+  @Transactional
+  public StandardRegimeDetail assocRegime(
+      String fspId, String amendmentNumber, String regimeId) {
+    accessGuard.assertContentEditable(fspId, amendmentNumber);
+    String userId = RequestUtil.getCurrentAuditUserId();
+    dao.assocRegime(new Fsp550StdsProposalDao.AssocRequest(
+        fspId, amendmentNumber, regimeId, userId));
+    log.info("Linked default standards regime {} onto fsp {} amendment {} by {}",
+        regimeId, fspId, amendmentNumber, userId);
+    return getDetail(fspId, amendmentNumber, regimeId);
+  }
+
+  /**
+   * "Unlink Default Standard" — removes ONLY the FSP↔regime link
+   * (FSP_STANDARDS_REGIME_XREF row) via
+   * {@code FSP_550_STDS_PROPOSAL.UNLINK_DEFAULT_STANDARDS}; the shared default
+   * regime and its children survive (other FSPs still reference it). This is
+   * the counterpart of {@link #deleteRegime} for default standards.
+   *
+   * <p>The proc's DELETE is generic (fsp_id + regime_id), so this asserts the
+   * regime really is a MoF default before calling it — otherwise unlinking a
+   * copied draft would orphan the regime (xref gone, regime left behind).
+   * Mirrors the legacy {@code get250UnlinkEnabled} default-only rule; the
+   * status/role gate is enforced on the frontend and by the CONTENT_EDIT
+   * authority on the endpoint.
+   */
+  @Transactional
+  public void unlinkDefault(String fspId, String amendmentNumber, String regimeId) {
+    accessGuard.assertContentEditable(fspId, amendmentNumber);
+    StandardRegimeDetail detail = getDetail(fspId, amendmentNumber, regimeId);
+    if (!"Y".equalsIgnoreCase(detail.mofDefaultStandardInd())) {
+      throw new IllegalArgumentException(
+          "Standards regime " + regimeId
+              + " is not a default standard — use delete, not unlink.");
+    }
+    dao.unlinkDefault(new Fsp550StdsProposalDao.UnlinkRequest(
+        fspId, amendmentNumber, regimeId));
+    log.info("Unlinked default standards regime {} from fsp {} amendment {} by {}",
+        regimeId, fspId, amendmentNumber, RequestUtil.getCurrentAuditUserId());
+  }
+
+  /**
    * Loads the per-layer detail (densities + species lists) for one
    * layer of a regime. Composes FSP_550_SUB_LAYERS.GET with two
    * FSP_550_SUB_SPECIES.GET calls (preferred + acceptable). The

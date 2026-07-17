@@ -135,3 +135,11 @@
   text-align: center;
   color: var(--cds-text-secondary);
 }
+
+// Per-row action cluster — "Add" (link, default standards only) + "Copy".
+.add-std-modal__row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+}

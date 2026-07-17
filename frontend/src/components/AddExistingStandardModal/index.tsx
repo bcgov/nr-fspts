@@ -18,7 +18,7 @@ import {
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
-import { Add, Information, Search as SearchIcon } from '@carbon/icons-react';
+import { Add, Copy, Information, Search as SearchIcon } from '@carbon/icons-react';
 import {
   type FC,
   type FormEvent,
@@ -33,6 +33,7 @@ import {
   copyStandardRegime,
   getOrgUnits,
   getSilvTreeSpeciesCodes,
+  linkDefaultStandard,
 } from '@/services/fspSearch';
 import {
   searchStandards,
@@ -87,6 +88,8 @@ interface ResultRow {
   status: string;
   expiryDate: string;
   fspIdList: string;
+  /** MoF default standard → offer Add(link); otherwise Copy only. */
+  isDefault: boolean;
 }
 
 const HEADERS = [
@@ -160,6 +163,7 @@ const mapResult = (r: StandardsSearchResult, index: number): ResultRow => ({
   status: r.status ?? '',
   expiryDate: r.expiryDate ?? '',
   fspIdList: r.fspIdList ?? '',
+  isDefault: r.mofDefaultStandardInd === 'Y',
 });
 
 /**
@@ -185,7 +189,10 @@ const AddExistingStandardModal: FC<Props> = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
-  const [addingId, setAddingId] = useState<string | null>(null);
+  // Which row is being acted on + whether it's a link (Add) or a copy.
+  const [busy, setBusy] = useState<{ id: string; kind: 'link' | 'copy' } | null>(
+    null,
+  );
 
   const [orgUnits, setOrgUnits] = useState<CodeOption[]>([]);
   const [speciesCodes, setSpeciesCodes] = useState<CodeOption[]>([]);
@@ -218,7 +225,7 @@ const AddExistingStandardModal: FC<Props> = ({
       setTotalElements(0);
       setPage(0);
       setPageSize(DEFAULT_PAGE_SIZE);
-      setAddingId(null);
+      setBusy(null);
     }
   }, [open]);
 
@@ -306,16 +313,18 @@ const AddExistingStandardModal: FC<Props> = ({
     setPage(0);
   }, []);
 
-  const handleAdd = async (regimeId: string) => {
-    if (!regimeId || addingId) return;
-    setAddingId(regimeId);
+  // "Add" — LINK a shared MoF default standard onto the FSP (no copy). Only
+  // offered for default standards. Mirrors legacy's Add Default Standard.
+  const handleLink = async (regimeId: string) => {
+    if (!regimeId || busy) return;
+    setBusy({ id: regimeId, kind: 'link' });
     try {
-      const created = await copyStandardRegime(fspId, regimeId, amendmentNumber);
-      const newId = created.standardsRegimeId ?? regimeId;
+      const linked = await linkDefaultStandard(fspId, regimeId, amendmentNumber);
+      const newId = linked.standardsRegimeId ?? regimeId;
       display({
         kind: 'success',
-        title: 'Stocking standard added.',
-        subtitle: `Added as regime ${newId}.`,
+        title: 'Default standard added.',
+        subtitle: `Linked standard ${newId} to this FSP.`,
         timeout: 5000,
       });
       onAdded(newId);
@@ -323,12 +332,39 @@ const AddExistingStandardModal: FC<Props> = ({
     } catch (e) {
       display({
         kind: 'error',
-        title: 'Failed to add standard',
+        title: 'Failed to add default standard',
         subtitle: e instanceof Error ? e.message : String(e),
         timeout: 8000,
       });
     } finally {
-      setAddingId(null);
+      setBusy(null);
+    }
+  };
+
+  // "Copy" — clone a standard into a new editable Draft on this FSP.
+  const handleCopy = async (regimeId: string) => {
+    if (!regimeId || busy) return;
+    setBusy({ id: regimeId, kind: 'copy' });
+    try {
+      const created = await copyStandardRegime(fspId, regimeId, amendmentNumber);
+      const newId = created.standardsRegimeId ?? regimeId;
+      display({
+        kind: 'success',
+        title: 'Stocking standard copied.',
+        subtitle: `Copied as draft regime ${newId}.`,
+        timeout: 5000,
+      });
+      onAdded(newId);
+      onClose();
+    } catch (e) {
+      display({
+        kind: 'error',
+        title: 'Failed to copy standard',
+        subtitle: e instanceof Error ? e.message : String(e),
+        timeout: 8000,
+      });
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -595,7 +631,13 @@ const AddExistingStandardModal: FC<Props> = ({
                             (row.cells.find(
                               (c) => c.info.header === 'standardsRegimeId',
                             )?.value as string | undefined) ?? '';
-                          const isAdding = addingId === regimeId;
+                          // Default standards can be Added (linked) or Copied;
+                          // non-default standards can only be Copied (legacy parity).
+                          const isDefault =
+                            (results ?? []).find((r) => r.id === row.id)?.isDefault ??
+                            false;
+                          const anyBusy = busy !== null;
+                          const busyHere = busy?.id === regimeId;
                           return (
                             <TableRow {...getRowProps({ row })} key={row.id}>
                               {row.cells.map((cell) => {
@@ -603,15 +645,40 @@ const AddExistingStandardModal: FC<Props> = ({
                                 if (cell.info.header === 'actions') {
                                   return (
                                     <TableCell key={cell.id}>
-                                      <Button
-                                        kind="ghost"
-                                        size="sm"
-                                        renderIcon={isAdding ? SearchingIcon : Add}
-                                        onClick={() => void handleAdd(regimeId)}
-                                        disabled={!regimeId || addingId !== null}
-                                      >
-                                        {isAdding ? 'Adding…' : 'Add'}
-                                      </Button>
+                                      <div className="add-std-modal__row-actions">
+                                        {isDefault && (
+                                          <Button
+                                            kind="ghost"
+                                            size="sm"
+                                            renderIcon={
+                                              busyHere && busy?.kind === 'link'
+                                                ? SearchingIcon
+                                                : Add
+                                            }
+                                            onClick={() => void handleLink(regimeId)}
+                                            disabled={!regimeId || anyBusy}
+                                          >
+                                            {busyHere && busy?.kind === 'link'
+                                              ? 'Adding…'
+                                              : 'Add'}
+                                          </Button>
+                                        )}
+                                        <Button
+                                          kind="ghost"
+                                          size="sm"
+                                          renderIcon={
+                                            busyHere && busy?.kind === 'copy'
+                                              ? SearchingIcon
+                                              : Copy
+                                          }
+                                          onClick={() => void handleCopy(regimeId)}
+                                          disabled={!regimeId || anyBusy}
+                                        >
+                                          {busyHere && busy?.kind === 'copy'
+                                            ? 'Copying…'
+                                            : 'Copy'}
+                                        </Button>
+                                      </div>
                                     </TableCell>
                                   );
                                 }
