@@ -2,6 +2,7 @@ import {
   Button,
   DataTable,
   Loading,
+  Pagination,
   Table,
   TableBody,
   TableCell,
@@ -10,8 +11,11 @@ import {
   TableHeader,
   TableRow,
   TableSelectRow,
+  TableToolbar,
+  TableToolbarContent,
+  TableToolbarSearch,
 } from '@carbon/react';
-import {Add, CheckmarkFilled, DocumentAdd, SubtractAlt} from '@carbon/icons-react';
+import {Add, CheckmarkFilled, DocumentAdd, Download, SubtractAlt} from '@carbon/icons-react';
 import {type FC, type SVGProps, useCallback, useEffect, useRef, useState} from 'react';
 
 import { StandardsSearchIcon } from '@/components/Layout/navIcons';
@@ -109,6 +113,11 @@ const StockingStandardsTab: FC<Props> = ({
   const [addExistingOpen, setAddExistingOpen] = useState(false);
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // Client-side search + pagination over the full standards list (loaded
+  // once). Search matches ID / name / objective / BGC.
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const { display } = useNotification();
 
   // Same gating shape the legacy FSP500.isAddNewEnabled used:
@@ -237,11 +246,18 @@ const StockingStandardsTab: FC<Props> = ({
   // Standard / Delete Standard buttons — rendered for loading / empty
   // / loaded states so the user can always get to the create flow even
   // on an empty FSP.
-  const headerNode = (
+  const renderHeader = (count?: number) => (
     <header className="fsp-info__tile-header">
-      <p className="fsp-info__tile-instruction">
-        Select a standard to view its details below.
-      </p>
+      <div className="fsp-info__tile-heading">
+        <h2 className="fsp-info__standards-heading">
+          {count != null
+            ? `${count} stocking standard${count === 1 ? '' : 's'}`
+            : 'Stocking standards'}
+        </h2>
+        <p className="fsp-info__tile-instruction">
+          Select one to view details below.
+        </p>
+      </div>
       <div className="fsp-info__tile-header-actions">
         {canCreate && (
           <Button
@@ -341,7 +357,7 @@ const StockingStandardsTab: FC<Props> = ({
     return (
       <>
         <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
-          {headerNode}
+          {renderHeader()}
           <div className="fsp-info__loading" role="status" aria-live="polite">
             <Loading description="Loading standards…" withOverlay={false} />
           </div>
@@ -357,7 +373,7 @@ const StockingStandardsTab: FC<Props> = ({
     return (
       <>
         <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
-          {headerNode}
+          {renderHeader()}
           <p className="fsp-info__error">{error}</p>
         </section>
         {newStandardModal}
@@ -413,7 +429,20 @@ const StockingStandardsTab: FC<Props> = ({
     );
   }
 
-  const tableRows = rows.map((r, i) => ({
+  // Client-side search over the raw fields (ID / name / objective / BGC).
+  const term = searchTerm.trim().toLowerCase();
+  const filteredSource = term
+    ? rows.filter((r) =>
+        [
+          r.standardsRegimeId,
+          r.standardsRegimeName,
+          r.standardsObjective,
+          r.standardsBgc,
+        ].some((f) => (f ?? '').toString().toLowerCase().includes(term)),
+      )
+    : rows;
+
+  const tableRows = filteredSource.map((r, i) => ({
     id: r.standardsRegimeId ?? `row-${i}`,
     standardsRegimeId: dash(r.standardsRegimeId),
     standardsRegimeName: dash(r.standardsRegimeName),
@@ -432,14 +461,90 @@ const StockingStandardsTab: FC<Props> = ({
     __regimeId: r.standardsRegimeId,
   }));
 
+  // Pagination math (client-side). Clamp the page so a shrinking filtered
+  // set never leaves us on an out-of-range page.
+  const totalItems = tableRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * pageSize;
+
+  // Export the ENTIRE table (all rows, ignoring the current search filter).
+  const downloadCsv = () => {
+    const cols = [
+      'Standards ID',
+      'Standards name',
+      'Objective',
+      'Version',
+      'BGC',
+      'Status',
+      'Effective date',
+      'Default standard',
+    ];
+    const esc = (v: unknown) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [cols.join(',')];
+    for (const rr of rows) {
+      lines.push(
+        [
+          rr.standardsRegimeId,
+          rr.standardsRegimeName,
+          rr.standardsObjective,
+          String(rr.standardsAmndNumber ?? '').trim() === '0'
+            ? 'Original'
+            : rr.standardsAmndNumber,
+          rr.standardsBgc,
+          rr.standardsRegimeStatus,
+          rr.standardsEffectiveDate,
+          rr.defaultStandardInd === 'Y' ? 'Yes' : 'No',
+        ]
+          .map(esc)
+          .join(','),
+      );
+    }
+    const blob = new Blob([lines.join('\n')], {
+      type: 'text/csv;charset=utf-8;',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fsp-${fspId}-stocking-standards.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <>
       <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
-        {headerNode}
+        {renderHeader(rows.length)}
         <div className="bordered-table fsp-info__standards-table">
           <DataTable rows={tableRows} headers={HEADERS} isSortable>
             {({ rows: r, headers, getTableProps, getHeaderProps }) => (
               <TableContainer>
+                <TableToolbar>
+                  <TableToolbarContent className="fsp-info__standards-toolbar">
+                    <TableToolbarSearch
+                      persistent
+                      placeholder="Search by ID, name, objective or BGC"
+                      onChange={(e) => {
+                        setSearchTerm(e === '' ? '' : e.target.value);
+                        setPage(1);
+                      }}
+                    />
+                    <Button
+                      kind="ghost"
+                      size="sm"
+                      className="fsp-info__link-icon-btn"
+                      renderIcon={Download}
+                      onClick={downloadCsv}
+                    >
+                      Download (.csv)
+                    </Button>
+                  </TableToolbarContent>
+                </TableToolbar>
                 <Table {...getTableProps()} size="md">
                   <TableHead>
                     <TableRow>
@@ -451,7 +556,7 @@ const StockingStandardsTab: FC<Props> = ({
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {r.map((row) => {
+                    {r.slice(pageStart, pageStart + pageSize).map((row) => {
                       // Look up the raw regime id from the source row by
                       // matching row.id (which is the regime id itself
                       // unless the source row was missing it).
@@ -541,6 +646,18 @@ const StockingStandardsTab: FC<Props> = ({
               </TableContainer>
             )}
           </DataTable>
+          <Pagination
+            className="fsp-info__standards-pagination"
+            page={safePage}
+            pageSize={pageSize}
+            pageSizes={[10, 25, 50]}
+            totalItems={totalItems}
+            size="md"
+            onChange={({ page: p, pageSize: ps }) => {
+              setPage(p);
+              setPageSize(ps);
+            }}
+          />
         </div>
       </section>
 

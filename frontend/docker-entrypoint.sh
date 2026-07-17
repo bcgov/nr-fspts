@@ -34,10 +34,9 @@ window.config = {
   // Display / theming
   VITE_APP_NAME: "$(escape "${VITE_APP_NAME:-Forest Stewardship Plan Tracking System}")",
   VITE_ZONE: "$(escape "${VITE_ZONE:-dev}")",
-  // External Map Viewer (ArcMaps) base URL — read by src/pages/InboxPage.tsx.
-  // Click handler appends &extent=… &catalogLayers=… at runtime. Empty
-  // value suppresses the Map View column entirely.
-  VITE_MAP_VIEWER_URL: "$(escape "${VITE_MAP_VIEWER_URL:-}")"
+  // Public FOM site base — the "Associated FOMs" links open
+  // <base>/public/projects?id=<id>#details. Empty falls back to prod in code.
+  VITE_FOM_PUBLIC_URL: "$(escape "${VITE_FOM_PUBLIC_URL:-}")"
 };
 EOF
 

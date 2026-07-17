@@ -101,22 +101,6 @@ async function seedInboxApp(page: Page) {
     });
   });
 
-  // Map View extent endpoint. Stubbed to mimic the live arcmaps
-  // shape — a 4-tuple bounding box. We canonicalize the stub URL on
-  // the fspId so each row's response is uniquely identifiable in the
-  // click assertion below.
-  await page.route('**/api/v1/fsp/*/amendments/*/extent', (route: Route) => {
-    const match = /\/api\/v1\/fsp\/(\d+)\/amendments\/(\d+)\/extent/.exec(route.request().url());
-    const fspId = match?.[1] ?? '0';
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        extent: `${fspId}.1,${fspId}.2,${fspId}.3,${fspId}.4`,
-      }),
-    });
-  });
-
   await page.route('**/api/v1/clients/search**', (route: Route) => {
     const url = new URL(route.request().url());
     const page0 = Number(url.searchParams.get('page') ?? '0');
@@ -216,34 +200,31 @@ test.describe('FSP Inbox', () => {
     await expect(page.getByRole('cell', { name: 'Inbox Plan 0' })).toBeVisible();
 
     // Even-indexed rows in makeInboxResponse have numberOfFdu: 3, odd
-    // rows have 0. Page size is 10 → 5 even rows on page 0 → 5 Map
-    // View triggers rendered (button, not link — extent is lazy-fetched).
+    // rows have 0. Page size is 10 → 5 even rows on page 0 → 5 rows each
+    // render a "Map View" button that opens the in-app Leaflet map.
     const triggers = page.locator('.fsp-inbox__map-link');
     await expect(triggers).toHaveCount(5);
     await expect(triggers.first()).toHaveText('Map View');
   });
 
-  test('Map View click fetches extent then opens arcmaps in a new tab', async ({ page, context }) => {
+  test('Map View click opens the Leaflet map page in a new tab', async ({ page, context }) => {
     await seedInboxApp(page);
 
-    // Capture the arcmaps URL the popup tries to navigate to, and
-    // short-circuit the real load (the test base URL is gated by
-    // SiteMinder, so an un-stubbed request follows redirects and the
-    // popup ends up on a login page rather than the URL we want to
-    // assert). Regex matcher because Playwright's glob doesn't fan
-    // across subdomain segments (test.arcmaps... vs arcmaps...).
-    const arcmapsRequests: string[] = [];
-    await context.route(/arcmaps\.gov\.bc\.ca/, (route: Route) => {
-      arcmapsRequests.push(route.request().url());
+    // Capture the URL the new tab navigates to and short-circuit the real
+    // SPA load. The link opens our own `/fsp/map` Leaflet page (no external
+    // arcmaps hand-off, no extent pre-fetch). Regex matcher for robustness
+    // against the query string.
+    const mapRequests: string[] = [];
+    await context.route(/\/fsp\/map/, (route: Route) => {
+      mapRequests.push(route.request().url());
       return route.fulfill({
         status: 200,
         contentType: 'text/html',
-        body: '<html><body>stub</body></html>',
+        body: '<html><body>map stub</body></html>',
       });
     });
 
-    // Track the extent call too so we can assert it fires on click
-    // rather than on render (this is the lazy-fetch contract).
+    // The inbox no longer pre-fetches an extent — assert none fires.
     const extentCalls: string[] = [];
     page.on('request', (req) => {
       if (req.url().includes('/extent')) extentCalls.push(req.url());
@@ -255,30 +236,20 @@ test.describe('FSP Inbox', () => {
       .getByRole('button', { name: 'Search', exact: true })
       .click();
     await expect(page.getByRole('cell', { name: 'Inbox Plan 0' })).toBeVisible();
-    expect(extentCalls).toHaveLength(0);
 
     const [popup] = await Promise.all([
       context.waitForEvent('page'),
       page.locator('.fsp-inbox__map-link').first().click(),
     ]);
 
-    // Extent endpoint fired with the row's fspId + amendNo (row 0:
-    // fspId=20000, amendNo=0 per makeInboxResponse).
-    await expect.poll(() => extentCalls.length).toBeGreaterThanOrEqual(1);
-    expect(extentCalls[0]).toContain('/api/v1/fsp/20000/amendments/0/extent');
-
-    // Arcmaps request fired with the stubbed extent
-    // ("20000.1,20000.2,20000.3,20000.4") and the FSP catalogLayers.
-    await expect.poll(() => arcmapsRequests.length).toBeGreaterThanOrEqual(1);
-    // Legacy URL uses literal commas (no encodeURIComponent on either
-    // value); see InboxPage.tsx#handleOpenMapView comment for context.
-    // Asserting that exact byte form keeps a regression here if anyone
-    // later "fixes" the encoding.
-    const arcmapsUrl = arcmapsRequests[0];
-    expect(arcmapsUrl).toContain('runWorkflow=Startup');
-    expect(arcmapsUrl).toContain('Theme=FSP');
-    expect(arcmapsUrl).toContain('extent=20000.1,20000.2,20000.3,20000.4');
-    expect(arcmapsUrl).toContain('catalogLayers=1417,1418,1419,1420');
+    // New tab points at the Leaflet map for row 0 (fspId=20000, amendNo=0
+    // per makeInboxResponse) — no arcmaps, no extent call.
+    await expect.poll(() => mapRequests.length).toBeGreaterThanOrEqual(1);
+    const mapUrl = mapRequests[0];
+    expect(mapUrl).toContain('/fsp/map');
+    expect(mapUrl).toContain('fspId=20000');
+    expect(mapUrl).toContain('amendmentNumber=0');
+    expect(extentCalls).toHaveLength(0);
     await popup.close();
   });
 

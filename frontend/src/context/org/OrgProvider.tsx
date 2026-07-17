@@ -30,6 +30,34 @@ const writePersisted = (value: string | null) => {
   }
 };
 
+/**
+ * Seed the active org for this tab. Prefers the per-tab sessionStorage choice;
+ * failing that, adopts an `activeOrg` query param.
+ *
+ * The param is the new-tab handoff for map links: those open with `noopener`,
+ * which gives the new tab a FRESH sessionStorage, so a multi-org BCeID user
+ * would otherwise be re-prompted to pick an org before the map (and its
+ * org-fenced geometry fetch) could load. The opener passes its active org in
+ * the URL; we adopt it and write it through to sessionStorage synchronously
+ * (during render, before any data-fetch effect fire) so apiFetch's active-org
+ * header picks it up too. The reconcile effect below still validates it against
+ * the user's real org list, so a tampered param can't widen access.
+ */
+const readInitialActiveOrg = (): string | null => {
+  const persisted = readPersisted();
+  if (persisted) return persisted;
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get('activeOrg');
+    if (fromUrl) {
+      writePersisted(fromUrl);
+      return fromUrl;
+    }
+  } catch {
+    /* URL / sessionStorage unavailable → fall through to null */
+  }
+  return null;
+};
+
 interface Props {
   children: ReactNode;
 }
@@ -52,7 +80,7 @@ interface Props {
 const OrgProvider = ({ children }: Props) => {
   const { user, isLoggedIn, isLoading } = useAuth();
   const [activeOrgClientNumber, setActiveOrgClientNumberState] =
-    useState<string | null>(() => readPersisted());
+    useState<string | null>(() => readInitialActiveOrg());
 
   const availableOrgClientNumbers = useMemo(
     () =>

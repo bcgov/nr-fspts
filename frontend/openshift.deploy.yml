@@ -60,17 +60,14 @@ parameters:
   # AuthProvider so they don't try to call <PR>-IDIR.
   - name: VITE_ZONE
     value: dev
-  # External Map Viewer (ArcMaps) base URL. The InboxPage click handler
-  # appends &extent=… &catalogLayers=… at runtime. Supply per-env via
-  # the GitHub repo variable VITE_MAP_VIEWER_URL — defaulting it here
-  # would silently land PROD on the test arcmaps host.
-  # Include runWorkflow + Theme params on the base URL itself so arcmaps
-  # has them before our extent/layers land. Empty value suppresses the
-  # Map View column entirely.
-  # Test:  https://test.arcmaps.gov.bc.ca/ess/hm/mapview/?runWorkflow=Startup&Theme=FSP
-  # Prod:  https://arcmaps.gov.bc.ca/ess/hm/mapview/?runWorkflow=Startup&Theme=FSP
-  - name: VITE_MAP_VIEWER_URL
-    description: ArcMaps base URL with runWorkflow=Startup&Theme=FSP query params
+  # Public FOM site base for the "Associated FOMs" links. Point at the same
+  # host the backend's FOM_API_URL uses: test FOM on TEST, prod on PROD.
+  # Supply per-env via the GitHub repo variable VITE_FOM_PUBLIC_URL.
+  #   Test:  https://fom-test.apps.silver.devops.gov.bc.ca
+  #   Prod:  https://fom.nrs.gov.bc.ca
+  - name: VITE_FOM_PUBLIC_URL
+    description: Public FOM site base URL (test FOM on TEST, prod on PROD)
+    value: https://fom.nrs.gov.bc.ca
 
 objects:
   # ── Deployment ────────────────────────────────────────────
@@ -151,8 +148,8 @@ objects:
                   value: ${VITE_APP_NAME}
                 - name: VITE_ZONE
                   value: ${VITE_ZONE}
-                - name: VITE_MAP_VIEWER_URL
-                  value: ${VITE_MAP_VIEWER_URL}
+                - name: VITE_FOM_PUBLIC_URL
+                  value: ${VITE_FOM_PUBLIC_URL}
               volumeMounts:
                 - name: srv
                   mountPath: /srv

@@ -110,5 +110,32 @@ Templates: `designate_envelope_email` (the wrapper) + `designate_block_email`
 - Both flows need SMTP configured (Spring Mail `spring.mail.*`).
 - The digest is **off by default**; enable it on exactly the deployment that
   should own the schedule.
-- If designate emails aren't going out, check (in order): the enabled flag, the
-  cron, FAM auth (the resolver logs its active auth mode at startup), and SMTP.
+- If designate emails aren't going out, check (in order): the **send kill-switch**
+  (below), the enabled flag, the cron, FAM auth (the resolver logs its active
+  auth mode at startup), and SMTP.
+
+## Configuration
+
+### Global send kill-switch — `EMAIL_SEND_ENABLED`
+
+A single master switch that suppresses **all** outbound email — both the
+workflow-event emails and the designate digest — without touching SMTP or the
+per-flow enable flags. It gates the two send choke points
+(`EmailEventDispatcher.dispatch` and `DesignateBatchService.sendOne`): when off,
+each logs an `Email sending disabled — would have sent…` line and returns before
+handing anything to SMTP. Both services also log the active state once at startup
+(`ApplicationReadyEvent`).
+
+| Env var | Default | Purpose |
+|---------|---------|---------|
+| `EMAIL_SEND_ENABLED` | `false` | Master send switch. `false` = render/queue as usual but **never hand to SMTP** (logs "would have sent"). `true` = actually send. |
+
+- **Wiring:** `EMAIL_SEND_ENABLED` (OpenShift template param, default `"false"`)
+  → container env → `application.properties` `fsp.mail.send-enabled=${EMAIL_SEND_ENABLED:false}`
+  → `@Value("${fsp.mail.send-enabled:false}")`.
+- **Non-secret** — set as a GitHub Environment **variable** (`vars.EMAIL_SEND_ENABLED`),
+  threaded through `reusable-deploy.yml` as
+  `-p EMAIL_SEND_ENABLED="${{ vars.EMAIL_SEND_ENABLED || 'false' }}"`.
+- **Fail-safe default:** unset anywhere in the chain resolves to `false`, so a
+  deployment never sends email unless the variable is explicitly set `true` on
+  that environment. Set it `true` only where email should actually go out.
