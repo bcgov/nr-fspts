@@ -718,10 +718,10 @@ const StockingStandardsTab: FC<Props> = ({
           readOnly={!canEdit}
           // Copy / Delete / Unlink live in the panel header (all act on the
           // selected regime); the confirm dialogs + persist stay here.
-          // Legacy parity: Copy works on drafts AND default standards;
-          // Delete only on drafts; Unlink only on default standards (the
-          // two removals are mutually exclusive by regime type).
-          canCopy={canCopy && (selectedIsDraft || selectedIsDefault)}
+          // Mutually exclusive by regime type: draft standards can be Copied
+          // (into a new draft) and Deleted; default (approved) standards can
+          // only be Unlinked — never Copied or Deleted.
+          canCopy={canCopy && selectedIsDraft}
           onCopy={() => setCopyConfirmOpen(true)}
           canDelete={canDelete && selectedIsDraft}
           onDelete={() => setDeleteConfirmOpen(true)}

@@ -2,9 +2,10 @@
 # PROD vanity (custom-hostname) Route for the frontend.
 #
 # Applied SEPARATELY from frontend/openshift.deploy.yml and ONLY on the PROD
-# deploy (see the "Vanity Route (PROD)" step in reusable-deploy.yml). It adds
-# a SECOND edge Route — the default ${NAME}-${SLOT}.${DOMAIN} route from the
-# main template stays live alongside it, so both hostnames serve the app.
+# deploy (see the "Vanity Route (PROD)" step in reusable-deploy.yml). On PROD
+# this is the ONLY public Route — the default cluster-domain route
+# (frontend/openshift.route.yml) is applied only for non-PROD environments, so
+# PROD is reachable solely via VANITY_HOST.
 #
 # It lives in its own template because OpenShift v1 templates can't render an
 # object conditionally (`oc process` emits every object), so a vanity Route

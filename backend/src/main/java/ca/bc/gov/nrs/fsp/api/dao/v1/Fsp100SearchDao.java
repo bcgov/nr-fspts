@@ -41,7 +41,8 @@ public interface Fsp100SearchDao {
       String fspAmendmentNumber,
       String agreementHolder,
       String amendmentApprovalRequirdInd,
-      String fspStatusDesc
+      String fspStatusDesc,
+      String planSubmissionDate
   ) {}
 
   record Result(Header header, List<Row> rows) {}

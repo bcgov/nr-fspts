@@ -780,6 +780,7 @@ public class FspService {
         .agreementHolder(row.agreementHolder())
         .amendmentApprovalRequirdInd(row.amendmentApprovalRequirdInd())
         .fspStatusDesc(row.fspStatusDesc())
+        .planSubmissionDate(row.planSubmissionDate())
         .build();
   }
 

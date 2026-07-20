@@ -55,7 +55,8 @@ public class FspSearchDirectDaoImpl implements FspSearchDirectDao {
                WHERE fah.fsp_id = fsp.fsp_id
                  AND fah.fsp_amendment_number = fsp.fsp_amendment_number) agreement_holder,
              fsp.amendment_approval_requird_ind,
-             fsc.description""";
+             fsc.description,
+             TO_CHAR(fsp.amendment_submission_date, 'YYYY-MM-DD')""";
 
   // FROM + the always-on predicates, shared by the page query and (sans
   // SELECT list) the count query. fsc is inner-joined for the status
@@ -103,7 +104,7 @@ public class FspSearchDirectDaoImpl implements FspSearchDirectDao {
   private static final RowMapper<Fsp100SearchDao.Row> ROW_MAPPER = (rs, i) -> new Fsp100SearchDao.Row(
       rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
       rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
-      rs.getString(9), rs.getString(10));
+      rs.getString(9), rs.getString(10), rs.getString(11));
 
   @Override
   public List<Fsp100SearchDao.Row> search(SearchCriteria c) {

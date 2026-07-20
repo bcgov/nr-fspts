@@ -15,15 +15,6 @@ parameters:
   - name: ZONE
     description: PR number, 'test', or 'prod'
     required: true
-  # SLOT decouples the public-facing Route hostname from the OpenShift object
-  # names so per-PR previews can share a fixed pool of Cognito callback URIs.
-  # AWS Cognito user pool app clients don't accept wildcards in CallbackURLs;
-  # we pre-register 50 URIs (nr-fspts-0…nr-fspts-49.apps.silver.devops.gov.bc.ca)
-  # and bucket PRs into them via PR % 50.
-  # pr-open.yml computes SLOT = PR % 50; merge.yml passes SLOT = ZONE = test/prod.
-  - name: SLOT
-    description: Route hostname slot — PR % 50 for previews, or test/prod for those targets
-    required: true
   - name: REPLICAS
     description: Pod count; PR previews get 1 via lite_mode, TEST=2, PROD=3
     value: "2"
@@ -33,9 +24,6 @@ parameters:
   - name: REGISTRY
     description: Image registry path (no tag)
     value: ghcr.io/bcgov/nr-fspts/frontend
-  - name: DOMAIN
-    description: Cluster apps domain (do not include leading dot)
-    value: apps.silver.devops.gov.bc.ca
   - name: FRONTEND_LOG_LEVEL
     value: INFO
   # Runtime VITE_* config (rendered into /srv/config.js by the entrypoint
@@ -206,23 +194,10 @@ objects:
           targetPort: 3000
 
   # ── Route ─────────────────────────────────────────────────
-  - apiVersion: route.openshift.io/v1
-    kind: Route
-    metadata:
-      name: ${NAME}-frontend-${ZONE}
-      labels:
-        app: ${NAME}-frontend-${ZONE}
-        app.kubernetes.io/instance: ${ZONE}
-    spec:
-      host: ${NAME}-${SLOT}.${DOMAIN}
-      to:
-        kind: Service
-        name: ${NAME}-frontend-${ZONE}
-      port:
-        targetPort: http
-      tls:
-        termination: edge
-        insecureEdgeTerminationPolicy: Redirect
+  # The public Route lives in its own templates so it can be applied per env:
+  #   • non-PROD (TEST + PR previews) → frontend/openshift.route.yml
+  #   • PROD → frontend/openshift.vanity-route.yml ONLY (no default route)
+  # Both are gated in reusable-deploy.yml.
 
   # ── NetworkPolicy: ingress from OpenShift router ───────────
   - apiVersion: networking.k8s.io/v1
