@@ -1,0 +1,51 @@
+---
+# Default (cluster-domain) frontend Route — nr-fspts-<slot>.<domain>.
+#
+# Split out of openshift.deploy.yml so it can be applied PER ENVIRONMENT: TEST
+# and PR previews need it (they have no custom hostname), but PROD serves ONLY
+# the vanity Route (openshift.vanity-route.yml) — no default route there.
+#
+# OpenShift v1 templates can't render an object conditionally (`oc process`
+# emits every object), so the gating lives in the pipeline: reusable-deploy.yml
+# applies this template only when `inputs.target != 'prod'`.
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: nr-fspts-frontend-route
+parameters:
+  - name: NAME
+    description: App name prefix (must match the main deploy)
+    value: nr-fspts
+  - name: ZONE
+    description: PR number or 'test' (must match the deploy's object suffix)
+    required: true
+  # SLOT decouples the public-facing Route hostname from the OpenShift object
+  # names so per-PR previews can share a fixed pool of Cognito callback URIs.
+  # AWS Cognito app clients don't accept wildcards in CallbackURLs; we
+  # pre-register 50 URIs (nr-fspts-0…nr-fspts-49.apps.silver.devops.gov.bc.ca)
+  # and bucket PRs into them via PR % 50. pr-open.yml computes SLOT = PR % 50;
+  # merge.yml passes SLOT = ZONE = test.
+  - name: SLOT
+    description: Route hostname slot — PR % 50 for previews, or 'test' for TEST
+    required: true
+  - name: DOMAIN
+    description: Cluster apps domain (do not include leading dot)
+    value: apps.silver.devops.gov.bc.ca
+objects:
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      name: ${NAME}-frontend-${ZONE}
+      labels:
+        app: ${NAME}-frontend-${ZONE}
+        app.kubernetes.io/instance: ${ZONE}
+    spec:
+      host: ${NAME}-${SLOT}.${DOMAIN}
+      to:
+        kind: Service
+        name: ${NAME}-frontend-${ZONE}
+      port:
+        targetPort: http
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect

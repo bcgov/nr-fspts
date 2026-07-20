@@ -266,7 +266,6 @@ jobs:
           overwrite: true
           parameters:
             -p ZONE="${{ inputs.target }}"
-            -p SLOT="${{ inputs.slot || inputs.target }}"
             -p NAME="nr-fspts"
             -p IMAGE_TAG="${{ inputs.tag }}"
             -p REPLICAS="${{ inputs.frontend_replicas }}"
@@ -279,9 +278,30 @@ jobs:
             -p VITE_FOM_PUBLIC_URL="${{ vars.VITE_FOM_PUBLIC_URL || 'https://fom.nrs.gov.bc.ca' }}"
           triggers: ${{ inputs.triggers }}
 
-      # PROD vanity Route (e.g. fspts.nrs.gov.bc.ca). Adds a SECOND edge Route
-      # alongside the default one from the step above — both hostnames stay
-      # live. Runs only on PROD and only when the vanity host + cert secrets
+      # Default cluster-domain Route (nr-fspts-<slot>.apps.silver...). Applied
+      # on every environment EXCEPT prod — PROD is served ONLY by the vanity
+      # Route below, so it gets no default route. TEST + PR previews have no
+      # custom hostname and need this. Its own template because oc process
+      # can't skip an object per environment.
+      - name: Default Route (non-PROD)
+        if: ${{ inputs.target != 'prod' }}
+        uses: bcgov/action-deployer-openshift@f7bd61ec357fb1dfd1d43f1287bcd21382d06348 # v4.1.0
+        with:
+          file: frontend/openshift.route.yml
+          oc_namespace: ${{ secrets.oc_namespace }}
+          oc_server: ${{ vars.oc_server }}
+          oc_token: ${{ secrets.oc_token }}
+          debug: false
+          overwrite: true
+          parameters:
+            -p NAME="nr-fspts"
+            -p ZONE="${{ inputs.target }}"
+            -p SLOT="${{ inputs.slot || inputs.target }}"
+          triggers: ${{ inputs.triggers }}
+
+      # PROD vanity Route (e.g. fspts.nrs.gov.bc.ca). On PROD this is the ONLY
+      # public Route (the default-route step above is skipped for prod). Runs
+      # only on PROD and only when the vanity host + cert secrets
       # are configured (VANITY_HOST unset → skipped). The cert / key / chain
       # are multiline PEM secrets, routed through env and passed as "$VAR"
       # (single bash expansion) so their newlines survive — same reasoning as

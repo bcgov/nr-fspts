@@ -56,7 +56,11 @@ public class Fsp100SearchDaoImpl extends AbstractStoredProcedureDao implements F
               rs.getString(7),  // fsp_amendment_number
               rs.getString(8),  // agreement_holder
               rs.getString(9),  // amendment_approval_requird_ind
-              rs.getString(10)  // fsp_status_desc
+              rs.getString(10), // fsp_status_desc
+              // MAINLINE's result cursor doesn't surface the submission date;
+              // this proc path is the inactive rollback (fsp.search.direct=true
+              // by default) and the DirectDao DOES project it, so null is fine.
+              null              // plan_submission_date
           ), maxRows);
           Header header = new Header(
               cs.getString(1),  cs.getString(2),  cs.getString(3),  cs.getString(4),

@@ -631,11 +631,17 @@ const AddExistingStandardModal: FC<Props> = ({
                             (row.cells.find(
                               (c) => c.info.header === 'standardsRegimeId',
                             )?.value as string | undefined) ?? '';
-                          // Default standards can be Added (linked) or Copied;
-                          // non-default standards can only be Copied (legacy parity).
-                          const isDefault =
-                            (results ?? []).find((r) => r.id === row.id)?.isDefault ??
-                            false;
+                          // Action by regime status (mutually exclusive):
+                          //   Approved → Add (link the shared standard as-is)
+                          //   Draft    → Copy (clone into a new editable draft)
+                          // Anything else has no add/copy action.
+                          const status =
+                            (results ?? [])
+                              .find((r) => r.id === row.id)
+                              ?.status?.trim()
+                              .toLowerCase() ?? '';
+                          const isApproved = status === 'approved';
+                          const isDraft = status === 'draft';
                           const anyBusy = busy !== null;
                           const busyHere = busy?.id === regimeId;
                           return (
@@ -646,7 +652,7 @@ const AddExistingStandardModal: FC<Props> = ({
                                   return (
                                     <TableCell key={cell.id}>
                                       <div className="add-std-modal__row-actions">
-                                        {isDefault && (
+                                        {isApproved && (
                                           <Button
                                             kind="ghost"
                                             size="sm"
@@ -663,21 +669,23 @@ const AddExistingStandardModal: FC<Props> = ({
                                               : 'Add'}
                                           </Button>
                                         )}
-                                        <Button
-                                          kind="ghost"
-                                          size="sm"
-                                          renderIcon={
-                                            busyHere && busy?.kind === 'copy'
-                                              ? SearchingIcon
-                                              : Copy
-                                          }
-                                          onClick={() => void handleCopy(regimeId)}
-                                          disabled={!regimeId || anyBusy}
-                                        >
-                                          {busyHere && busy?.kind === 'copy'
-                                            ? 'Copying…'
-                                            : 'Copy'}
-                                        </Button>
+                                        {isDraft && (
+                                          <Button
+                                            kind="ghost"
+                                            size="sm"
+                                            renderIcon={
+                                              busyHere && busy?.kind === 'copy'
+                                                ? SearchingIcon
+                                                : Copy
+                                            }
+                                            onClick={() => void handleCopy(regimeId)}
+                                            disabled={!regimeId || anyBusy}
+                                          >
+                                            {busyHere && busy?.kind === 'copy'
+                                              ? 'Copying…'
+                                              : 'Copy'}
+                                          </Button>
+                                        )}
                                       </div>
                                     </TableCell>
                                   );
