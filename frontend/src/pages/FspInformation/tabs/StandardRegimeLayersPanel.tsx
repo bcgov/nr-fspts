@@ -717,6 +717,11 @@ const LayerDetailPanel = forwardRef<LayerPanelHandle, LayerDetailPanelProps>(({
       <SpeciesEditor
         title="Preferred species"
         rows={detail.preferredSpecies}
+        // A species already chosen as Acceptable can't also be Preferred —
+        // exclude the acceptable codes from this dropdown too.
+        excludeCodes={detail.acceptableSpecies
+          .map((r) => r.code)
+          .filter((c): c is string => !!c)}
         idPrefix={`pref-${layer.layerCode}`}
         preferred
         readOnly={readOnly}
@@ -733,6 +738,11 @@ const LayerDetailPanel = forwardRef<LayerPanelHandle, LayerDetailPanelProps>(({
       <SpeciesEditor
         title="Acceptable species"
         rows={detail.acceptableSpecies}
+        // A species already chosen as Preferred can't also be Acceptable —
+        // exclude the preferred codes from this dropdown too.
+        excludeCodes={detail.preferredSpecies
+          .map((r) => r.code)
+          .filter((c): c is string => !!c)}
         idPrefix={`acc-${layer.layerCode}`}
         preferred={false}
         readOnly={readOnly}
@@ -759,6 +769,9 @@ LayerDetailPanel.displayName = 'LayerDetailPanel';
 const SpeciesEditor: FC<{
   title: string;
   rows: StandardRegimeSpecies[];
+  /** Species codes used by the OTHER list (preferred↔acceptable), so a
+   *  species picked on one side is hidden from BOTH dropdowns. */
+  excludeCodes?: string[];
   idPrefix: string;
   preferred: boolean;
   readOnly?: boolean;
@@ -785,6 +798,7 @@ const SpeciesEditor: FC<{
 }> = ({
   title,
   rows,
+  excludeCodes = [],
   idPrefix,
   preferred,
   readOnly = false,
@@ -801,8 +815,12 @@ const SpeciesEditor: FC<{
   const [adding, setAdding] = useState(false);
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
 
-  // Exclude codes already in this list — prevents duplicate-key violations.
-  const usedCodes = new Set(rows.map((r) => r.code).filter(Boolean) as string[]);
+  // Exclude codes already in EITHER list — this side's own rows (prevents the
+  // duplicate-key violation the proc would raise) plus the other side's codes
+  // (a species can be preferred or acceptable, never both).
+  const usedCodes = new Set(
+    [...rows.map((r) => r.code), ...excludeCodes].filter(Boolean) as string[],
+  );
   const availableCodes = speciesCodes.filter(
     (c) => c.code != null && !usedCodes.has(c.code),
   );
@@ -987,18 +1005,20 @@ const SpeciesEditor: FC<{
               />
             ))}
           </Select>
-          <NumberInput
+          <TextInput
             id={`${idPrefix}-modal-minHeight`}
-            label="Min height"
-            min={0}
-            allowEmpty
-            hideSteppers
-            value={composerMinHeight === '' ? '' : Number(composerMinHeight)}
+            labelText="Min height"
+            inputMode="numeric"
+            autoComplete="off"
+            value={composerMinHeight}
             disabled={adding}
             invalid={showErrors && minHeightError}
             invalidText="Enter a minimum height."
-            onChange={(_e, { value }) =>
-              setComposerMinHeight(value === '' ? '' : String(value))
+            // Digits only, capped at 2 — strips any non-numeric character
+            // (letters, "e"/scientific notation, ".", "+/-") that a
+            // type="number" NumberInput would otherwise accept.
+            onChange={(e) =>
+              setComposerMinHeight(e.target.value.replace(/\D/g, '').slice(0, 2))
             }
           />
         </Stack>

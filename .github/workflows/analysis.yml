@@ -63,6 +63,7 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.organization=bcgov-sonarcloud \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+            -Dsonar.projectName=nr-fspts \
             -Dsonar.token="$SONAR_TOKEN"
 
   frontend-tests:
