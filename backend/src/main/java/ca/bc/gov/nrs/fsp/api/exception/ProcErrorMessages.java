@@ -144,6 +144,52 @@ public final class ProcErrorMessages {
       Map.entry("FSP.NO.LEGAL.DOCUMENT", new Info(BAD_REQUEST,
           "Please upload the FSP Legal Document on the Attachments tab "
               + "(category \"FSP legal document\") before submitting.")),
+      // Draft→Submitted checks from fsp_common_validation.validate_status_change:
+      // every update indicator set to 'Y' must be backed by real changes on
+      // this version. These fire on SUBMIT only — the Submit preflight
+      // (validate_fsp) doesn't run the status-change branch, so they can't be
+      // surfaced beforehand; map them here so submit returns an actionable 400
+      // rather than an unmapped 500. AMD and RPL variants keep distinct codes
+      // (amendment vs replacement) so the substring matcher resolves each to a
+      // single message — "FSP.FDU_UPDATE_IND.NOCHANGE" is not a substring of
+      // "FSP.RPL_FDU_UPDATE_IND.NOCHANGE" (the "RPL_" prevents a false match).
+      Map.entry("FSP.RPL_FDU_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
+          "This version is marked as updating the Forest Development "
+              + "Units, but no FDU changes were found on this version. Add "
+              + "the FDU spatial data on the FDU / Map tab (or attach a MAP "
+              + "document on the Attachments tab) before submitting.")),
+      Map.entry("FSP.FDU_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
+          "This amendment is marked as updating the Forest Development "
+              + "Units, but no FDU changes were found on this version. Add "
+              + "the FDU spatial data on the FDU / Map tab (or attach a MAP "
+              + "document on the Attachments tab) before submitting.")),
+      Map.entry("FSP.RPL_IA_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
+          "This version is marked as updating the Identified Areas, but "
+              + "no identified-area changes were found on this version. Add "
+              + "the identified-area spatial data, or attach the FRPA 196(1), "
+              + "FRPA 196(2) and FPPR 14(4) documents, before submitting.")),
+      Map.entry("FSP.IA_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
+          "This amendment is marked as updating the Identified Areas, but "
+              + "no identified-area changes were found on this version. Add "
+              + "the identified-area spatial data, or attach the FRPA 196(1), "
+              + "FRPA 196(2) and FPPR 14(4) documents, before submitting.")),
+      Map.entry("FSP.RPL_SS_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
+          "This version is marked as updating the Stocking Standards, "
+              + "but none were added to this version. Add at least one "
+              + "stocking standard on the Stocking standards tab before "
+              + "submitting.")),
+      Map.entry("FSP.SS_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
+          "This amendment is marked as updating the Stocking Standards, "
+              + "but none were added to this version. Add at least one "
+              + "stocking standard on the Stocking standards tab before "
+              + "submitting.")),
+      Map.entry("FSP.TRANSITION.IA.REQUIRED", new Info(BAD_REQUEST,
+          "A transitional FSP must include identified-area information. Add "
+              + "the identified-area spatial data, or attach the FRPA 196(1), "
+              + "FRPA 196(2) and FPPR 14(4) documents, before submitting.")),
+      Map.entry("FSP.EXT_STAT.SUBMITTED", new Info(BAD_REQUEST,
+          "This FSP has an extension request awaiting a decision. Resolve "
+              + "the open extension before submitting this amendment.")),
       Map.entry("FSP.DUPLICATE.AGREEMENT.HOLDER", new Info(BAD_REQUEST,
           "Agreement holder list contains duplicates.")),
       Map.entry("FSP.DUPLICATE.FDU.NAME", new Info(BAD_REQUEST,

@@ -70,7 +70,10 @@ public class SubmissionToFspRequestMapper {
         .fduUpdateInd(boolToInd(plan.isFduUpdateInd()))
         .identifiedAreasUpdateInd(boolToInd(plan.isIdentifiedAreasUpdateInd()))
         .stockingStandardUpdateInd(boolToInd(plan.isStockingStandardUpdateInd()))
-        .transitionInd(boolToInd(plan.isTransitionalInd()))
+        // Transitional FSP is deprecated — always create as 'N', ignoring
+        // whatever the submission XML carries (the flag is no longer editable
+        // in the app either).
+        .transitionInd("N")
         .frpa197electionInd(boolToInd(plan.isFrpa197Ind()))
         .build();
   }

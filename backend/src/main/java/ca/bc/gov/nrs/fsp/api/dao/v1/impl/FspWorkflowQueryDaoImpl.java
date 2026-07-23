@@ -34,6 +34,15 @@ public class FspWorkflowQueryDaoImpl implements FspWorkflowQueryDao {
           + "            AND fsp_amendment_number = ? "
           + "            AND extension_id IS NULL)";
 
+  // Plan-level amendment approval date, formatted to match the proc's
+  // fsp_common.convert_to_char default (YYYY-MM-DD). FSP_700 never returns
+  // this column, so the DDM Decision tile reads it here.
+  private static final String FIND_AMENDMENT_APPROVAL_DATE_SQL =
+      "SELECT TO_CHAR(amendment_approval_date, 'YYYY-MM-DD') "
+          + "  FROM the.forest_stewardship_plan "
+          + " WHERE fsp_id = ? "
+          + "   AND fsp_amendment_number = ?";
+
   private final JdbcTemplate jdbcTemplate;
 
   public FspWorkflowQueryDaoImpl(JdbcTemplate jdbcTemplate) {
@@ -53,6 +62,18 @@ public class FspWorkflowQueryDaoImpl implements FspWorkflowQueryDao {
               rs.getString("effective_date"),
               rs.getString("status_comment")),
           fspId, amendmentNumber, fspId, amendmentNumber);
+    } catch (EmptyResultDataAccessException e) {
+      return null;
+    }
+  }
+
+  @Override
+  public String findAmendmentApprovalDate(long fspId, long amendmentNumber) {
+    try {
+      return jdbcTemplate.queryForObject(
+          FIND_AMENDMENT_APPROVAL_DATE_SQL,
+          String.class,
+          fspId, amendmentNumber);
     } catch (EmptyResultDataAccessException e) {
       return null;
     }

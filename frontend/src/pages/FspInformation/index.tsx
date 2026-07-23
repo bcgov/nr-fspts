@@ -670,7 +670,11 @@ const FspInformationPage: FC = () => {
             <TabPanels>
               <TabPanel>
                 <div className="fsp-info__tab-panel">
-                  <InformationTab fsp={fsp} onSaved={setFsp} />
+                  <InformationTab
+                    fsp={fsp}
+                    onSaved={setFsp}
+                    latestExtension={latestExtension}
+                  />
                 </div>
               </TabPanel>
               <TabPanel>
@@ -723,6 +727,7 @@ const FspInformationPage: FC = () => {
                       amendmentNumber={
                         fsp?.fspAmendmentNumber || amendmentNumber || ''
                       }
+                      fspExpiryDate={fsp?.fspExpiryDate ?? null}
                       refreshKey={refreshKey}
                       onOpenAttachments={() => setSelectedTab(3)}
                       // Workflow read-only is decided by workflow-action

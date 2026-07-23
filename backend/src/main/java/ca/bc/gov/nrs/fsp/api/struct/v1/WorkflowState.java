@@ -24,6 +24,20 @@ public record WorkflowState(
      * to route the approval through fsp_approval correctly).
      */
     String fspAmendmentCode,
+    /**
+     * FSP-level expiry (plan_end_date-derived) — FSP_700 returns it via
+     * P_FSP_EXPIRY_DATE. Surfaced so the DDM Decision tile can show the
+     * Expiry date alongside the decision dates. Pre-formatted YYYY-MM-DD.
+     */
+    String fspExpiryDate,
+    /**
+     * forest_stewardship_plan.amendment_approval_date for the resolved
+     * amendment — the DDM Decision tile shows it only for an approved
+     * amendment. FSP_700 doesn't return it, so it's read app-side via a
+     * direct query (FspWorkflowQueryDao.findAmendmentApprovalDate). Null
+     * when this is the original plan or the amendment isn't approved.
+     */
+    String amendmentApprovalDate,
     List<ReviewItem> reviewItems,
     Otbh otbh,
     DdmDecision ddmDecision,

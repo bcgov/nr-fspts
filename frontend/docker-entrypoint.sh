@@ -28,6 +28,12 @@ window.config = {
   VITE_USER_POOLS_ID: "$(escape "${VITE_USER_POOLS_ID:-}")",
   VITE_USER_POOLS_WEB_CLIENT_ID: "$(escape "${VITE_USER_POOLS_WEB_CLIENT_ID:-}")",
   VITE_REDIRECT_SIGN_OUT: "$(escape "${VITE_REDIRECT_SIGN_OUT:-}")",
+  // Federated logout chain (Siteminder → Keycloak → Cognito → app, Cognito
+  // last) — read by src/context/auth/logoutChain.ts. All three unset ⇒ logout
+  // falls back to the plain Amplify sign-out via VITE_REDIRECT_SIGN_OUT.
+  VITE_LOGOUT_SITEMINDER_URL: "$(escape "${VITE_LOGOUT_SITEMINDER_URL:-}")",
+  VITE_LOGOUT_KEYCLOAK_URL: "$(escape "${VITE_LOGOUT_KEYCLOAK_URL:-}")",
+  VITE_LOGOUT_KEYCLOAK_CLIENT_ID: "$(escape "${VITE_LOGOUT_KEYCLOAK_CLIENT_ID:-}")",
   VITE_BASE_PATH: "$(escape "${VITE_BASE_PATH:-/}")",
   // Backend API base — read by src/services/apiFetch.ts
   VITE_API_BASE_URL: "$(escape "${VITE_API_BASE_URL:-/api}")",

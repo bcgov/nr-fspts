@@ -31,7 +31,7 @@ test.describe('Reports', () => {
           r.request().method() === 'POST',
         { timeout: 90_000 },
       ),
-      page.getByRole('button', { name: 'Generate PDF' }).click(),
+      page.getByRole('button', { name: 'Generate PDF report' }).click(),
     ]);
 
     expect(resp.status(), 'report endpoint should answer 200').toBe(200);

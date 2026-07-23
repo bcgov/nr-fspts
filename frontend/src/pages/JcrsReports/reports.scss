@@ -115,6 +115,13 @@
   margin-top: 0.5rem;
 }
 
+// "All fields optional unless marked required." lead-in above the fields.
+.report-form__hint {
+  margin: 0 0 1.25rem;
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+}
+
 .report-form__actions {
   display: flex;
   justify-content: flex-end;
@@ -128,21 +135,45 @@
   gap: 0.5rem;
 }
 
+.report-form__format {
+  margin-top: 0.5rem;
+}
+
+// Each field row is a flex line so fields can carry their own widths
+// (FSP ID narrow, Org unit / Agreement holder wide, dates fixed) and wrap
+// gracefully on narrow viewports. `align-items: flex-start` keeps field tops
+// aligned even when one carries helper/error text below it.
 .report-form__field-group {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: flex-start;
+}
 
-  // Force every grid child (DatePicker, Select, etc.) to honour the
-  // 1fr cell. `min-width: 0` overrides grid's default `min-width: auto`
-  // which would otherwise let intrinsic-content widths blow out the
-  // column — Carbon's DatePicker is the main offender.
-  > * {
-    min-width: 0;
-  }
+.report-form__field {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
 
-  // Carbon hardcodes `.cds--date-picker__input` (single mode) to 18rem
-  // via `inline-size`. Override so the input fills its 1fr grid cell.
+// FSP ID is a short numeric field — keep it narrow.
+.report-form__field--fspId {
+  flex: 1 1 10rem;
+  max-width: 12rem;
+}
+
+// Org unit + agreement holder are the wide selectors.
+.report-form__field--orgUnit,
+.report-form__field--ahClientNumber {
+  flex: 3 1 20rem;
+}
+
+// Date pickers sit left, fixed-ish — they don't stretch across the row.
+.report-form__field--dateRange {
+  flex: 0 1 13rem;
+  max-width: 13rem;
+
+  // Carbon hardcodes the single-mode input to 18rem via `inline-size`;
+  // override so it fills the (narrower) field cell instead.
   .cds--date-picker.cds--date-picker--single .cds--date-picker__input {
     inline-size: 100%;
     width: 100%;
@@ -155,10 +186,8 @@
     min-width: 0;
   }
 
-  // Carbon wraps the <input> in a <span> inside the input wrapper. The
-  // span is inline by default, so it sizes to the input's intrinsic
-  // 288px regardless of the wrapper width. Force it to fill the
-  // wrapper so the inner `inline-size: 100%` expands to the grid cell.
+  // Carbon wraps the <input> in an inline <span>; force it to fill the
+  // wrapper so the inner `inline-size: 100%` expands to the cell.
   .cds--date-picker-input__wrapper > span {
     display: block;
     width: 100%;

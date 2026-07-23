@@ -17,12 +17,11 @@ const API_BASE_URL = env.VITE_API_BASE_URL ?? '';
 
 /**
  * Reads the current Cognito access token via Amplify's auth session.
- * Mirrors nr-rept's services/http/headers.ts pattern: parse the token
- * from Amplify rather than from document.cookie. The configured
- * CookieStorage doesn't always write tokens as DOM-visible cookies
- * depending on Amplify's internal flow (httpOnly, secure-only, or an
- * in-memory fallback), so document.cookie-based reads silently return
- * nothing in deployed environments — producing 401s on every API call.
+ * Mirrors nr-rept's services/http/headers.ts pattern: parse the token from
+ * Amplify's session rather than reading storage keys directly. Amplify keeps
+ * tokens in localStorage (its default store — see main.tsx), and going through
+ * fetchAuthSession also transparently refreshes a near-expired token, so this
+ * both survives storage changes and keeps the bearer fresh.
  */
 const getAccessToken = async (): Promise<string | undefined> => {
   try {

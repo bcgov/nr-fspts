@@ -33,4 +33,16 @@ public interface FspWorkflowQueryDao {
    *     history row (e.g. a still-draft amendment).
    */
   RecordedDecision findRecordedDecision(long fspId, long amendmentNumber);
+
+  /**
+   * The {@code amendment_approval_date} recorded on a specific FSP amendment.
+   * FSP_700_WORKFLOW.MAINLINE(GET) doesn't surface this column, so the
+   * Workflow tab's DDM Decision tile reads it straight from
+   * {@code forest_stewardship_plan}. Formatted {@code YYYY-MM-DD} to match
+   * {@code fsp_common.convert_to_char} (the proc's date format).
+   *
+   * @return the formatted approval date, or {@code null} when the column is
+   *     empty (unapproved / original plan) or the row doesn't exist.
+   */
+  String findAmendmentApprovalDate(long fspId, long amendmentNumber);
 }

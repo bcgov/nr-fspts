@@ -52,7 +52,7 @@ jobs:
         if: env.SONAR_TOKEN != ''
         working-directory: backend
         env:
-          SONAR_TOKEN: ${{ secrets.sonar_token_backend }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           mvn -B sonar:sonar \
             -Dsonar.host.url=https://sonarcloud.io \
@@ -68,7 +68,7 @@ jobs:
     steps:
       - uses: bcgov/action-test-and-analyse@8f699e3fd3fadd9a6adf6f4b1f2638ef7ecfefb9 # v2.0.0
         env:
-          sonar_token: ${{ secrets.sonar_token_frontend }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
         with:
           # `lint` already runs prettier via eslint-plugin-prettier, so no
           # separate `format:check` step. `test:coverage` is the real script

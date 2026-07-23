@@ -1,16 +1,19 @@
 import {
   Button,
+  ComboBox,
   DatePicker,
   DatePickerInput,
   Loading,
+  RadioButton,
+  RadioButtonGroup,
   Select,
   SelectItem,
   Stack,
   TextInput,
 } from '@carbon/react';
+import { Download, Launch } from '@carbon/icons-react';
 import {
   useEffect,
-  useMemo,
   useState,
   type ChangeEvent,
   type FC,
@@ -19,7 +22,11 @@ import {
 } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
-import { getOrgUnits, type CodeOption } from '@/services/fspSearch';
+import {
+  searchClientsAuto,
+  type ClientSearchResult,
+} from '@/services/clientSearch';
+import { type CodeOption } from '@/services/fspSearch';
 import {
   requestReport,
   type FspReportFormat,
@@ -43,6 +50,27 @@ const BLANK_STATE: ReportFormState = {
   orgUnitNo: '',
   ahClientNumber: '',
   fspId: '',
+};
+
+// Inline validation messages for the required fields — surfaced under the
+// field (red border + text), not as a toast, matching the report mocks.
+interface FieldErrors {
+  orgUnitNo?: string;
+  fspId?: string;
+}
+
+// "Name (ACR) · 00012345" label for an agreement-holder search result —
+// same rendering the FSP Search page uses so the two autocompletes match.
+const clientLabel = (c: ClientSearchResult): string => {
+  const parts: string[] = [];
+  const name = c.clientName?.trim();
+  if (name) parts.push(name);
+  const acronym = c.clientAcronym?.trim();
+  if (acronym) parts.push(`(${acronym})`);
+  const number = c.clientNumber?.trim();
+  const label = parts.join(' ');
+  if (number) return label ? `${label} · ${number}` : number;
+  return label;
 };
 
 const sanitizePayload = (
@@ -89,42 +117,95 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
   const { display } = useNotification();
   const [formState, setFormState] = useState<ReportFormState>(BLANK_STATE);
   const [generating, setGenerating] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  // Output format is now a radio choice; the single action button's label +
+  // icon + behaviour derive from it (Generate PDF ⧉ / Download CSV ⭳).
+  const [format, setFormat] = useState<FspReportFormat>(
+    definition.availableFormats[0] ?? 'pdf',
+  );
 
-  // Re-blank the form whenever the definition changes (i.e. user
-  // closed and reopened a different accordion row).
+  // Agreement-holder autocomplete state (mirrors SearchPage): the typed term,
+  // the fetched suggestions, and the picked client. formState.ahClientNumber
+  // holds the resolved client *number* — the actual report filter.
+  const [holderTerm, setHolderTerm] = useState('');
+  const [holderItems, setHolderItems] = useState<ClientSearchResult[]>([]);
+  const [holderSelected, setHolderSelected] =
+    useState<ClientSearchResult | null>(null);
+
+  // Re-blank the form whenever the definition changes (user closed and
+  // reopened a different accordion row).
   useEffect(() => {
     setFormState(BLANK_STATE);
-  }, [definition.id]);
+    setErrors({});
+    setFormat(definition.availableFormats[0] ?? 'pdf');
+    setHolderTerm('');
+    setHolderItems([]);
+    setHolderSelected(null);
+  }, [definition.id, definition.availableFormats]);
+
+  // Debounced agreement-holder lookup — wait 300ms, skip terms under 3 chars,
+  // tolerate a failed fetch by clearing the list.
+  useEffect(() => {
+    const term = holderTerm.trim();
+    if (term.length < 3) {
+      setHolderItems([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchClientsAuto(term)
+        .then(setHolderItems)
+        .catch(() => setHolderItems([]));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [holderTerm]);
+
+  // Typing replaces any prior selection and clears the holder filter until a
+  // new client is picked. Ignore the synthetic input change Carbon fires when
+  // it sets the input to the selected item's label.
+  const handleHolderInput = (text: string) => {
+    if (holderSelected && clientLabel(holderSelected) === text) return;
+    setHolderSelected(null);
+    setFormState((prev) =>
+      prev.ahClientNumber ? { ...prev, ahClientNumber: '' } : prev,
+    );
+    setHolderTerm(text);
+  };
+
+  const handleHolderSelect = (data: {
+    selectedItem?: ClientSearchResult | null;
+  }) => {
+    const client = data.selectedItem ?? null;
+    setHolderSelected(client);
+    setFormState((prev) => ({
+      ...prev,
+      ahClientNumber: client?.clientNumber?.trim() ?? '',
+    }));
+  };
 
   const handleSelectChange =
     (field: keyof ReportFormState) => (event: ChangeEvent<HTMLSelectElement>) => {
       setFormState((prev) => ({ ...prev, [field]: event.target.value }));
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
 
   const handleTextChange =
     (field: keyof ReportFormState) => (event: ChangeEvent<HTMLInputElement>) => {
       setFormState((prev) => ({ ...prev, [field]: event.target.value }));
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
 
-  const generate = async (format: FspReportFormat) => {
-    // Required-field guards (client-side mirror of the backend
-    // validation — keeps users out of an obviously-bad round trip).
+  const generate = async (fmt: FspReportFormat) => {
+    // Required-field guards render inline under the field (red border +
+    // message), mirroring the mock — no toast for these.
+    const nextErrors: FieldErrors = {};
     if (definition.fields.fspId === 'required' && !formState.fspId.trim()) {
-      display({
-        kind: 'warning',
-        title: 'FSP ID required',
-        subtitle: 'Enter an FSP ID before generating this report.',
-        timeout: 5000,
-      });
-      return;
+      nextErrors.fspId = 'Enter an FSP ID to run this report.';
     }
     if (definition.fields.orgUnit === 'required' && !formState.orgUnitNo.trim()) {
-      display({
-        kind: 'warning',
-        title: 'Organization unit required',
-        subtitle: 'Pick an org unit before generating this report.',
-        timeout: 5000,
-      });
+      nextErrors.orgUnitNo = 'Select an organization unit to run this report.';
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
       return;
     }
     if (
@@ -143,16 +224,15 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
 
     setGenerating(true);
     try {
-      const payload = sanitizePayload(formState, definition, format);
+      const payload = sanitizePayload(formState, definition, fmt);
       const response = await requestReport(definition.id, payload);
-      if (format === 'pdf') {
+      if (fmt === 'pdf') {
         openBlobInNewTab(response.blob);
       } else {
         triggerBrowserDownload(response.blob, response.filename);
       }
-      // No success toast — the report opening in a new tab / starting
-      // a browser download IS the success affordance. Errors still
-      // surface via the catch branch below.
+      // No success toast — the report opening in a new tab / starting a
+      // browser download IS the success affordance.
     } catch (error) {
       display({
         kind: 'error',
@@ -167,11 +247,16 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void generate(definition.availableFormats[0] ?? 'pdf');
+    void generate(format);
   };
 
   const handleReset = () => {
     setFormState(BLANK_STATE);
+    setErrors({});
+    setFormat(definition.availableFormats[0] ?? 'pdf');
+    setHolderTerm('');
+    setHolderItems([]);
+    setHolderSelected(null);
   };
 
   const supportsPdf = definition.availableFormats.includes('pdf');
@@ -229,19 +314,18 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
           <Select
             key="orgUnit"
             id={`report-${definition.id}-orgUnit`}
-            labelText="Organization unit"
+            labelText={
+              definition.fields.orgUnit === 'required'
+                ? 'Organization unit (required)'
+                : 'Organization unit'
+            }
             value={formState.orgUnitNo}
             onChange={handleSelectChange('orgUnitNo')}
             disabled={orgUnitsLoading}
+            invalid={!!errors.orgUnitNo}
+            invalidText={errors.orgUnitNo}
           >
-            <SelectItem
-              value=""
-              text={
-                definition.fields.orgUnit === 'required'
-                  ? 'Select an organization unit'
-                  : 'All organization units'
-              }
-            />
+            <SelectItem value="" text="Select an organization unit" />
             {orgUnits.map((o) => (
               <SelectItem key={o.code} value={o.code} text={o.description} />
             ))}
@@ -250,13 +334,17 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
       case 'ahClientNumber':
         if (!definition.fields.ahClientNumber) return null;
         return [
-          <TextInput
+          <ComboBox
             key="ahClientNumber"
             id={`report-${definition.id}-ahClientNumber`}
-            labelText="Agreement holder client #"
-            value={formState.ahClientNumber}
-            onChange={handleTextChange('ahClientNumber')}
-            maxLength={8}
+            titleText="Agreement holder"
+            helperText="Enter name, acronym, or client number (min. 3 characters)"
+            placeholder=""
+            items={holderItems}
+            itemToString={(item) => (item ? clientLabel(item) : '')}
+            selectedItem={holderSelected}
+            onInputChange={handleHolderInput}
+            onChange={handleHolderSelect}
           />,
         ];
       case 'fspId':
@@ -265,10 +353,14 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
           <TextInput
             key="fspId"
             id={`report-${definition.id}-fspId`}
-            labelText="FSP ID"
+            labelText={
+              definition.fields.fspId === 'required' ? 'FSP ID (required)' : 'FSP ID'
+            }
             value={formState.fspId}
             onChange={handleTextChange('fspId')}
             maxLength={10}
+            invalid={!!errors.fspId}
+            invalidText={errors.fspId}
           />,
         ];
       default:
@@ -276,8 +368,8 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
     }
   };
 
-  // Default layout: each known field on its own row. Per-report
-  // `layout` overrides this to pack multiple fields per row.
+  // Default layout: each known field on its own row. Per-report `layout`
+  // overrides this to pack multiple fields per row.
   const layout = definition.layout ?? [
     ['dateRange'],
     ['orgUnit'],
@@ -285,18 +377,65 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
     ['fspId'],
   ];
 
+  const actionLabel = generating
+    ? format === 'pdf'
+      ? 'Generating PDF report'
+      : 'Downloading CSV report'
+    : format === 'pdf'
+      ? 'Generate PDF report'
+      : 'Download CSV report';
+
   return (
     <form className="report-form" onSubmit={handleSubmit}>
-      <Stack gap={5}>
+      <p className="report-form__hint">
+        All fields optional unless marked required.
+      </p>
+      <Stack gap={6}>
         {layout.map((row, rowIndex) => {
-          const elements = row.flatMap((key) => renderField(key) ?? []);
-          if (elements.length === 0) return null;
+          const cells = row.flatMap((key) => {
+            const elements = renderField(key);
+            if (!elements) return [];
+            return elements.map((element, i) => (
+              <div
+                key={`${key}-${i}`}
+                className={`report-form__field report-form__field--${key}`}
+              >
+                {element}
+              </div>
+            ));
+          });
+          if (cells.length === 0) return null;
           return (
             <div key={rowIndex} className="report-form__field-group">
-              {elements}
+              {cells}
             </div>
           );
         })}
+
+        {(supportsPdf || supportsCsv) && (
+          <RadioButtonGroup
+            className="report-form__format"
+            legendText="Format"
+            name={`report-${definition.id}-format`}
+            valueSelected={format}
+            onChange={(value) => setFormat(value as FspReportFormat)}
+          >
+            {supportsPdf && (
+              <RadioButton
+                id={`report-${definition.id}-fmt-pdf`}
+                labelText="PDF"
+                value="pdf"
+              />
+            )}
+            {supportsCsv && (
+              <RadioButton
+                id={`report-${definition.id}-fmt-csv`}
+                labelText="CSV"
+                value="csv"
+              />
+            )}
+          </RadioButtonGroup>
+        )}
 
         <div className="report-form__actions">
           <Button
@@ -306,37 +445,27 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
             onClick={handleReset}
             disabled={generating}
           >
-            Reset
+            Clear all
           </Button>
-          {supportsCsv && (
-            <Button
-              kind="secondary"
-              size="md"
-              type="button"
-              onClick={() => void generate('csv')}
-              disabled={generating}
-            >
-              Export CSV
-            </Button>
-          )}
-          {supportsPdf && (
-            <Button
-              kind="primary"
-              size="md"
-              type="button"
-              onClick={() => void generate('pdf')}
-              disabled={generating}
-            >
-              {generating ? (
-                <span className="report-form__generating">
-                  <Loading small withOverlay={false} description="Generating" />
-                  <span>Generating…</span>
-                </span>
-              ) : (
-                'Generate PDF'
-              )}
-            </Button>
-          )}
+          <Button
+            kind="primary"
+            size="md"
+            type="button"
+            onClick={() => void generate(format)}
+            disabled={generating}
+            renderIcon={
+              generating ? undefined : format === 'pdf' ? Launch : Download
+            }
+          >
+            {generating ? (
+              <span className="report-form__generating">
+                <span>{actionLabel}</span>
+                <Loading small withOverlay={false} description="Working" />
+              </span>
+            ) : (
+              actionLabel
+            )}
+          </Button>
         </div>
       </Stack>
     </form>

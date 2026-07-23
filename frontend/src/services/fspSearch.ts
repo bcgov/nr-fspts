@@ -516,6 +516,13 @@ export interface FspWorkflowState {
   fspStatusDesc: string | null;
   /** Echoed back on SAVE_DDM_APP so the proc can route fsp_approval correctly. */
   fspAmendmentCode: string | null;
+  /** FSP-level expiry — shown on the DDM Decision tile (from FSP_700). */
+  fspExpiryDate: string | null;
+  /**
+   * amendment_approval_date for the resolved amendment (read app-side). The
+   * DDM Decision tile shows it only for an approved amendment; null otherwise.
+   */
+  amendmentApprovalDate: string | null;
   reviewItems: FspReviewItem[];
   otbh: FspOtbh;
   ddmDecision: FspDdmDecision;

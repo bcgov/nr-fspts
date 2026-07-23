@@ -28,10 +28,12 @@ import { useNotification } from '@/context/notification/useNotification';
 import { safeErrorMessage } from '@/lib/errorMessage';
 import {
   type FspDdmDecision,
+  type FspExtension,
   type FspExtensionDecision,
   type FspReviewItem,
   type FspWorkflowRoles,
   type FspWorkflowState,
+  getFspExtensions,
   getFspWorkflowState,
   submitFspWorkflowAction,
 } from '@/services/fspSearch';
@@ -44,6 +46,13 @@ interface Props {
    * than the latest (possibly draft) version's. Blank resolves to latest.
    */
   amendmentNumber?: string;
+  /**
+   * FSP-level expiry for the version in view, threaded from the parent's
+   * loaded FspInformation so the DDM Decision tile shows the exact same
+   * value as the Information tab. Preferred over the workflow read's own
+   * expiry projection, which can come back blank on some reads.
+   */
+  fspExpiryDate?: string | null;
   /**
    * Parent-supplied monotonic counter bumped after any mutation
    * (Submit, Extend, …). Threaded into the workflow-state fetch
@@ -206,33 +215,29 @@ const enableOtbhHeardEdit = (
 };
 
 // DDM decision dialog (SAVE_DDM_APP / _DFT / _REJ). Which decisions are
-// offered depends on the role — see allowedDdmDecisions. On Submitted the
-// dialog opens for DM + Reviewer (all three) and for the Administrator
-// (Request-clarification only). Administrators retain the post-approval
-// date-correction window on APP.
+// offered depends on the role — see allowedDdmDecisions. Only available while
+// the FSP is Submitted: DM + Reviewer get all three, the Administrator gets
+// Request-clarification (+ Approve). Once decided, the recorded decision is
+// read-only — there is NO post-approval editing.
 const enableDdmEdit = (
   status: string | null | undefined,
   roles: FspWorkflowRoles,
 ): boolean => allowedDdmDecisions(status, roles).length > 0;
 
 // The DDM decision choices a given role may take in the current status,
-// per matrix D (revision post-[82]). On Submitted: DM + Reviewer get all
-// three (Approve / Request-clarification / Reject); the Administrator gets
-// Approve + Request-clarification but NOT Reject (still dashed out of Reject).
-// On an already-approved plan the Administrator may edit the recorded
-// approval's dates (APP).
+// per matrix D (revision post-[82]). DDM decisions can only be recorded or
+// edited while the FSP is Submitted (SUB); every other status returns none, so
+// an already-decided plan can't be re-opened here. On Submitted: DM + Reviewer
+// get all three (Approve / Request-clarification / Reject); the Administrator
+// gets Approve + Request-clarification but NOT Reject (still dashed out).
 const allowedDdmDecisions = (
   status: string | null | undefined,
   roles: FspWorkflowRoles,
 ): DdmDecisionChoice[] => {
   const s = (status ?? '').toUpperCase();
-  if (s === 'SUB') {
-    if (roles.isDecisionMaker || roles.isReviewer) return ['APP', 'DFT', 'REJ'];
-    if (roles.isAdministrator) return ['APP', 'DFT'];
-    return [];
-  }
-  // Post-approval date correction of the recorded decision stays Admin-only.
-  if (s === 'APP') return roles.isAdministrator ? ['APP'] : [];
+  if (s !== 'SUB') return [];
+  if (roles.isDecisionMaker || roles.isReviewer) return ['APP', 'DFT', 'REJ'];
+  if (roles.isAdministrator) return ['APP', 'DFT'];
   return [];
 };
 
@@ -430,10 +435,24 @@ const OtbhDetailsTile: FC<{
 
 const DdmDecisionTile: FC<{
   decision: FspDdmDecision;
+  /** FSP-level expiry (from FSP_700), shown beneath the decision dates. */
+  expiryDate: string | null;
+  /**
+   * amendment_approval_date — rendered only for an approved amendment
+   * (the parent passes null otherwise, so a truthy value is the gate).
+   */
+  amendmentApprovalDate: string | null;
   canEdit: boolean;
   onEdit: () => void;
   onOpenAttachments?: () => void;
-}> = ({ decision, canEdit, onEdit, onOpenAttachments }) => {
+}> = ({
+  decision,
+  expiryDate,
+  amendmentApprovalDate,
+  canEdit,
+  onEdit,
+  onOpenAttachments,
+}) => {
   const hasData = ddmHasData(decision);
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
@@ -477,6 +496,13 @@ const DdmDecisionTile: FC<{
             label="Effective date"
             value={dash(decision.effectiveDate)}
           />
+          <Field label="Expiry date" value={dash(expiryDate)} />
+          {!isBlank(amendmentApprovalDate) && (
+            <Field
+              label="Amendment approval date"
+              value={dash(amendmentApprovalDate)}
+            />
+          )}
           {!isBlank(decision.comment) && (
             <Field full label="Comment" value={dash(decision.comment)} />
           )}
@@ -490,19 +516,32 @@ const DdmDecisionTile: FC<{
 
 const ExtensionRequestTile: FC<{
   decision: FspExtensionDecision;
+  /**
+   * The matching FSP_303 extension row (by extension id). Carries the
+   * approval / reject / extended-expiry / extension-effective dates that
+   * FSP_700's extension projection doesn't return. Null while the summary
+   * is still loading or no row matches.
+   */
+  summary: FspExtension | null;
   extensionIds: string | null;
   canEdit: boolean;
   onEdit: () => void;
   onOpenAttachments?: () => void;
-}> = ({ decision, extensionIds, canEdit, onEdit, onOpenAttachments }) => {
+}> = ({ decision, summary, extensionIds, canEdit, onEdit, onOpenAttachments }) => {
   // A decision is only "recorded" once the extension is Approved / In
   // Effect / Rejected. A still-open (Submitted) request has a status but no
   // decision yet — so show "Pending" + "Record decision", mirroring the DDM
   // tile. Keying off any non-blank status made a fresh request read as
   // already decided ("Edit decision").
-  const hasDecision = ['APP', 'INE', 'REJ'].includes(
-    (decision.statusCode ?? '').toUpperCase(),
-  );
+  const upperStatus = (decision.statusCode ?? '').toUpperCase();
+  const hasDecision = ['APP', 'INE', 'REJ'].includes(upperStatus);
+  const isApproved = upperStatus === 'APP' || upperStatus === 'INE';
+  const isRejected = upperStatus === 'REJ';
+  // Extended expiry = the extension's new plan_end_date; extension effective
+  // = its plan_start_date. Prefer the FSP_303 summary (authoritative), fall
+  // back to the workflow projection's effective date for the effective row.
+  const extendedExpiry = summary?.planEndDate ?? null;
+  const extensionEffective = summary?.planStartDate ?? decision.effectiveDate;
   return (
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
@@ -545,9 +584,16 @@ const ExtensionRequestTile: FC<{
           value={dash(decision.submissionDate)}
         />
         <Field label="Decision date" value={dash(decision.decisionDate)} />
+        {isApproved && (
+          <Field label="Approval date" value={dash(summary?.approvalDate)} />
+        )}
+        {isRejected && (
+          <Field label="Reject date" value={dash(summary?.rejectDate)} />
+        )}
+        <Field label="Extended expiry date" value={dash(extendedExpiry)} />
         <Field
-          label="Effective date"
-          value={dash(decision.effectiveDate)}
+          label="Extension effective date"
+          value={dash(extensionEffective)}
         />
         {!isBlank(decision.comment) && (
           <Field full label="Comment" value={dash(decision.comment)} />
@@ -571,6 +617,7 @@ const ExtensionRequestTile: FC<{
 const WorkflowDataTab: FC<Props> = ({
   fspId,
   amendmentNumber,
+  fspExpiryDate,
   refreshKey,
   onWorkflowChanged,
   readOnly = false,
@@ -585,6 +632,10 @@ const WorkflowDataTab: FC<Props> = ({
     useState<OtbhDialogValue | null>(null);
   const [ddmModalOpen, setDdmModalOpen] = useState(false);
   const [extensionModalOpen, setExtensionModalOpen] = useState(false);
+  // FSP_303 extension summary row matched to the workflow's extension, so the
+  // Extension decision tile can show approval / reject / extended-expiry /
+  // extension-effective dates that FSP_700's projection omits.
+  const [extSummary, setExtSummary] = useState<FspExtension | null>(null);
   // Dismissible IDIR-visibility notice at the top of the tab.
   const [bannerVisible, setBannerVisible] = useState(true);
   const { display } = useNotification();
@@ -609,6 +660,32 @@ const WorkflowDataTab: FC<Props> = ({
       cancelled = true;
     };
   }, [fspId, amendmentNumber, refreshKey]);
+
+  // Pull the matching FSP_303 extension row once the workflow read has
+  // surfaced an extension id. Keyed on the id so it re-matches after an
+  // extension decision mutation bumps refreshKey.
+  const extensionIdForSummary = state?.extensionDecision?.extensionId ?? null;
+  useEffect(() => {
+    if (!fspId || isBlank(extensionIdForSummary)) {
+      setExtSummary(null);
+      return;
+    }
+    let cancelled = false;
+    getFspExtensions(fspId)
+      .then((summary) => {
+        if (cancelled) return;
+        const match = summary.extensions.find(
+          (e) => e.extensionId === extensionIdForSummary,
+        );
+        setExtSummary(match ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setExtSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fspId, extensionIdForSummary, refreshKey]);
 
   if (loading && !state) {
     return (
@@ -638,6 +715,13 @@ const WorkflowDataTab: FC<Props> = ({
     state.extensionDecision,
     state.extensionIds,
   );
+  // The amendment-approval-date row is amendment-only. amendment_approval_date
+  // only populates on approval, so a non-null value from the backend already
+  // implies "approved"; gate on amendment-vs-original here.
+  const isAmendment = Number(state.fspAmendmentNumber ?? 0) > 0;
+  const ddmAmendmentApprovalDate = isAmendment
+    ? state.amendmentApprovalDate
+    : null;
 
   const otbhRows: OtbhRow[] = [
     {
@@ -793,6 +877,8 @@ const WorkflowDataTab: FC<Props> = ({
       <div className="fsp-info__tiles-grid">
         <DdmDecisionTile
           decision={state.ddmDecision}
+          expiryDate={fspExpiryDate ?? state.fspExpiryDate}
+          amendmentApprovalDate={ddmAmendmentApprovalDate}
           canEdit={ddmEditable}
           onEdit={() => setDdmModalOpen(true)}
           onOpenAttachments={onOpenAttachments}
@@ -801,6 +887,7 @@ const WorkflowDataTab: FC<Props> = ({
         {extensionIsPresent && (
           <ExtensionRequestTile
             decision={state.extensionDecision}
+            summary={extSummary}
             extensionIds={state.extensionIds}
             canEdit={extensionEditable}
             onEdit={() => setExtensionModalOpen(true)}

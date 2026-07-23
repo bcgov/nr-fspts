@@ -1,0 +1,75 @@
+// Session-timeout warning modal. A bespoke alertdialog (not Carbon's Modal)
+// because the spec forbids every dismiss affordance Carbon's Modal ships
+// with — no X, no ESC, no backdrop-close — and wants a focus trap with
+// restore. Colours use Carbon v11 CSS custom properties so it tracks the
+// active theme (light/dark) automatically.
+
+.session-timeout__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000; // above the Carbon UI Shell header + any open menus
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--cds-overlay, rgba(22, 22, 22, 0.5));
+}
+
+.session-timeout__dialog {
+  width: 26rem;
+  max-width: 100%;
+  padding: 1.5rem;
+  background: var(--cds-layer-01, #ffffff);
+  color: var(--cds-text-primary, #161616);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  outline: none; // focus lives on the dialog but we don't want a ring on it
+}
+
+.session-timeout__title {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.session-timeout__body p {
+  margin: 0 0 0.75rem;
+  color: var(--cds-text-secondary, #525252);
+  line-height: 1.5;
+}
+
+.session-timeout__body p:last-child {
+  margin-bottom: 0;
+}
+
+.session-timeout__count-wrap {
+  white-space: nowrap;
+}
+
+.session-timeout__count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums; // stops the text shifting as digits change
+}
+
+// Final 30 seconds — red per the mock's $support-error callout.
+.session-timeout__count--danger {
+  color: var(--cds-support-error, #da1e28);
+}
+
+.session-timeout__warn-icon {
+  align-items: center;
+  margin-left: 0.25rem;
+  color: var(--cds-support-error, #da1e28);
+  // Optically centre the icon on the countdown digits. `text-bottom` sat it
+  // too low; `middle` plus a small lift lines it up with the bold numerals.
+  vertical-align: middle;
+  position: relative;
+  top: -0.125rem;
+}
+
+.session-timeout__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}

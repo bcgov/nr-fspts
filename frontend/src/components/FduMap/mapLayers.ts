@@ -32,9 +32,29 @@ export const FDU_STYLE: PathOptions = {
 };
 
 // The full overlay catalogue, copied from nr-silva/OpeningsMap/constants.ts.
+// The FSP FDU layer is listed FIRST so it sits at the top of the map's
+// layer-toggle list — the layers control renders in array order (the numeric
+// `position` field is inert metadata, not used for ordering). The rest keep
+// their original nr-silva order.
 export const allLayers: MapLayer[] = [
   {
     position: 1,
+    name: 'FSP - Forest Development Units',
+    format: 'image/png',
+    // Province-wide FSP FDU polygons from the BC Geographic Warehouse. The
+    // layer is repeated once per style so a single WMS GetMap renders all four
+    // FDU statuses at once (FduMap only sends styles[0]) — the same
+    // 1417/1418/1419/1420 style set (Approved/Previous/Draft/Submitted) the
+    // legacy arcmaps inbox map requested via catalogLayers.
+    layers:
+      'WHSE_FOREST_TENURE.FSP_FDU_POLY_SPG,WHSE_FOREST_TENURE.FSP_FDU_POLY_SPG,'
+      + 'WHSE_FOREST_TENURE.FSP_FDU_POLY_SPG,WHSE_FOREST_TENURE.FSP_FDU_POLY_SPG',
+    transparent: true,
+    filterable: false,
+    styles: [{ name: '1417,1418,1419,1420', title: 'FDU_All_Statuses' }],
+  },
+  {
+    position: 2,
     name: 'RESULTS - Openings svw',
     format: 'image/png',
     layers: 'WHSE_FOREST_VEGETATION.RSLT_OPENING_SVW',
@@ -43,7 +63,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '2941_2942', title: 'Openings_ALL_RSLT' }],
   },
   {
-    position: 2,
+    position: 3,
     name: 'RESULTS - Standards Units',
     format: 'image/png',
     layers: 'WHSE_FOREST_VEGETATION.RSLT_STANDARDS_UNIT_SVW',
@@ -52,7 +72,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '2945_2946', title: 'Standards_Unit_Poly_ALL_RSLT' }],
   },
   {
-    position: 3,
+    position: 4,
     name: 'RESULTS - Activity Treatment Units',
     format: 'image/png',
     layers: 'WHSE_FOREST_VEGETATION.RSLT_ACTIVITY_TREATMENT_SVW',
@@ -61,7 +81,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '2937_2938', title: 'Activity_Treatment_Poly_ALL_RSLT' }],
   },
   {
-    position: 4,
+    position: 5,
     name: 'RESULTS - Forest Cover Inventory',
     format: 'image/png',
     layers: 'WHSE_FOREST_VEGETATION.RSLT_FOREST_COVER_INV_SVW',
@@ -70,7 +90,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '4284', title: 'Forest_Cover_Inventory_ALL_RSLT_Colour_Fill' }],
   },
   {
-    position: 5,
+    position: 6,
     name: 'RESULTS - Forest Cover Silviculture',
     format: 'image/png',
     layers: 'WHSE_FOREST_VEGETATION.RSLT_FOREST_COVER_SILV_SVW',
@@ -79,7 +99,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '4403', title: 'Forest_Cover_Silviculture_ALL_RSLT_Colour_Fill' }],
   },
   {
-    position: 6,
+    position: 7,
     name: 'VRI - 2023 - Forest Vegetation Composite Rank 1 Layer (R1)',
     format: 'image/png',
     layers: 'WHSE_FOREST_VEGETATION.VEG_COMP_LYR_R1_POLY',
@@ -91,7 +111,7 @@ export const allLayers: MapLayer[] = [
     ],
   },
   {
-    position: 7,
+    position: 8,
     name: 'Fire Burn Severity - Same Year',
     format: 'image/png',
     layers: 'WHSE_FOREST_VEGETATION.VEG_BURN_SEVERITY_SAME_YR_SP',
@@ -100,7 +120,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '9792', title: 'Burn_Severity_Rating_2023_Same_Year_Colour_Themed' }],
   },
   {
-    position: 8,
+    position: 9,
     name: 'BC Wildfire Fire Perimeters - Historical',
     format: 'image/png',
     layers: 'WHSE_LAND_AND_NATURAL_RESOURCE.PROT_HISTORICAL_FIRE_POLYS_SP',
@@ -112,7 +132,7 @@ export const allLayers: MapLayer[] = [
     ],
   },
   {
-    position: 9,
+    position: 10,
     name: 'BEC Map',
     format: 'image/png',
     layers: 'WHSE_FOREST_VEGETATION.BEC_BIOGEOCLIMATIC_POLY',
@@ -121,7 +141,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '1410', title: 'BEC_Analysis_Zones_Subzones_Variants_Colour_Themed' }],
   },
   {
-    position: 10,
+    position: 11,
     name: 'Natural Resource (NR) Districts',
     format: 'image/png',
     layers: 'WHSE_ADMIN_BOUNDARIES.ADM_NR_DISTRICTS_SPG',
@@ -130,7 +150,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '365', title: 'Natural_Resource_Districts_Colour_Themed' }],
   },
   {
-    position: 11,
+    position: 12,
     name: 'FADM - BC Timber Sales Area',
     format: 'image/png',
     layers: 'WHSE_ADMIN_BOUNDARIES.FADM_BCTS_AREA_SP',
@@ -139,7 +159,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '6', title: 'BC_Timber_Sale_Areas_Colour_Filled' }],
   },
   {
-    position: 12,
+    position: 13,
     name: 'FADM - Tree Farm License Current View (TFL)',
     format: 'image/png',
     layers: 'WHSE_ADMIN_BOUNDARIES.FADM_TFL_ALL_SP',
@@ -148,7 +168,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '6980', title: 'Tree_Farm_Licence_Current_Boundary_Colour_Filled' }],
   },
   {
-    position: 13,
+    position: 14,
     name: 'Forest Tenure Managed Licence',
     format: 'image/png',
     layers: 'WHSE_FOREST_TENURE.FTEN_MANAGED_LICENCE_POLY_SVW',
@@ -161,7 +181,7 @@ export const allLayers: MapLayer[] = [
     ],
   },
   {
-    position: 14,
+    position: 15,
     name: 'ParcelMap BC Parcel Fabric',
     format: 'image/png',
     layers: 'WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',
@@ -170,7 +190,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '5162', title: 'Dominion_Coal_Blocks_Colour_Filled' }],
   },
   {
-    position: 15,
+    position: 16,
     name: 'Forest Tenure Road Section Lines',
     format: 'image/png',
     layers: 'WHSE_FOREST_TENURE.FTEN_ROAD_SECTION_LINES_SVW',
@@ -179,7 +199,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '2864', title: 'All_Forest_Road_Sections_FTEN_Colour_Themed' }],
   },
   {
-    position: 16,
+    position: 17,
     name: 'Digital Road Atlas (DRA) - Master Partially-Attributed Roads',
     format: 'image/png',
     layers: 'WHSE_BASEMAPPING.DRA_DGTL_ROAD_ATLAS_MPAR_SP',
@@ -188,7 +208,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '3241_4489', title: 'Digital_Road_Atlas' }],
   },
   {
-    position: 17,
+    position: 18,
     name: 'Waterbodies - TRIM Enhanced Base Map (EBM)',
     format: 'image/png',
     layers: 'WHSE_BASEMAPPING.TRIM_EBM_WATERBODIES',
@@ -197,7 +217,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '3370', title: 'Water_Lake_Reservoir_etc_Outlined_20K' }],
   },
   {
-    position: 18,
+    position: 19,
     name: 'Watercourses - TRIM Enhanced Base Map (EBM)',
     format: 'image/png',
     layers: 'WHSE_BASEMAPPING.TRIM_EBM_WATERCOURSES',
@@ -206,7 +226,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '3372', title: 'Water_River_Canal_etc_Outlined_20K' }],
   },
   {
-    position: 19,
+    position: 20,
     name: 'Freshwater Atlas Stream Network',
     format: 'image/png',
     layers: 'WHSE_BASEMAPPING.FWA_STREAM_NETWORKS_SP',
@@ -218,7 +238,7 @@ export const allLayers: MapLayer[] = [
     ],
   },
   {
-    position: 20,
+    position: 21,
     name: 'Freshwater Atlas Rivers',
     format: 'image/png',
     layers: 'WHSE_BASEMAPPING.FWA_RIVERS_POLY',
@@ -227,7 +247,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '704', title: 'FWA_Rivers_Colour_Filled' }],
   },
   {
-    position: 21,
+    position: 22,
     name: 'Protected Lands Access Restrictions - Points',
     format: 'image/png',
     layers: 'WHSE_PARKS.PA_PRTCTD_LND_FACILITIES_SP',
@@ -236,7 +256,7 @@ export const allLayers: MapLayer[] = [
     styles: [{ name: '7624', title: 'Protected_Lands_Access_Restrictions_Centre_Points_Provincial_Parks_Eco_Reserves_etc' }],
   },
   {
-    position: 22,
+    position: 23,
     name: 'Forest Tenure Cutblock Polygons (FTA 4.0)',
     format: 'image/png',
     layers: 'WHSE_FOREST_TENURE.FTEN_CUT_BLOCK_POLY_SVW',

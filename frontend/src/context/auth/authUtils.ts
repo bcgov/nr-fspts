@@ -10,50 +10,62 @@ import {
   type USER_PRIVILEGE_TYPE,
 } from './types';
 
-// ── Cookie helpers ───────────────────────────────────────────────────
+// ── Amplify localStorage token access ────────────────────────────────
+// Amplify persists Cognito tokens in localStorage (its default store — the
+// CookieStorage override was a no-op, see main.tsx). These helpers read the
+// current token straight from that store WITHOUT calling fetchAuthSession —
+// important because fetchAuthSession refreshes an expired token as a side
+// effect (TokenOrchestrator.getTokens), which would silently slide the
+// session-timeout deadline every time we polled it.
 
-/** Reads a browser cookie value by name. Returns '' if not found. */
-export const getCookie = (name: string): string => {
-  const cookie = document.cookie
-    .split(';')
-    .find((cookieValue) => cookieValue.trim().startsWith(name));
-  return cookie ? (cookie.split('=')[1] ?? '') : '';
+/** Base of the Amplify token keys for the configured app client. */
+const tokenKeyBase = (): string =>
+  `CognitoIdentityServiceProvider.${env.VITE_USER_POOLS_WEB_CLIENT_ID}`;
+
+const readLocalStorage = (key: string): string | undefined => {
+  try {
+    return window.localStorage.getItem(key) ?? undefined;
+  } catch {
+    return undefined; // storage disabled (e.g. hardened private mode)
+  }
 };
 
 /**
- * Reads the Cognito **access token** from cookies set by AWS Amplify's
- * CookieStorage. This is the token sent to the backend API as a Bearer
- * token.
- *
- * Access tokens carry `cognito:groups` (for authorization) and `sub` but
- * do NOT carry the `custom:idp_*` profile claims — those live only in
- * the ID token.
+ * The Cognito **access token** from Amplify's localStorage, or undefined.
+ * This is the token sent to the backend API as a Bearer token. Note the API
+ * layer reads its token via fetchAuthSession (storage-agnostic); this direct
+ * reader backs only the auth-context convenience getters.
  */
-export const getAccessTokenFromCookie = (): string | undefined => {
-  const baseCookieName = `CognitoIdentityServiceProvider.${env.VITE_USER_POOLS_WEB_CLIENT_ID}`;
-  const userId = encodeURIComponent(getCookie(`${baseCookieName}.LastAuthUser`));
-  if (userId) {
-    const token = getCookie(`${baseCookieName}.${userId}.accessToken`);
-    return token || undefined;
-  }
-  return undefined;
+export const getStoredAccessToken = (): string | undefined => {
+  const base = tokenKeyBase();
+  const user = readLocalStorage(`${base}.LastAuthUser`);
+  if (!user) return undefined;
+  return readLocalStorage(`${base}.${user}.accessToken`);
 };
 
 /**
- * Reads the Cognito **ID token** from cookies set by AWS Amplify's
- * CookieStorage. Used **only** on the frontend to populate the local
- * user profile (display name, email, IDP provider, etc.). Never sent to
- * the backend.
+ * Drops every Amplify token/session key for the configured app client from
+ * localStorage. Used by the federated-logout path, which drives the sign-out
+ * redirect chain itself (Siteminder → KC → Cognito → app) instead of Amplify's
+ * signOut(): clearing the tokens here means that when the browser lands back
+ * on the app at the end of the chain, AuthProvider bootstraps with no session
+ * and renders the logged-out landing. The chain's final Cognito /logout hop
+ * clears the Cognito session cookie server-side.
  */
-export const getIdTokenFromCookie = (): string | undefined => {
-  const baseCookieName = `CognitoIdentityServiceProvider.${env.VITE_USER_POOLS_WEB_CLIENT_ID}`;
-  const userId = encodeURIComponent(getCookie(`${baseCookieName}.LastAuthUser`));
-  if (userId) {
-    const token = getCookie(`${baseCookieName}.${userId}.idToken`);
-    return token || undefined;
+export const clearStoredTokens = (): void => {
+  try {
+    const prefix = tokenKeyBase();
+    const keys: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key && key.startsWith(prefix)) keys.push(key);
+    }
+    keys.forEach((k) => window.localStorage.removeItem(k));
+  } catch {
+    /* storage disabled — nothing to clear */
   }
-  return undefined;
 };
+
 
 // ── Token parsing ────────────────────────────────────────────────────
 

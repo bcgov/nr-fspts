@@ -9,6 +9,7 @@ start. These docs go deeper:
 | [roles-and-security.md](roles-and-security.md) | Know what each of the six FSPTS roles can do and how authorization is enforced front-to-back |
 | [permission-matrix.md](permission-matrix.md) | See the role permissions broken out **by FSP status** (activity × state × role) — a draft matrix for client confirmation |
 | [database.md](database.md) | Work with the legacy Oracle packages (`nr-mof-db`), the ownership fence, or the status state machine |
+| [fsp-dates.md](fsp-dates.md) | Figure out what an FSP date means — every plan/extension/OTBH/audit date, its DB column, and the legacy label it maps to |
 | [submissions.md](submissions.md) | Touch the XML / GeoJSON submission pipeline |
 | [submission-geojson-spec.md](submission-geojson-spec.md) | Hand a client the GeoJSON upload format spec |
 | [virus-scanning.md](virus-scanning.md) | Work on the ClamAV upload scanning — config, fail-open policy, or the cross-namespace NetworkPolicy/secrets |
