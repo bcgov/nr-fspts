@@ -45,23 +45,24 @@ jobs:
         working-directory: backend
         run: mvn -B -DskipITs verify
 
-      # Sonar is gated on the secret being present so PRs from forks (which
-      # don't get secrets) don't fail. Single SonarCloud project for the whole
-      # repo: bcgov_nr-fsp (org bcgov-sonarcloud). NOTE: the backend (Java) and
-      # frontend (JS) scans push to the SAME project key, so each analysis
-      # replaces the previous one — the project reflects whichever job finished
-      # last. If you want backend + frontend coverage to coexist, either split
-      # into two projects (…_backend / …_frontend) or run a single unified scan.
+      # Sonar is gated on the token being present so PRs from forks (which
+      # don't get secrets) don't fail. Project key + token both come from repo
+      # secrets (SONAR_PROJECT_KEY / SONAR_TOKEN) so they match the SonarCloud
+      # project the token was issued for; host + org are BC Gov's SonarCloud.
+      # NOTE: the backend (Java) and frontend (JS) scans use the SAME project
+      # key, so each analysis replaces the previous — the project reflects
+      # whichever job finished last. Use two keys if you need both to coexist.
       - name: SonarCloud scan
         if: env.SONAR_TOKEN != ''
         working-directory: backend
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
         run: |
           mvn -B sonar:sonar \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.organization=bcgov-sonarcloud \
-            -Dsonar.projectKey=bcgov_nr-fsp \
+            -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
             -Dsonar.token="$SONAR_TOKEN"
 
   frontend-tests:
@@ -87,7 +88,7 @@ jobs:
           sonar_args: >
             -Dsonar.exclusions=**/coverage/**,**/node_modules/**,**/*spec.ts,**/*.test.ts,**/*.test.tsx,**/e2e/**
             -Dsonar.organization=bcgov-sonarcloud
-            -Dsonar.projectKey=bcgov_nr-fsp
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
             -Dsonar.sources=src
             -Dsonar.test.inclusions=**/*spec.ts,**/*.test.ts,**/*.test.tsx
             -Dsonar.javascript.lcov.reportPaths=./coverage/lcov.info
