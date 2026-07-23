@@ -1,6 +1,4 @@
 import { Amplify } from 'aws-amplify';
-import { cognitoUserPoolsTokenProvider } from 'aws-amplify/auth/cognito';
-import { CookieStorage } from 'aws-amplify/utils';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -13,26 +11,18 @@ import ThemeProvider from './context/theme/ThemeProvider';
 
 import './index.scss';
 
-// Storage MUST be set BEFORE Amplify.configure(): in v6, configure() can
-// trigger immediate OAuth-callback processing when the URL contains
-// ?code=...&state=..., and that processing reads the OAuth flow state
-// (PKCE verifier, state, nonce) from whatever storage is active at that
-// moment. If we configure first and swap storage afterward, the callback
-// handler reads from the default (localStorage) while signInWithRedirect
-// wrote to the swapped-in CookieStorage — silent miss, no token POST.
-cognitoUserPoolsTokenProvider.setKeyValueStorage(
-  new CookieStorage({
-    domain: window.location.hostname,
-    path: '/',
-    // Match the page protocol. Forcing `secure: true` on http://localhost
-    // makes the browser silently refuse to store the OAuth state/PKCE
-    // cookies, so the code-exchange fails on redirect-back and the SPA
-    // stays in the unauthenticated branch.
-    secure: window.location.protocol === 'https:',
-    sameSite: 'strict',
-    expires: undefined, // session cookie — dies when browser closes
-  }),
-);
+// Amplify persists Cognito tokens in its default store — window.localStorage
+// (with an in-memory fallback). A previous CookieStorage override here was a
+// silent no-op: aws-amplify's configure() re-seeds the token-provider storage
+// to the default on its first call (see initSingleton.mjs — the
+// `!Amplify.libraryOptions.Auth` branch calls setKeyValueStorage(defaultStorage)),
+// clobbering any storage set beforehand. So tokens have always lived in
+// localStorage, and the PKCE/OAuth-callback state along with them —
+// consistently, which is why login worked. Token reads go through
+// fetchAuthSession (storage-agnostic), so localStorage is fine; the cookie
+// override and cookie-only readers were removed to match reality. To actually
+// force cookies you'd pass `{ Auth: { tokenProvider, credentialsProvider } }`
+// as configure()'s 2nd arg (the early-return path that doesn't reset storage).
 Amplify.configure(amplifyconfig);
 
 const container = document.getElementById('root');

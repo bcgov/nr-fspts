@@ -89,4 +89,66 @@ public class FspValidationDaoImpl implements FspValidationDao {
       }
     });
   }
+
+  /**
+   * One anonymous block reads the indicator/code/transition columns and
+   * evaluates the three {@code has_*_changes} functions (which return PL/SQL
+   * BOOLEAN — not selectable in plain SQL, hence the CASE→'Y'/'N' mapping
+   * through OUT binds). The ids are bound once into locals so the function
+   * calls reuse them. NO_DATA_FOUND (no such FSP/amendment) leaves the OUT
+   * params null, which the record surfaces as null indicators.
+   */
+  @Override
+  @Transactional(readOnly = true)
+  public UpdateIndicatorState getUpdateIndicatorState(long fspId, long amendmentNumber) {
+    return jdbc.execute((java.sql.Connection con) -> {
+      try (CallableStatement cs = con.prepareCall(
+          "DECLARE "
+              + "  v_id  NUMBER := ?; "
+              + "  v_amd NUMBER := ?; "
+              + "  v_amd_code   VARCHAR2(3); "
+              + "  v_transition VARCHAR2(1); "
+              + "  v_fdu_ind    VARCHAR2(1); "
+              + "  v_ia_ind     VARCHAR2(1); "
+              + "  v_ss_ind     VARCHAR2(1); "
+              + "BEGIN "
+              + "  SELECT fsp_amendment_code, NVL(transition_ind,'N'), "
+              + "         NVL(fdu_update_ind,'N'), NVL(identified_areas_update_ind,'N'), "
+              + "         NVL(stocking_standard_update_ind,'N') "
+              + "    INTO v_amd_code, v_transition, v_fdu_ind, v_ia_ind, v_ss_ind "
+              + "    FROM forest_stewardship_plan "
+              + "   WHERE fsp_id = v_id AND fsp_amendment_number = v_amd; "
+              + "  ? := v_amd_code; "
+              + "  ? := v_transition; "
+              + "  ? := v_fdu_ind; "
+              + "  ? := v_ia_ind; "
+              + "  ? := v_ss_ind; "
+              + "  ? := CASE WHEN fsp_common_db.has_fdu_changes(v_id, v_amd) THEN 'Y' ELSE 'N' END; "
+              + "  ? := CASE WHEN fsp_common_db.has_identified_area_changes(v_id, v_amd) THEN 'Y' ELSE 'N' END; "
+              + "  ? := CASE WHEN fsp_common_db.has_stocking_standard_changes(v_id, v_amd) THEN 'Y' ELSE 'N' END; "
+              + "EXCEPTION WHEN NO_DATA_FOUND THEN NULL; "
+              + "END;")) {
+        cs.setLong(1, fspId);
+        cs.setLong(2, amendmentNumber);
+        cs.registerOutParameter(3, java.sql.Types.VARCHAR);   // amendment code
+        cs.registerOutParameter(4, java.sql.Types.VARCHAR);   // transition ind
+        cs.registerOutParameter(5, java.sql.Types.VARCHAR);   // fdu update ind
+        cs.registerOutParameter(6, java.sql.Types.VARCHAR);   // ia update ind
+        cs.registerOutParameter(7, java.sql.Types.VARCHAR);   // ss update ind
+        cs.registerOutParameter(8, java.sql.Types.VARCHAR);   // fdu has changes
+        cs.registerOutParameter(9, java.sql.Types.VARCHAR);   // ia has changes
+        cs.registerOutParameter(10, java.sql.Types.VARCHAR);  // ss has changes
+        cs.execute();
+        return new UpdateIndicatorState(
+            cs.getString(3),
+            cs.getString(4),
+            cs.getString(5),
+            "Y".equals(cs.getString(8)),
+            cs.getString(6),
+            "Y".equals(cs.getString(9)),
+            cs.getString(7),
+            "Y".equals(cs.getString(10)));
+      }
+    });
+  }
 }

@@ -20,6 +20,12 @@ export type AuthContextType = {
    * the session has expired (user is signed out automatically).
    */
   ensureFreshToken: () => Promise<string | undefined>;
+  /**
+   * Force a token refresh via the refresh token (mints a fresh, rotated
+   * refresh token, sliding the session deadline). Backs the warning modal's
+   * "Stay logged in". Rejects if the refresh token itself has expired.
+   */
+  forceRefreshSession: () => Promise<void>;
 };
 
 export type AuthProviderProps = {

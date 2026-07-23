@@ -178,12 +178,19 @@ public class WorkflowService {
       ddmDecision = ddmDecisionFallback(resolvedFspId, resolvedAmendmentNumber, ddmDecision);
     }
 
+    // amendment_approval_date isn't returned by FSP_700 — read it app-side so
+    // the DDM Decision tile can show it for an approved amendment.
+    String amendmentApprovalDate =
+        resolveAmendmentApprovalDate(resolvedFspId, resolvedAmendmentNumber);
+
     return new WorkflowState(
         resolvedFspId,
         resolvedAmendmentNumber,
         r.pFspStatusCode(),
         r.pFspStatusDesc(),
         r.pFspAmendmentCode(),
+        r.pFspExpiryDate(),
+        amendmentApprovalDate,
         reviewItems,
         new WorkflowState.Otbh(
             r.pOtbhOfferedDate(),
@@ -626,6 +633,23 @@ public class WorkflowService {
         recorded.decisionDate(),
         recorded.effectiveDate(),
         recorded.comment());
+  }
+
+  /**
+   * Read {@code amendment_approval_date} for the resolved amendment via a
+   * direct query (FSP_700 doesn't return it). Returns null for the original
+   * plan, a blank/unparseable amendment number, or when the column is empty.
+   */
+  private String resolveAmendmentApprovalDate(String fspId, String amendmentNumber) {
+    if (nz(fspId).isEmpty() || nz(amendmentNumber).isEmpty()) {
+      return null;
+    }
+    try {
+      return workflowQueryDao.findAmendmentApprovalDate(
+          Long.parseLong(fspId.trim()), Long.parseLong(amendmentNumber.trim()));
+    } catch (NumberFormatException e) {
+      return null;
+    }
   }
 
   /**

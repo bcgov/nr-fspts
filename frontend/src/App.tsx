@@ -2,6 +2,7 @@ import {BrowserRouter, Navigate, Route, Routes, useLocation} from 'react-router-
 import type {FC, ReactNode} from 'react';
 
 import Layout from './components/Layout';
+import SessionTimeout from './components/SessionTimeout';
 import {useAuth} from './context/auth/useAuth';
 import {useOrg} from './context/org/useOrg';
 import {defaultRouteForUser, isPathAllowedForUser} from './routes/access';
@@ -71,6 +72,10 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      {/* Inactivity guard — mounted for every authenticated state (including
+          the no-role and org-select gates) so the warning modal + auto-logout
+          apply everywhere a session is live. Renders nothing until it fires. */}
+      {isLoggedIn && <SessionTimeout />}
       {isLoggedIn && !hasFsptsRole ? (
         <Routes>
           <Route path="*" element={<UnauthorizedPage />} />

@@ -259,3 +259,47 @@ new tab — there is no external map viewer and **no map-viewer env var**. (The 
 `vars.VITE_MAP_VIEWER_URL` from the GitHub Environments.) The new tab opens with
 `noopener`, so the active BCeID org is threaded through the URL (`&activeOrg=…`)
 and adopted by `OrgProvider` to avoid re-prompting multi-org users.
+
+### Federated logout (session sign-out chain)
+
+Logout has to end **all three** sessions or it isn't a real logout: the app
+(Cognito), Keycloak (loginproxy), and Siteminder (IDIR/BCeID). Cognito's hosted
+`/logout` does **not** propagate to an upstream OIDC IdP, so the app drives the
+chain itself, with Cognito firing **last**:
+
+```
+app → Siteminder logoff.cgi → Keycloak end-session → Cognito /logout → app
+```
+
+Putting Cognito last means Keycloak's `post_logout_redirect_uri` is the
+**Cognito** `/logout` URL (one stable, app-agnostic value) rather than the app
+URL — so the app URL only ever has to be registered as a **Cognito sign-out
+URL** (ours to control), never on the shared FAM Keycloak client. The chain is
+assembled and per-layer URL-encoded at runtime in
+`src/context/auth/logoutChain.ts`; the auth-context `logout()` clears the local
+tokens and navigates it. If any of the three pieces below is unset the code
+falls back to the plain Amplify hosted-UI sign-out (Cognito-first), using
+`VITE_REDIRECT_SIGN_OUT`.
+
+| GitHub Environment config | Kind | Purpose |
+|---------------------------|------|---------|
+| `VITE_LOGOUT_SITEMINDER_URL` | **variable** (`vars.…`) | Siteminder `logoff.cgi` base. TEST `https://logontest7.gov.bc.ca/clp-cgi/logoff.cgi`, PROD `https://logon7.gov.bc.ca/clp-cgi/logoff.cgi`. |
+| `VITE_LOGOUT_KEYCLOAK_URL` | **variable** (`vars.…`) | Keycloak end-session URL, `standard` realm. TEST `https://test.loginproxy.gov.bc.ca/auth/realms/standard/protocol/openid-connect/logout`, PROD `https://loginproxy.gov.bc.ca/auth/realms/standard/protocol/openid-connect/logout`. |
+| `VITE_LOGOUT_KEYCLOAK_CLIENT_ID` | **variable** (`vars.…`) | Cognito's client id **in Keycloak** (FAM-provided, per env). TEST `fsa-cognito-idir-dev-4088`; PROD is a different client — get it from FAM. |
+
+All three are **variables, not secrets** — public URLs and an OIDC client id,
+nothing sensitive. They thread through the usual four places: `vars.*` →
+`.github/workflows/reusable-deploy.yml` (`-p …`) → `frontend/openshift.deploy.yml`
+(param + container `env`) → `frontend/docker-entrypoint.sh` (`/srv/config.js`) →
+`src/env.ts`. Local dev sets them in `frontend/.env.local`.
+
+One-time FAM/Cognito registration this depends on (no code, but the chain won't
+complete without it):
+
+- **Cognito app client → Allowed sign-out URLs:** the app origin per env
+  (`http://localhost:3000`, the TEST/PROD app URLs). This is Cognito's
+  `logout_uri` at the end of the chain.
+- **Keycloak client → Valid post logout redirect URIs:** the **Cognito**
+  `/logout` URL (not the app). Often already satisfied if the client uses `+`
+  (inherit) or a `https://<cognito-domain>/*` wildcard — check before adding an
+  entry. See [`fam-integration.md`](fam-integration.md) for the topology.

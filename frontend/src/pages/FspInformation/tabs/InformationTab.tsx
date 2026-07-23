@@ -31,6 +31,7 @@ import {
   type CodeOption,
   type FspAgreementHolder,
   type FspDistrict,
+  type FspExtension,
   type FspInformation,
   updateFsp,
 } from '@/services/fspSearch';
@@ -40,6 +41,12 @@ import { EDIT_PANE, useEditLock, useEditRegistration } from '../editLock';
 interface Props {
   fsp: FspInformation | null;
   onSaved: (updated: FspInformation) => void;
+  /**
+   * Latest extension for the version in view (parent-fetched from FSP_303).
+   * Drives the read-only "Extension effective date" row, shown only when an
+   * approved extension exists. Null when there's no extension.
+   */
+  latestExtension?: FspExtension | null;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -140,9 +147,9 @@ const Field: FC<FieldEntry> = ({ label, value, full }) => (
  * proc-derived description fields are excluded — those come back on the
  * response and the parent refreshes from there.
  *
- * The Transition flags bind to a boolean here for the Yes/No radio
- * groups; we convert to the proc's 'Y'/'N' strings just before the save
- * call.
+ * The FRPA s.197 election flag binds to a boolean here for its Yes/No radio
+ * group; we convert to the proc's 'Y'/'N' strings just before the save call.
+ * (Transitional FSP is no longer editable — always 'N', set at creation.)
  */
 interface EditFormState {
   fspPlanName: string;
@@ -153,7 +160,6 @@ interface EditFormState {
   fspExpiryDate: string;
   fspPlanTermYears: string;
   fspPlanTermMonths: string;
-  transitionInd: boolean;
   frpa197electionInd: boolean;
 }
 
@@ -166,7 +172,6 @@ const createFormState = (fsp: FspInformation): EditFormState => ({
   fspExpiryDate: fsp.fspExpiryDate ?? '',
   fspPlanTermYears: fsp.fspPlanTermYears ?? '',
   fspPlanTermMonths: fsp.fspPlanTermMonths ?? '',
-  transitionInd: fsp.transitionInd === 'Y',
   frpa197electionInd: fsp.frpa197electionInd === 'Y',
 });
 
@@ -265,13 +270,15 @@ const toPayload = (form: EditFormState): Partial<FspInformation> => ({
   fspExpiryDate: form.fspExpiryDate,
   fspPlanTermYears: form.fspPlanTermYears.trim(),
   fspPlanTermMonths: form.fspPlanTermMonths.trim(),
-  transitionInd: form.transitionInd ? 'Y' : 'N',
+  // transitionInd is intentionally omitted — it's no longer user-editable, so
+  // the save leaves the existing DB value untouched (backend applyEdits skips
+  // null fields). New FSPs are created as 'N'.
   frpa197electionInd: form.frpa197electionInd ? 'Y' : 'N',
 });
 
 // ─── Component ─────────────────────────────────────────────────────────
 
-const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
+const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
   const { display } = useNotification();
   const { user } = useAuth();
   // Master edit gate — View-Only never edits; Submitter-only is locked
@@ -513,21 +520,48 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
   };
 
   // ─── Read-only field list (Plan details) ────────────────────────────
-  // FSP name and the two flags span the full row so the three date
-  // fields group together on a single row, matching the approved
-  // layout. Contact fields are kept here (per design) after the flags.
+  // FSP name and the two flags span the full row so the date fields group
+  // together, matching the approved layout. Contact fields are kept here
+  // (per design) after the flags.
+  //
+  // The Amendment-effective and Extension-effective date rows are
+  // conditional (FSP dates spec): amendment-effective only for an approved
+  // amendment; extension-effective only for an approved extension.
+  const isApprovedStatus =
+    fsp.fspStatusCode === 'APP' || fsp.fspStatusCode === 'INE';
+  const isAmendment = Number(fsp.fspAmendmentNumber ?? 0) > 0;
+  const showAmendmentEffective =
+    isAmendment && isApprovedStatus && !!fsp.amendmentEfftvDate?.trim();
+  const extensionApproved =
+    (latestExtension?.statusCode ?? '').toUpperCase() === 'APP' ||
+    (latestExtension?.statusCode ?? '').toUpperCase() === 'INE';
+  const showExtensionEffective =
+    extensionApproved && !!latestExtension?.planStartDate?.trim();
+
   const planDetails: FieldEntry[] = [
     { label: 'FSP name', value: dash(fsp.fspPlanName), full: true },
+    { label: 'Submission date', value: dash(fsp.fspPlanSubmissionDate) },
     { label: 'Effective date', value: dash(fsp.fspPlanStartDate) },
     { label: 'Expiry date', value: dash(fsp.fspExpiryDate) },
+    ...(showAmendmentEffective
+      ? [
+          {
+            label: 'Amendment effective date',
+            value: dash(fsp.amendmentEfftvDate),
+          },
+        ]
+      : []),
+    ...(showExtensionEffective
+      ? [
+          {
+            label: 'Extension effective date',
+            value: dash(latestExtension?.planStartDate),
+          },
+        ]
+      : []),
     {
       label: 'FSP term',
       value: formatTerm(fsp.fspPlanTermYears, fsp.fspPlanTermMonths),
-    },
-    {
-      label: 'Transitional FSP',
-      value: yesNo(fsp.transitionInd),
-      full: true,
     },
     {
       label: 'FRPA s.197 election for stocking standards',
@@ -719,19 +753,6 @@ const InformationTab: FC<Props> = ({ fsp, onSaved }) => {
 
               <div className="fsp-info__edit-section">
                 <div className="fsp-info__edit-questions">
-                  <RadioButtonGroup
-                    name="transitionInd"
-                    legendText="Is this a transitional FSP?"
-                    valueSelected={form.transitionInd ? 'Y' : 'N'}
-                    disabled={saving}
-                    onChange={(value) =>
-                      setField('transitionInd', value === 'Y')
-                    }
-                  >
-                    <RadioButton id="transitionInd-yes" labelText="Yes" value="Y" />
-                    <RadioButton id="transitionInd-no" labelText="No" value="N" />
-                  </RadioButtonGroup>
-
                   <RadioButtonGroup
                     name="frpa197electionInd"
                     legendText="Are you electing FRPA s.197 for stocking standards?"

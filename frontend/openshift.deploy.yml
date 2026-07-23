@@ -36,8 +36,19 @@ parameters:
     description: Cognito app-client ID (public)
     required: true
   - name: VITE_REDIRECT_SIGN_OUT
-    description: Full BC Gov logoff chain URL — must match a Cognito-registered sign-out URL
+    description: Fallback Amplify sign-out target (a Cognito-registered sign-out URL). Used only when the federated-logout pieces below are unset.
     required: true
+  # Federated logout chain (Cognito fires LAST: Siteminder → Keycloak →
+  # Cognito → app) — see docs/architecture.md → Federated logout and
+  # src/context/auth/logoutChain.ts. Plain (un-encoded) values; the app nests
+  # + URL-encodes them at runtime. All three are optional: leave any unset and
+  # logout falls back to the plain Amplify sign-out via VITE_REDIRECT_SIGN_OUT.
+  - name: VITE_LOGOUT_SITEMINDER_URL
+    description: Siteminder logoff.cgi base — test https://logontest7.gov.bc.ca/clp-cgi/logoff.cgi, prod https://logon7.gov.bc.ca/clp-cgi/logoff.cgi
+  - name: VITE_LOGOUT_KEYCLOAK_URL
+    description: Keycloak end-session URL — <loginproxy-host>/auth/realms/standard/protocol/openid-connect/logout
+  - name: VITE_LOGOUT_KEYCLOAK_CLIENT_ID
+    description: Cognito's client id IN Keycloak (FAM-provided, per env)
   - name: VITE_API_BASE_URL
     description: Browser-facing API base path; usually '/api'
     value: /api
@@ -130,6 +141,12 @@ objects:
                   value: ${VITE_USER_POOLS_WEB_CLIENT_ID}
                 - name: VITE_REDIRECT_SIGN_OUT
                   value: ${VITE_REDIRECT_SIGN_OUT}
+                - name: VITE_LOGOUT_SITEMINDER_URL
+                  value: ${VITE_LOGOUT_SITEMINDER_URL}
+                - name: VITE_LOGOUT_KEYCLOAK_URL
+                  value: ${VITE_LOGOUT_KEYCLOAK_URL}
+                - name: VITE_LOGOUT_KEYCLOAK_CLIENT_ID
+                  value: ${VITE_LOGOUT_KEYCLOAK_CLIENT_ID}
                 - name: VITE_API_BASE_URL
                   value: ${VITE_API_BASE_URL}
                 - name: VITE_APP_NAME

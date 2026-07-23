@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState, useCallback, useRef, type ReactNode } fro
 import { env } from '@/env';
 
 import { AuthContext, type AuthContextType } from './AuthContext';
-import { parseToken, getAccessTokenFromCookie } from './authUtils';
+import {
+  parseToken,
+  getStoredAccessToken,
+  clearStoredTokens,
+} from './authUtils';
+import { buildFederatedLogoutUrl } from './logoutChain';
 import type { FamLoginUser, LoginProvider } from './types';
 
 /**
@@ -65,7 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Bootstrap on mount. Runs once per page load; if the URL contains a
   // ?code=&state= pair, Amplify.configure() (in main.tsx) has already
-  // exchanged it for tokens stored in CookieStorage by the time we get
+  // exchanged it for tokens stored in localStorage by the time we get
   // here, so fetchAuthSession() just reads them.
   useEffect(() => {
     refreshUserState();
@@ -104,14 +109,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (refreshInFlight.current) {
         // Another refresh is already happening; wait a beat and read
-        // from cookie so we don't race.
+        // from storage so we don't race.
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        return getAccessTokenFromCookie();
+        return getStoredAccessToken();
       }
 
       const now = Date.now();
       if (now - lastRefreshTime.current < MIN_REFRESH_GAP_MS) {
-        return getAccessTokenFromCookie();
+        return getStoredAccessToken();
       }
 
       refreshInFlight.current = true;
@@ -120,7 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const parsed = await loadSession(true);
         if (parsed) setUser(parsed);
-        return getAccessTokenFromCookie();
+        return getStoredAccessToken();
       } finally {
         refreshInFlight.current = false;
       }
@@ -149,13 +154,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const logout = useCallback(async () => {
+    // Primary path: drive the federated logout chain ourselves so Cognito
+    // fires LAST (Siteminder → KC → Cognito → app). Amplify's signOut() would
+    // force Cognito first, which is what makes the app URL have to be
+    // registered on the Keycloak client — see logoutChain.ts. We clear the
+    // local tokens up front (so returning to the app reads as logged out), then
+    // navigate; the browser still carries the Cognito session cookie, so the
+    // chain's final Cognito /logout hop clears it server-side.
+    const chainUrl = buildFederatedLogoutUrl(window.location.origin);
+    if (chainUrl) {
+      clearStoredTokens();
+      // Deliberately NOT setUser(undefined) here: a full-page navigation is
+      // imminent and the app re-bootstraps from scratch on return, so the
+      // state update is pointless — and worse, it can momentarily mount
+      // LandingPage before the browser unloads, whose mount effect
+      // reads-and-clears the SESSION_EXPIRED_FLAG. That would consume the
+      // "session expired" banner signal before the timeout round-trip
+      // returns, so the yellow notice never shows. Leave state as-is and let
+      // the navigation take over.
+      window.location.assign(chainUrl);
+      return;
+    }
+    // Fallback (chain not configured for this env): plain Amplify hosted-UI
+    // sign-out, which redirects through Cognito /logout → redirectSignOut.
     await signOut();
     setUser(undefined);
   }, []);
 
   const userToken = useCallback((): string | undefined => {
-    return getAccessTokenFromCookie();
+    return getStoredAccessToken();
   }, []);
+
+  // Unconditional refresh (vs ensureFreshToken, which only refreshes when the
+  // access token is near expiry). Mints a fresh rotated refresh token, sliding
+  // the session. Throws if the refresh token has expired — the caller signs out.
+  const forceRefreshSession = useCallback(async (): Promise<void> => {
+    const parsed = await loadSession(true);
+    setUser(parsed);
+  }, [loadSession]);
 
   const contextValue: AuthContextType = useMemo(
     () => ({
@@ -166,8 +202,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       logout,
       userToken,
       ensureFreshToken,
+      forceRefreshSession,
     }),
-    [user, isLoading, login, logout, userToken, ensureFreshToken],
+    [
+      user,
+      isLoading,
+      login,
+      logout,
+      userToken,
+      ensureFreshToken,
+      forceRefreshSession,
+    ],
   );
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;

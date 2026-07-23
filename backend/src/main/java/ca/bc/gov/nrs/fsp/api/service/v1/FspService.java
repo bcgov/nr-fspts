@@ -571,7 +571,50 @@ public class FspService {
           ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(
               CODE_NO_LEGAL_DOCUMENT)));
     }
+    // Draft→Submitted "declared an update but carries no change" rules.
+    // validate_fsp (the chain above) never runs the status-change branch, so
+    // these would otherwise surface only on the real submit. Replicate them
+    // against the same has_*_changes functions SUBMIT calls, using the proc's
+    // exact code-branching (validate_status_change) so preflight and submit
+    // agree on which rule bites and which code it raises.
+    ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao.UpdateIndicatorState ind =
+        validationDao.getUpdateIndicatorState(fspIdLong, amendmentLong);
+    boolean isAmendment = "AMD".equals(ind.amendmentCode());
+    boolean isTransition = "Y".equals(ind.transitionInd());
+    if ("Y".equals(ind.fduUpdateInd()) && !ind.fduHasChanges()) {
+      addPreflightIssue(issues, isAmendment
+          ? "FSP.FDU_UPDATE_IND.NOCHANGE" : "FSP.RPL_FDU_UPDATE_IND.NOCHANGE");
+    }
+    if ("Y".equals(ind.iaUpdateInd()) && !ind.iaHasChanges()) {
+      // Transition FSPs get their own code regardless of amendment vs
+      // replacement — mirrors the proc's inner IF (v_transition_ind = 'Y').
+      addPreflightIssue(issues, isTransition
+          ? "FSP.TRANSITION.IA.REQUIRED"
+          : (isAmendment ? "FSP.IA_UPDATE_IND.NOCHANGE" : "FSP.RPL_IA_UPDATE_IND.NOCHANGE"));
+    }
+    if ("Y".equals(ind.ssUpdateInd()) && !ind.ssHasChanges()) {
+      addPreflightIssue(issues, isAmendment
+          ? "FSP.SS_UPDATE_IND.NOCHANGE" : "FSP.RPL_SS_UPDATE_IND.NOCHANGE");
+    }
     return new ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse(issues.isEmpty(), issues);
+  }
+
+  /**
+   * Append a curated preflight issue for {@code code}, unless one with the
+   * same code is already present. Falls back to the raw code as the surface
+   * text if it has no curated message (shouldn't happen — every code these
+   * checks raise is mapped in ProcErrorMessages).
+   */
+  private static void addPreflightIssue(
+      List<ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse.Issue> issues,
+      String code) {
+    if (issues.stream().anyMatch(i -> code.equals(i.code()))) {
+      return;
+    }
+    String surface =
+        ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(code);
+    issues.add(new ca.bc.gov.nrs.fsp.api.struct.v1.SubmitPreflightResponse.Issue(
+        code, null, surface != null ? surface : code));
   }
 
   /**

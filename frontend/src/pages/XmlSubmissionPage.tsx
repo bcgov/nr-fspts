@@ -962,7 +962,6 @@ function ReviewSections({
             ['Action', actionValue],
             ['Approval required', yesNo(preview.plan?.approvalRequired)],
             ['FRPA 197 election', yesNo(preview.plan?.frpa197)],
-            ['Transitional FSP', yesNo(preview.plan?.transitional)],
             ['Legal doc consolidated', yesNo(preview.plan?.legalDocConsolidated)],
             ['FDU update', yesNo(preview.plan?.fduUpdate)],
             ['Stocking standards update', yesNo(preview.plan?.stockingStandardUpdate)],

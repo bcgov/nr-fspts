@@ -45,7 +45,7 @@
 			script-src 'self'  https://*.gov.bc.ca ;
 			style-src 'self' https://fonts.googleapis.com https://use.fontawesome.com 'unsafe-inline';
 			font-src 'self' https://fonts.gstatic.com;
-			img-src 'self' data: https://fonts.googleapis.com https://www.w3.org https://*.gov.bc.ca https://*.tile.openstreetmap.org;
+			img-src 'self' data: https://fonts.googleapis.com https://www.w3.org https://*.gov.bc.ca https://*.tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com;
 			frame-ancestors 'self';
 			form-action 'self';
 			block-all-mixed-content;

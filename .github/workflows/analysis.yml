@@ -45,19 +45,25 @@ jobs:
         working-directory: backend
         run: mvn -B -DskipITs verify
 
-      # Sonar is gated on the secret being present so PRs from forks (which
-      # don't get secrets) don't fail. projectKey is currently the BC Gov
-      # starter-kit's — update it when a real FSP SonarCloud project exists.
+      # Sonar is gated on the token being present so PRs from forks (which
+      # don't get secrets) don't fail. Project key + token both come from repo
+      # secrets (SONAR_PROJECT_KEY / SONAR_TOKEN) so they match the SonarCloud
+      # project the token was issued for; host + org are BC Gov's SonarCloud.
+      # NOTE: the backend (Java) and frontend (JS) scans use the SAME project
+      # key, so each analysis replaces the previous — the project reflects
+      # whichever job finished last. Use two keys if you need both to coexist.
       - name: SonarCloud scan
         if: env.SONAR_TOKEN != ''
         working-directory: backend
         env:
-          SONAR_TOKEN: ${{ secrets.sonar_token_backend }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
         run: |
           mvn -B sonar:sonar \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.organization=bcgov-sonarcloud \
-            -Dsonar.projectKey=quickstart-openshift_backend \
+            -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+            -Dsonar.projectName=nr-fspts \
             -Dsonar.token="$SONAR_TOKEN"
 
   frontend-tests:
@@ -68,7 +74,7 @@ jobs:
     steps:
       - uses: bcgov/action-test-and-analyse@8f699e3fd3fadd9a6adf6f4b1f2638ef7ecfefb9 # v2.0.0
         env:
-          sonar_token: ${{ secrets.sonar_token_frontend }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
         with:
           # `lint` already runs prettier via eslint-plugin-prettier, so no
           # separate `format:check` step. `test:coverage` is the real script
@@ -83,7 +89,7 @@ jobs:
           sonar_args: >
             -Dsonar.exclusions=**/coverage/**,**/node_modules/**,**/*spec.ts,**/*.test.ts,**/*.test.tsx,**/e2e/**
             -Dsonar.organization=bcgov-sonarcloud
-            -Dsonar.projectKey=quickstart-openshift_frontend
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
             -Dsonar.sources=src
             -Dsonar.test.inclusions=**/*spec.ts,**/*.test.ts,**/*.test.tsx
             -Dsonar.javascript.lcov.reportPaths=./coverage/lcov.info
