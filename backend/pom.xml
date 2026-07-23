@@ -118,14 +118,9 @@
           <artifactId>commons-csv</artifactId>
           <version>1.11.0</version>
       </dependency>
-      <!-- BC Albers (EPSG:3005) → WGS84 reprojection of FDU polygons for the
-           Leaflet map. CRSs are defined by proj string in code, so the EPSG
-           registry jar isn't needed. -->
-      <dependency>
-          <groupId>org.locationtech.proj4j</groupId>
-          <artifactId>proj4j</artifactId>
-          <version>1.3.0</version>
-      </dependency>
+      <!-- proj4j (BC Albers EPSG:3005 ↔ WGS84 reprojection of FDU polygons)
+           is declared once below at 1.4.0, alongside proj4j-epsg 1.4.0; do
+           not redeclare it here. -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
@@ -151,18 +146,8 @@
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-registry-prometheus</artifactId>
     </dependency>
-    <!-- https://mvnrepository.com/artifact/net.javacrumbs.shedlock/shedlock-spring -->
-    <dependency>
-      <groupId>net.javacrumbs.shedlock</groupId>
-      <artifactId>shedlock-spring</artifactId>
-      <version>${shedlock.version}</version>
-    </dependency>
-    <!-- https://mvnrepository.com/artifact/net.javacrumbs.shedlock/shedlock-provider-jdbc-template -->
-    <dependency>
-      <groupId>net.javacrumbs.shedlock</groupId>
-      <artifactId>shedlock-provider-jdbc-template</artifactId>
-      <version>${shedlock.version}</version>
-    </dependency>
+    <!-- shedlock-spring / shedlock-provider-jdbc-template are declared once
+         above (near the ShedLock comment); do not redeclare here. -->
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>

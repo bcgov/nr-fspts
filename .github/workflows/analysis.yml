@@ -46,8 +46,12 @@ jobs:
         run: mvn -B -DskipITs verify
 
       # Sonar is gated on the secret being present so PRs from forks (which
-      # don't get secrets) don't fail. projectKey is currently the BC Gov
-      # starter-kit's — update it when a real FSP SonarCloud project exists.
+      # don't get secrets) don't fail. Single SonarCloud project for the whole
+      # repo: bcgov_nr-fsp (org bcgov-sonarcloud). NOTE: the backend (Java) and
+      # frontend (JS) scans push to the SAME project key, so each analysis
+      # replaces the previous one — the project reflects whichever job finished
+      # last. If you want backend + frontend coverage to coexist, either split
+      # into two projects (…_backend / …_frontend) or run a single unified scan.
       - name: SonarCloud scan
         if: env.SONAR_TOKEN != ''
         working-directory: backend
@@ -57,7 +61,7 @@ jobs:
           mvn -B sonar:sonar \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.organization=bcgov-sonarcloud \
-            -Dsonar.projectKey=quickstart-openshift_backend \
+            -Dsonar.projectKey=bcgov_nr-fsp \
             -Dsonar.token="$SONAR_TOKEN"
 
   frontend-tests:
@@ -83,7 +87,7 @@ jobs:
           sonar_args: >
             -Dsonar.exclusions=**/coverage/**,**/node_modules/**,**/*spec.ts,**/*.test.ts,**/*.test.tsx,**/e2e/**
             -Dsonar.organization=bcgov-sonarcloud
-            -Dsonar.projectKey=quickstart-openshift_frontend
+            -Dsonar.projectKey=bcgov_nr-fsp
             -Dsonar.sources=src
             -Dsonar.test.inclusions=**/*spec.ts,**/*.test.ts,**/*.test.tsx
             -Dsonar.javascript.lcov.reportPaths=./coverage/lcov.info
