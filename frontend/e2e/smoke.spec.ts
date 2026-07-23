@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 // Sanity check — verifies the deployed frontend serves a 200 at root.
 // Expand this suite as authenticated flows become testable; for now this is

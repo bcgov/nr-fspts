@@ -75,6 +75,32 @@ Rejected) — View Only limited to their own org? The ❓ cells assume "yes."*
 | In Effect (INE) | ✅ | — | — | — | — | — |
 | Rejected (REJ) | ✅ | — | — | — | — ❓ | — |
 
+#### B1a. Stocking standards — per-standard row actions
+
+The stocking-standards table's row buttons (**Add**, **Copy**, **Delete**,
+**Unlink default**) inherit the B1 content-edit gate above: on a **Draft (DFT)**
+plan/amendment an **Administrator** or the owning **Submitter** may use them; on
+any other status only an Administrator may; nobody may on a terminal state
+(CAN / RET / EXP / DEL). Which of Delete vs Unlink appears depends on the
+**selected standard's type** — a standard is either a draft or a MoF default,
+never both:
+
+| Row action | Appears when the selected standard is… | Admin | Submitter |
+|------------|----------------------------------------|:--:|:--:|
+| Add existing / new standard | *(n/a — acts on the list)* | ✅ any non-terminal | ✅ **Draft only** (org) |
+| Copy standard | a **draft** | ✅ | ✅ **Draft only** (org) |
+| **Delete** standard | a **draft** | ✅ | ✅ **Draft only** (org) |
+| **Unlink** default standard | a **MoF default** | ✅ | ✅ **Draft only** (org) |
+
+So **Delete and Unlink are both available to a Submitter whenever the FSP or
+amendment being viewed is in Draft** (and the selected standard is the matching
+type). This mirrors legacy FSP550 `StandardsButtonManager.getEnableDelete` /
+`get250UnlinkEnabled`, whose FSP-level gate is Draft-for-Submitter /
+any-non-terminal-for-Admin; the proc re-validates the selected regime's own
+status server-side. Enforced in the frontend `StockingStandardsTab`
+(`canDelete` / `canUnlink`, both AND-ed with `canEditFsp`) and re-checked by the
+backend on the unlink/delete calls.
+
 ### B2. Edit / upload **attachments**
 
 | FSP status | Admin | DM | Reviewer | View All | Submitter | View Only |

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 import { gotoPage, PAGES } from './helpers/nav';
 import { addAttachment, openFsp, openFspTab, recordDdmApproval } from './helpers/fsp';
@@ -153,11 +153,16 @@ test.describe.serial('FSP lifecycle', () => {
     await openFsp(page, fspId);
     await recordDdmApproval(page);
 
-    // The DDM tile now reflects a recorded decision.
+    // The DDM tile now reflects the recorded decision. Since the FSP is
+    // approved (no longer Submitted), the decision is read-only: the tile
+    // renders its details ("Decided by" only appears once a decision exists)
+    // but exposes NO Edit/Record button — edit/record is gated to Submitted
+    // status (see WorkflowDataTab.allowedDdmDecisions / enableDdmEdit).
     await openFspTab(page, 'Workflow');
-    await expect(page.getByRole('button', { name: 'Edit Decision' })).toBeVisible({
-      timeout: 30_000,
-    });
+    await expect(page.getByText('Decided by')).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.getByRole('button', { name: /Record decision|Edit decision/i }),
+    ).toHaveCount(0);
   });
 
   test('amends the FSP', async ({ page }) => {

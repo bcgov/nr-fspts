@@ -205,19 +205,24 @@ const StockingStandardsTab: FC<Props> = ({
     ? (rows ?? []).find((r) => r.standardsRegimeId === selectedRegimeId) ?? null
     : null;
 
-  // Delete strictly follows the legacy FSP550 rule
-  // (StandardsButtonManager.getEnableDelete): the REGIME row's own
-  // status must be DFT. FSP-level status isn't checked — the proc
-  // re-validates anyway. Hide the button entirely while the FSP is
-  // in a terminal state so users can't even try.
+  // Delete follows the legacy FSP550 rule
+  // (StandardsButtonManager.getEnableDelete). `canEdit` (= canEditFsp) is the
+  // FSP-level gate: Administrator in any status, and — the case to be explicit
+  // about — the owning **Submitter while the FSP/amendment being viewed is a
+  // DRAFT (DFT)**. So on a Draft version a Submitter DOES get Delete (and
+  // Unlink below). The button is hidden entirely on terminal statuses, and
+  // only lights up for a draft standard (selectedIsDraft, at the call site).
+  // The proc re-validates the selected regime's own status server-side.
+  // See docs/permission-matrix.md § B1a.
   const canDelete = canEdit && status !== '' && !TERMINAL_STATUSES.includes(status);
   const selectedIsDraft =
     selectedRow?.standardsRegimeStatus?.trim().toLowerCase() === 'draft';
   // Unlink is the default-standard counterpart of Delete: legacy
   // "Unlink Default Standard" (StandardsButtonManager.get250UnlinkEnabled)
-  // applies only to MoF default standards. Same FSP-level edit gate as
-  // Delete (canEdit already encodes APP/INE→admin, DFT→submitter-or-admin);
-  // a standard is either a draft (Delete) or a default (Unlink), never both.
+  // applies only to MoF default standards. Same FSP-level edit gate as Delete
+  // (canEdit → Admin any status, Submitter on DFT only), so a Submitter gets
+  // Unlink on a Draft FSP/amendment too. A standard is either a draft (Delete)
+  // or a default (Unlink), never both.
   const selectedIsDefault = selectedRow?.defaultStandardInd === 'Y';
 
   const performCopy = async () => {
