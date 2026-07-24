@@ -392,6 +392,32 @@ public class FspApiController implements FspApiEndpoint {
                 fspId, amendmentNumber, regimeId, siteSeriesId, revisionCount, body));
     }
 
+    @Override
+    public ResponseEntity<StandardRegimeDetail> addStandardRegimeAttachment(
+            String fspId, String regimeId, String amendmentNumber,
+            MultipartFile file, String description) throws IOException {
+        return ResponseEntity.ok(standardRegimeService.addAttachment(
+                fspId, amendmentNumber, regimeId, file, description));
+    }
+
+    @Override
+    public ResponseEntity<StandardRegimeDetail> deleteStandardRegimeAttachment(
+            String fspId, String regimeId, String attachId, String amendmentNumber) {
+        return ResponseEntity.ok(standardRegimeService.deleteAttachment(
+                fspId, amendmentNumber, regimeId, attachId));
+    }
+
+    @Override
+    public ResponseEntity<byte[]> downloadStandardRegimeAttachment(
+            String fspId, String regimeId, String attachId) {
+        AttachmentBlob blob = standardRegimeService.getAttachment(regimeId, attachId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + blob.fileName() + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(blob.content());
+    }
+
     // --- Map View extent ---
 
     @Override

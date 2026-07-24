@@ -80,7 +80,7 @@ const ConfirmationModal: FC<ConfirmationModalProps> = ({
     >
       <div className="fsp-species-modal__form">{children}</div>
       <div className="fsp-species-modal__actions">
-        <Button kind="secondary" disabled={busy} onClick={closeDialog}>
+        <Button kind="tertiary" disabled={busy} onClick={closeDialog}>
           {cancelLabel}
         </Button>
         <Button

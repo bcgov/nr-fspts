@@ -278,8 +278,9 @@ URL** (ours to control), never on the shared FAM Keycloak client. The chain is
 assembled and per-layer URL-encoded at runtime in
 `src/context/auth/logoutChain.ts`; the auth-context `logout()` clears the local
 tokens and navigates it. If any of the three pieces below is unset the code
-falls back to the plain Amplify hosted-UI sign-out (Cognito-first), using
-`VITE_REDIRECT_SIGN_OUT`.
+falls back to the plain Amplify hosted-UI sign-out (Cognito-first), which
+returns to the app origin — `config.ts` derives that sign-out URL from
+`window.location.origin`, so no dedicated env var is needed.
 
 | GitHub Environment config | Kind | Purpose |
 |---------------------------|------|---------|

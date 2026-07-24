@@ -1205,6 +1205,37 @@
   background-color: var(--cds-layer-02);
 }
 
+// Attachments tab empty state — centered add-document glyph, bold title,
+// muted body, and (when editable) the Add attachment button. Mirrors the
+// design mock's "No attachments for this stocking standard" panel.
+.fsp-info__attachments-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-block-size: 12rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+
+  svg {
+    color: var(--cds-icon-secondary, #525252);
+    margin-bottom: 0.25rem;
+  }
+}
+
+.fsp-info__attachments-empty-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+}
+
+.fsp-info__attachments-empty-desc {
+  margin: 0 0 0.5rem;
+  max-inline-size: 28rem;
+  color: var(--cds-text-secondary);
+}
+
 // Centered "No stocking standards" empty state — blue add-document glyph,
 // bold title, muted body, and (when editable) the create / add actions
 // inline. Fills the tab so it reads as a first-run call to action rather

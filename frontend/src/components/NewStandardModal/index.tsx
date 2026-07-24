@@ -282,7 +282,7 @@ const NewStandardModal: FC<Props> = ({
         </span>
       </div>
       <div className="new-std-modal__actions">
-        <Button kind="secondary" disabled={busy} onClick={closeIfIdle}>
+        <Button kind="tertiary" disabled={busy} onClick={closeIfIdle}>
           Cancel
         </Button>
         <Button

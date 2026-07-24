@@ -271,7 +271,6 @@ jobs:
             -p REPLICAS="${{ inputs.frontend_replicas }}"
             -p VITE_USER_POOLS_ID="${{ vars.VITE_USER_POOLS_ID }}"
             -p VITE_USER_POOLS_WEB_CLIENT_ID="${{ vars.VITE_USER_POOLS_WEB_CLIENT_ID }}"
-            -p VITE_REDIRECT_SIGN_OUT="${{ vars.VITE_REDIRECT_SIGN_OUT }}"
             -p VITE_LOGOUT_SITEMINDER_URL="${{ vars.VITE_LOGOUT_SITEMINDER_URL }}"
             -p VITE_LOGOUT_KEYCLOAK_URL="${{ vars.VITE_LOGOUT_KEYCLOAK_URL }}"
             -p VITE_LOGOUT_KEYCLOAK_CLIENT_ID="${{ vars.VITE_LOGOUT_KEYCLOAK_CLIENT_ID }}"

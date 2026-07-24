@@ -502,7 +502,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
           />
         </Stack>
         <div className="fsp-species-modal__actions">
-          <Button kind="secondary" disabled={uploading} onClick={closeDialog}>
+          <Button kind="tertiary" disabled={uploading} onClick={closeDialog}>
             Cancel
           </Button>
           <Button
@@ -539,7 +539,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
         </p>
         <div className="fsp-species-modal__actions">
           <Button
-            kind="secondary"
+            kind="tertiary"
             disabled={deleting}
             onClick={() => setPendingDelete(null)}
           >

@@ -335,7 +335,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
       </div>
 
       <div className="fsp-species-modal__actions">
-        <Button kind="secondary" disabled={busy} onClick={closeIfIdle}>
+        <Button kind="tertiary" disabled={busy} onClick={closeIfIdle}>
           Cancel
         </Button>
         <Button

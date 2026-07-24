@@ -91,6 +91,17 @@ public final class URL {
       "/{fspId}/standards/{regimeId}/bgc-zones";
   public static final String STANDARD_BGC_ZONE_BY_ID =
       "/{fspId}/standards/{regimeId}/bgc-zones/{siteSeriesId}";
+  // Stocking-standard attachments (STANDARDS_REGIME_ATTACHMENT). The
+  // list is served through STANDARD_DETAIL's `attachments` field; POST
+  // (multipart) adds, DELETE removes, and /content streams the BLOB for
+  // download. All target FSP_550_STDS_PROPOSAL's attachment procs and
+  // (add/delete) return the refreshed regime detail.
+  public static final String STANDARD_ATTACHMENTS =
+      "/{fspId}/standards/{regimeId}/attachments";
+  public static final String STANDARD_ATTACHMENT_BY_ID =
+      "/{fspId}/standards/{regimeId}/attachments/{attachId}";
+  public static final String STANDARD_ATTACHMENT_CONTENT =
+      "/{fspId}/standards/{regimeId}/attachments/{attachId}/content";
   public static final String ATTACHMENTS = "/{fspId}/attachments";
   public static final String ATTACHMENT_BY_ID = "/{fspId}/attachments/{attachmentId}";
   public static final String ATTACHMENT_DOWNLOAD = "/{fspId}/attachments/{attachmentId}/download";

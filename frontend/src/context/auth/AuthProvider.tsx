@@ -176,7 +176,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     // Fallback (chain not configured for this env): plain Amplify hosted-UI
-    // sign-out, which redirects through Cognito /logout → redirectSignOut.
+    // sign-out, which redirects through Cognito /logout back to the app origin
+    // (config.ts derives redirectSignOut from window.location.origin).
     await signOut();
     setUser(undefined);
   }, []);

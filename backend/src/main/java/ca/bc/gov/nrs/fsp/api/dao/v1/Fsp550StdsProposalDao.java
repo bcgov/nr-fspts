@@ -20,6 +20,15 @@ public interface Fsp550StdsProposalDao {
   String PROCEDURE_COPY = "COPY";
   String PROCEDURE_ASSOC = "ASSOC_FSP_TO_STD_REGIME";
   String PROCEDURE_UNLINK = "UNLINK_DEFAULT_STANDARDS";
+  // Standards-regime attachment procs (STANDARDS_REGIME_ATTACHMENT +
+  // STANDARDS_REGIME_ATTACH_FILE). The add path is the legacy two-step
+  // BLOB pattern: GET_ATTACHMENT_BLOB_FOR_UPDATE creates the metadata
+  // row (empty BLOB) and returns the assigned id + revision, then
+  // SAVE_ATTACHMENT writes the file bytes into the BLOB and finalises.
+  String PROCEDURE_GET_ATTACHMENT_BLOB = "GET_ATTACHMENT_BLOB";
+  String PROCEDURE_ADD_ATTACHMENT = "GET_ATTACHMENT_BLOB_FOR_UPDATE";
+  String PROCEDURE_SAVE_ATTACHMENT = "SAVE_ATTACHMENT";
+  String PROCEDURE_REMOVE_ATTACHMENT = "REMOVE_ATTACHMENT";
 
   /**
    * @param displayFspOrgClients {@code "Y"} scopes the org-unit + client
@@ -189,13 +198,86 @@ public interface Fsp550StdsProposalDao {
       String standardsRegimeId
   ) {}
 
-  /** The three cursor lists + the scalar header row. */
+  // -----------------------------------------------------------------
+  // Standards-regime attachment write/read paths.
+  // -----------------------------------------------------------------
+
+  /**
+   * Download one attachment's bytes via
+   * {@code FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB}.
+   */
+  AttachBlob getAttachmentBlob(String attachId);
+
+  record AttachBlob(String attachId, String fileName, byte[] content, String errorMessage) {}
+
+  /**
+   * Step 1 of the two-step add: create the STANDARDS_REGIME_ATTACHMENT
+   * metadata row (with an empty BLOB) via
+   * {@code GET_ATTACHMENT_BLOB_FOR_UPDATE} and return the freshly
+   * assigned attach id + revision_count (=1). Pass the mime type code
+   * ({@code mimeTypeCode}); an unknown code is stored as NULL by the
+   * proc (the column is nullable), never an error.
+   */
+  AddAttachmentResult addAttachment(
+      String regimeId, String attachmentName, String description,
+      String mimeTypeCode, String mimeType, String userId);
+
+  record AddAttachmentResult(String attachId, String revisionCount, String errorMessage) {}
+
+  /**
+   * Step 2 of the two-step add: write the file bytes into the row's
+   * BLOB and finalise via {@code SAVE_ATTACHMENT} (which updates the
+   * attach file, bumps the attachment revision, and re-audits the
+   * parent regime). Must run in the same transaction as
+   * {@link #addAttachment}.
+   */
+  String saveAttachment(
+      String attachId, String regimeId, String attachmentName, String description,
+      String mimeTypeCode, String mimeType, byte[] content, String userId,
+      String revisionCount, String standardsRevisionCount);
+
+  /**
+   * Delete one attachment (metadata + file rows) via
+   * {@code REMOVE_ATTACHMENT}. {@code revisionCount} is the attachment
+   * row's optimistic-lock token; {@code standardsRevisionCount} is the
+   * parent regime's, bumped by the proc's audit hook on success.
+   */
+  String removeAttachment(
+      String attachId, String regimeId, String userId,
+      String revisionCount, String standardsRevisionCount);
+
+  /**
+   * Lightweight lookup of a single attachment row's revision_count —
+   * used by the delete path so the caller doesn't have to thread the
+   * token from the front-end. Returns {@code null} when the id is
+   * unknown.
+   */
+  String getAttachmentRevisionCount(String attachId);
+
+  /** The cursor lists + the scalar header row. */
   record Result(
       Header header,
       List<OrgUnitRow> districts,
       List<ClientRow> clients,
       List<BgcZoneRow> bgcZones,
+      List<AttachmentRow> attachments,
       String errorMessage
+  ) {}
+
+  /**
+   * Single row of p_attachment_cursor (STANDARDS_REGIME_ATTACHMENT ⋈
+   * STANDARDS_REGIME_ATTACH_FILE). {@code fileSize} is the proc's
+   * pre-formatted KB string ("999,990.00"); {@code revisionCount}
+   * is the optimistic-lock token for delete.
+   */
+  record AttachmentRow(
+      String standardsRegimeId,
+      String standardsRegimeAttachId,
+      String attachmentName,
+      String attachmentDescription,
+      String mimeTypeCode,
+      String fileSize,
+      String revisionCount
   ) {}
 
   /**

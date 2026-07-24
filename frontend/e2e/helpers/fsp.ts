@@ -5,12 +5,13 @@ import { type InMemoryFile, tinyPdfFile } from './tinyFiles';
 
 /** ISO yyyy-mm-dd for today, used to fill decision/effective date pickers. */
 export function isoToday(): string {
-  // new Date() is fine in test code (unlike workflow scripts); keep it
-  // simple and timezone-naive — the proc only stores the date part.
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${mm}-${dd}`;
+  // Compute "today" in the backend's timezone (America/Vancouver), NOT the
+  // runner's. FSP_700_WORKFLOW validates Submission/Decision dates as
+  // "must be before current", comparing against the DB's BC-local SYSDATE.
+  // A UTC-based date (GitHub runners run in UTC) is a day AHEAD of BC after
+  // ~17:00 Pacific, so a naive new Date() near midnight UTC yields tomorrow's
+  // date and the proc rejects it as future-dated. en-CA formats as YYYY-MM-DD.
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
 }
 
 /**

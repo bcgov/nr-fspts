@@ -20,24 +20,30 @@ import {
   TextArea,
   TextInput,
 } from '@carbon/react';
-import {Add, Copy, Edit, TrashCan, Unlink} from '@carbon/icons-react';
+import {Add, Copy, DocumentAdd, Edit, Launch, TrashCan, Unlink} from '@carbon/icons-react';
 import {type FC, useEffect, useRef, useState} from 'react';
 
 import BgcZoneSearchModal from '@/components/BgcZoneSearchModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import {StandardsSearchIcon} from '@/components/Layout/navIcons';
+import StandardRegimeAttachmentModal from '@/components/StandardRegimeAttachmentModal';
 import {StatusTag} from '@/components/StatusTag/StatusTag';
 import {useNotification} from '@/context/notification/useNotification';
 import type {BgcSearchResult} from '@/services/bgcSearch';
 import {
+  addStandardRegimeAttachment,
   addStandardRegimeBgcZone,
+  deleteStandardRegimeAttachment,
   deleteStandardRegimeBgcZone,
+  fetchStandardRegimeAttachmentBlob,
   getStandardRegimeDetail,
+  type StandardRegimeAttachment,
   type StandardRegimeBgcZone,
   type StandardRegimeDetail,
   type StandardRegimeOverviewUpdate,
   updateStandardRegimeOverview,
 } from '@/services/fspSearch';
+import { openBlobInNewTab } from '@/utils/download';
 
 import { EDIT_PANE, useEditLock, useEditRegistration } from '../editLock';
 import StandardRegimeLayersPanel from './StandardRegimeLayersPanel';
@@ -253,6 +259,14 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   // resolve the right siteSeriesId + revisionCount on Confirm.
   const [bgcDeleteTarget, setBgcDeleteTarget] =
     useState<StandardRegimeBgcZone | null>(null);
+  // Attachments tab: the Add dialog open flag, the row pending delete (drives
+  // the confirm dialog), and the id being viewed (disables its row while the
+  // blob loads). Add/Delete are gated by !readOnly — the same canEditFsp gate
+  // the whole panel uses for editing.
+  const [attachmentModalOpen, setAttachmentModalOpen] = useState(false);
+  const [attachmentDeleteTarget, setAttachmentDeleteTarget] =
+    useState<StandardRegimeAttachment | null>(null);
+  const [viewingAttachId, setViewingAttachId] = useState<string | null>(null);
   const { display } = useNotification();
 
   useEffect(() => {
@@ -423,6 +437,70 @@ const StandardRegimeDetailPanel: FC<Props> = ({
     });
   };
 
+  // ─── Attachments ────────────────────────────────────────────────────
+  // Add: the modal awaits this and only closes on success (it rethrows on
+  // error to stay open for retry), so surface failures by throwing. The
+  // backend re-reads the regime and returns the refreshed detail.
+  const handleAddAttachment = async (file: File, description: string) => {
+    const updated = await addStandardRegimeAttachment(
+      fspId,
+      regimeId,
+      amendmentNumber || undefined,
+      file,
+      description,
+    );
+    setDetail(updated);
+    display({
+      kind: 'success',
+      title: 'Attachment added',
+      subtitle: `"${file.name}" added to Stocking standard ${detail?.standardsRegimeId ?? regimeId}`,
+      timeout: 6000,
+    });
+  };
+
+  const handleDeleteAttachmentConfirmed = async () => {
+    const target = attachmentDeleteTarget;
+    if (!target?.standardsRegimeAttachId) return;
+    const updated = await deleteStandardRegimeAttachment(
+      fspId,
+      regimeId,
+      target.standardsRegimeAttachId,
+      amendmentNumber || undefined,
+    );
+    setDetail(updated);
+    display({
+      kind: 'success',
+      title: 'Attachment deleted',
+      subtitle: `"${target.attachmentName ?? 'File'}" deleted from Stocking standard ${detail?.standardsRegimeId ?? regimeId}`,
+      timeout: 6000,
+    });
+  };
+
+  // View: fetch the bytes and open in a new tab. Read-only, so it's always
+  // available regardless of the edit gate.
+  const handleViewAttachment = async (row: StandardRegimeAttachment) => {
+    if (!row.standardsRegimeAttachId) return;
+    setViewingAttachId(row.standardsRegimeAttachId);
+    try {
+      const blob = await fetchStandardRegimeAttachmentBlob(
+        fspId,
+        regimeId,
+        row.standardsRegimeAttachId,
+        row.attachmentName,
+      );
+      openBlobInNewTab(blob);
+    } catch (e) {
+      display({
+        kind: 'error',
+        title: 'Unable to open attachment',
+        subtitle: e instanceof Error ? e.message : 'Unknown error',
+        timeout: 9000,
+      });
+    } finally {
+      setViewingAttachId(null);
+    }
+  };
+
   const setOverviewField = <K extends keyof OverviewFormState>(
     key: K,
     value: OverviewFormState[K],
@@ -543,6 +621,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
           <Tab>Districts</Tab>
           <Tab>Agreement holders</Tab>
           <Tab>BGC zones</Tab>
+          <Tab>Attachments</Tab>
         </TabList>
         <TabPanels>
           <TabPanel>
@@ -1074,6 +1153,116 @@ const StandardRegimeDetailPanel: FC<Props> = ({
               )}
             </div>
           </TabPanel>
+
+          <TabPanel>
+            <div className="fsp-info__tab-panel">
+              {detail.attachments.length === 0 ? (
+                <div className="fsp-info__attachments-empty">
+                  <DocumentAdd size={32} aria-hidden="true" />
+                  <p className="fsp-info__attachments-empty-title">
+                    No attachments for this stocking standard
+                  </p>
+                  <p className="fsp-info__attachments-empty-desc">
+                    Add supporting documents for this standard, such as a site
+                    plan or reference material.
+                  </p>
+                  {!readOnly && (
+                    <Button
+                      kind="tertiary"
+                      size="sm"
+                      renderIcon={Add}
+                      disabled={anyEditing}
+                      onClick={() => setAttachmentModalOpen(true)}
+                    >
+                      Add attachment
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {!readOnly && (
+                    <div className="fsp-info__tab-actions">
+                      <Button
+                        kind="tertiary"
+                        size="sm"
+                        renderIcon={Add}
+                        disabled={anyEditing}
+                        onClick={() => setAttachmentModalOpen(true)}
+                      >
+                        Add attachment
+                      </Button>
+                    </div>
+                  )}
+                  <div className="bordered-table">
+                    <TableContainer>
+                      <Table size="md" useZebraStyles>
+                        <TableHead>
+                          <TableRow>
+                            <TableHeader>File</TableHeader>
+                            <TableHeader>Description</TableHeader>
+                            <TableHeader style={{ width: '8rem' }}>
+                              Size
+                            </TableHeader>
+                            <TableHeader
+                              style={{ width: '12rem' }}
+                              aria-label="Actions"
+                            />
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {detail.attachments.map((a, i) => {
+                            const busy =
+                              viewingAttachId === a.standardsRegimeAttachId;
+                            return (
+                              <TableRow key={a.standardsRegimeAttachId ?? i}>
+                                <TableCell>{dash(a.attachmentName)}</TableCell>
+                                <TableCell>
+                                  {dash(a.attachmentDescription)}
+                                </TableCell>
+                                <TableCell>
+                                  {a.fileSize?.trim()
+                                    ? `${a.fileSize.trim()} KB`
+                                    : '—'}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="fsp-info__row-actions">
+                                    <Button
+                                      kind="ghost"
+                                      size="sm"
+                                      renderIcon={Launch}
+                                      disabled={busy || !a.standardsRegimeAttachId}
+                                      onClick={() => void handleViewAttachment(a)}
+                                    >
+                                      {busy ? 'Opening…' : 'View'}
+                                    </Button>
+                                    {!readOnly && (
+                                      <Button
+                                        kind="danger--ghost"
+                                        size="sm"
+                                        renderIcon={TrashCan}
+                                        disabled={
+                                          anyEditing || !a.standardsRegimeAttachId
+                                        }
+                                        onClick={() =>
+                                          setAttachmentDeleteTarget(a)
+                                        }
+                                      >
+                                        Delete
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </div>
+                </>
+              )}
+            </div>
+          </TabPanel>
         </TabPanels>
       </Tabs>
       </div>
@@ -1104,6 +1293,29 @@ const StandardRegimeDetailPanel: FC<Props> = ({
               .join(' - ') || '(unnamed)'}
           </strong>{' '}
           from this regime? This cannot be undone.
+        </p>
+      </ConfirmationModal>
+
+      <StandardRegimeAttachmentModal
+        open={attachmentModalOpen}
+        onClose={() => setAttachmentModalOpen(false)}
+        standardId={detail.standardsRegimeId ?? regimeId}
+        onSubmit={handleAddAttachment}
+      />
+
+      <ConfirmationModal
+        open={attachmentDeleteTarget != null}
+        onClose={() => setAttachmentDeleteTarget(null)}
+        heading="Are you sure you want to delete this attachment?"
+        confirmLabel="Delete"
+        danger
+        errorTitle="Failed to delete attachment"
+        onConfirm={handleDeleteAttachmentConfirmed}
+      >
+        <p>
+          <strong>{attachmentDeleteTarget?.attachmentName ?? 'This file'}</strong>{' '}
+          will be permanently deleted from this stocking standard. This action
+          cannot be undone.
         </p>
       </ConfirmationModal>
     </section>

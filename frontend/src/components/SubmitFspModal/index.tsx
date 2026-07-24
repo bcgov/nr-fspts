@@ -229,7 +229,7 @@ const SubmitFspModal: FC<Props> = ({
           provides. Show the footer buttons only in the ready state. */}
       {ready && (
       <div className="fsp-species-modal__actions">
-        <Button kind="secondary" disabled={submitting} onClick={closeDialog}>
+        <Button kind="tertiary" disabled={submitting} onClick={closeDialog}>
           Cancel
         </Button>
         <Button

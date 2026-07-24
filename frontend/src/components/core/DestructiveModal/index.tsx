@@ -68,7 +68,7 @@ export const DestructiveModal: FC<DestructiveModalProps> = ({
         </p>
       </div>
       <div className="destructive-modal__actions">
-        <Button kind="secondary" size="md" onClick={onCancel} disabled={loading}>
+        <Button kind="tertiary" size="md" onClick={onCancel} disabled={loading}>
           {cancelButtonText}
         </Button>
         <Button

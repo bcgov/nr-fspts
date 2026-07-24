@@ -235,7 +235,7 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
 
         <div className="user-search-form__search-actions">
           <Button
-            kind="secondary"
+            kind="tertiary"
             size="md"
             onClick={handleClear}
             disabled={loading}

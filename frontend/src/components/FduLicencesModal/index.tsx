@@ -272,7 +272,7 @@ const FduLicencesModal: FC<Props> = ({
       </Stack>
 
       <div className="fsp-species-modal__actions">
-        <Button kind="secondary" disabled={submitting} onClick={closeIfIdle}>
+        <Button kind="tertiary" disabled={submitting} onClick={closeIfIdle}>
           Cancel
         </Button>
         <Button

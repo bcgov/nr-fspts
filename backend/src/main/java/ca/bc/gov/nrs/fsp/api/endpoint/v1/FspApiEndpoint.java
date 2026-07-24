@@ -430,6 +430,47 @@ public interface FspApiEndpoint {
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
             @Valid @RequestBody StandardRegimeBgcZoneUpsert body);
 
+    // --- Stocking Standard attachments ---
+    // The list is served via STANDARD_DETAIL's `attachments` field; these
+    // endpoints add / delete / download individual attachments. Add and
+    // Delete are gated by CONTENT_EDIT (same rule as editing plan details:
+    // Administrator any status, Submitter Draft only). Download stays open
+    // to any authenticated role (read).
+
+    @PostMapping(value = URL.STANDARD_ATTACHMENTS, consumes = "multipart/form-data")
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
+    @Operation(summary =
+            "Add a supporting document to a stocking standard via "
+                    + "FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB_FOR_UPDATE + "
+                    + "SAVE_ATTACHMENT. Returns the refreshed regime detail.")
+    ResponseEntity<StandardRegimeDetail> addStandardRegimeAttachment(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(name = "description", required = false) String description)
+            throws IOException;
+
+    @DeleteMapping(URL.STANDARD_ATTACHMENT_BY_ID)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
+    @Operation(summary =
+            "Delete a stocking-standard attachment via "
+                    + "FSP_550_STDS_PROPOSAL.REMOVE_ATTACHMENT. Returns the refreshed detail.")
+    ResponseEntity<StandardRegimeDetail> deleteStandardRegimeAttachment(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @PathVariable String attachId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
+
+    @GetMapping(URL.STANDARD_ATTACHMENT_CONTENT)
+    @Operation(summary =
+            "Download a stocking-standard attachment via "
+                    + "FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB")
+    ResponseEntity<byte[]> downloadStandardRegimeAttachment(
+            @PathVariable String fspId,
+            @PathVariable String regimeId,
+            @PathVariable String attachId);
+
     // --- Map View extent ---
 
     @GetMapping(URL.EXTENT)

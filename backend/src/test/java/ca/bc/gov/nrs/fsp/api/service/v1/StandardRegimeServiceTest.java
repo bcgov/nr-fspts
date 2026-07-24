@@ -44,12 +44,13 @@ class StandardRegimeServiceTest {
   @Mock private Fsp550SubLayersDao layersDao;
   @Mock private Fsp550SubSpeciesDao speciesDao;
   @Mock private FspAccessGuard accessGuard;
+  @Mock private VirusScanner virusScanner;
 
   private StandardRegimeService service;
 
   @BeforeEach
   void setUp() {
-    service = new StandardRegimeService(dao, layersDao, speciesDao, accessGuard);
+    service = new StandardRegimeService(dao, layersDao, speciesDao, accessGuard, virusScanner);
   }
 
   @Test
@@ -94,7 +95,7 @@ class StandardRegimeServiceTest {
   /** A GET result carrying just the fields these paths read (id + default flag). */
   private static Fsp550StdsProposalDao.Result result(String regimeId, String mofDefaultInd) {
     return new Fsp550StdsProposalDao.Result(
-        header(regimeId, mofDefaultInd), List.of(), List.of(), List.of(), null);
+        header(regimeId, mofDefaultInd), List.of(), List.of(), List.of(), List.of(), null);
   }
 
   /** Header record (32 fields) — everything null except id (pos 1) + the MoF

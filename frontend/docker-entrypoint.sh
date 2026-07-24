@@ -27,10 +27,9 @@ window.config = {
   // Cognito (FAM via AWS Amplify) — read by src/config/fam/config.ts
   VITE_USER_POOLS_ID: "$(escape "${VITE_USER_POOLS_ID:-}")",
   VITE_USER_POOLS_WEB_CLIENT_ID: "$(escape "${VITE_USER_POOLS_WEB_CLIENT_ID:-}")",
-  VITE_REDIRECT_SIGN_OUT: "$(escape "${VITE_REDIRECT_SIGN_OUT:-}")",
   // Federated logout chain (Siteminder → Keycloak → Cognito → app, Cognito
   // last) — read by src/context/auth/logoutChain.ts. All three unset ⇒ logout
-  // falls back to the plain Amplify sign-out via VITE_REDIRECT_SIGN_OUT.
+  // falls back to the plain Amplify sign-out (back to the app origin).
   VITE_LOGOUT_SITEMINDER_URL: "$(escape "${VITE_LOGOUT_SITEMINDER_URL:-}")",
   VITE_LOGOUT_KEYCLOAK_URL: "$(escape "${VITE_LOGOUT_KEYCLOAK_URL:-}")",
   VITE_LOGOUT_KEYCLOAK_CLIENT_ID: "$(escape "${VITE_LOGOUT_KEYCLOAK_CLIENT_ID:-}")",
