@@ -180,7 +180,7 @@ const BgcZoneEditModal: FC<BgcZoneEditModalProps> = ({
         />
       </div>
       <div className="fsp-species-modal__actions">
-        <Button kind="secondary" disabled={saving} onClick={closeDialog}>
+        <Button kind="tertiary" disabled={saving} onClick={closeDialog}>
           Cancel
         </Button>
         <Button

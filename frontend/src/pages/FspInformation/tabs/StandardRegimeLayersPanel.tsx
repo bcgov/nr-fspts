@@ -1023,7 +1023,7 @@ const SpeciesEditor: FC<{
           />
         </Stack>
         <div className="fsp-species-modal__actions">
-          <Button kind="secondary" disabled={adding} onClick={closeModal}>
+          <Button kind="tertiary" disabled={adding} onClick={closeModal}>
             Cancel
           </Button>
           <Button
@@ -1125,9 +1125,16 @@ const StandardRegimeLayersPanel: FC<Props> = ({
   // present, which is still treated as the uneven-aged shape.
   const isSingleLayer =
     tabs.length === 1 && tabs[0].layerCode === 'I';
-  // No real layers exist → there's nothing to convert FROM, so hide
-  // the Convert button until the user saves the synthetic Single.
-  const canConvert = realTabs.length > 0;
+  // Convert is available whenever a layer card is rendered — i.e. whenever the
+  // regime is editable — so it tracks the Edit layers button exactly. `tabs`
+  // is always ≥1 (a real layer, or the synthetic Single), so this is
+  // effectively "!readOnly". We deliberately DON'T gate on the flag-derived
+  // `layers`/`realTabs`: those come from the standards cursor's layer Y/N
+  // flags, which can be empty for a regime that still has editable layer data
+  // (rendered as the synthetic Single) — that empty list was hiding Convert
+  // even though Edit layers showed. Role-neutral: the panel gets no user/role;
+  // the only gate is `readOnly` (= !canEditFsp), the same one Edit layers uses.
+  const canConvert = tabs.length > 0;
 
   // Refetch the regime detail and bubble it up. Used as the
   // onLayerCreated callback so the synthetic Single tab is replaced

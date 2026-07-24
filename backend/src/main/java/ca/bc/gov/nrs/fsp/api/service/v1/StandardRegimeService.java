@@ -4,6 +4,7 @@ import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550StdsProposalDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubLayersDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubSpeciesDao;
 import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
+import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentBlob;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeBgcZoneUpsert;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeCreate;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail;
@@ -15,9 +16,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Read wrapper for the FSP250 "Standards View" page. Pulls a single
@@ -34,6 +38,17 @@ public class StandardRegimeService {
   private final Fsp550SubLayersDao layersDao;
   private final Fsp550SubSpeciesDao speciesDao;
   private final FspAccessGuard accessGuard;
+  private final VirusScanner virusScanner;
+
+  // Attachment upload constraints — mirror the frontend
+  // @/lib/attachmentConstraints so a client that bypasses the SPA can't
+  // slip an oversized / wrong-type / long-named file past the API. The
+  // filename cap matches STANDARDS_REGIME_ATTACHMENT.ATTACHMENT_NAME
+  // (VARCHAR2(50)); over that the insert would trip ORA-12899.
+  private static final long MAX_ATTACHMENT_BYTES = 50L * 1024 * 1024; // 50 MB
+  private static final int MAX_ATTACHMENT_FILENAME_LEN = 50;
+  private static final List<String> ACCEPTED_ATTACHMENT_EXTENSIONS =
+      List.of(".pdf", ".doc", ".docx");
 
   public StandardRegimeDetail getDetail(String fspId, String amendmentNumber, String regimeId) {
     return getDetailInternal(fspId, amendmentNumber, regimeId, "Y");
@@ -127,6 +142,15 @@ public class StandardRegimeService {
                 b.bgcZoneCode(), b.bgcSubzoneCode(), b.bgcVariant(), b.bgcPhase(),
                 b.becSiteSeriesCd(), b.becSiteSeriesPhaseCd(), b.becSeral(),
                 b.revisionCount()))
+            .toList(),
+        r.attachments().stream()
+            .map(a -> new StandardRegimeDetail.Attachment(
+                a.standardsRegimeAttachId(),
+                a.attachmentName(),
+                a.attachmentDescription(),
+                // Trim the proc's "999,990.00" padding so the UI can
+                // append " KB" onto a clean "794.00" rather than " 794.00".
+                a.fileSize() == null ? null : a.fileSize().trim()))
             .toList());
   }
 
@@ -656,6 +680,124 @@ public class StandardRegimeService {
     log.info("Standards regime {} — removed BGC site-series id={} by {}",
         regimeId, siteSeriesId, RequestUtil.getCurrentAuditUserId());
     return getDetail(fspId, amendmentNumber, regimeId);
+  }
+
+  // -----------------------------------------------------------------
+  // Stocking-standard attachments (STANDARDS_REGIME_ATTACHMENT).
+  // -----------------------------------------------------------------
+
+  /**
+   * Download one stocking-standard attachment's bytes via
+   * {@code FSP_550_STDS_PROPOSAL.GET_ATTACHMENT_BLOB}. Read-only — no
+   * edit guard (viewing is always available).
+   */
+  public AttachmentBlob getAttachment(String regimeId, String attachId) {
+    Fsp550StdsProposalDao.AttachBlob blob = dao.getAttachmentBlob(attachId);
+    return new AttachmentBlob(blob.fileName(), blob.content());
+  }
+
+  /**
+   * Add a supporting document to a stocking standard. Gated by the same
+   * rule as editing plan details ({@link FspAccessGuard#assertContentEditable}
+   * → Administrator any status; Submitter Draft only). Virus-scans the
+   * bytes, enforces the shared type/size/name constraints, then runs the
+   * legacy two-step BLOB add (create row → write bytes) in one
+   * transaction. Returns the refreshed regime detail so the SPA redraws
+   * the Attachments tab.
+   */
+  @Transactional
+  public StandardRegimeDetail addAttachment(
+      String fspId, String amendmentNumber, String regimeId,
+      MultipartFile file, String description) throws IOException {
+    accessGuard.assertContentEditable(fspId, amendmentNumber);
+    String fileName = file.getOriginalFilename();
+    validateAttachment(fileName, file.getSize());
+    // Reject infected uploads before anything touches the DB (→ 422).
+    virusScanner.scanOrThrow(file.getBytes(), fileName);
+
+    String regimeRev = dao.getRevisionCount(regimeId);
+    if (regimeRev == null) {
+      throw new IllegalArgumentException("Standards regime " + regimeId + " not found.");
+    }
+    String userId = RequestUtil.getCurrentAuditUserId();
+    String mimeTypeCode = mimeTypeCodeFor(fileName);
+    String mimeType = file.getContentType() == null ? "" : file.getContentType();
+    String desc = description == null ? "" : description.trim();
+
+    // Step 1 — create the metadata row + empty BLOB, get the new id + rev.
+    Fsp550StdsProposalDao.AddAttachmentResult created = dao.addAttachment(
+        regimeId, fileName, desc, mimeTypeCode, mimeType, userId);
+    // Step 2 — stream the file bytes into the row's BLOB and finalise.
+    dao.saveAttachment(
+        created.attachId(), regimeId, fileName, desc, mimeTypeCode, mimeType,
+        file.getBytes(), userId, created.revisionCount(), regimeRev);
+    log.info("Standards regime {} — added attachment id={} '{}' ({} bytes) by {}",
+        regimeId, created.attachId(), fileName, file.getSize(), userId);
+    return getDetail(fspId, amendmentNumber, regimeId);
+  }
+
+  /**
+   * Delete one stocking-standard attachment via
+   * {@code FSP_550_STDS_PROPOSAL.REMOVE_ATTACHMENT}. Same edit gate as
+   * {@link #addAttachment}. The attachment's own revision_count is read
+   * fresh (proc optimistic-lock token); the parent regime's is passed so
+   * the proc's audit hook can bump it. Returns the refreshed detail.
+   */
+  @Transactional
+  public StandardRegimeDetail deleteAttachment(
+      String fspId, String amendmentNumber, String regimeId, String attachId) {
+    accessGuard.assertContentEditable(fspId, amendmentNumber);
+    String regimeRev = dao.getRevisionCount(regimeId);
+    if (regimeRev == null) {
+      throw new IllegalArgumentException("Standards regime " + regimeId + " not found.");
+    }
+    String attachRev = dao.getAttachmentRevisionCount(attachId);
+    if (attachRev == null) {
+      throw new IllegalArgumentException("Attachment " + attachId + " not found.");
+    }
+    dao.removeAttachment(
+        attachId, regimeId, RequestUtil.getCurrentAuditUserId(), attachRev, regimeRev);
+    log.info("Standards regime {} — removed attachment id={} by {}",
+        regimeId, attachId, RequestUtil.getCurrentAuditUserId());
+    return getDetail(fspId, amendmentNumber, regimeId);
+  }
+
+  /**
+   * Enforce the shared attachment constraints server-side (type / size /
+   * filename length). Throws {@link IllegalArgumentException} (→ 400 with
+   * a clean message) on the first violation, mirroring the front-end
+   * order so the messages line up.
+   */
+  private static void validateAttachment(String fileName, long size) {
+    String name = fileName == null ? "" : fileName;
+    String lower = name.toLowerCase(Locale.ROOT);
+    boolean okType = ACCEPTED_ATTACHMENT_EXTENSIONS.stream().anyMatch(lower::endsWith);
+    if (!okType) {
+      throw new IllegalArgumentException(
+          "File type not supported. Upload a .pdf, .doc, or .docx file.");
+    }
+    if (name.length() > MAX_ATTACHMENT_FILENAME_LEN) {
+      throw new IllegalArgumentException(
+          "File name too long. Use 50 characters or fewer, including the extension.");
+    }
+    if (size > MAX_ATTACHMENT_BYTES) {
+      throw new IllegalArgumentException(
+          "File exceeds size limit. Max file size is 50 MB. "
+              + "Select a smaller file and try again.");
+    }
+  }
+
+  /**
+   * Best-effort 3-char MIME_TYPE_CODE for the file's extension. The proc
+   * stores NULL for any code not present in THE.MIME_TYPE_CODE (the
+   * column is nullable + FK), so an unknown mapping is harmless — the
+   * real extension is preserved in the filename regardless.
+   */
+  private static String mimeTypeCodeFor(String fileName) {
+    String lower = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+    if (lower.endsWith(".pdf")) return "PDF";
+    if (lower.endsWith(".docx") || lower.endsWith(".doc")) return "DOC";
+    return "";
   }
 
 }

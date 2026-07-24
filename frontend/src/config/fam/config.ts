@@ -6,17 +6,13 @@ import { env } from '@/env';
 // FSP currently deploys at the route root, so it defaults to '/'.
 const redirectUri = window.location.origin + (env.VITE_BASE_PATH || '/').replace(/\/$/, '');
 
-// Full BC Gov logoff chain URL — must exactly match one of the Allowed
-// sign-out URLs registered in the Cognito app client for the current
-// environment. Set VITE_REDIRECT_SIGN_OUT via OpenShift deploy params
-// (see frontend/openshift.deploy.yml). Empty fallback is intentional —
-// a missing sign-out URL fails fast at logout rather than at boot.
-//
-// NOTE: this only backs the *fallback* Amplify hosted-UI sign-out. The
-// primary logout path drives the federated chain itself (Siteminder → KC →
-// Cognito → app) so Cognito fires LAST and the app URL never has to be
-// registered on the shared Keycloak client — see context/auth/logoutChain.ts.
-export const redirectSignOut = env.VITE_REDIRECT_SIGN_OUT?.trim() ?? '';
+// Amplify's OAuth config requires a sign-out URL. The PRIMARY logout is the
+// federated chain (context/auth/logoutChain.ts — Siteminder → KC → Cognito →
+// app, Cognito last); this value only backs the *fallback* Amplify hosted-UI
+// sign-out used when the chain env vars aren't set. Derive it from the app
+// origin — the exact URL the chain already registers as the Cognito sign-out
+// URL (logout_uri) — so no dedicated env var is needed.
+export const redirectSignOut = window.location.origin;
 
 // Cognito hosted-UI domain. Exported so the federated logout builder can
 // construct the Cognito /logout URL that Keycloak redirects back through.

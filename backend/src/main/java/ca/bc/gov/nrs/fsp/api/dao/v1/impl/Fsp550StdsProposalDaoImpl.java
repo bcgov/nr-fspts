@@ -6,6 +6,10 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.io.ByteArrayInputStream;
+import java.sql.Blob;
+import java.sql.SQLException;
+import java.sql.Types;
 import java.util.List;
 
 @Repository
@@ -99,10 +103,21 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
               rs.getString(3),   // client_name
               rs.getString(4)    // client_acronym
           ));
-          // Cursor 8 (attachments) is opened by the proc but never read —
-          // the SS Attachments UI was dropped, and the Oracle JDBC
-          // driver closes the unread REF CURSOR when the statement
-          // closes, so leaving it un-read is safe.
+          // Cursor 8 (attachments) — columns per the proc body's
+          // p_attachment_cursor SELECT list (position order):
+          //   1 standards_regime_id, 2 standards_regime_attach_id,
+          //   3 attachment_name, 4 attachment_description,
+          //   5 mime_type_code, 6 file_size (formatted KB string),
+          //   7 update_userid, 8 revision_count.
+          List<AttachmentRow> attachments = readCursor(cs, 8, rs -> new AttachmentRow(
+              rs.getString(1),   // standards_regime_id
+              rs.getString(2),   // standards_regime_attach_id
+              rs.getString(3),   // attachment_name
+              rs.getString(4),   // attachment_description
+              rs.getString(5),   // mime_type_code
+              rs.getString(6),   // file_size (already KB-formatted)
+              rs.getString(8)    // revision_count
+          ));
           List<BgcZoneRow> bgcZones = readCursor(cs, 9, rs -> new BgcZoneRow(
               rs.getString(2),   // standard_regime_site_series_id
               rs.getString(3),   // bgc_zone_code
@@ -118,7 +133,7 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
           // Header cursor is one row but defensively handle empty.
           Header header = headers.isEmpty() ? null : headers.get(0);
           String error = cs.getString(4);
-          Result r = new Result(header, districts, clients, bgcZones, error);
+          Result r = new Result(header, districts, clients, bgcZones, attachments, error);
           throwIfError(PACKAGE_NAME, PROCEDURE_NAME, error);
           return r;
         });
@@ -338,6 +353,161 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
           throwIfError(PACKAGE_NAME, PROCEDURE_COPY, r.errorMessage());
           return r;
         });
+  }
+
+  // -----------------------------------------------------------------
+  // Attachment paths — STANDARDS_REGIME_ATTACHMENT / _ATTACH_FILE.
+  // -----------------------------------------------------------------
+
+  // GET_ATTACHMENT_BLOB positional params (4):
+  //   1 p_standards_regime_attach_id INOUT  2 p_attachment_name INOUT
+  //   3 p_attachment_data INOUT BLOB         4 p_error_message INOUT
+  private static final int GET_ATTACH_BLOB_PARAM_COUNT = 4;
+  private static final String GET_ATTACH_BLOB_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_GET_ATTACHMENT_BLOB, GET_ATTACH_BLOB_PARAM_COUNT);
+
+  @Override
+  public AttachBlob getAttachmentBlob(String attachId) {
+    return executeCall(GET_ATTACH_BLOB_CALL,
+        cs -> {
+          setInOutString(cs, 1, attachId);
+          setInOutString(cs, 2, "");
+          cs.setNull(3, Types.BLOB);
+          cs.registerOutParameter(3, Types.BLOB);
+          setInOutString(cs, 4, "");
+        },
+        cs -> {
+          String outId = cs.getString(1);
+          String fileName = cs.getString(2);
+          byte[] content = readBlob(cs.getBlob(3));
+          String error = cs.getString(4);
+          throwIfError(PACKAGE_NAME, PROCEDURE_GET_ATTACHMENT_BLOB, error);
+          return new AttachBlob(outId, fileName, content, error);
+        });
+  }
+
+  // GET_ATTACHMENT_BLOB_FOR_UPDATE positional params (10):
+  //   1 attach_id INOUT (NULL → create)  2 regime_id INOUT
+  //   3 attachment_name INOUT  4 attachment_description INOUT
+  //   5 mime_type_code INOUT   6 mime_type INOUT
+  //   7 attachment_data INOUT BLOB (empty on create)
+  //   8 update_userid INOUT    9 revision_count INOUT (NULL → returns 1)
+  //  10 error INOUT
+  private static final int ADD_ATTACH_PARAM_COUNT = 10;
+  private static final String ADD_ATTACH_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_ADD_ATTACHMENT, ADD_ATTACH_PARAM_COUNT);
+
+  @Override
+  public AddAttachmentResult addAttachment(
+      String regimeId, String attachmentName, String description,
+      String mimeTypeCode, String mimeType, String userId) {
+    return executeCall(ADD_ATTACH_CALL,
+        cs -> {
+          setInOutString(cs, 1, null);          // attach_id NULL → create branch
+          setInOutString(cs, 2, regimeId);
+          setInOutString(cs, 3, attachmentName);
+          setInOutString(cs, 4, description);
+          setInOutString(cs, 5, mimeTypeCode);
+          setInOutString(cs, 6, mimeType);
+          cs.setNull(7, Types.BLOB);            // proc inserts EMPTY_BLOB()
+          cs.registerOutParameter(7, Types.BLOB);
+          setInOutString(cs, 8, userId);
+          setInOutString(cs, 9, null);          // revision_count NULL → create, returns 1
+          setInOutString(cs, 10, "");
+        },
+        cs -> {
+          AddAttachmentResult r = new AddAttachmentResult(
+              cs.getString(1), cs.getString(9), cs.getString(10));
+          throwIfError(PACKAGE_NAME, PROCEDURE_ADD_ATTACHMENT, r.errorMessage());
+          return r;
+        });
+  }
+
+  // SAVE_ATTACHMENT positional params (11):
+  //   1 attach_id INOUT  2 regime_id INOUT  3 attachment_name INOUT
+  //   4 attachment_description INOUT  5 mime_type_code INOUT
+  //   6 mime_type INOUT  7 attachment_data INOUT BLOB (file bytes)
+  //   8 update_userid INOUT  9 revision_count INOUT
+  //  10 standards_revision_count INOUT  11 error INOUT
+  private static final int SAVE_ATTACH_PARAM_COUNT = 11;
+  private static final String SAVE_ATTACH_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_SAVE_ATTACHMENT, SAVE_ATTACH_PARAM_COUNT);
+
+  @Override
+  public String saveAttachment(
+      String attachId, String regimeId, String attachmentName, String description,
+      String mimeTypeCode, String mimeType, byte[] content, String userId,
+      String revisionCount, String standardsRevisionCount) {
+    return executeCall(SAVE_ATTACH_CALL,
+        cs -> {
+          setInOutString(cs, 1, attachId);
+          setInOutString(cs, 2, regimeId);
+          setInOutString(cs, 3, attachmentName);
+          setInOutString(cs, 4, description);
+          setInOutString(cs, 5, mimeTypeCode);
+          setInOutString(cs, 6, mimeType);
+          // Non-empty BLOB → change_attachment writes it into the row.
+          cs.setBlob(7, new ByteArrayInputStream(content), content.length);
+          cs.registerOutParameter(7, Types.BLOB);
+          setInOutString(cs, 8, userId);
+          setInOutString(cs, 9, revisionCount);
+          setInOutString(cs, 10, standardsRevisionCount);
+          setInOutString(cs, 11, "");
+        },
+        cs -> {
+          String error = cs.getString(11);
+          throwIfError(PACKAGE_NAME, PROCEDURE_SAVE_ATTACHMENT, error);
+          return error;
+        });
+  }
+
+  // REMOVE_ATTACHMENT positional params (6):
+  //   1 attach_id IN  2 regime_id IN  3 update_userid IN
+  //   4 revision_count IN  5 standards_revision_count IN  6 error INOUT
+  private static final int REMOVE_ATTACH_PARAM_COUNT = 6;
+  private static final String REMOVE_ATTACH_CALL =
+      callSql(PACKAGE_NAME, PROCEDURE_REMOVE_ATTACHMENT, REMOVE_ATTACH_PARAM_COUNT);
+
+  @Override
+  public String removeAttachment(
+      String attachId, String regimeId, String userId,
+      String revisionCount, String standardsRevisionCount) {
+    return executeCall(REMOVE_ATTACH_CALL,
+        cs -> {
+          cs.setString(1, attachId);
+          cs.setString(2, regimeId);
+          cs.setString(3, userId);
+          cs.setString(4, revisionCount);
+          cs.setString(5, standardsRevisionCount);
+          setInOutString(cs, 6, "");
+        },
+        cs -> {
+          String error = cs.getString(6);
+          throwIfError(PACKAGE_NAME, PROCEDURE_REMOVE_ATTACHMENT, error);
+          return error;
+        });
+  }
+
+  @Override
+  public String getAttachmentRevisionCount(String attachId) {
+    try {
+      Long n = jdbcTemplate.queryForObject(
+          "SELECT revision_count FROM standards_regime_attachment"
+              + " WHERE standards_regime_attach_id = ?",
+          Long.class, Long.parseLong(attachId));
+      return n == null ? null : n.toString();
+    } catch (EmptyResultDataAccessException | NumberFormatException e) {
+      return null;
+    }
+  }
+
+  private static byte[] readBlob(Blob blob) throws SQLException {
+    if (blob == null) return new byte[0];
+    long len = blob.length();
+    if (len > Integer.MAX_VALUE) {
+      throw new SQLException("BLOB too large to load into memory: " + len + " bytes");
+    }
+    return blob.getBytes(1L, (int) len);
   }
 
 }

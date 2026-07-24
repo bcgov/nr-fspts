@@ -771,6 +771,16 @@ export interface StandardRegimeLayer {
   layerId: string | null;
 }
 
+// One supporting document attached to a stocking standard. `fileSize`
+// is the proc's pre-formatted KB value (e.g. "794.00") — the UI appends
+// " KB".
+export interface StandardRegimeAttachment {
+  standardsRegimeAttachId: string | null;
+  attachmentName: string | null;
+  attachmentDescription: string | null;
+  fileSize: string | null;
+}
+
 export interface StandardRegimeBgcZone {
   /** STANDARDS_REGIME_SITE_SERIES_ID — needed to PUT/DELETE a row. */
   stdsRegimeSiteSeriesId: string | null;
@@ -814,6 +824,7 @@ export interface StandardRegimeDetail {
   districts: StandardRegimeDistrict[];
   agreementHolders: StandardRegimeAgreementHolder[];
   bgcZones: StandardRegimeBgcZone[];
+  attachments: StandardRegimeAttachment[];
 }
 
 /**
@@ -1476,6 +1487,85 @@ export async function deleteFspAttachment(
     const detail = await readErrorMessage(res);
     throw new Error(detail || `Attachment delete failed (${res.status})`);
   }
+}
+
+// ── Stocking-standard attachments ──────────────────────────────────
+// Add/Delete both return the refreshed regime detail (the backend
+// re-reads FSP_550_STDS_PROPOSAL.GET after the write) so the panel can
+// redraw the Attachments tab from one response.
+
+const stdRegimeBase = (fspId: string, regimeId: string): string =>
+  `/v1/fsp/${encodeURIComponent(fspId)}/standards/${encodeURIComponent(regimeId)}/attachments`;
+
+/** Add a supporting document to a stocking standard (multipart POST). */
+export async function addStandardRegimeAttachment(
+  fspId: string,
+  regimeId: string,
+  amendmentNumber: string | undefined,
+  file: File,
+  description: string,
+): Promise<StandardRegimeDetail> {
+  const form = new FormData();
+  form.append('file', file);
+  const params = new URLSearchParams();
+  if (amendmentNumber) params.set('amendmentNumber', amendmentNumber);
+  if (description && description.trim()) params.set('description', description.trim());
+  const qs = params.toString();
+  const res = await apiFetch(`${stdRegimeBase(fspId, regimeId)}${qs ? `?${qs}` : ''}`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Attachment upload failed (${res.status})`);
+  }
+  return res.json() as Promise<StandardRegimeDetail>;
+}
+
+/** Permanently deletes one stocking-standard attachment. */
+export async function deleteStandardRegimeAttachment(
+  fspId: string,
+  regimeId: string,
+  attachId: string,
+  amendmentNumber: string | undefined,
+): Promise<StandardRegimeDetail> {
+  const qs = amendmentNumber
+    ? `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
+    : '';
+  const res = await apiFetch(
+    `${stdRegimeBase(fspId, regimeId)}/${encodeURIComponent(attachId)}${qs}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Attachment delete failed (${res.status})`);
+  }
+  return res.json() as Promise<StandardRegimeDetail>;
+}
+
+/**
+ * Fetches one stocking-standard attachment's bytes (Bearer auth via
+ * apiFetch) and returns a Blob re-typed by the filename extension so the
+ * caller can open it inline in a new tab. Same trick as
+ * {@link fetchFspAttachmentBlob}.
+ */
+export async function fetchStandardRegimeAttachmentBlob(
+  fspId: string,
+  regimeId: string,
+  attachId: string,
+  fileName: string | null,
+): Promise<Blob> {
+  const res = await apiFetch(
+    `${stdRegimeBase(fspId, regimeId)}/${encodeURIComponent(attachId)}/content`,
+  );
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Attachment load failed (${res.status})`);
+  }
+  const raw = await res.blob();
+  const ext = (fileName ?? '').split('.').pop()?.toLowerCase() ?? '';
+  const mime = ATTACHMENT_MIME_BY_EXT[ext];
+  return mime ? raw.slice(0, raw.size, mime) : raw;
 }
 
 export interface FspSearchResult {

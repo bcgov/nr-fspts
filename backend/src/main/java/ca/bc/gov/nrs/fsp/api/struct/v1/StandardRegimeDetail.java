@@ -37,7 +37,9 @@ public record StandardRegimeDetail(
     List<LayerSummary> layers,
     List<District> districts,
     List<AgreementHolder> agreementHolders,
-    List<BgcZone> bgcZones
+    List<BgcZone> bgcZones,
+    /** Supporting documents attached to this stocking standard. */
+    List<Attachment> attachments
 ) {
 
   /**
@@ -64,5 +66,18 @@ public record StandardRegimeDetail(
       String becSeral,
       /** Row-level optimistic-lock token; required by SAVE_BGC_ITEM on update. */
       String revisionCount
+  ) {}
+
+  /**
+   * One supporting document attached to the stocking standard.
+   * {@code fileSize} is the proc's pre-formatted KB string (e.g.
+   * "794.00").
+   */
+  public record Attachment(
+      /** STANDARDS_REGIME_ATTACH_ID — addresses the row for download/delete. */
+      String standardsRegimeAttachId,
+      String attachmentName,
+      String attachmentDescription,
+      String fileSize
   ) {}
 }

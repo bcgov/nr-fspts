@@ -404,7 +404,7 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
       </div>
 
       <div className="fsp-species-modal__actions">
-        <Button kind="secondary" disabled={busy} onClick={closeIfIdle}>
+        <Button kind="tertiary" disabled={busy} onClick={closeIfIdle}>
           Cancel
         </Button>
         <Button
