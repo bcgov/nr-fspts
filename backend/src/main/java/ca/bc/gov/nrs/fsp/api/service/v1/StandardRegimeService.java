@@ -462,16 +462,22 @@ public class StandardRegimeService {
         regimeId,
         isAdd ? null : layerId,
         layerCode,
-        pick(edits.getTargetStocking(), valueOf(current, StandardRegimeLayerDetail::targetStocking)),
-        pick(edits.getMinHorizontalDistance(), valueOf(current, StandardRegimeLayerDetail::minHorizontalDistance)),
-        pick(edits.getMinPrefStockingStandard(), valueOf(current, StandardRegimeLayerDetail::minPrefStockingStandard)),
-        pick(edits.getMinStockingStandard(), valueOf(current, StandardRegimeLayerDetail::minStockingStandard)),
-        pick(edits.getResidualBasalArea(), valueOf(current, StandardRegimeLayerDetail::residualBasalArea)),
-        pick(edits.getMinPostSpacing(), valueOf(current, StandardRegimeLayerDetail::minPostSpacing)),
-        pick(edits.getMaxPostSpacing(), valueOf(current, StandardRegimeLayerDetail::maxPostSpacing)),
-        pick(edits.getMaxConifer(), valueOf(current, StandardRegimeLayerDetail::maxConifer)),
-        pick(edits.getHeightRelativeToComp(), valueOf(current, StandardRegimeLayerDetail::heightRelativeToComp)),
-        pick(edits.getTreeSizeUnitCode(), valueOf(current, StandardRegimeLayerDetail::treeSizeUnitCode)),
+        // Pass the edited values straight through — this PUT carries the
+        // FULL layer form (the SPA always serializes all 10 scalar fields),
+        // so a null here is a deliberate "clear this field" (e.g. Clear All),
+        // NOT "field omitted". Coalescing with the current value made it
+        // impossible to blank a field: the old value came right back on save.
+        // The CHANGE proc does a full UPDATE SET, so nulls clear the columns.
+        edits.getTargetStocking(),
+        edits.getMinHorizontalDistance(),
+        edits.getMinPrefStockingStandard(),
+        edits.getMinStockingStandard(),
+        edits.getResidualBasalArea(),
+        edits.getMinPostSpacing(),
+        edits.getMaxPostSpacing(),
+        edits.getMaxConifer(),
+        edits.getHeightRelativeToComp(),
+        edits.getTreeSizeUnitCode(),
         RequestUtil.getCurrentAuditUserId(),
         isAdd ? null : current.revisionCount(),
         regime.revisionCount());
@@ -481,10 +487,6 @@ public class StandardRegimeService {
         isAdd ? "created" : "saved",
         RequestUtil.getCurrentAuditUserId(), r.pRevisionCount());
     return getLayerDetail(regimeId, layerCode, effectiveLayerId);
-  }
-
-  private static <T> String valueOf(T source, java.util.function.Function<T, String> getter) {
-    return source == null ? null : getter.apply(source);
   }
 
   /**

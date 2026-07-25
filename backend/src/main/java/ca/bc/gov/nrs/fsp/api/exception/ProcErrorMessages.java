@@ -41,14 +41,23 @@ public final class ProcErrorMessages {
   /**
    * Substring search across the curated codes — used by the exception
    * handler against full Oracle error strings that wrap the code in
-   * package paths and call stacks.
+   * package paths and call stacks. Returns the LONGEST (most specific)
+   * matching code so overlapping codes resolve correctly: an Oracle
+   * message carrying {@code FSP.DATE.MUST.BE.BEFORE.CURRENT} must map to
+   * that code, not to {@code FSP.DATE.MUST.BE.BEFORE} (a substring of it).
+   * CODES is an unordered map, so a plain first-match would be
+   * non-deterministic whenever two keys both match.
    */
-  public static String firstMatchedCode(String oracleMessage) {
+  public static String mostSpecificMatchedCode(String oracleMessage) {
     if (oracleMessage == null) return null;
+    String best = null;
     for (String code : CODES.keySet()) {
-      if (oracleMessage.contains(code)) return code;
+      if (oracleMessage.contains(code)
+          && (best == null || code.length() > best.length())) {
+        best = code;
+      }
     }
-    return null;
+    return best;
   }
 
   /** Read-only view of every curated code → info pair. */
@@ -111,6 +120,32 @@ public final class ProcErrorMessages {
       Map.entry("FSP.INVALID.EXT.END.DATE.SHORT", new Info(BAD_REQUEST,
           "Plan end date can't be more than 5 years after the effective "
               + "date.")),
+      // FSP_700_WORKFLOW.MAINLINE (SAVE_DDM_* / SAVE_EXT_*) rejects a
+      // Submission or Decision date that isn't before the DB's current
+      // (BC-local) date — i.e. a future-dated decision. The proc appends the
+      // offending field(s) after the code (":Decision Date;...:Submission
+      // Date;"); we keep one combined message since both are entered together
+      // on the DDM Decision dialog. See project_workflow-date-bc-timezone.
+      Map.entry("FSP.DATE.MUST.BE.BEFORE.CURRENT", new Info(BAD_REQUEST,
+          "The submission and decision dates can't be in the future. "
+              + "Enter today's date or earlier.")),
+      // Effective / plan-start date falls after the plan end (expiry) date —
+      // FSP_COMMON_DB ('FSP.DATE.MUST.BE.BEFORE', param "Effective Date,
+      // Expiry Date"). NOTE this key is a substring of the .CURRENT code
+      // above; mostSpecificMatchedCode() resolves the overlap by length.
+      Map.entry("FSP.DATE.MUST.BE.BEFORE", new Info(BAD_REQUEST,
+          "The plan's effective date must be before its end (expiry) date.")),
+      // OTBH (Opportunity to be Heard) date is in the future —
+      // FSP_700_WORKFLOW.MAINLINE SAVE_OTBH_* (TRUNC(otbh) > TRUNC(SYSDATE)).
+      Map.entry("FSP.BAD.OTBH.DATE", new Info(BAD_REQUEST,
+          "The Opportunity to be Heard date can't be in the future. "
+              + "Enter today's date or earlier.")),
+      // A workflow event dated earlier than the most recent status-history
+      // row on this amendment — fsp_status_update date-sequence guard
+      // ('FSP.INVALID.DATE.SEQUENCE'), e.g. a Heard date before the Offered.
+      Map.entry("FSP.INVALID.DATE.SEQUENCE", new Info(BAD_REQUEST,
+          "This date can't be earlier than the most recent decision or "
+              + "milestone already recorded on this FSP.")),
       Map.entry("FSP.CANNOT.APPROVE.NO_FDU_INCLUDED", new Info(BAD_REQUEST,
           "Submission must include at least one FDU.")),
       Map.entry("FSP.CANNOT.APPROVE.NO_STANDARDS_INCLUDED", new Info(BAD_REQUEST,

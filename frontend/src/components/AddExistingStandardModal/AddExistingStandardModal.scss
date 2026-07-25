@@ -17,6 +17,14 @@
   padding-block-end: 1rem;
 }
 
+// When the content scrolls, Carbon adds .cds--modal-scroll-content with a
+// bottom `mask-image` fade (~48-80px) to hint at more content — it reads as
+// a hazy cutoff over the results table/pagination. Drop it so the bottom of
+// the modal stays crisp, matching the other FSP dialogs (see fsp-info.scss).
+.add-std-modal .cds--modal-scroll-content {
+  mask-image: none;
+}
+
 .add-std-modal__loading {
   display: flex;
   align-items: center;

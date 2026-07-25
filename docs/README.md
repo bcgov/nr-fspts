@@ -15,7 +15,7 @@ start. These docs go deeper:
 | [virus-scanning.md](virus-scanning.md) | Work on the ClamAV upload scanning — config, fail-open policy, or the cross-namespace NetworkPolicy/secrets |
 | [reports.md](reports.md) | Work on the JasperReports PDF/CSV reporting (the one part that bypasses the proc layer) |
 | [notifications.md](notifications.md) | Touch email — the workflow event emails or the scheduled district-designate digest |
-| [fam-integration.md](fam-integration.md) | Work with the FAM IDIR identity-lookup (user picker or the digest's email resolution) |
+| [user-lookup-integration.md](user-lookup-integration.md) | Work with the nr-user-lookup-api IDIR/BCeID identity lookup (user picker or the digest's email resolution) |
 
 Module-level docs:
 

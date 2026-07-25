@@ -880,7 +880,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
 
                   <div className="fsp-info__form-actions">
                     <Button
-                      kind="secondary"
+                      kind="tertiary"
                       size="sm"
                       disabled={savingOverview}
                       onClick={handleOverviewCancel}

@@ -35,7 +35,7 @@ flowchart LR
 
     cognito["Cognito<br/>(IDIR / BCeID federation)"]
     oracle[("Oracle THE<br/>legacy data + PL/SQL<br/>= nr-mof-db")]
-    fam["FAM<br/>IDIR identity lookup"]
+    userlookup["nr-user-lookup-api<br/>IDIR / BCeID lookup"]
     smtp["SMTP"]
     clamav["ClamAV clamd<br/>(upload virus scan)"]
 
@@ -44,7 +44,7 @@ flowchart LR
     spa -. "login" .-> cognito
     api -- "validate JWT" --> cognito
     api -- "stored procs (JDBC)" --> oracle
-    api -- "user lookup" --> fam
+    api -- "user lookup" --> userlookup
     api -- "email" --> smtp
     api -- "scan uploads (INSTREAM)" --> clamav
 ```
@@ -168,7 +168,7 @@ The API depends on six BC Gov services:
 |--------|----------|-----|
 | **Oracle `THE`** | All FSP data + business logic (legacy PL/SQL) | [database.md](database.md) |
 | **Cognito** | Authentication (IDIR / BCeID Business JWTs) | [roles-and-security.md](roles-and-security.md) |
-| **FAM** | IDIR identity lookup (user picker + digest email resolution) | [fam-integration.md](fam-integration.md) |
+| **nr-user-lookup-api** | IDIR/BCeID identity lookup (user picker + digest email resolution) | [user-lookup-integration.md](user-lookup-integration.md) |
 | **SMTP** | Outgoing email (workflow events + designate digest) | [notifications.md](notifications.md) |
 | **ClamAV** | Virus-scanning every uploaded file (clamd over raw TCP) | [virus-scanning.md](virus-scanning.md) |
 | **nr-fom** | "Associated FOMs" links on the agreement-holders table (best-effort) | [below](#fom-integration-associated-foms) |
@@ -303,4 +303,4 @@ complete without it):
 - **Keycloak client → Valid post logout redirect URIs:** the **Cognito**
   `/logout` URL (not the app). Often already satisfied if the client uses `+`
   (inherit) or a `https://<cognito-domain>/*` wildcard — check before adding an
-  entry. See [`fam-integration.md`](fam-integration.md) for the topology.
+  entry.

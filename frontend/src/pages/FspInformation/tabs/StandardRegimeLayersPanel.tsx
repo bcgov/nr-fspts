@@ -209,6 +209,8 @@ interface LayerPanelHandle {
   finishEdit: () => void;
   /** Revert this layer's form and leave edit mode. */
   cancel: () => void;
+  /** Blank every field on this layer's form, staying in edit mode. */
+  clear: () => void;
 }
 
 interface LayerDetailPanelProps {
@@ -248,6 +250,10 @@ interface LayerDetailPanelProps {
    *  regime-level Save all / Cancel all instead of saving just this layer. */
   onSaveAll?: () => void;
   onCancelAll?: () => void;
+  /** When set (multi-layer), the in-card "Clear All" ghost blanks every
+   *  layer tab's form, not just this one. Single-layer falls back to the
+   *  panel's local clear. */
+  onClearAll?: () => void;
   /** True while a regime-level save-all is in flight — disables the bar. */
   savingAll?: boolean;
 }
@@ -268,6 +274,7 @@ const LayerDetailPanel = forwardRef<LayerPanelHandle, LayerDetailPanelProps>(({
   onEditingChange,
   onSaveAll,
   onCancelAll,
+  onClearAll,
   savingAll = false,
 }, ref) => {
   const [detail, setDetail] = useState<StandardRegimeLayerDetail | null>(null);
@@ -452,6 +459,15 @@ const LayerDetailPanel = forwardRef<LayerPanelHandle, LayerDetailPanelProps>(({
     setEditing(false);
   };
 
+  // Blank every density field on this layer (stays in edit mode so the user
+  // can retype or Cancel to revert). Clears only the editable form values —
+  // species are separate, immediately-persisted rows and are left untouched.
+  // The cleared '' values become nulls on Save (toLayerPayload).
+  const handleClear = () => {
+    setForm(createLayerForm(EMPTY_LAYER_DETAIL(layer.layerCode)));
+    setErrors({});
+  };
+
   // Validate this layer's form; sets inline errors and returns validity.
   const validate = (): boolean => {
     if (!form) return true;
@@ -530,6 +546,7 @@ const LayerDetailPanel = forwardRef<LayerPanelHandle, LayerDetailPanelProps>(({
     persist,
     finishEdit: () => setEditing(false),
     cancel: handleCancel,
+    clear: handleClear,
   }));
 
   if (loading && !detail) {
@@ -694,7 +711,15 @@ const LayerDetailPanel = forwardRef<LayerPanelHandle, LayerDetailPanelProps>(({
       {editing && (
         <div className="fsp-info__form-actions">
           <Button
-            kind="secondary"
+            kind="ghost"
+            size="sm"
+            disabled={saving || savingAll}
+            onClick={onClearAll ?? handleClear}
+          >
+            Clear All
+          </Button>
+          <Button
+            kind="tertiary"
             size="sm"
             disabled={saving || savingAll}
             onClick={onCancelAll ?? handleCancel}
@@ -1228,6 +1253,12 @@ const StandardRegimeLayersPanel: FC<Props> = ({
     tabs.forEach((l) => panelRefs.current[l.layerCode]?.cancel());
   };
 
+  // Regime-level Clear All: blank every layer tab's form (single or multi),
+  // staying in edit mode so the user can Save the cleared values or Cancel.
+  const handleClearAll = () => {
+    tabs.forEach((l) => panelRefs.current[l.layerCode]?.clear());
+  };
+
   // Multi-layer sub-tab strip, handed to every layer panel as headerContent
   // so the tabs render INSIDE each density card's white header (part of the
   // primary table) rather than as a separate strip above it. All layer
@@ -1308,6 +1339,7 @@ const StandardRegimeLayersPanel: FC<Props> = ({
               onEditingChange={handleLayerEditingChange}
               onSaveAll={() => void handleSaveAll()}
               onCancelAll={handleCancelAll}
+              onClearAll={handleClearAll}
               savingAll={savingAll}
             />
           </div>

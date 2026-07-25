@@ -193,7 +193,7 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
     String oracleMessage = ex.getOracleErrorMessage() == null
         ? ""
         : ex.getOracleErrorMessage();
-    String code = ProcErrorMessages.firstMatchedCode(oracleMessage);
+    String code = ProcErrorMessages.mostSpecificMatchedCode(oracleMessage);
     if (code != null) {
       ProcErrorMessages.Info info = ProcErrorMessages.infoFor(code);
       ApiError apiError = new ApiError(info.status());
