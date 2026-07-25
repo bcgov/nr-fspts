@@ -18,7 +18,14 @@ import {
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
-import { Add, Copy, Information, Search as SearchIcon } from '@carbon/icons-react';
+import {
+  Add,
+  CheckmarkFilled,
+  Copy,
+  Information,
+  Search as SearchIcon,
+  SubtractAlt,
+} from '@carbon/icons-react';
 import {
   type FC,
   type FormEvent,
@@ -96,6 +103,7 @@ const HEADERS = [
   { key: 'standardsRegimeId', header: 'Standards ID' },
   { key: 'standardsRegimeName', header: 'Standards name' },
   { key: 'standardsObjective', header: 'Objective' },
+  { key: 'isDefault', header: 'Default' },
   { key: 'bgc', header: 'BGC' },
   { key: 'clientNumber', header: 'Client number' },
   { key: 'status', header: 'Status' },
@@ -631,17 +639,19 @@ const AddExistingStandardModal: FC<Props> = ({
                             (row.cells.find(
                               (c) => c.info.header === 'standardsRegimeId',
                             )?.value as string | undefined) ?? '';
-                          // Action by regime status (mutually exclusive):
+                          // Action by regime status:
                           //   Approved → Add (link the shared standard as-is)
-                          //   Draft    → Copy (clone into a new editable draft)
+                          //              AND Copy (clone into a new draft)
+                          //   Draft    → Copy only
                           // Anything else has no add/copy action.
+                          const rowData = (results ?? []).find(
+                            (r) => r.id === row.id,
+                          );
                           const status =
-                            (results ?? [])
-                              .find((r) => r.id === row.id)
-                              ?.status?.trim()
-                              .toLowerCase() ?? '';
+                            rowData?.status?.trim().toLowerCase() ?? '';
                           const isApproved = status === 'approved';
                           const isDraft = status === 'draft';
+                          const rowIsDefault = rowData?.isDefault ?? false;
                           const anyBusy = busy !== null;
                           const busyHere = busy?.id === regimeId;
                           return (
@@ -669,7 +679,7 @@ const AddExistingStandardModal: FC<Props> = ({
                                               : 'Add'}
                                           </Button>
                                         )}
-                                        {isDraft && (
+                                        {(isApproved || isDraft) && (
                                           <Button
                                             kind="ghost"
                                             size="sm"
@@ -687,6 +697,23 @@ const AddExistingStandardModal: FC<Props> = ({
                                           </Button>
                                         )}
                                       </div>
+                                    </TableCell>
+                                  );
+                                }
+                                if (cell.info.header === 'isDefault') {
+                                  return (
+                                    <TableCell key={cell.id}>
+                                      {rowIsDefault ? (
+                                        <span className="fsp-search__bool fsp-search__bool--yes">
+                                          <CheckmarkFilled size={16} />
+                                          Yes
+                                        </span>
+                                      ) : (
+                                        <span className="fsp-search__bool fsp-search__bool--no">
+                                          <SubtractAlt size={16} />
+                                          No
+                                        </span>
+                                      )}
                                     </TableCell>
                                   );
                                 }

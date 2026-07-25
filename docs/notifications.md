@@ -65,7 +65,7 @@ digest.
 DesignateBatchScheduler  (@Scheduled cron + @SchedulerLock)
    └─ DesignateBatchService.runOnce()
          ├─ read pending notification rows, group by designate
-         ├─ resolve each designate's email   ── DesignateEmailResolver (→ FAM)
+         ├─ resolve each designate's email   ── DesignateEmailResolver (→ nr-user-lookup-api)
          ├─ render envelope + per-row blocks  ── EmailTemplateRenderer
          └─ send via SMTP; leave the queue intact on failure (retry next tick)
 ```
@@ -82,9 +82,9 @@ Key properties:
   designate's rows are left in the queue and retried next run (so a transient
   mail outage doesn't drop notifications).
 - **Email resolution** — a designate is stored as an IDIR username; the actual
-  email is looked up from **FAM** at send time via `DesignateEmailResolver`
-  (impl `FamDesignateEmailResolver`). See
-  [fam-integration.md](fam-integration.md).
+  email is looked up from **nr-user-lookup-api** at send time via
+  `DesignateEmailResolver` (impl `UserLookupDesignateEmailResolver`). See
+  [user-lookup-integration.md](user-lookup-integration.md).
 - **Crash isolation** — `runOnce()` is wrapped so one bad run can't kill the
   schedule; the next cron tick still fires.
 
@@ -98,7 +98,7 @@ Templates: `designate_envelope_email` (the wrapper) + `designate_block_email`
 |-------|------|
 | `DesignateBatchScheduler` | cron + ShedLock trigger |
 | `DesignateBatchService` | the digest run: collect → resolve → render → send |
-| `DesignateEmailResolver` / `FamDesignateEmailResolver` | IDIR → email via FAM |
+| `DesignateEmailResolver` / `UserLookupDesignateEmailResolver` | IDIR → email via nr-user-lookup-api |
 | `EmailNotificationService` | publishes/sends workflow emails |
 | `EmailEventDispatcher` | after-commit listener that renders + sends |
 | `WorkflowEmailEvent` | the workflow email event payload |
@@ -111,8 +111,8 @@ Templates: `designate_envelope_email` (the wrapper) + `designate_block_email`
 - The digest is **off by default**; enable it on exactly the deployment that
   should own the schedule.
 - If designate emails aren't going out, check (in order): the **send kill-switch**
-  (below), the enabled flag, the cron, FAM auth (the resolver logs its active
-  auth mode at startup), and SMTP.
+  (below), the enabled flag, the cron, nr-user-lookup-api auth (the client logs
+  its active auth mode at startup), and SMTP.
 
 ## Configuration
 

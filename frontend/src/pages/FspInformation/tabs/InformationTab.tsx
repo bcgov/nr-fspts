@@ -823,7 +823,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
           {editing && (
             <div className="fsp-info__form-actions">
               <Button
-                kind="secondary"
+                kind="tertiary"
                 size="sm"
                 disabled={saving}
                 onClick={handleCancel}
