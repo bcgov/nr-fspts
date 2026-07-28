@@ -65,6 +65,9 @@ const JcrsReportsPage: FC = () => {
         <div className="fsp-reports__header">
           <h1>Reports</h1>
         </div>
+        <p className="fsp-reports__subtitle">
+          Download and generate reports on FSPs and their stocking standards.
+        </p>
       </Column>
 
       <Column sm={4} md={8} lg={16}>

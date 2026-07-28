@@ -42,9 +42,10 @@ export function isMenuParent(item: MenuItem): item is MenuParent {
 // NavBar.tsx; the deeply-nested "Search > Links > FTA" branch was flattened
 // to a single level because Carbon's SideNav supports only one level of
 // nesting.
-// Ordered to match the FSP design's side nav (fsp_search_v1.html):
-// FSP Search, Inbox, Data Submission, District Notification, Reports,
-// Standards Search, Submission History.
+// Ordered per the FSP design's side nav:
+// FSP Search, Inbox, Standards Search, District Notification, Reports,
+// Data Submission, Submission History (Submission History is role-gated to
+// Submitter / View-Only and stays last).
 const NAV: MenuItem[] = [
   {
     // Internal (ministry) roles only — Submitter / View-Only never search.
@@ -72,14 +73,12 @@ const NAV: MenuItem[] = [
     ],
   },
   {
-    // Single-entry top-level leaf; if more submission flows land
-    // later, re-introduce a parent submenu. Only content-editing roles
-    // submit FSPs — Decision Makers and read-only roles never see it.
-    id: 'Data Submission',
-    label: 'Data Submission',
-    path: '/data-submission',
-    icon: SubmitFspIcon,
-    roles: ['FSPTS_ADMINISTRATOR', 'FSPTS_SUBMITTER'],
+    // FSP501 — Stocking Standards Search. Separate from FSP Search
+    // because the criteria + result columns are entirely different.
+    id: 'Standards Search',
+    label: 'Standards Search',
+    path: '/standards-search',
+    icon: StandardsSearchIcon,
   },
   {
     id: 'District Notification',
@@ -101,12 +100,14 @@ const NAV: MenuItem[] = [
     ],
   },
   {
-    // FSP501 — Stocking Standards Search. Separate from FSP Search
-    // because the criteria + result columns are entirely different.
-    id: 'Standards Search',
-    label: 'Standards Search',
-    path: '/standards-search',
-    icon: StandardsSearchIcon,
+    // Single-entry top-level leaf; if more submission flows land
+    // later, re-introduce a parent submenu. Only content-editing roles
+    // submit FSPs — Decision Makers and read-only roles never see it.
+    id: 'Data Submission',
+    label: 'Data Submission',
+    path: '/data-submission',
+    icon: SubmitFspIcon,
+    roles: ['FSPTS_ADMINISTRATOR', 'FSPTS_SUBMITTER'],
   },
   {
     // Client-tied roles only — their read-only audit of their org's

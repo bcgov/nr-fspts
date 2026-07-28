@@ -51,6 +51,10 @@
 
 .fsp-district__tile.cds--tile {
   padding-block-end: 0.5rem;
+  // Drop Carbon's default 1rem inline padding so the fields sit flush with
+  // the page title/subtitle (which live outside the Tile at the content
+  // edge) rather than inset by 16px.
+  padding-inline: 0;
 }
 
 .fsp-district__form {
@@ -132,8 +136,8 @@
 
 .fsp-district__results-count {
   display: inline-block;
-  font-weight: 600;
-  font-size: 0.875rem;
+  font-weight: 400;
+  font-size: 1rem;
 }
 
 // Drop the table's outer border/rounded-corner wrapper — flat
@@ -141,6 +145,35 @@
 .fsp-district__table .cds--data-table-container {
   padding-block-start: 0;
   background: transparent;
+}
+
+// Right-align the Actions column — header + cell content (the Delete button
+// and the em-dash placeholder).
+.fsp-district__table .cds--data-table th.fsp-district__col-actions,
+.fsp-district__table .cds--data-table td.fsp-district__col-actions {
+  text-align: right;
+}
+
+// Nudge just the header label left so "Actions" lines up over the Delete
+// buttons below (the ghost button's content sits inset from the cell's right
+// edge). Header-only — the cells keep the button flush to the column edge.
+.fsp-district__table .cds--data-table th.fsp-district__col-actions {
+  padding-inline-end: 2.5rem;
+}
+
+// Carbon wraps the header text in an inner element that doesn't inherit the
+// th's text-align: a `.cds--table-header-label` div (non-sortable) or a flex
+// sort button (sortable). Right-align both so "Actions" tracks the column.
+.fsp-district__table .cds--data-table th.fsp-district__col-actions {
+  .cds--table-header-label {
+    text-align: right;
+    justify-content: flex-end;
+  }
+
+  .cds--table-sort,
+  .cds--table-sort__flex {
+    justify-content: flex-end;
+  }
 }
 
 // Zebra striping — odd rows pure white, even rows light gray. We're
@@ -156,6 +189,13 @@
 .fsp-district__table .cds--data-table tbody tr:nth-child(even),
 .fsp-district__table .cds--data-table tbody tr:nth-child(even) td {
   background-color: var(--cds-layer-01);
+}
+
+// Closing line under the last row. The app-wide rule strips row dividers and
+// this table has no footer/pagination, so add a bottom border on the final
+// row so the table reads as complete (matches the app's #c6c6c8 border).
+.fsp-district__table .cds--data-table tbody tr:last-child td {
+  border-block-end: 1px solid #c6c6c8;
 }
 
 // Full-bleed results section. A direct child of .fsp-district-page

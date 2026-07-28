@@ -78,6 +78,10 @@
 // the Search button row.
 .fsp-inbox__tile.cds--tile {
   padding-block-end: 0.5rem;
+  // Drop Carbon's default 1rem inline padding so the fields sit flush with
+  // the page title/subtitle (which live outside the Tile at the content
+  // edge) rather than inset by 16px.
+  padding-inline: 0;
 }
 
 .fsp-inbox__form {
@@ -174,8 +178,8 @@
 .fsp-inbox__results-header {
   background-color: var(--cds-layer-01);
   padding: 0.75rem 1rem;
-  font-weight: 600;
-  // Design spec: 16px result count (was 14px) — matches SearchPage.
+  // 16px result count, regular weight (not bold) — matches SearchPage.
+  font-weight: 400;
   font-size: 1rem;
   color: var(--cds-text-primary);
 }
@@ -276,39 +280,10 @@
   background-color: #dfeaf8;
 }
 
-// Footer / pagination bar — kept in sync with SearchPage.scss: a grey
-// surface (design's --fds-table-footer #dfdfe1) with a subtle top divider
-// and #606062 14px text, no internal vertical dividers.
-.fsp-inbox__results .cds--pagination * {
-  border-color: transparent !important;
-}
-
-.fsp-inbox__results .cds--pagination {
-  background-color: #dfdfe1;
-  border: none;
-  border-block-start: 1px solid #c6c6c8;
-  color: #606062;
-  font-size: 14px;
-}
-
-.fsp-inbox__results .cds--pagination .cds--select-input,
-.fsp-inbox__results .cds--pagination .cds--pagination__button,
-.fsp-inbox__results .cds--pagination .cds--pagination__text,
-.fsp-inbox__results .cds--pagination .cds--pagination__pages-text {
-  background-color: transparent;
-  color: #606062;
-}
-
-// Pagination: Items per page sits left at its natural position;
-// "1-X of N items" range indicator pushes to the right edge of
-// .cds--pagination__left so it lands flush with the page-selector.
-.fsp-inbox__results .cds--pagination__left {
-  flex: 1 1 auto;
-}
-
-.fsp-inbox__results .cds--pagination__items-count {
-  margin-inline-start: auto;
-}
+// Footer / pagination bar styling is shared with FSP Search — see the
+// `.fsp-search__results, .fsp-inbox__results` block in SearchPage.scss (light
+// surface, top + bottom border, full-height vertical dividers). Nothing
+// Inbox-specific is needed here.
 
 // Full-bleed results section. A direct child of .fsp-inbox-page
 // (flex column), so the only horizontal inset is .cds--content's

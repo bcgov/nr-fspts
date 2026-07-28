@@ -131,6 +131,9 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
   const [holderItems, setHolderItems] = useState<ClientSearchResult[]>([]);
   const [holderSelected, setHolderSelected] =
     useState<ClientSearchResult | null>(null);
+  // True only while the debounced client lookup is actually in flight — drives
+  // the spinner in the "Agreement holder" label.
+  const [holderLoading, setHolderLoading] = useState(false);
 
   // Re-blank the form whenever the definition changes (user closed and
   // reopened a different accordion row).
@@ -141,6 +144,7 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
     setHolderTerm('');
     setHolderItems([]);
     setHolderSelected(null);
+    setHolderLoading(false);
   }, [definition.id, definition.availableFormats]);
 
   // Debounced agreement-holder lookup — wait 300ms, skip terms under 3 chars,
@@ -149,14 +153,21 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
     const term = holderTerm.trim();
     if (term.length < 3) {
       setHolderItems([]);
+      setHolderLoading(false);
       return;
     }
+    let cancelled = false;
     const handle = setTimeout(() => {
+      setHolderLoading(true);
       searchClientsAuto(term)
-        .then(setHolderItems)
-        .catch(() => setHolderItems([]));
+        .then((items) => { if (!cancelled) setHolderItems(items); })
+        .catch(() => { if (!cancelled) setHolderItems([]); })
+        .finally(() => { if (!cancelled) setHolderLoading(false); });
     }, 300);
-    return () => clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
   }, [holderTerm]);
 
   // Typing replaces any prior selection and clears the holder filter until a
@@ -337,7 +348,19 @@ const ReportConfigForm: FC<ReportConfigFormProps> = ({
           <ComboBox
             key="ahClientNumber"
             id={`report-${definition.id}-ahClientNumber`}
-            titleText="Agreement holder"
+            titleText={
+              <span className="fsp-field-label--busy">
+                Agreement holder
+                {holderLoading && (
+                  <Loading
+                    small
+                    withOverlay={false}
+                    description="Searching agreement holders"
+                    className="fsp-field-label__spinner"
+                  />
+                )}
+              </span>
+            }
             helperText="Enter name, acronym, or client number (min. 3 characters)"
             placeholder=""
             items={holderItems}

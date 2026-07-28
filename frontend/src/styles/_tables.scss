@@ -49,6 +49,9 @@
   font-size: 16px;
   line-height: 1.4;
   letter-spacing: 0.16px;
+  // Drop Carbon's default row divider app-wide — the zebra striping already
+  // separates rows, so the lines between them are redundant.
+  border-block-end: none;
 }
 
 // Zebra striping — odd rows white, even rows light grey.

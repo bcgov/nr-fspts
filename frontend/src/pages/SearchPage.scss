@@ -137,6 +137,27 @@
   }
 }
 
+// A field label carrying an inline in-flight spinner to the right of its text
+// (the "Agreement holder" client lookup on FSP Search + Inbox). Shared class —
+// SearchPage.scss is bundled app-wide, so InboxPage reuses it.
+.fsp-field-label--busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+// Shrink Carbon's small spinner to the 14px label text height so it doesn't
+// grow the label row.
+.fsp-field-label__spinner.cds--loading--small {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+
+  .cds--loading__svg {
+    inline-size: 100%;
+    block-size: 100%;
+  }
+}
+
 @media (min-width: 1056px) {
   .fsp-search__field-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -230,8 +251,8 @@
 .fsp-search__results-header {
   background-color: var(--cds-layer-01);
   padding: 0.75rem 1rem;
-  font-weight: 600;
-  // Design spec: 16px result count. Colour stays on the Carbon token.
+  // 16px result count, regular weight (not bold). Colour on the Carbon token.
+  font-weight: 400;
   font-size: 1rem;
   color: var(--cds-text-primary);
 }
@@ -374,48 +395,79 @@
   svg { fill: #858585; }
 }
 
-// Footer/pagination bar — white surface with no internal vertical
-// dividers. Carbon's pagination ships borders on every inner section
-// (items-count, page select, nav buttons); neutralize them inside
-// the search results scope only so global pagination styling stays
-// intact elsewhere.
-.fsp-search__results .cds--pagination * {
-  border-color: transparent !important;
-}
+// Footer / pagination bar — shared by every search-style results table:
+// FSP Search, Standards Search and Submission History (all use
+// .fsp-search__results) plus the Inbox (.fsp-inbox__results). Light-grey
+// surface, top + bottom border, Carbon's default space-between layout, and
+// full-height vertical dividers between every section. Nested under both
+// scopes so a single source of truth covers them all.
+.fsp-search__results,
+.fsp-inbox__results {
+  .cds--pagination {
+    background-color: #f4f4f4;
+    border: none;
+    border-block-start: 1px solid #c6c6c8;
+    border-block-end: 1px solid #c6c6c8;
+    color: #606062;
+    font-size: 14px;
+  }
 
-// Gray footer surface (design's --fds-table-footer #dfdfe1) with a subtle
-// top border and 14px secondary text. Kill only the inner dividers above so
-// the container keeps its own top border.
-.fsp-search__results .cds--pagination {
-  background-color: #dfdfe1;
-  border: none;
-  border-block-start: 1px solid #c6c6c8;
-  color: #606062;
-  font-size: 14px;
-}
+  // The app-wide pagination styling (_overrides.scss) insets the inline
+  // selects AND the nav buttons by 0.25rem and strips their borders
+  // (border: 0). Reset both here — at a higher specificity than that global
+  // (three classes vs two, so it wins regardless of load order) — so each
+  // section fills the full bar height and can carry a full-height divider.
+  .cds--pagination .cds--select__item-count,
+  .cds--pagination .cds--select__page-number,
+  .cds--pagination .cds--pagination__button {
+    margin: 0;
+    border-radius: 0;
+  }
 
-// Let the gray show through Carbon's inner select / button / text surfaces
-// (which otherwise paint their own white background).
-.fsp-search__results .cds--pagination .cds--select-input,
-.fsp-search__results .cds--pagination .cds--pagination__button,
-.fsp-search__results .cds--pagination .cds--pagination__text,
-.fsp-search__results .cds--pagination .cds--pagination__pages-text {
-  background-color: transparent;
-  color: #606062;
-}
+  // Carbon draws its OWN short divider on the items-per-page select input
+  // (border-inline-end on .cds--select-input) — it survives the global's
+  // border:0 and sits just left of our full-height wrapper divider, so the
+  // user sees two lines. Kill it; the wrapper divider below is the only one.
+  .cds--pagination .cds--select__item-count .cds--select-input {
+    border-inline-end: 0;
+  }
 
-// Pagination bar layout: Items per page sits on the far left at its
-// natural position; the "1-X of N items" range indicator (Carbon's
-// .cds--pagination__items-count) gets pushed to the right edge of
-// .cds--pagination__left so it ends up flush against the page-selector
-// block. Doing it via flex-grow on __left rather than absolute moves
-// keeps Carbon's hover/border tokens intact.
-.fsp-search__results .cds--pagination__left {
-  flex: 1 1 auto;
-}
+  // Full-height vertical dividers, colour-matched to the top border. Four
+  // across the bar: Items-per-page │ range … │ page-select │ ◀ │ ▶. Each is
+  // drawn on a FULL-BAR-HEIGHT element so it spans top-to-bottom:
+  //   • the items-per-page select wrapper (trailing edge)
+  //   • the whole right section (leading edge — before the page selector)
+  //   • the two IconButton .cds--popover-container wrappers (leading edge) —
+  //     the app sizes THOSE to the full 3rem bar height while the inner
+  //     <button> stays 40px, so the wrapper is what carries a full line.
+  .cds--pagination .cds--select__item-count {
+    border-inline-end: 1px solid #c6c6c8;
+  }
 
-.fsp-search__results .cds--pagination__items-count {
-  margin-inline-start: auto;
+  .cds--pagination__right {
+    border-inline-start: 1px solid #c6c6c8;
+  }
+
+  .cds--pagination__control-buttons .cds--popover-container {
+    border-inline-start: 1px solid #c6c6c8;
+    // The 40px arrow button sits at the top of its taller (3rem) wrapper,
+    // which rides the icon high; centre it so the arrows line up with the
+    // vertically centred "of N pages" text.
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  // Let the grey surface show through Carbon's inner select / button / text
+  // surfaces (which otherwise paint their own white background). Borders are
+  // left alone so the dividers above stay visible.
+  .cds--pagination .cds--select-input,
+  .cds--pagination .cds--pagination__button,
+  .cds--pagination .cds--pagination__text,
+  .cds--pagination .cds--pagination__pages-text {
+    background-color: transparent;
+    color: #606062;
+  }
 }
 
 // Full-bleed results section. Rendered OUTSIDE .fsp-search-grid (see
@@ -459,6 +511,10 @@
 // buttons with only the Tile's small residual padding between.
 .fsp-search__tile.cds--tile {
   padding-block-end: 0.5rem;
+  // Drop Carbon's default 1rem inline padding so the fields sit flush with
+  // the page title/subtitle (which live outside the Tile at the content
+  // edge) rather than inset by 16px.
+  padding-inline: 0;
 }
 
 .fsp-search__form {

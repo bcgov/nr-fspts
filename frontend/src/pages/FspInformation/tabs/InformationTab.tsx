@@ -489,11 +489,16 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
     );
     const updated = await updateFsp(fsp.fspId, { districts: merged });
     onSaved(updated);
+    // "<District Acr> - <District name> has been removed from this FSP"
+    // (mirrors the add toast's "<Acr> - <name> has been added" phrasing).
+    const code = districtDeleteTarget.orgUnitCode;
+    const name = districtDeleteTarget.orgUnitName;
+    const label =
+      code && name ? `${code} - ${name}` : code ?? name ?? districtDeleteTarget.orgUnitNo;
     display({
       kind: 'success',
       title: 'District removed.',
-      subtitle:
-        districtDeleteTarget.orgUnitCode ?? districtDeleteTarget.orgUnitNo,
+      subtitle: `${label} has been removed from this FSP.`,
       timeout: 6000,
     });
   };
@@ -510,11 +515,17 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
     );
     const updated = await updateFsp(fsp.fspId, { agreementHolders: merged });
     onSaved(updated);
+    // "<Client name> — <Client number> has been removed from this FSP"
+    // (mirrors the district removal toast + the confirm modal's label).
     const { holder } = holderDeleteTarget;
+    const label =
+      holder.clientName && holder.clientNumber
+        ? `${holder.clientName} — ${holder.clientNumber}`
+        : holder.clientName ?? holder.clientNumber ?? '(unnamed)';
     display({
       kind: 'success',
       title: 'Agreement holder removed.',
-      subtitle: holder.clientName ?? holder.clientNumber ?? undefined,
+      subtitle: `${label} has been removed from this FSP.`,
       timeout: 6000,
     });
   };
@@ -878,7 +889,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                   // can edit. DataTable walks the registered headers, so
                   // its cell surfaces the Delete button rather than data.
                   ...(canEdit
-                    ? [{ key: 'actions', header: '' }]
+                    ? [{ key: 'actions', header: 'Actions' }]
                     : []),
                 ]}
                 isSortable
@@ -890,10 +901,22 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                         <TableRow>
                           {headers.map((h) => (
                             <TableHeader
-                              {...getHeaderProps({ header: h })}
+                              {...getHeaderProps({
+                                header: h,
+                                isSortable:
+                                  h.key === 'actions' ? false : undefined,
+                              })}
                               key={h.key}
-                              aria-label={h.key === 'actions' ? 'Actions' : undefined}
-                              style={h.key === 'actions' ? { width: '4rem' } : undefined}
+                              className={
+                                h.key === 'actions'
+                                  ? 'fsp-info__col-actions'
+                                  : undefined
+                              }
+                              style={
+                                h.key === 'actions'
+                                  ? { width: '1%', whiteSpace: 'nowrap' }
+                                  : undefined
+                              }
                             >
                               {h.header}
                             </TableHeader>
@@ -905,8 +928,11 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                           <TableRow {...getRowProps({ row })} key={row.id}>
                             {row.cells.map((cell) =>
                               cell.info.header === 'actions' ? (
-                                <TableCell key={cell.id}>
-                                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <TableCell
+                                  key={cell.id}
+                                  className="fsp-info__col-actions"
+                                >
+                                  <div className="fsp-info__actions-cell">
                                     <Button
                                       kind="danger--ghost"
                                       size="sm"
@@ -917,7 +943,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                                         if (target) setHolderDeleteTarget(target);
                                       }}
                                     >
-                                      Delete
+                                      Remove
                                     </Button>
                                   </div>
                                 </TableCell>
@@ -970,7 +996,12 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                     <TableRow>
                       <TableHeader>Code</TableHeader>
                       <TableHeader>Name</TableHeader>
-                      <TableHeader style={{ width: '4rem' }} aria-label="Actions" />
+                      <TableHeader
+                        className="fsp-info__col-actions"
+                        style={{ width: '1%', whiteSpace: 'nowrap' }}
+                      >
+                        Actions
+                      </TableHeader>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -980,18 +1011,20 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                       >
                         <TableCell>{dash(d.orgUnitCode)}</TableCell>
                         <TableCell>{dash(d.orgUnitName)}</TableCell>
-                        <TableCell>
-                          {canEdit && (
-                            <Button
-                              kind="danger--ghost"
-                              size="sm"
-                              renderIcon={TrashCan}
-                              disabled={!d.orgUnitNo || anyEditing}
-                              onClick={() => setDistrictDeleteTarget(d)}
-                            >
-                              Delete
-                            </Button>
-                          )}
+                        <TableCell className="fsp-info__col-actions">
+                          <div className="fsp-info__actions-cell">
+                            {canEdit && (
+                              <Button
+                                kind="danger--ghost"
+                                size="sm"
+                                renderIcon={TrashCan}
+                                disabled={!d.orgUnitNo || anyEditing}
+                                onClick={() => setDistrictDeleteTarget(d)}
+                              >
+                                Remove
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1030,14 +1063,13 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
       <ConfirmationModal
         open={holderDeleteTarget != null}
         onClose={() => setHolderDeleteTarget(null)}
-        heading="Remove agreement holder"
+        heading="Are you sure you want to remove this agreement holder?"
         confirmLabel="Remove"
         danger
         errorTitle="Failed to remove agreement holder"
         onConfirm={handleDeleteHolderConfirmed}
       >
         <p>
-          Remove agreement holder{' '}
           <strong>
             {holderDeleteTarget?.holder.clientName ??
               holderDeleteTarget?.holder.clientNumber ??
@@ -1047,21 +1079,20 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
               ? ` — ${holderDeleteTarget.holder.clientNumber}`
               : ''}
           </strong>{' '}
-          from this FSP? This cannot be undone.
+          will be removed from this FSP.
         </p>
       </ConfirmationModal>
 
       <ConfirmationModal
         open={districtDeleteTarget != null}
         onClose={() => setDistrictDeleteTarget(null)}
-        heading="Remove district"
+        heading="Are you sure you want to remove this district?"
         confirmLabel="Remove"
         danger
         errorTitle="Failed to remove district"
         onConfirm={handleDeleteDistrictConfirmed}
       >
         <p>
-          Remove district{' '}
           <strong>
             {districtDeleteTarget?.orgUnitCode ??
               districtDeleteTarget?.orgUnitNo ??
@@ -1070,7 +1101,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
               ? ` — ${districtDeleteTarget.orgUnitName}`
               : ''}
           </strong>{' '}
-          from this FSP? This cannot be undone.
+          will be removed from this FSP.
         </p>
       </ConfirmationModal>
     </div>

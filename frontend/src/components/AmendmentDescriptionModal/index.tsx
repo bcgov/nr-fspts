@@ -8,7 +8,7 @@ import {
   TextArea,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
-import { Information } from '@carbon/icons-react';
+import { InformationFilled } from '@carbon/icons-react';
 import { useEffect, useState, type FC } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 
@@ -206,7 +206,9 @@ const AmendmentDescriptionModal: FC<Props> = ({
         : 'Save'
       : busy
         ? 'Creating…'
-        : 'Create amendment';
+        : isReplace
+          ? 'Create replacement'
+          : 'Create amendment';
 
   return (
     <Modal
@@ -229,7 +231,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
             the latter forbids interactive children, and we need the
             inline "Data submission" link. */}
         <div className="amend-modal__banner" role="note">
-          <Information className="amend-modal__banner-icon" size={20} />
+          <InformationFilled className="amend-modal__banner-icon" size={20} />
           <span>
             If your {noun} includes an XML/GeoJSON file, create it through{' '}
             <CarbonLink as={RouterLink} to="/data-submission">
@@ -258,7 +260,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
             <p className="amend-modal__error">Select an option.</p>
           )}
 
-          <hr className="amend-modal__divider" />
+          <div className="amend-modal__divider" role="separator" />
 
           <div className="amend-modal__question">
             <span className="amend-modal__question-label">
@@ -311,6 +313,13 @@ const AmendmentDescriptionModal: FC<Props> = ({
               <RadioButton id={`${idp}-approval-yes`} labelText="Yes" value="Y" />
               <RadioButton id={`${idp}-approval-no`} labelText="No" value="N" />
             </RadioButtonGroup>
+            {approvalRequired !== null && (
+              <p className="amend-modal__approval-help">
+                {approvalRequired
+                  ? 'Yes — the district reviews the amendment and makes a decision.'
+                  : 'No — the amendment takes effect as soon as you submit it.'}
+              </p>
+            )}
             {showErrors && approvalError && (
               <p className="amend-modal__error">Select an option.</p>
             )}

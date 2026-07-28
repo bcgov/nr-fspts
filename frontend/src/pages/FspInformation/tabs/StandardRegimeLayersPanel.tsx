@@ -75,6 +75,20 @@ type LayerErrors = Partial<Record<keyof LayerFormState, string>>;
 
 const isNonNegNumber = (s: string): boolean => /^\d+(\.\d+)?$/.test(s);
 
+// Min height accepts one decimal place over the range 0–99.9 (the proc
+// FSP_STANDARDS_VALIDATIONS.validate_spcs_min_hght_range checks BETWEEN 0
+// AND 99.9). Keep digits and a single dot, cap the whole part at two digits
+// (0–99) and the fraction at one digit — so the max representable value is
+// 99.9 and values like 25.5 are accepted.
+const sanitizeMinHeight = (raw: string): string => {
+  const cleaned = raw.replace(/[^\d.]/g, '');
+  const dot = cleaned.indexOf('.');
+  if (dot === -1) return cleaned.slice(0, 2);
+  const whole = cleaned.slice(0, dot).slice(0, 2);
+  const frac = cleaned.slice(dot + 1).replace(/\./g, '').slice(0, 1);
+  return `${whole}.${frac}`;
+};
+
 const validateLayer = (form: LayerFormState): LayerErrors => {
   const errs: LayerErrors = {};
   const numericFields: Array<keyof LayerFormState> = [
@@ -1039,12 +1053,10 @@ const SpeciesEditor: FC<{
             disabled={adding}
             invalid={showErrors && minHeightError}
             invalidText="Enter a minimum height."
-            // Digits only, capped at 2 — strips any non-numeric character
-            // (letters, "e"/scientific notation, ".", "+/-") that a
-            // type="number" NumberInput would otherwise accept.
-            onChange={(e) =>
-              setComposerMinHeight(e.target.value.replace(/\D/g, '').slice(0, 2))
-            }
+            // Digits plus one optional decimal place, range 0–99.9 — strips
+            // any other character (letters, "e"/scientific notation, "+/-")
+            // that a type="number" NumberInput would otherwise accept.
+            onChange={(e) => setComposerMinHeight(sanitizeMinHeight(e.target.value))}
           />
         </Stack>
         <div className="fsp-species-modal__actions">

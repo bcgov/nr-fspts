@@ -171,7 +171,7 @@ const SubmitFspModal: FC<Props> = ({
         {!preflightLoading && !preflightError && missingLegalDocument && (
           <>
             <p>
-              FSP <strong>{fspId}</strong> can't be submitted yet.
+              FSP {fspId} can't be submitted yet.
             </p>
             <p>
               Upload the <strong>FSP Legal Document</strong> under the{' '}
@@ -199,7 +199,7 @@ const SubmitFspModal: FC<Props> = ({
               <p>
                 <strong>{otherIssues.length}</strong>{' '}
                 {otherIssues.length === 1 ? 'issue needs' : 'issues need'}{' '}
-                attention before you can submit FSP <strong>{fspId}</strong>:
+                attention before you can submit FSP {fspId}:
               </p>
               <ul className="submit-fsp-modal__list">
                 {otherIssues.map((issue, i) => (
@@ -212,7 +212,7 @@ const SubmitFspModal: FC<Props> = ({
         {ready && (
           <>
             <p>
-              After submitting FSP <strong>{fspId}</strong> you will not be
+              After submitting FSP {fspId} you will not be
               able to make any further changes until the Ministry of Forests
               has reviewed it.
             </p>

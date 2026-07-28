@@ -305,6 +305,11 @@
   .cds--list-box__menu {
     z-index: 10000;
   }
+  // "Select a district to add to this FSP" helper line — 14px, scoped to this
+  // modal only (the shared __subtitle class inherits its size elsewhere).
+  .fsp-species-modal__subtitle {
+    font-size: 0.875rem;
+  }
 }
 
 // Pair narrow code inputs side-by-side in dialogs that have many of
@@ -985,6 +990,38 @@
   font-size: 1rem;
   font-weight: 600;
   color: var(--cds-text-primary);
+}
+
+// Right-align the Actions column on the Agreement Holders / Districts tables
+// (identical treatment for both — holders is a sortable DataTable, districts a
+// plain Table, so the actions column is forced non-sortable + shrink-to-content
+// on both to make them match). The cell content is right-aligned with a flex
+// wrapper (robust across both table types); the header is inset so "Actions"
+// sits over the Remove buttons.
+// Right-align the Remove button near the column's right edge (Carbon's default
+// td padding is left as-is).
+.fsp-info__actions-cell {
+  display: flex;
+  justify-content: flex-end;
+}
+
+// Inset ONLY the "Actions" header — the button stays near the edge. Force it to
+// exactly 2.5rem in BOTH tables so they match: !important beats Carbon's th
+// padding, and zeroing the header-label's own inline padding removes the
+// difference between the sortable DataTable (Agreement Holders) and the plain
+// Table (Districts) that was making the inset look uneven.
+.cds--data-table th.fsp-info__col-actions {
+  padding-inline-end: 2.5rem !important;
+
+  // The label is a block in a plain table, a flex child in a sortable one —
+  // right-align it either way, and strip its own inline padding so "Actions"
+  // lands at exactly the th's 2.5rem edge in both.
+  .cds--table-header-label {
+    text-align: right;
+    justify-content: flex-end;
+    padding-inline: 0 !important;
+    margin-inline: 0 !important;
+  }
 }
 
 // Cluster a section title with an inline tag (status pill / "Optional")

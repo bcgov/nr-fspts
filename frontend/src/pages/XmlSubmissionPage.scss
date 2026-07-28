@@ -404,12 +404,10 @@
     font-weight: 400;
     line-height: 18px;
     letter-spacing: 0.16px;
-    border-bottom: 1px solid var(--fds-border-subtle);
+    // No inter-row divider — the zebra striping separates rows.
+    border-bottom: none;
     vertical-align: middle;
     height: 48px;
-  }
-  .vtable tbody tr:last-child td {
-    border-bottom: none;
   }
   .vtable tbody tr:nth-child(odd) td {
     background: #ffffff;
@@ -424,10 +422,6 @@
   .vtable .col-loc {
     width: 240px;
     white-space: nowrap;
-  }
-  .vtable code {
-    font-size: 13px;
-    font-family: 'IBM Plex Mono', monospace;
   }
 
   // ── Review sections ──
@@ -448,6 +442,10 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    // Match the FSP details pane's section headings ("Plan details" etc):
+    // render in the registered BC Sans webfont rather than the .fsp-submit
+    // page's intentional system-font (SF / Segoe) style.
+    font-family: 'BC Sans', 'Noto Sans', Verdana, Arial, sans-serif;
   }
   .review-section__title svg {
     flex-shrink: 0;
@@ -506,9 +504,7 @@
   }
   .dtable tbody td {
     padding: 12px 16px;
-    border-bottom: 1px solid var(--fds-border-subtle);
-  }
-  .dtable tbody tr:last-child td {
+    // No inter-row divider — the zebra striping separates rows.
     border-bottom: none;
   }
   .dtable tbody tr:nth-child(even) td {
@@ -527,6 +523,17 @@
     align-items: center;
     gap: 8px;
     margin-top: 40px;
+  }
+
+  // Trim the 40px default top margin above the action button rows. The Review
+  // button (upload step) sits at 16px; the Back / Save draft row (review step)
+  // is tighter still.
+  .btn-row.btn-row--tight {
+    margin-top: 16px;
+  }
+
+  .btn-row.btn-row--tighter {
+    margin-top: -8px;
   }
   // Button row sits directly under the screen — inset 40px to align with
   // the card / page-content, matching the mockup. Bottom padding gives a
