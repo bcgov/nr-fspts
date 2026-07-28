@@ -127,6 +127,18 @@ const AmendmentDescriptionModal: FC<Props> = ({
   const stockingError = stockingStandardUpdate === null;
   const approvalError = !isReplace && approvalRequired === null;
 
+  // Answering "Yes" to either top question (changes FDU boundaries / changes
+  // stocking standards) makes approval mandatory — force the last question to
+  // "Yes" and lock it. The effect keeps the actual state in sync (so submit +
+  // the helper line read a real Yes), while the field derives its shown value
+  // and disabled state from forceApproval directly to avoid a one-render flash.
+  const forceApproval =
+    !isReplace && (fduUpdate === true || stockingStandardUpdate === true);
+
+  useEffect(() => {
+    if (forceApproval) setApprovalRequired(true);
+  }, [forceApproval]);
+
   const submit = async () => {
     if (!fsp || !fsp.fspId) return;
     if (fduError || stockingError || approvalError || reasonError) {
@@ -305,10 +317,16 @@ const AmendmentDescriptionModal: FC<Props> = ({
               name={`${idp}-approval`}
               legendText=""
               valueSelected={
-                approvalRequired === null ? '' : approvalRequired ? 'Y' : 'N'
+                forceApproval
+                  ? 'Y'
+                  : approvalRequired === null
+                    ? ''
+                    : approvalRequired
+                      ? 'Y'
+                      : 'N'
               }
               onChange={(v) => setApprovalRequired(v === 'Y')}
-              disabled={busy}
+              disabled={busy || forceApproval}
             >
               <RadioButton id={`${idp}-approval-yes`} labelText="Yes" value="Y" />
               <RadioButton id={`${idp}-approval-no`} labelText="No" value="N" />

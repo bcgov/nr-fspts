@@ -399,10 +399,14 @@
 // FSP Search, Standards Search and Submission History (all use
 // .fsp-search__results) plus the Inbox (.fsp-inbox__results). Light-grey
 // surface, top + bottom border, Carbon's default space-between layout, and
-// full-height vertical dividers between every section. Nested under both
-// scopes so a single source of truth covers them all.
+// full-height vertical dividers between every section. Nested under each
+// scope so a single source of truth covers them all: FSP Search / Standards
+// Search / Submission History (.fsp-search__results), the Inbox
+// (.fsp-inbox__results), and the Stocking Standards tab's standards table
+// (.fsp-info__standards-table).
 .fsp-search__results,
-.fsp-inbox__results {
+.fsp-inbox__results,
+.fsp-info__standards-table {
   .cds--pagination {
     background-color: #f4f4f4;
     border: none;
