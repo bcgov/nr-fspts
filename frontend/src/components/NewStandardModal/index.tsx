@@ -11,7 +11,7 @@ import {
   TextInput,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
-import { Information } from '@carbon/icons-react';
+import { InformationFilled } from '@carbon/icons-react';
 import { useEffect, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
@@ -275,7 +275,7 @@ const NewStandardModal: FC<Props> = ({
         />
       </Stack>
       <div className="new-std-modal__banner" role="note">
-        <Information className="new-std-modal__banner-icon" size={20} />
+        <InformationFilled className="new-std-modal__banner-icon" size={20} />
         <span>
           Next step: layers, species and BGC zones are added in the regime
           panel after creation.

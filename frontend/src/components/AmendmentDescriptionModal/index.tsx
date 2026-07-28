@@ -8,7 +8,7 @@ import {
   TextArea,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
-import { Information } from '@carbon/icons-react';
+import { InformationFilled } from '@carbon/icons-react';
 import { useEffect, useState, type FC } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 
@@ -127,6 +127,18 @@ const AmendmentDescriptionModal: FC<Props> = ({
   const stockingError = stockingStandardUpdate === null;
   const approvalError = !isReplace && approvalRequired === null;
 
+  // Answering "Yes" to either top question (changes FDU boundaries / changes
+  // stocking standards) makes approval mandatory — force the last question to
+  // "Yes" and lock it. The effect keeps the actual state in sync (so submit +
+  // the helper line read a real Yes), while the field derives its shown value
+  // and disabled state from forceApproval directly to avoid a one-render flash.
+  const forceApproval =
+    !isReplace && (fduUpdate === true || stockingStandardUpdate === true);
+
+  useEffect(() => {
+    if (forceApproval) setApprovalRequired(true);
+  }, [forceApproval]);
+
   const submit = async () => {
     if (!fsp || !fsp.fspId) return;
     if (fduError || stockingError || approvalError || reasonError) {
@@ -206,7 +218,9 @@ const AmendmentDescriptionModal: FC<Props> = ({
         : 'Save'
       : busy
         ? 'Creating…'
-        : 'Create amendment';
+        : isReplace
+          ? 'Create replacement'
+          : 'Create amendment';
 
   return (
     <Modal
@@ -229,7 +243,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
             the latter forbids interactive children, and we need the
             inline "Data submission" link. */}
         <div className="amend-modal__banner" role="note">
-          <Information className="amend-modal__banner-icon" size={20} />
+          <InformationFilled className="amend-modal__banner-icon" size={20} />
           <span>
             If your {noun} includes an XML/GeoJSON file, create it through{' '}
             <CarbonLink as={RouterLink} to="/data-submission">
@@ -258,7 +272,7 @@ const AmendmentDescriptionModal: FC<Props> = ({
             <p className="amend-modal__error">Select an option.</p>
           )}
 
-          <hr className="amend-modal__divider" />
+          <div className="amend-modal__divider" role="separator" />
 
           <div className="amend-modal__question">
             <span className="amend-modal__question-label">
@@ -303,14 +317,27 @@ const AmendmentDescriptionModal: FC<Props> = ({
               name={`${idp}-approval`}
               legendText=""
               valueSelected={
-                approvalRequired === null ? '' : approvalRequired ? 'Y' : 'N'
+                forceApproval
+                  ? 'Y'
+                  : approvalRequired === null
+                    ? ''
+                    : approvalRequired
+                      ? 'Y'
+                      : 'N'
               }
               onChange={(v) => setApprovalRequired(v === 'Y')}
-              disabled={busy}
+              disabled={busy || forceApproval}
             >
               <RadioButton id={`${idp}-approval-yes`} labelText="Yes" value="Y" />
               <RadioButton id={`${idp}-approval-no`} labelText="No" value="N" />
             </RadioButtonGroup>
+            {approvalRequired !== null && (
+              <p className="amend-modal__approval-help">
+                {approvalRequired
+                  ? 'Yes — the district reviews the amendment and makes a decision.'
+                  : 'No — the amendment takes effect as soon as you submit it.'}
+              </p>
+            )}
             {showErrors && approvalError && (
               <p className="amend-modal__error">Select an option.</p>
             )}

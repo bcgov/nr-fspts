@@ -254,12 +254,8 @@ export default function XmlSubmissionPage() {
       const outcome = await submitSubmission(xmlFile);
       setView({ kind: 'submission', outcome });
       if (outcome.kind === 'created') {
-        display({
-          kind: 'success',
-          title: 'Submission accepted',
-          subtitle: `FSP ${outcome.saved.fspId ?? ''} saved.`,
-          timeout: 6000,
-        });
+        // No success toast — the confirmation screen (successOutcome) already
+        // communicates the successful save.
       } else if (outcome.kind === 'invalid') {
         // Validation failed at persist time — drop back to the Upload
         // step so the issue list / notif is visible against the file.
@@ -531,7 +527,7 @@ function UploadStep(props: UploadStepProps) {
         </div>
       </div>
 
-      <div className="btn-row">
+      <div className="btn-row btn-row--tight">
         <button
           type="button"
           className="btn btn--primary"
@@ -767,7 +763,7 @@ function ValidationIssuesTable({ errors }: { errors: SubmissionValidationError[]
           {errors.map((e, i) => (
             <tr key={i} data-testid="validation-issue-row">
               <td className="col-issue">{labelFor(e.code)}</td>
-              <td className="col-loc">{e.path ? <code>{e.path}</code> : '—'}</td>
+              <td className="col-loc">{e.path ? e.path : '—'}</td>
               <td>{cleanDetail(e.message)}</td>
             </tr>
           ))}
@@ -819,7 +815,7 @@ function ReviewStep({
         )}
       </div>
 
-      <div className="btn-row">
+      <div className="btn-row btn-row--tighter">
         <button
           type="button"
           className="btn btn--ghost"
@@ -1164,9 +1160,11 @@ function ErrorIcon({ size = 14, color }: { size?: number; color?: string }) {
 }
 
 function InfoIcon() {
+  // Filled disc with the "i" carved out — mirrors the filled ErrorIcon /
+  // CheckIcon in this file so every validation banner uses a filled glyph.
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M16 2a14 14 0 1 0 14 14A14 14 0 0 0 16 2zm0 26a12 12 0 1 1 12-12 12 12 0 0 1-12 12zm-1-6h2v2h-2zm0-14h2v10h-2z" />
+      <path d="M16 2a14 14 0 1 0 14 14A14 14 0 0 0 16 2zm0 6a1.5 1.5 0 1 1 1.5-1.5A1.5 1.5 0 0 1 16 8zm-1 5h2v10h-2z" />
     </svg>
   );
 }

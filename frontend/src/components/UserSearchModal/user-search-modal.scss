@@ -39,10 +39,47 @@
   margin-block-start: 1.5rem;
 }
 
-// Submit-time validation banner below the search fields.
+// Right-align the Actions column — header + cell content (the Add button / the
+// em-dash placeholder).
+.user-search-form__results .cds--data-table th.user-search-form__col-actions,
+.user-search-form__results .cds--data-table td.user-search-form__col-actions {
+  text-align: right;
+}
+
+// Inset the "Actions" header off the right edge so it lines up over the Add
+// buttons below. Carbon wraps the header text in an inner element that doesn't
+// inherit the th's text-align, so right-align that directly (covering both the
+// non-sortable label and the sortable sort-button forms).
+.user-search-form__results .cds--data-table th.user-search-form__col-actions {
+  padding-inline-end: 2.5rem;
+
+  .cds--table-header-label {
+    text-align: right;
+    justify-content: flex-end;
+  }
+
+  .cds--table-sort,
+  .cds--table-sort__flex {
+    justify-content: flex-end;
+  }
+}
+
+// Submit-time validation message below the search fields — plain red text
+// with a leading exclamation icon (no notification banner/box).
 .user-search-form__validation {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   margin-block: 0 1rem;
   max-inline-size: 100%;
+  color: var(--cds-support-error, #da1e28);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.user-search-form__validation-icon {
+  flex-shrink: 0;
+  fill: var(--cds-support-error, #da1e28);
 }
 
 // Trim Carbon's tall bottom padding on the modal body so there's no dead
@@ -50,4 +87,11 @@
 .add-designate-modal .cds--modal-content {
   padding-block-end: 1rem;
   margin-block-end: 0;
+}
+
+// When the body scrolls, Carbon adds .cds--modal-scroll-content with a bottom
+// `mask-image` fade — it reads as a hazy cutoff over the results table. Drop it
+// so the bottom of the modal stays crisp (matches the other FSP dialogs).
+.add-designate-modal .cds--modal-scroll-content {
+  mask-image: none;
 }

@@ -255,6 +255,12 @@
 // flex row above the table — extra row-margin under the heading so
 // the table doesn't crowd it.
 .fsp-info__species-section {
+  // Separator line above each species section header (i.e. above the
+  // "Add preferred species" / "Add acceptable species" button row).
+  margin-block-start: 1.5rem;
+  padding-block-start: 1.5rem;
+  border-block-start: 1px solid #c6c6c8;
+
   .fsp-info__section-title {
     margin: 0;
   }
@@ -304,6 +310,11 @@
   }
   .cds--list-box__menu {
     z-index: 10000;
+  }
+  // "Select a district to add to this FSP" helper line — 14px, scoped to this
+  // modal only (the shared __subtitle class inherits its size elsewhere).
+  .fsp-species-modal__subtitle {
+    font-size: 0.875rem;
   }
 }
 
@@ -987,6 +998,38 @@
   color: var(--cds-text-primary);
 }
 
+// Right-align the Actions column on the Agreement Holders / Districts tables
+// (identical treatment for both — holders is a sortable DataTable, districts a
+// plain Table, so the actions column is forced non-sortable + shrink-to-content
+// on both to make them match). The cell content is right-aligned with a flex
+// wrapper (robust across both table types); the header is inset so "Actions"
+// sits over the Remove buttons.
+// Right-align the Remove button near the column's right edge (Carbon's default
+// td padding is left as-is).
+.fsp-info__actions-cell {
+  display: flex;
+  justify-content: flex-end;
+}
+
+// Inset ONLY the "Actions" header — the button stays near the edge. Force it to
+// exactly 2.5rem in BOTH tables so they match: !important beats Carbon's th
+// padding, and zeroing the header-label's own inline padding removes the
+// difference between the sortable DataTable (Agreement Holders) and the plain
+// Table (Districts) that was making the inset look uneven.
+.cds--data-table th.fsp-info__col-actions {
+  padding-inline-end: 2.5rem !important;
+
+  // The label is a block in a plain table, a flex child in a sortable one —
+  // right-align it either way, and strip its own inline padding so "Actions"
+  // lands at exactly the th's 2.5rem edge in both.
+  .cds--table-header-label {
+    text-align: right;
+    justify-content: flex-end;
+    padding-inline: 0 !important;
+    margin-inline: 0 !important;
+  }
+}
+
 // Cluster a section title with an inline tag (status pill / "Optional")
 // on the left of a tile header, so `space-between` doesn't shove them
 // to opposite edges of the row.
@@ -1184,7 +1227,7 @@
 // Instruction line above the standards table (replaces the section
 // title — the tab label already reads "Stocking standards").
 .fsp-info__tile-instruction {
-  margin: 0;
+  margin: 0 0 0.5rem;
   color: var(--cds-text-secondary);
 }
 
@@ -1348,12 +1391,11 @@
   }
 }
 
-// In edit mode the regen matrix reads as one solid white surface (same
-// treatment as the density table below) so the gray editable inputs
-// stand out — kill the global zebra stripe (src/styles/_tables.scss).
-// Match its selector shape + our extra class so specificity (0,3,3)
-// beats the (0,2,3) zebra rule.
-.fsp-info__regen-table--editing {
+// The regen matrix reads as one solid white surface in both read-only and
+// edit mode (in edit mode the gray editable inputs need to stand out) — kill
+// the global zebra stripe (src/styles/_tables.scss). Match its selector shape
+// + our extra class so specificity (0,3,3) beats the (0,2,3) zebra rule.
+.fsp-info__regen-table {
   .cds--data-table tbody tr:nth-child(even),
   .cds--data-table tbody tr:nth-child(even) td {
     background-color: #ffffff;
@@ -1597,6 +1639,29 @@
     align-self: center;
     margin-block: 0;
   }
+  // Darken the search placeholder a touch — Carbon's default
+  // --cds-text-placeholder (#a8a8a8) reads too faint on the white toolbar.
+  .fsp-info__standards-toolbar .cds--search-input::placeholder {
+    color: #6f6f6f;
+  }
+  // The results footer reuses the shared search-style pagination bar (see the
+  // .fsp-search__results footer block in SearchPage.scss). Unlike FSP Search,
+  // this table keeps its rounded .bordered-table wrapper, which already closes
+  // the bottom edge — so drop the footer's own bottom border to avoid a
+  // doubled line at the wrapper's rounded corner. Also drop the footer's TOP
+  // border: the divider before the footer now lives on the last row's bottom
+  // edge (below), so keeping both would read as a doubled line. (3 classes →
+  // wins over the shared 2-class rule regardless of stylesheet load order.)
+  &.bordered-table .cds--pagination {
+    border-block-start: none;
+    border-block-end: none;
+  }
+  // Close the table body with a hairline under the last row, just above the
+  // footer (the app-wide _tables.scss strips tbody row borders, so add it back
+  // for the last row only).
+  .cds--data-table tbody tr:last-child td {
+    border-block-end: 1px solid #c6c6c8;
+  }
 }
 
 // Two-line heading above the standards table: "{n} stocking standards" over
@@ -1708,6 +1773,15 @@
   --cds-field-hover: var(--cds-field-hover-02);
   --cds-border-subtle: var(--cds-border-subtle-02);
   --cds-border-subtle-selected: var(--cds-border-subtle-selected-02);
+}
+
+// Bold the label of the currently-selected sub-tab (Carbon only draws the
+// selection underline, leaving the text at normal weight). Scoped to the
+// standards detail pane. (0,3,0) beats Carbon's label rules.
+.fsp-info__inner-tabs--detail
+  .cds--tabs__nav-item--selected
+  .cds--tabs__nav-item-label {
+  font-weight: 700;
 }
 
 // Detail tile sits directly under the standards table — pull it up

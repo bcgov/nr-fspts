@@ -202,6 +202,9 @@ const InboxPage: FC = () => {
   const [holderTerm, setHolderTerm] = useState('');
   const [holderItems, setHolderItems] = useState<ClientSearchResult[]>([]);
   const [holderSelected, setHolderSelected] = useState<ClientSearchResult | null>(null);
+  // True only while the debounced client lookup is actually in flight — drives
+  // the spinner in the "Agreement holder" label.
+  const [holderLoading, setHolderLoading] = useState(false);
 
   // Active BCeID org — carried into the Leaflet map tab so a multi-org user
   // isn't re-prompted (the tab opens with noopener → fresh sessionStorage).
@@ -262,14 +265,21 @@ const InboxPage: FC = () => {
     const term = holderTerm.trim();
     if (term.length < 3) {
       setHolderItems([]);
+      setHolderLoading(false);
       return;
     }
+    let cancelled = false;
     const handle = setTimeout(() => {
+      setHolderLoading(true);
       searchClientsAuto(term)
-        .then(setHolderItems)
-        .catch(() => setHolderItems([]));
+        .then((items) => { if (!cancelled) setHolderItems(items); })
+        .catch(() => { if (!cancelled) setHolderItems([]); })
+        .finally(() => { if (!cancelled) setHolderLoading(false); });
     }, 300);
-    return () => clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
   }, [holderTerm]);
 
   // Typing replaces any prior selection and clears the holder filter (until
@@ -459,7 +469,19 @@ const InboxPage: FC = () => {
               <div className="fsp-inbox__holder-cell">
                 <ComboBox
                   id="inbox-holder"
-                  titleText="Agreement holder"
+                  titleText={
+                    <span className="fsp-field-label--busy">
+                      Agreement holder
+                      {holderLoading && (
+                        <Loading
+                          small
+                          withOverlay={false}
+                          description="Searching agreement holders"
+                          className="fsp-field-label__spinner"
+                        />
+                      )}
+                    </span>
+                  }
                   helperText="Enter name, acronym, or client number (min. 3 characters)"
                   items={holderItems}
                   itemToString={(item) => (item ? clientLabel(item) : '')}

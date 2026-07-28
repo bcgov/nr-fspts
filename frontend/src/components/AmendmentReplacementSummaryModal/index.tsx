@@ -88,7 +88,7 @@ const AmendmentReplacementSummaryModal: FC<Props> = ({ open, fsp, onClose }) => 
           <h3 className="amend-summary__heading">Approval</h3>
           <p className="amend-summary__text">
             {approvalRequired
-              ? `Required — the district decision maker reviews all ${noun}s before they take effect.`
+              ? `Required — the district decision maker reviews all ${noun}s before they are approved.`
               : `Not required — this ${noun} took effect when it was submitted.`}
           </p>
         </section>

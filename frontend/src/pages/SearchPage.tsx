@@ -243,6 +243,9 @@ const SearchPage: FC = () => {
   const [holderTerm, setHolderTerm] = useState('');
   const [holderItems, setHolderItems] = useState<ClientSearchResult[]>([]);
   const [holderSelected, setHolderSelected] = useState<ClientSearchResult | null>(null);
+  // True only while the debounced client lookup is actually in flight — drives
+  // the spinner in the "Agreement holder" label.
+  const [holderLoading, setHolderLoading] = useState(false);
 
   // Errors render as a slide-in toast (top-right corner), not an
   // inline notification in the results area. The `error` state still
@@ -440,14 +443,21 @@ const SearchPage: FC = () => {
     const term = holderTerm.trim();
     if (term.length < 3) {
       setHolderItems([]);
+      setHolderLoading(false);
       return;
     }
+    let cancelled = false;
     const handle = setTimeout(() => {
+      setHolderLoading(true);
       searchClientsAuto(term)
-        .then(setHolderItems)
-        .catch(() => setHolderItems([]));
+        .then((items) => { if (!cancelled) setHolderItems(items); })
+        .catch(() => { if (!cancelled) setHolderItems([]); })
+        .finally(() => { if (!cancelled) setHolderLoading(false); });
     }, 300);
-    return () => clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
   }, [holderTerm]);
 
   // Typing replaces any prior selection and clears the holder filter
@@ -595,7 +605,19 @@ const SearchPage: FC = () => {
               <div className="fsp-search__holder-cell">
                 <ComboBox
                   id="search-holder"
-                  titleText="Agreement holder"
+                  titleText={
+                    <span className="fsp-field-label--busy">
+                      Agreement holder
+                      {holderLoading && (
+                        <Loading
+                          small
+                          withOverlay={false}
+                          description="Searching agreement holders"
+                          className="fsp-field-label__spinner"
+                        />
+                      )}
+                    </span>
+                  }
                   helperText="Enter name, acronym, or client number (min. 3 characters)"
                   items={holderItems}
                   itemToString={(item) => (item ? clientLabel(item) : '')}
@@ -734,7 +756,7 @@ const SearchPage: FC = () => {
                 <div className="fsp-search__results-header">
                   <span className="fsp-search__results-count">
                     {totalElements.toLocaleString()}{' '}
-                    {totalElements === 1 ? 'result' : 'results'} found
+                    {totalElements === 1 ? 'FSP' : 'FSPs'} found
                   </span>
                 </div>
                 <div className="fsp-search__table-container">

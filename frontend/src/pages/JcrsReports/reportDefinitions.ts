@@ -37,8 +37,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
   {
     id: 'fsp-summary',
     title: 'FSP Summary Report',
-    summary:
-      'Summary listing of FSPs filtered by org unit, agreement holder, and effective-date range. Org unit is required — the proc returns no rows without one.',
+    summary: 'Lists FSPs by status, district, client and licence.',
     availableFormats: ['pdf', 'csv'],
     fields: {
       dateRange: true,
@@ -55,7 +54,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     id: 'fsp-stocking-standards',
     title: 'FSP Stocking Standards Report',
     summary:
-      'Stocking standards for a single FSP. FSP ID is required; other filters narrow within that plan.',
+      'Review the stocking standards submitted for an FSP — useful before an amendment or approval.',
     availableFormats: ['pdf', 'csv'],
     fields: {
       orgUnit: true,

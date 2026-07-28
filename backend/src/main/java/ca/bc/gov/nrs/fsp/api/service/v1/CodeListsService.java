@@ -101,33 +101,38 @@ public class CodeListsService {
 
   /**
    * Appends the amendment TYPE to a version option's label so the picker
-   * reads "1 - Amendment", "2 - Replacement", etc. The original (code "0")
-   * keeps its plain "Original" label, and any version whose type is unknown
-   * or ORG falls back to the bare number the proc supplied.
+   * reads "1 - Amendment", "2 - Replacement", etc. The original (amendment
+   * number "0") keeps its plain "Original" label; every other version is
+   * qualified — see {@link #amendmentTypeLabel(String)} for how un-coded
+   * legacy versions are handled.
    */
   private static CodeOption withVersionContext(CodeOption option, Map<String, String> typeByNumber) {
     if ("0".equals(option.getCode())) {
       return option;
     }
     String label = amendmentTypeLabel(typeByNumber.get(option.getCode()));
-    if (label == null) {
-      return option;
-    }
     return CodeOption.builder()
         .code(option.getCode())
         .description(option.getDescription() + " - " + label)
         .build();
   }
 
+  /**
+   * Type label for a version whose amendment number is &gt; 0. An explicit
+   * {@code RPL} reads "Replacement"; <b>everything else — including a null /
+   * blank / ORG code — defaults to "Amendment"</b>. Older FSPs left
+   * {@code fsp_amendment_code} unstamped on some amendment rows, which used to
+   * fall through to a bare number and made the picker read inconsistently
+   * ("1", "2", "3 - Amendment"). A version above 0 is never the original, and
+   * un-coded legacy versions are overwhelmingly amendments (replacements are
+   * rare and, when recorded, are coded RPL), so this keeps every version
+   * qualified.
+   */
   private static String amendmentTypeLabel(String amendmentCode) {
-    if (amendmentCode == null) {
-      return null;
+    if (amendmentCode != null && "RPL".equals(amendmentCode.trim().toUpperCase())) {
+      return "Replacement";
     }
-    return switch (amendmentCode.toUpperCase()) {
-      case "AMD" -> "Amendment";
-      case "RPL" -> "Replacement";
-      default -> null; // ORG or anything unexpected → leave the bare number
-    };
+    return "Amendment";
   }
 
   /**

@@ -253,7 +253,13 @@ const ClientSearchModal: FC<ClientSearchModalProps> = ({ open, onClose, onSelect
       size="lg"
       modalHeading="Add agreement holder"
       passiveModal
-      className="client-search-modal"
+      // Pre-search the body is short, so we let the combobox dropdown spill
+      // out (overflow: visible). Once a search has run, the results table
+      // makes the body tall — switch to a scrolling body so the header stays
+      // put and the bottom rows stay reachable.
+      className={`client-search-modal${
+        results !== null ? ' client-search-modal--scroll' : ''
+      }`}
     >
       <p className="client-search__intro">
         Search for a client to add as an agreement holder on this FSP.

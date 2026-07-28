@@ -25,6 +25,15 @@
   }
 }
 
+// Page sub-title under "Reports" — 16px secondary grey, matching the other
+// list pages (FSP Search / Inbox / District).
+.fsp-reports__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--cds-text-secondary);
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
 .reports-accordion-table {
   border: 1px solid var(--cds-border-subtle-01);
   border-radius: 0.25rem;

@@ -61,6 +61,14 @@ public class FspSearchDirectDaoImpl implements FspSearchDirectDao {
   // FROM + the always-on predicates, shared by the page query and (sans
   // SELECT list) the count query. fsc is inner-joined for the status
   // description / ORDER BY fspStatusDesc; it never drops rows (FK).
+  //
+  // The org-unit EXISTS is required for every FSP. The agreement-holder EXISTS
+  // is required only for NON-draft FSPs: an in-progress draft (DFT) has no
+  // agreement holder until the user opens it and adds one, so requiring it
+  // there made freshly-created drafts unfindable in search (you can only reach
+  // them by direct URL). Drafts are therefore exempted from the AH requirement;
+  // submitted/approved FSPs still must have one (legacy parity preserved for
+  // everything past the draft stage).
   private static final String FROM_AND_BASE_WHERE = """
         FROM the.forest_stewardship_plan fsp
         JOIN the.fsp_status_code fsc ON fsc.fsp_status_code = fsp.fsp_status_code
@@ -68,12 +76,14 @@ public class FspSearchDirectDaoImpl implements FspSearchDirectDao {
          AND EXISTS (SELECT 1 FROM the.fsp_org_unit fou
                       WHERE fou.fsp_id = fsp.fsp_id
                         AND fou.fsp_amendment_number = fsp.fsp_amendment_number)
-         AND EXISTS (SELECT 1 FROM the.fsp_agreement_holder fah
-                      WHERE fah.fsp_id = fsp.fsp_id
-                        AND fah.fsp_amendment_number = fsp.fsp_amendment_number)""";
+         AND (fsp.fsp_status_code = 'DFT'
+              OR EXISTS (SELECT 1 FROM the.fsp_agreement_holder fah
+                          WHERE fah.fsp_id = fsp.fsp_id
+                            AND fah.fsp_amendment_number = fsp.fsp_amendment_number))""";
 
   // The count needs no fsc join and no subqueries — just how many FSP rows
-  // match the same predicates.
+  // match the same predicates (kept in lock-step with FROM_AND_BASE_WHERE,
+  // including the DFT agreement-holder exemption above).
   private static final String COUNT_FROM_AND_BASE_WHERE = """
       SELECT COUNT(*)
         FROM the.forest_stewardship_plan fsp
@@ -81,9 +91,10 @@ public class FspSearchDirectDaoImpl implements FspSearchDirectDao {
          AND EXISTS (SELECT 1 FROM the.fsp_org_unit fou
                       WHERE fou.fsp_id = fsp.fsp_id
                         AND fou.fsp_amendment_number = fsp.fsp_amendment_number)
-         AND EXISTS (SELECT 1 FROM the.fsp_agreement_holder fah
-                      WHERE fah.fsp_id = fsp.fsp_id
-                        AND fah.fsp_amendment_number = fsp.fsp_amendment_number)""";
+         AND (fsp.fsp_status_code = 'DFT'
+              OR EXISTS (SELECT 1 FROM the.fsp_agreement_holder fah
+                          WHERE fah.fsp_id = fsp.fsp_id
+                            AND fah.fsp_amendment_number = fsp.fsp_amendment_number))""";
 
   private static final String DEFAULT_ORDER =
       " ORDER BY fsp.fsp_id DESC, fsp.fsp_amendment_number DESC";

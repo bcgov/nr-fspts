@@ -5,9 +5,9 @@ import ca.bc.gov.nrs.fsp.api.exception.ReportNotFoundException;
 import ca.bc.gov.nrs.fsp.api.struct.v1.report.FspReportFormat;
 import ca.bc.gov.nrs.fsp.api.struct.v1.report.FspReportRequestDto;
 import jakarta.annotation.PostConstruct;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -121,13 +121,18 @@ public class FspReportService {
    * expected behaviour for the CSV variant.
    */
   private static byte[] exportToCsv(JasperPrint print) throws JRException {
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    // Export into a StringWriter WE own (not an OutputStream-backed writer):
+    // JRCsvExporter wraps a provided OutputStream in a buffered writer it never
+    // flushes, so reading the byte array back yields 0 bytes — which then trips
+    // the "Empty CSV produced" 502. A StringWriter captures every char written
+    // immediately; we flush it and encode the result as UTF-8 ourselves.
+    StringWriter writer = new StringWriter();
     JRCsvExporter exporter = new JRCsvExporter();
     exporter.setExporterInput(new SimpleExporterInput(print));
-    exporter.setExporterOutput(
-        new SimpleWriterExporterOutput(out, StandardCharsets.UTF_8.name()));
+    exporter.setExporterOutput(new SimpleWriterExporterOutput(writer));
     exporter.exportReport();
-    return out.toByteArray();
+    writer.flush();
+    return writer.toString().getBytes(StandardCharsets.UTF_8);
   }
 
   private JasperReport compileTemplate(FspReportDefinition definition) {

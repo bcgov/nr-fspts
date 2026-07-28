@@ -60,11 +60,15 @@
   gap: 1rem;
 }
 
+// A 1px-tall bar with a gray background (not a border on a bare <hr>, which
+// wasn't painting a visible line). App's standard hairline gray #c6c6c8 —
+// light but clearly visible against the modal's grey body.
 .amend-modal__divider {
-  block-size: 0;
-  margin-block: 0.25rem;
+  block-size: 1px;
+  inline-size: 100%;
+  margin-block: 0.5rem;
   border: 0;
-  border-block-start: 1px solid var(--cds-border-subtle-01, #e0e0e0);
+  background-color: #c6c6c8;
 }
 
 // Approval block: bold heading, optional description (replace) or the
@@ -83,6 +87,14 @@
 
 .amend-modal__approval-desc {
   margin: 0;
+  color: var(--cds-text-secondary, #525252);
+}
+
+// Helper line under the Yes/No radios that explains what the chosen answer
+// means. Muted secondary text, 14px.
+.amend-modal__approval-help {
+  margin: 0;
+  font-size: 0.875rem;
   color: var(--cds-text-secondary, #525252);
 }
 

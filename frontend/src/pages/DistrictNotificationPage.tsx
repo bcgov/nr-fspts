@@ -14,7 +14,7 @@ import {
   TableRow,
   Tile,
 } from '@carbon/react';
-import { Add, Location, TrashCan } from '@carbon/icons-react';
+import { Add, TrashCan } from '@carbon/icons-react';
 import { useCallback, useEffect, useRef, useState, type FC } from 'react';
 
 import { DestructiveModal } from '@/components/core/DestructiveModal';
@@ -54,8 +54,32 @@ const HEADERS = [
   { key: 'actions', header: 'Actions', isSortable: false },
 ];
 
+// The three text columns are sortable; 'actions' is not.
+type SortKey = 'designateIdir' | 'displayName' | 'emailAddress';
+
 const formatCellText = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
+
+// "No district selected" pictogram. Carbon's filled Location icon reads too
+// heavy at 48px, so use a thin-stroke map-pin instead — `strokeWidth` is the
+// line weight (lower = thinner). stroke="currentColor" inherits the empty-
+// state pictogram's interactive-blue colour.
+const ThinLocationPin: FC = () => (
+  <svg
+    width={48}
+    height={48}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+);
 
 const DistrictNotificationPage: FC = () => {
   const [orgUnits, setOrgUnits] = useState<CodeOption[]>([]);
@@ -64,6 +88,20 @@ const DistrictNotificationPage: FC = () => {
   // Form state — only the district matters; designate IDIR comes
   // entirely from the user-search modal pick.
   const [orgUnitNo, setOrgUnitNo] = useState('');
+
+  // Table sort — controlled so the default (IDIR username ascending) shows its
+  // sort indicator and header clicks cycle the direction. Carbon's DataTable
+  // has no default-sort prop, so we own the sort + arrow here.
+  const [sortKey, setSortKey] = useState<SortKey>('designateIdir');
+  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('ASC');
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'ASC' ? 'DESC' : 'ASC'));
+    } else {
+      setSortKey(key);
+      setSortDir('ASC');
+    }
+  };
 
   // Results state — null = no query yet, [] = queried but empty.
   const [designates, setDesignates] = useState<NotificationDesignate[] | null>(null);
@@ -276,7 +314,10 @@ const DistrictNotificationPage: FC = () => {
   }
 
   // Map service rows to DataTable rows — give each row a stable id
-  // (designateId is server-assigned and unique).
+  // (designateId is server-assigned and unique), then sort by the active
+  // column/direction (default IDIR username ascending). Carbon renders rows in
+  // the order we hand it, so this drives both the row order and — via the
+  // header props below — the sort-arrow indicator.
   const tableRows =
     designates?.map((d, idx) => ({
       id: d.designateId ?? `row-${idx}`,
@@ -285,7 +326,13 @@ const DistrictNotificationPage: FC = () => {
       emailAddress: d.emailAddress ?? '',
       actions: '',
       __designateId: d.designateId,
-    })) ?? [];
+    }))
+      .sort((a, b) => {
+        const cmp = a[sortKey].localeCompare(b[sortKey], undefined, {
+          sensitivity: 'base',
+        });
+        return sortDir === 'ASC' ? cmp : -cmp;
+      }) ?? [];
 
   const hasResults = designates !== null && designates.length > 0;
 
@@ -365,11 +412,32 @@ const DistrictNotificationPage: FC = () => {
                             <Table {...getTableProps()} size="md">
                                 <TableHead>
                                   <TableRow>
-                                    {headers.map((h) => (
-                                      <TableHeader {...getHeaderProps({ header: h })} key={h.key}>
-                                        {h.header}
-                                      </TableHeader>
-                                    ))}
+                                    {headers.map((h) => {
+                                      const sortable = h.key !== 'actions';
+                                      return (
+                                        <TableHeader
+                                          {...getHeaderProps({ header: h })}
+                                          key={h.key}
+                                          className={
+                                            h.key === 'actions'
+                                              ? 'fsp-district__col-actions'
+                                              : undefined
+                                          }
+                                          // Drive the sort state ourselves so
+                                          // the default IDIR-asc arrow shows and
+                                          // clicks cycle direction.
+                                          {...(sortable && {
+                                            isSortHeader: sortKey === h.key,
+                                            sortDirection:
+                                              sortKey === h.key ? sortDir : 'NONE',
+                                            onClick: () =>
+                                              toggleSort(h.key as SortKey),
+                                          })}
+                                        >
+                                          {h.header}
+                                        </TableHeader>
+                                      );
+                                    })}
                                   </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -390,7 +458,10 @@ const DistrictNotificationPage: FC = () => {
                                         {row.cells.map((cell) => {
                                           if (cell.info.header === 'actions') {
                                             return (
-                                              <TableCell key={cell.id}>
+                                              <TableCell
+                                                key={cell.id}
+                                                className="fsp-district__col-actions"
+                                              >
                                                 {designate ? (
                                                   <Button
                                                     className="fsp-district__delete-btn"
@@ -400,7 +471,7 @@ const DistrictNotificationPage: FC = () => {
                                                     onClick={() => requestDelete(designate)}
                                                     disabled={isRemoving || loading}
                                                   >
-                                                    {isRemoving ? 'Removing…' : 'Delete'}
+                                                    {isRemoving ? 'Removing…' : 'Remove'}
                                                   </Button>
                                                 ) : null}
                                               </TableCell>
@@ -459,7 +530,7 @@ const DistrictNotificationPage: FC = () => {
         <div className="fsp-district__results-fullbleed">
           <div className="fsp-district__results">
             <EmptyState
-              icon={<Location size={48} />}
+              icon={<ThinLocationPin />}
               title="No district selected"
               body="Select a district above to view and manage its designates."
             />
@@ -483,11 +554,11 @@ const DistrictNotificationPage: FC = () => {
 
       <DestructiveModal
         open={pendingDelete !== null}
-        title="Are you sure you want to delete this designate?"
+        title="Are you sure you want to remove this designate?"
         message={
           pendingDelete ? (
             <>
-              This deletes <strong>{designateLabel(pendingDelete)}</strong> from
+              This removes <strong>{designateLabel(pendingDelete)}</strong> from
               the{' '}
               {orgUnits.find((o) => o.code === orgUnitNo)?.description ??
                 orgUnitNo}{' '}
@@ -501,7 +572,7 @@ const DistrictNotificationPage: FC = () => {
             ''
           )
         }
-        confirmButtonText="Delete"
+        confirmButtonText="Remove"
         onConfirm={() => void confirmDelete()}
         onCancel={cancelDelete}
         loading={removingId !== null}

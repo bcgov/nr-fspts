@@ -29,6 +29,13 @@
 
     &--table {
       padding: 1rem 1.25rem 0.5rem;
+
+      // Let the extensions table span the full width of the white card — break
+      // the table container out of the card's 1.25rem horizontal padding. The
+      // section title above keeps its inset.
+      .cds--data-table-container {
+        margin-inline: -1.25rem;
+      }
     }
   }
 
@@ -98,6 +105,25 @@
     &--open svg {
       transform: rotate(180deg);
     }
+  }
+
+  // The app-wide nth-child zebra leaks in and, worse, shifts / mismatches once
+  // an expanded detail row is interleaved (the detail sits under the wrong
+  // stripe). Take over the striping ourselves: neutralise the DOM-position
+  // zebra (everything to the white layer)...
+  .cds--data-table tbody tr:nth-child(odd) td,
+  .cds--data-table tbody tr:nth-child(even) td {
+    background: var(--cds-layer, #ffffff);
+  }
+
+  // ...then re-apply a stripe by EXTENSION INDEX via a class set on both the
+  // data row and its detail row (see index.tsx). This keeps striping stable
+  // across the interleaved detail rows AND makes an expanded detail exactly
+  // the same colour as the row that was clicked to open it.
+  .cds--data-table tbody tr.ext-summary__row--stripe td {
+    // Light zebra stripe (layer-01 ~ #f4f4f4), matching the app's other list
+    // tables — layer-accent-01 (#e0e0e0) read too dark here.
+    background: var(--cds-layer-01, #f4f4f4);
   }
 
   // Expanded detail row — remove the zebra/hover treatment and give the

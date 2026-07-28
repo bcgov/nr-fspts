@@ -580,7 +580,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
             )}
             {canUnlink && onUnlink && (
               <Button
-                kind="danger--tertiary"
+                kind="tertiary"
                 size="sm"
                 renderIcon={Unlink}
                 disabled={anyEditing}

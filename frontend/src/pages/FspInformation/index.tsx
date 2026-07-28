@@ -778,8 +778,8 @@ const FspInformationPage: FC = () => {
           <>
             <p>
               This permanently removes amendment{' '}
-              <strong>{parsedAmendmentNumber}</strong> on FSP{' '}
-              <strong>{fsp?.fspId}</strong> ({planName}) and all of its
+              {parsedAmendmentNumber} on FSP{' '}
+              {fsp?.fspId} ({planName}) and all of its
               attachments, standards, and FDUs. The prior approved
               amendment is left in place — you'll be returned to it
               after the delete.
@@ -789,7 +789,7 @@ const FspInformationPage: FC = () => {
         ) : (
           <>
             <p>
-              This permanently removes FSP <strong>{fsp?.fspId}</strong> ({planName})
+              This permanently removes FSP {fsp?.fspId} ({planName})
               and all its child records — attachments, standards, FDUs.
             </p>
             <p>This cannot be undone.</p>

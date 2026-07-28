@@ -35,9 +35,13 @@ test.describe('Search surfaces (live)', () => {
     await expectSearchOk(page, /\/api\/v1\/fsp\/search\b/, () =>
       page.locator('.fsp-search__form').getByRole('button', { name: 'Search', exact: true }).click(),
     );
-    // Results header ("N results found") renders whenever a search has
-    // run, for any count — so it's a count-agnostic "query completed".
-    await expect(page.getByText(/\bresults?\s+found\b/i)).toBeVisible({ timeout: 30_000 });
+    // A completed search renders one of two count-agnostic signals: the
+    // results header "N FSPs found" (>=1 row) or the "No results found"
+    // empty state (0 rows). Match either so this passes whether or not the
+    // environment has visible FSPs.
+    await expect(
+      page.getByText(/\b(FSPs?|results?)\s+found\b/i).first(),
+    ).toBeVisible({ timeout: 30_000 });
   });
 
   test('Inbox runs a query and renders results', async ({ page }) => {

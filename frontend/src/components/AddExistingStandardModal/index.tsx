@@ -22,7 +22,7 @@ import {
   Add,
   CheckmarkFilled,
   Copy,
-  Information,
+  InformationFilled,
   Search as SearchIcon,
   SubtractAlt,
 } from '@carbon/icons-react';
@@ -601,7 +601,7 @@ const AddExistingStandardModal: FC<Props> = ({
           ) : (
             <>
               <div className="add-std-modal__banner" role="note">
-                <Information className="add-std-modal__banner-icon" size={20} />
+                <InformationFilled className="add-std-modal__banner-icon" size={20} />
                 <span>
                   The selected regime is copied onto the FSP as a new Draft —
                   the original is left untouched.

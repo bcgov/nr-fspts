@@ -8,20 +8,34 @@
   --cds-field: var(--cds-field-02);
   --cds-field-hover: var(--cds-field-hover-02);
 
-  // Let the Agreement Holder combobox's suggestion listbox spill out of
-  // the modal body instead of being clipped by Carbon's default
-  // `overflow-y: auto` on .cds--modal-content. Same fix as
-  // fsp-species-modal--overflow-visible (DistrictPickerModal). The
-  // combobox sits at the top of a short body, so trading the scroll for
-  // a visible overflow is safe.
+  // Pre-search the body is short (intro + combobox), so let the Agreement
+  // Holder combobox's suggestion listbox spill out instead of being clipped
+  // by Carbon's default `overflow-y: auto` on .cds--modal-content. Same fix
+  // as fsp-species-modal--overflow-visible (DistrictPickerModal).
   .cds--modal-content {
     overflow: visible;
+  }
+
+  // Once a search has run the results table makes the body tall. `overflow:
+  // visible` then means the body can't scroll: it grows past the modal, the
+  // header scrolls off the top and the bottom rows become unreachable.
+  // Restore Carbon's scrolling body in that state (min-block-size: 0 lets the
+  // flex content shrink so it scrolls within the modal instead of overflowing).
+  &.client-search-modal--scroll .cds--modal-content {
+    overflow-y: auto;
+    min-block-size: 0;
   }
 
   // Park the open listbox above the modal chrome so it isn't painted
   // behind the results table / modal edges.
   .cds--list-box__menu {
     z-index: 10000;
+  }
+
+  // When the body scrolls, Carbon adds .cds--modal-scroll-content with a bottom
+  // `mask-image` fade that reads as a hazy cutoff over the results table.
+  .cds--modal-scroll-content {
+    mask-image: none;
   }
 }
 
@@ -68,7 +82,7 @@
 .client-search__results-header {
   background-color: var(--cds-layer-02, #ffffff);
   padding: 0.75rem 1rem;
-  font-weight: 600;
+  font-weight: 400;
   font-size: 1rem;
   color: var(--cds-text-primary, #161616);
   border-block-end: 1px solid var(--cds-border-subtle-01, #c6c6c6);

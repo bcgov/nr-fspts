@@ -317,9 +317,15 @@ const ExtensionSummaryModal: FC<Props> = ({ open, fspId, onClose }) => {
                         const id = e.extensionId ?? `row-${i}`;
                         const isOpen = expanded.has(id);
                         const statusLabel = e.statusDescription ?? e.statusCode;
+                        // Stripe by extension index so a row and its expanded
+                        // detail share a colour (see the SCSS).
+                        const striped = i % 2 === 1;
+                        const stripeClass = striped
+                          ? 'ext-summary__row--stripe'
+                          : undefined;
                         return (
                           <Fragment key={id}>
-                            <TableRow>
+                            <TableRow className={stripeClass}>
                               <TableCell className="ext-summary__expand-col">
                                 <button
                                   type="button"
@@ -354,7 +360,13 @@ const ExtensionSummaryModal: FC<Props> = ({ open, fspId, onClose }) => {
                               </TableCell>
                             </TableRow>
                             {isOpen && (
-                              <TableRow className="ext-summary__detail-row">
+                              <TableRow
+                                className={
+                                  stripeClass
+                                    ? `ext-summary__detail-row ${stripeClass}`
+                                    : 'ext-summary__detail-row'
+                                }
+                              >
                                 <TableCell colSpan={8}>
                                   {fspId && (
                                     <ExtensionDetail fspId={fspId} extension={e} />

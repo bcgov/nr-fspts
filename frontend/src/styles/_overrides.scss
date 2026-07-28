@@ -586,6 +586,13 @@ page-level hand-rolled rules.
     }
   }
 
+  // District table's closing bottom line (hard-coded #c6c6c8 in
+  // DistrictNotificationPage.scss) → dark border token so it doesn't read as a
+  // bright line on the dark pane.
+  .fsp-district__table .cds--data-table tbody tr:last-child td {
+    border-block-end-color: var(--cds-border-strong-01);
+  }
+
   // Row hover / focus: the light-blue wash (#dfeaf8) the pages use glares in
   // dark mode. Replace it with a subtle dark hover shade that lifts above the
   // zebra stripe so hovered rows read clearly. The g100 prefix gives the
@@ -651,7 +658,23 @@ Light → dark token map (light values intentionally left in the page SCSS):
   .fsp-inbox__results .cds--pagination {
     background-color: var(--cds-layer-01);
     border-block-start-color: var(--cds-border-strong-01);
+    border-block-end-color: var(--cds-border-strong-01);
     color: var(--cds-text-secondary);
+  }
+  // Retint the footer's vertical dividers (hard-coded #c6c6c8 in
+  // SearchPage.scss) to the dark border token so they don't read as bright
+  // lines on the dark bar. Both scopes, mirroring the shared light block.
+  .fsp-search__results,
+  .fsp-inbox__results {
+    .cds--pagination .cds--select__item-count {
+      border-inline-end-color: var(--cds-border-strong-01);
+    }
+    .cds--pagination__right {
+      border-inline-start-color: var(--cds-border-strong-01);
+    }
+    .cds--pagination__control-buttons .cds--popover-container {
+      border-inline-start-color: var(--cds-border-strong-01);
+    }
   }
   .fsp-search__results .cds--pagination .cds--select-input,
   .fsp-search__results .cds--pagination .cds--pagination__button,
@@ -826,4 +849,29 @@ here (equal specificity, loaded after Carbon → wins). The dark themes
 .cds--g10 {
   --cds-text-primary: #131315;
   --cds-text-secondary: #606062;
+}
+
+/* ---------------------------------------------------------------
+Inline links — underline them by default so they read clearly as links
+within prose / summary panels (Carbon's Link is un-underlined by default,
+underlining only on hover). Breadcrumb items also render `.cds--link` but
+are navigation, not inline prose, so keep those at the Carbon default.
+--------------------------------------------------------------- */
+.cds--link {
+  text-decoration: underline;
+}
+
+.cds--breadcrumb .cds--link {
+  text-decoration: none;
+}
+
+/* ---------------------------------------------------------------
+Bold inline emphasis — Carbon's CSS reset lumps `strong`/`b` into a
+`font: inherit` group, which wipes their bold weight so `<strong>` renders at
+the inherited normal weight. Restore the expected bold (BC Sans loads a real
+700 face). Loaded after Carbon → equal specificity, so this wins.
+--------------------------------------------------------------- */
+strong,
+b {
+  font-weight: 700;
 }

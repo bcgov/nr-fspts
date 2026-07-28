@@ -47,8 +47,16 @@ class FspSearchProcParityIT {
   }
 
   /**
-   * Runs both paths with identical inputs + role/client and asserts the
-   * returned FSP-row sets are identical.
+   * Runs both paths with identical inputs + role/client and asserts the direct
+   * path returns a SUPERSET of the proc's rows: it must never drop a row the
+   * proc returned (that would be a regression from the swap), and any extra
+   * rows it surfaces must all be drafts.
+   *
+   * <p>The direct DAO intentionally diverges from the proc in one way: it
+   * exempts {@code DFT} drafts from the agreement-holder requirement (the
+   * proc's inner join to {@code FSP_AGREEMENT_HOLDER} drops drafts that have no
+   * holder yet, leaving freshly-created drafts unfindable in search). So direct
+   * may legitimately return drafts the proc omits — but nothing else.
    */
   private void assertParity(String label, String role, String client,
       String orgUnitNo, String status) {
@@ -62,12 +70,26 @@ class FspSearchProcParityIT {
     Set<String> procKeys = proc.stream().map(FspSearchProcParityIT::key).collect(Collectors.toSet());
     Set<String> directKeys = direct.stream().map(FspSearchProcParityIT::key).collect(Collectors.toSet());
 
+    // No regressions: every proc row must still appear in the direct result.
     assertThat(directKeys)
-        .as("%s — proc returned %d rows, direct %d; "
-            + "only-in-proc=%s only-in-direct=%s",
-            label, proc.size(), direct.size(),
-            minus(procKeys, directKeys), minus(directKeys, procKeys))
-        .isEqualTo(procKeys);
+        .as("%s — proc rows missing from direct=%s (proc=%d direct=%d)",
+            label, minus(procKeys, directKeys), proc.size(), direct.size())
+        .containsAll(procKeys);
+
+    // The only rows direct is allowed to add over the proc are DFT drafts
+    // (exempted from the agreement-holder requirement — see
+    // FspSearchDirectDaoImpl base WHERE).
+    Set<String> draftKeys = direct.stream()
+        .filter(r -> "Draft".equalsIgnoreCase(r.fspStatusDesc()))
+        .map(FspSearchProcParityIT::key)
+        .collect(Collectors.toSet());
+    Set<String> nonDraftExtras = directKeys.stream()
+        .filter(k -> !procKeys.contains(k) && !draftKeys.contains(k))
+        .limit(20)
+        .collect(Collectors.toSet());
+    assertThat(nonDraftExtras)
+        .as("%s — non-draft rows in direct but not proc: %s", label, nonDraftExtras)
+        .isEmpty();
   }
 
   private static Set<String> minus(Set<String> a, Set<String> b) {

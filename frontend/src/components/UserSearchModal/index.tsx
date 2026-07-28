@@ -2,13 +2,12 @@ import {
   Button,
   DataTable,
   DataTableSkeleton,
-  InlineNotification,
   Loading,
   Pagination,
   TextInput,
   type DataTableHeader,
 } from '@carbon/react';
-import { Add, Search } from '@carbon/icons-react';
+import { Add, Search, WarningFilled } from '@carbon/icons-react';
 import { useCallback, useEffect, useMemo, useState, type FC, type FormEvent } from 'react';
 
 import { Modal } from '@/components/Modal';
@@ -224,13 +223,13 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
         </div>
 
         {validationError && (
-          <InlineNotification
-            className="user-search-form__validation"
-            kind="error"
-            lowContrast
-            hideCloseButton
-            title={validationError}
-          />
+          <p className="user-search-form__validation" role="alert">
+            <WarningFilled
+              className="user-search-form__validation-icon"
+              size={16}
+            />
+            {validationError}
+          </p>
         )}
 
         <div className="user-search-form__search-actions">
@@ -281,7 +280,15 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
                 <DataTable.TableHead>
                   <DataTable.TableRow>
                     {tableHeaders.map((header) => (
-                      <DataTable.TableHeader {...getHeaderProps({ header })} key={header.key}>
+                      <DataTable.TableHeader
+                        {...getHeaderProps({ header })}
+                        key={header.key}
+                        className={
+                          header.key === 'actions'
+                            ? 'user-search-form__col-actions'
+                            : undefined
+                        }
+                      >
                         {header.header}
                       </DataTable.TableHeader>
                     ))}
@@ -298,7 +305,14 @@ export const UserSearchModal: FC<UserSearchModalProps> = ({
                     return (
                       <DataTable.TableRow {...getRowProps({ row })} key={row.id}>
                         {row.cells.map((cell) => (
-                          <DataTable.TableCell key={cell.id}>
+                          <DataTable.TableCell
+                            key={cell.id}
+                            className={
+                              cell.info.header === 'actions'
+                                ? 'user-search-form__col-actions'
+                                : undefined
+                            }
+                          >
                             {cell.info.header === 'actions' ? (
                               user ? (
                                 <Button
