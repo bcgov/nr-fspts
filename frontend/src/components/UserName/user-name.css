@@ -1,0 +1,17 @@
+.user-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* Constrain Carbon's small loader to a compact inline spinner that sits to
+   the right of the id/name without disturbing the line box. */
+.user-name__spinner.cds--loading {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.user-name__spinner .cds--loading__svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}

@@ -1,5 +1,6 @@
 import { Button, Checkbox, Loading, TextArea } from '@carbon/react';
 import { Modal } from '@/components/Modal';
+import UserName from '@/components/UserName';
 import { useEffect, useState, type FC } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
@@ -140,8 +141,11 @@ const ReviewMilestoneEditModal: FC<ReviewMilestoneEditModalProps> = ({
 
         {(value.entryUserId || value.entryTimestamp) && (
           <p className="review-modal__audit">
-            Last updated by <strong>{value.entryUserId ?? '—'}</strong> on{' '}
-            <strong>{value.entryTimestamp ?? '—'}</strong>.
+            Last updated by{' '}
+            <strong>
+              <UserName userId={value.entryUserId} />
+            </strong>{' '}
+            on <strong>{value.entryTimestamp ?? '—'}</strong>.
           </p>
         )}
       </div>
@@ -155,7 +159,7 @@ const ReviewMilestoneEditModal: FC<ReviewMilestoneEditModalProps> = ({
           renderIcon={saving ? SavingIcon : undefined}
           onClick={() => void submit()}
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Saving…' : `${verb} record`}
         </Button>
       </div>
     </Modal>

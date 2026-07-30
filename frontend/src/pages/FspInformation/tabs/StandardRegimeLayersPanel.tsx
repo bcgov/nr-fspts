@@ -852,7 +852,11 @@ const SpeciesEditor: FC<{
   const [composerCode, setComposerCode] = useState('');
   const [composerMinHeight, setComposerMinHeight] = useState('');
   const [adding, setAdding] = useState(false);
-  const [deletingCode, setDeletingCode] = useState<string | null>(null);
+  // Row pending removal — drives the "Are you sure…?" confirm dialog (the
+  // actual delete runs from the modal's Remove button).
+  const [deleteTarget, setDeleteTarget] = useState<StandardRegimeSpecies | null>(
+    null,
+  );
 
   // Exclude codes already in EITHER list — this side's own rows (prevents the
   // duplicate-key violation the proc would raise) plus the other side's codes
@@ -867,23 +871,6 @@ const SpeciesEditor: FC<{
   const resetComposer = () => {
     setComposerCode('');
     setComposerMinHeight('');
-  };
-
-  const handleDelete = async (row: StandardRegimeSpecies) => {
-    if (!row.code || !row.revisionCount) return;
-    setDeletingCode(row.code);
-    try {
-      await onDelete(row.code, preferred, row.revisionCount);
-    } catch (e) {
-      display({
-        kind: 'error',
-        title: 'Failed to remove species',
-        subtitle: e instanceof Error ? e.message : 'Unknown error',
-        timeout: 9000,
-      });
-    } finally {
-      setDeletingCode(null);
-    }
   };
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -976,7 +963,6 @@ const SpeciesEditor: FC<{
               <TableBody>
                 {rows.map((row, i) => {
                   const rowId = `${idPrefix}-${row.code ?? i}`;
-                  const busy = deletingCode === row.code;
                   return (
                     <TableRow key={rowId}>
                       <TableCell>
@@ -991,10 +977,10 @@ const SpeciesEditor: FC<{
                             kind="danger--ghost"
                             size="sm"
                             renderIcon={TrashCan}
-                            disabled={disabled || busy || !row.code || !row.revisionCount}
-                            onClick={() => void handleDelete(row)}
+                            disabled={disabled || !row.code || !row.revisionCount}
+                            onClick={() => setDeleteTarget(row)}
                           >
-                            {busy ? 'Removing…' : 'Delete'}
+                            Remove
                           </Button>
                         </TableCell>
                       )}
@@ -1009,7 +995,7 @@ const SpeciesEditor: FC<{
 
       <Modal
         open={modalOpen}
-        modalHeading={`Add ${title}`}
+        modalHeading={`Add ${title.toLowerCase()}`}
         passiveModal
         size="sm"
         className="fsp-species-modal"
@@ -1069,10 +1055,27 @@ const SpeciesEditor: FC<{
             renderIcon={adding ? SavingIcon : undefined}
             onClick={() => void submitModal()}
           >
-            {adding ? 'Adding…' : 'Save'}
+            {adding ? 'Adding…' : `Add ${title.toLowerCase()}`}
           </Button>
         </div>
       </Modal>
+      <ConfirmationModal
+        open={deleteTarget != null}
+        onClose={() => setDeleteTarget(null)}
+        heading={`Are you sure you want to remove this ${title.toLowerCase()}?`}
+        confirmLabel="Remove"
+        danger
+        errorTitle="Failed to remove species"
+        onConfirm={async () => {
+          if (!deleteTarget?.code || !deleteTarget?.revisionCount) return;
+          await onDelete(deleteTarget.code, preferred, deleteTarget.revisionCount);
+        }}
+      >
+        <p>
+          <strong>{dash(deleteTarget?.description ?? deleteTarget?.code)}</strong>{' '}
+          will be removed from this layer.
+        </p>
+      </ConfirmationModal>
     </section>
   );
 };

@@ -3,11 +3,11 @@ import './EmptyState.css';
 
 // Empty-state pictogram (document + magnifier) taken verbatim from the FSP
 // design (fsp_search_v1.html) so every "no results" pane matches the
-// mock-up. Rendered at 80×80 in the interactive blue via the parent's color.
+// mock-up. Rendered at 48×48 in the interactive blue via the parent's color.
 const NoResultsIcon = () => (
   <svg
-    width="80"
-    height="80"
+    width="48"
+    height="48"
     viewBox="0 0 32 32"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"

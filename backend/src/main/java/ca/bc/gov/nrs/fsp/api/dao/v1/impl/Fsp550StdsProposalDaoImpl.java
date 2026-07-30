@@ -153,6 +153,14 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
     }
   }
 
+  @Override
+  public void forceStatusDraft(String regimeId) {
+    jdbcTemplate.update(
+        "UPDATE standards_regime SET standards_regime_status_code = 'DFT'"
+            + " WHERE standards_regime_id = ?",
+        Long.parseLong(regimeId));
+  }
+
   // -----------------------------------------------------------------
   // Write paths — added for the XML-submission Phase 2 persistence work.
   // The legacy ESF agent wired these procs through pkgdefinitions; we

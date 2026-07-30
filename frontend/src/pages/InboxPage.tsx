@@ -23,6 +23,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
+import UserName from '@/components/UserName';
 import { useNotification } from '@/context/notification/useNotification';
 import { useOrg } from '@/context/org/useOrg';
 import { safeErrorMessage } from '@/lib/errorMessage';
@@ -655,6 +656,15 @@ const InboxPage: FC = () => {
                                                   Map View
                                                 </button>
                                               ) : null}
+                                            </TableCell>
+                                          );
+                                        }
+                                        // "Submitted by" holds a raw IDIR/BCeID
+                                        // login — resolve it to a display name.
+                                        if (cell.info.header === 'submittedBy') {
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              <UserName userId={value} />
                                             </TableCell>
                                           );
                                         }

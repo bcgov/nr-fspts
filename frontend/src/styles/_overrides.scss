@@ -849,6 +849,16 @@ here (equal specificity, loaded after Carbon → wins). The dark themes
 .cds--g10 {
   --cds-text-primary: #131315;
   --cds-text-secondary: #606062;
+  // Info alert banner background — applies to every info-styled notification
+  // (Carbon info toasts / inline notifications AND the custom modal info
+  // banners, which all resolve --cds-notification-background-info).
+  --cds-notification-background-info: #c2e0ff;
+  // Green pills (Carbon <Tag type="green">, e.g. the FDU/Map "New" licence
+  // pill). Carbon's default green tag was never re-themed (bcgov/_light-tags
+  // isn't wired up), so pin it to the BCGov green-10 / green-90 pair.
+  --cds-tag-background-green: #cce5cc;
+  --cds-tag-color-green: #005500;
+  --cds-tag-hover-green: #99c999;
 }
 
 /* ---------------------------------------------------------------

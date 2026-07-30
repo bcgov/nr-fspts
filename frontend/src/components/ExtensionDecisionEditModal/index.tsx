@@ -420,7 +420,7 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
           renderIcon={saving ? SavingIcon : undefined}
           onClick={() => void submit()}
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Saving…' : 'Record decision'}
         </Button>
       </div>
     </Modal>

@@ -293,12 +293,29 @@ const FspInformationPage: FC = () => {
   // from the FSP300 read, so it stays 'Y' on every version until the open
   // amendment is resolved.
   const hasUnapprovedAmend = fsp?.fspUnapprovedAmendsInd === 'Y';
+  // Amend / Extend / Replace only apply to the LATEST version of the plan —
+  // starting a new lifecycle change from a superseded amendment doesn't make
+  // sense, so these buttons are hidden while viewing any older version. The
+  // version in view (selectedAmendment) must be the highest amendment number
+  // in the plan's version list (`amendments`, .code = amendment number). When
+  // the list hasn't loaded yet (single-version plan / transient empty state)
+  // fall back to allowing — every other gate below and the backend still apply.
+  const latestVersionNumber = amendments.reduce<number>((max, a) => {
+    const n = Number.parseInt(a.code ?? '', 10);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, -Infinity);
+  const isLatestVersion =
+    amendments.length === 0 ||
+    Number.parseInt(selectedAmendment || '0', 10) === latestVersionNumber;
   const canExtend =
-    canModify && isApprovedOrInEffect && !hasOpenExtension && !hasUnapprovedAmend;
+    canModify && isApprovedOrInEffect && !hasOpenExtension && !hasUnapprovedAmend
+    && isLatestVersion;
   const canAmend =
-    canModify && isApprovedOrInEffect && !hasUnapprovedAmend && !hasOpenExtension;
+    canModify && isApprovedOrInEffect && !hasUnapprovedAmend && !hasOpenExtension
+    && isLatestVersion;
   const canReplace =
-    canModify && isApprovedOrInEffect && !hasOpenExtension && !hasUnapprovedAmend;
+    canModify && isApprovedOrInEffect && !hasOpenExtension && !hasUnapprovedAmend
+    && isLatestVersion;
   // Workflow tab is hidden for Submitter-only and View-Only roles —
   // nothing on it (DDM decision / OTBH / extension review) applies to
   // them. History (read-only audit) stays visible regardless.
@@ -711,6 +728,8 @@ const FspInformationPage: FC = () => {
                     fspId={fspId}
                     refreshKey={refreshKey}
                     fspStatusCode={fsp?.fspStatusCode}
+                    amendments={amendments}
+                    currentAmendment={selectedAmendment}
                   />
                 </div>
               </TabPanel>

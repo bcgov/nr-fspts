@@ -15,7 +15,7 @@
 
 .bgc-search__intro {
   margin: 0 0 1.5rem;
-  color: var(--cds-text-secondary);
+  color: #131315;
 }
 
 .bgc-search__form {
@@ -66,11 +66,20 @@
   border-block-end: 1px solid var(--cds-border-subtle-01, #c6c6c6);
 }
 
-// Carbon draws its own top divider above the pagination bar; combined
-// with the wrapper's rounded corners + overflow:hidden this reads as a
-// footer attached to the bottom of the table.
-.bgc-search__results-panel .cds--pagination {
-  border-block-end: 0;
+// The pagination footer reuses the shared search-style bar (see the
+// .fsp-search__results footer block in SearchPage.scss) — full-height section
+// dividers, transparent inner controls. This table keeps its rounded
+// .bordered-table wrapper, which already closes the bottom edge, so drop the
+// footer's own bottom border to avoid a doubled line at the rounded corner
+// (the shared block's top border stays as the table/footer divider).
+//
+// Match the footer surface to the table's gray column headers (#dfdfe1, set
+// on .cds--data-table thead th in _tables.scss) rather than the shared block's
+// lighter #f4f4f4, so the footer reads as the same gray band as the headers.
+// 3 classes → wins over the shared 2-class rule regardless of load order.
+.bgc-search__results-panel.bordered-table .cds--pagination {
+  border-block-end: none;
+  background-color: #dfdfe1;
 }
 
 .bgc-search__table-container {

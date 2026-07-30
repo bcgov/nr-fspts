@@ -23,6 +23,7 @@ import { StatusTag } from '@/components/StatusTag/StatusTag';
 import AddExistingStandardModal from '@/components/AddExistingStandardModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import NewStandardModal from '@/components/NewStandardModal';
+import { EmptyState } from '@/components/EmptyState/EmptyState';
 import {useAuth} from '@/context/auth/useAuth';
 import {useNotification} from '@/context/notification/useNotification';
 import {safeErrorMessage} from '@/lib/errorMessage';
@@ -102,6 +103,11 @@ const StockingStandardsTab: FC<Props> = ({
   // Drives the FSP250 detail panel below the table. null = nothing
   // picked yet; setting it back to null collapses the panel.
   const [selectedRegimeId, setSelectedRegimeId] = useState<string | null>(null);
+  // A just-created regime to auto-select once the refreshed list contains it.
+  // Set by onCreated and applied by the effect below — setting the selection
+  // directly on create would be wiped by the stale-selection effect, because
+  // refetch() hasn't landed the new row yet.
+  const pendingSelectRef = useRef<string | null>(null);
   // Wraps the detail panel below the table so a fresh row selection can
   // scroll it into view (top-aligned) — the panel is well below the fold
   // on longer standards lists.
@@ -198,6 +204,19 @@ const StockingStandardsTab: FC<Props> = ({
     }
   }, [rows, selectedRegimeId]);
 
+  // Auto-select a freshly created standard once the reloaded list includes it,
+  // then bring its detail panel into view (mirrors a row click).
+  useEffect(() => {
+    const pending = pendingSelectRef.current;
+    if (pending && rows?.some((r) => r.standardsRegimeId === pending)) {
+      setSelectedRegimeId(pending);
+      pendingSelectRef.current = null;
+      requestAnimationFrame(() => {
+        detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  }, [rows]);
+
   // Selected regime is required for Copy / Delete — pull it off the
   // rows list so we can disable the button (rather than hide it) when
   // nothing's picked. Keeps the action discoverable.
@@ -245,24 +264,34 @@ const StockingStandardsTab: FC<Props> = ({
 
   const performDelete = async () => {
     if (!selectedRegimeId) return;
+    // Capture the name before the selection is cleared below.
+    const name =
+      selectedRow?.standardsRegimeName?.trim() ||
+      `Standard ${selectedRow?.standardsRegimeId ?? selectedRegimeId}`;
     await deleteStandardRegime(fspId, selectedRegimeId);
     setSelectedRegimeId(null);
     refetch();
     display({
       kind: 'success',
-      title: 'Stocking standard deleted.',
+      title: `${name} deleted`,
+      subtitle: `${name} was deleted from this FSP`,
       timeout: 5000,
     });
   };
 
   const performUnlink = async () => {
     if (!selectedRegimeId) return;
+    // Capture the name before the selection is cleared below.
+    const name =
+      selectedRow?.standardsRegimeName?.trim() ||
+      `Standard ${selectedRow?.standardsRegimeId ?? selectedRegimeId}`;
     await unlinkDefaultStandard(fspId, selectedRegimeId, amendmentNumber);
     setSelectedRegimeId(null);
     refetch();
     display({
       kind: 'success',
-      title: 'Default standard unlinked.',
+      title: `${name} unlinked`,
+      subtitle: `${name} was unlinked from this FSP`,
       timeout: 5000,
     });
   };
@@ -320,7 +349,9 @@ const StockingStandardsTab: FC<Props> = ({
       onCreated={(created) => {
         refetch();
         if (created.standardsRegimeId) {
-          setSelectedRegimeId(created.standardsRegimeId);
+          // Defer selection until the refreshed list includes the new row
+          // (see the effect above) so it isn't cleared as a stale selection.
+          pendingSelectRef.current = created.standardsRegimeId;
         }
       }}
     />
@@ -334,7 +365,10 @@ const StockingStandardsTab: FC<Props> = ({
       onClose={() => setAddExistingOpen(false)}
       onAdded={(newRegimeId) => {
         refetch();
-        if (newRegimeId) setSelectedRegimeId(newRegimeId);
+        // Defer selection until the refreshed list includes the new/linked row
+        // (see the pending-select effect) so it isn't cleared as a stale
+        // selection while refetch() is still in flight.
+        if (newRegimeId) pendingSelectRef.current = newRegimeId;
       }}
     />
   );
@@ -360,20 +394,18 @@ const StockingStandardsTab: FC<Props> = ({
     <ConfirmationModal
       open={deleteConfirmOpen}
       onClose={() => setDeleteConfirmOpen(false)}
-      heading="Delete stocking standard"
+      heading="Are you sure you want to delete this stocking standard?"
       confirmLabel="Delete"
       danger
       errorTitle="Failed to delete standard"
       onConfirm={performDelete}
     >
       <p>
-        Permanently remove{' '}
         <strong>
-          {selectedRow?.standardsRegimeName?.trim()
-            || `Regime ${selectedRow?.standardsRegimeId ?? ''}`}
+          &ldquo;{selectedRow?.standardsRegimeName?.trim()
+            || `Standard ${selectedRow?.standardsRegimeId ?? ''}`}&rdquo;
         </strong>{' '}
-        from this FSP? All of its layers, species, and BGC site series
-        will be deleted. This cannot be undone.
+        and all of its data will be deleted. This cannot be undone.
       </p>
     </ConfirmationModal>
   );
@@ -382,19 +414,18 @@ const StockingStandardsTab: FC<Props> = ({
     <ConfirmationModal
       open={unlinkConfirmOpen}
       onClose={() => setUnlinkConfirmOpen(false)}
-      heading="Unlink default standard"
+      heading={`Unlink ${
+        selectedRow?.standardsRegimeName?.trim() ||
+        `Standard ${selectedRow?.standardsRegimeId ?? ''}`.trim() ||
+        'stocking standard'
+      } from this FSP?`}
       confirmLabel="Unlink"
       errorTitle="Failed to unlink standard"
       onConfirm={performUnlink}
     >
       <p>
-        Remove the default standard{' '}
-        <strong>
-          {selectedRow?.standardsRegimeName?.trim()
-            || `Standard ${selectedRow?.standardsRegimeId ?? ''}`}
-        </strong>{' '}
-        from this FSP? Only the link is removed — the shared default standard
-        itself is not deleted and can be added again later.
+        Only the link is removed. The default standard itself is not deleted and
+        can be added again later.
       </p>
     </ConfirmationModal>
   );
@@ -442,9 +473,8 @@ const StockingStandardsTab: FC<Props> = ({
             </h3>
             <p className="fsp-info__empty-state-body">
               {canCreate
-                ? 'Add an existing standards regime or create a new one to '
-                  + 'define the regeneration and free-growing requirements for '
-                  + 'this plan.'
+                ? 'Specify the standards that will be used to judge whether '
+                  + 'reforestation is successful.'
                 : 'None have been added for this version. Standards can be '
                   + 'added while the FSP amendment is in Draft.'}
             </p>
@@ -594,6 +624,18 @@ const StockingStandardsTab: FC<Props> = ({
                     </Button>
                   </TableToolbarContent>
                 </TableToolbar>
+                {r.length === 0 ? (
+                  <EmptyState
+                    title="No results found"
+                    body={
+                      <>
+                        No stocking standards match your search criteria.
+                        <br />
+                        Try adjusting your filters and searching again.
+                      </>
+                    }
+                  />
+                ) : (
                 <Table {...getTableProps()} size="md">
                   <TableHead>
                     <TableRow>
@@ -692,9 +734,11 @@ const StockingStandardsTab: FC<Props> = ({
                     })}
                   </TableBody>
                 </Table>
+                )}
               </TableContainer>
             )}
           </DataTable>
+          {tableRows.length > 0 && (
           <Pagination
             className="fsp-info__standards-pagination"
             page={safePage}
@@ -707,6 +751,7 @@ const StockingStandardsTab: FC<Props> = ({
               setPageSize(ps);
             }}
           />
+          )}
         </div>
       </section>
 

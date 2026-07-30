@@ -84,6 +84,9 @@ const OtbhEditModal: FC<OtbhEditModalProps> = ({
 
   if (!value) return null;
 
+  // Add vs Edit — a row is "recorded" once it already has a date or comment
+  // (mirrors the WorkflowDataTab row's Add-record / Edit-record button).
+  const verb = value.date || value.comment ? 'Edit' : 'Add';
   const isOffered = value.key === 'offered';
   const dateInFuture = date > isoToday();
   const dateMissing = date.trim() === '';
@@ -119,7 +122,7 @@ const OtbhEditModal: FC<OtbhEditModalProps> = ({
   return (
     <Modal
       open={open}
-      modalHeading={`Edit ${value.label}`}
+      modalHeading={`${verb} ${value.label}`}
       passiveModal
       size="sm"
       className="fsp-species-modal"
@@ -164,6 +167,8 @@ const OtbhEditModal: FC<OtbhEditModalProps> = ({
             labelText="Comment"
             helperText="Optional — up to 4000 characters."
             maxLength={4000}
+            enableCounter
+            maxCount={4000}
             rows={5}
             value={comment}
             disabled={saving}
@@ -181,7 +186,7 @@ const OtbhEditModal: FC<OtbhEditModalProps> = ({
           renderIcon={saving ? SavingIcon : undefined}
           onClick={() => void submit()}
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Saving…' : `${verb} record`}
         </Button>
       </div>
     </Modal>
