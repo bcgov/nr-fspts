@@ -18,6 +18,17 @@ import java.util.List;
 @Component
 public class SubmissionToFspRequestMapper {
 
+  /**
+   * The raw XML submission intent (I/U/A/R), or null when absent. Persist
+   * needs this to tell I (Initial → create) from U (Update → update the
+   * existing FSP): both collapse to the same {@code fsp_amendment_code=ORG}
+   * in {@link #toFspRequest}, so that mapped code alone can't distinguish them.
+   */
+  public ActionCodeType actionCode(FSPSubmissionType submission) {
+    ForestStewardshipPlanType plan = unwrapPlan(submission);
+    return plan == null ? null : plan.getActionCode();
+  }
+
   public FspRequest toFspRequest(FSPSubmissionType submission) {
     ForestStewardshipPlanType plan = unwrapPlan(submission);
     if (plan == null) {

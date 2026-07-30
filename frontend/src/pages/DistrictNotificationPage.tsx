@@ -18,6 +18,7 @@ import { Add, TrashCan } from '@carbon/icons-react';
 import { useCallback, useEffect, useRef, useState, type FC } from 'react';
 
 import { DestructiveModal } from '@/components/core/DestructiveModal';
+import { Location, UserSearch } from '@carbon/pictograms-react';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { UserSearchModal } from '@/components/UserSearchModal';
 import { useNotification } from '@/context/notification/useNotification';
@@ -59,27 +60,6 @@ type SortKey = 'designateIdir' | 'displayName' | 'emailAddress';
 
 const formatCellText = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
-
-// "No district selected" pictogram. Carbon's filled Location icon reads too
-// heavy at 48px, so use a thin-stroke map-pin instead — `strokeWidth` is the
-// line weight (lower = thinner). stroke="currentColor" inherits the empty-
-// state pictogram's interactive-blue colour.
-const ThinLocationPin: FC = () => (
-  <svg
-    width={48}
-    height={48}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-    <circle cx="12" cy="10" r="3" />
-  </svg>
-);
 
 const DistrictNotificationPage: FC = () => {
   const [orgUnits, setOrgUnits] = useState<CodeOption[]>([]);
@@ -507,6 +487,7 @@ const DistrictNotificationPage: FC = () => {
             ) : (
               !loading && (
                 <EmptyState
+                  icon={<UserSearch width={48} height={48} />}
                   title="No designates yet"
                   body={
                     <>
@@ -530,7 +511,7 @@ const DistrictNotificationPage: FC = () => {
         <div className="fsp-district__results-fullbleed">
           <div className="fsp-district__results">
             <EmptyState
-              icon={<ThinLocationPin />}
+              icon={<Location width={48} height={48} />}
               title="No district selected"
               body="Select a district above to view and manage its designates."
             />

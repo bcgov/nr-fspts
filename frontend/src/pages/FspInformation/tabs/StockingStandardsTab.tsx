@@ -15,7 +15,9 @@ import {
   TableToolbarContent,
   TableToolbarSearch,
 } from '@carbon/react';
-import {Add, CheckmarkFilled, DocumentAdd, Download, SubtractAlt} from '@carbon/icons-react';
+import {Add, CheckmarkFilled, Download, SubtractAlt} from '@carbon/icons-react';
+import { AddDocument } from '@carbon/pictograms-react';
+import { NoResultsFoundIcon } from '@/components/EmptyState/NoResultsFoundIcon';
 import {type FC, type SVGProps, useCallback, useEffect, useRef, useState} from 'react';
 
 import { StandardsSearchIcon } from '@/components/Layout/navIcons';
@@ -467,7 +469,11 @@ const StockingStandardsTab: FC<Props> = ({
       <>
         <section className="fsp-info__tile fsp-info__tile--full fsp-info__tile--plain">
           <div className="fsp-info__empty-state">
-            <DocumentAdd size={48} className="fsp-info__empty-state-icon" />
+            <AddDocument
+              width={48}
+              height={48}
+              className="fsp-info__empty-state-icon"
+            />
             <h3 className="fsp-info__empty-state-title">
               No stocking standards for this FSP
             </h3>
@@ -626,6 +632,7 @@ const StockingStandardsTab: FC<Props> = ({
                 </TableToolbar>
                 {r.length === 0 ? (
                   <EmptyState
+                    icon={<NoResultsFoundIcon />}
                     title="No results found"
                     body={
                       <>

@@ -87,7 +87,8 @@
 
 .amend-modal__approval-desc {
   margin: 0;
-  color: var(--cds-text-secondary, #525252);
+  // Match the modal intro copy rather than the muted secondary tone.
+  color: #131315;
 }
 
 // Helper line under the Yes/No radios that explains what the chosen answer

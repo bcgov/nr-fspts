@@ -126,6 +126,9 @@ public class FspValidationDaoImpl implements FspValidationDao {
               + "  ? := CASE WHEN fsp_common_db.has_fdu_changes(v_id, v_amd) THEN 'Y' ELSE 'N' END; "
               + "  ? := CASE WHEN fsp_common_db.has_identified_area_changes(v_id, v_amd) THEN 'Y' ELSE 'N' END; "
               + "  ? := CASE WHEN fsp_common_db.has_stocking_standard_changes(v_id, v_amd) THEN 'Y' ELSE 'N' END; "
+              // Stricter FDU signal: actual new FDU records only, NOT the
+              // MAP-attachment shortcut has_fdu_changes also honours.
+              + "  ? := CASE WHEN fsp_common_db.has_new_fdu_spatial(v_id, v_amd) THEN 'Y' ELSE 'N' END; "
               + "EXCEPTION WHEN NO_DATA_FOUND THEN NULL; "
               + "END;")) {
         cs.setLong(1, fspId);
@@ -138,12 +141,14 @@ public class FspValidationDaoImpl implements FspValidationDao {
         cs.registerOutParameter(8, java.sql.Types.VARCHAR);   // fdu has changes
         cs.registerOutParameter(9, java.sql.Types.VARCHAR);   // ia has changes
         cs.registerOutParameter(10, java.sql.Types.VARCHAR);  // ss has changes
+        cs.registerOutParameter(11, java.sql.Types.VARCHAR);  // fdu new spatial
         cs.execute();
         return new UpdateIndicatorState(
             cs.getString(3),
             cs.getString(4),
             cs.getString(5),
             "Y".equals(cs.getString(8)),
+            "Y".equals(cs.getString(11)),
             cs.getString(6),
             "Y".equals(cs.getString(9)),
             cs.getString(7),

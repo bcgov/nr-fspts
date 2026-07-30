@@ -3,6 +3,7 @@ import {
   DataTable,
   DatePicker,
   DatePickerInput,
+  InlineNotification,
   Loading,
   RadioButton,
   Tab,
@@ -223,7 +224,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   fspId,
   amendmentNumber,
   regimeId,
-  readOnly = false,
+  readOnly: readOnlyProp = false,
   canCopy = false,
   onCopy,
   canDelete = false,
@@ -232,6 +233,13 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   onUnlink,
 }) => {
   const [detail, setDetail] = useState<StandardRegimeDetail | null>(null);
+  // Approved standards are read-only regardless of the parent FSP's edit
+  // state — the user must Copy one (which yields an editable draft) to change
+  // it. Fold that into the panel-wide readOnly so every inline edit affordance
+  // (Overview / Layers / Species / BGC / Attachments) is suppressed; the
+  // backend enforces the same rule (FspAccessGuard.assertStandardsRegimeEditable).
+  const isApprovedRegime = detail?.standardsRegimeStatusCode === 'APP';
+  const readOnly = readOnlyProp || isApprovedRegime;
   const [loading, setLoading] = useState(false);
   // Overview-tab edit state. Each inner tab gets its own toggle so a
   // save on Overview doesn't blow away the read-only context the user
@@ -612,6 +620,16 @@ const StandardRegimeDetailPanel: FC<Props> = ({
           </div>
         )}
       </header>
+      {isApprovedRegime && !readOnlyProp && (
+        <InlineNotification
+          kind="info"
+          lowContrast
+          hideCloseButton
+          className="fsp-info__detail-notice"
+          title="Approved standard"
+          subtitle="This stocking standard is approved and is read-only. To make changes, add an editable copy from Standard search."
+        />
+      )}
       {detail.fspIdList && (
         <p className="fsp-info__detail-subtitle">
           Associated FSPs:{' '}
