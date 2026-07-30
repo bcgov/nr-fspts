@@ -5,6 +5,7 @@ import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionEnvelopeStripper;
 import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionXmlParser;
 import ca.bc.gov.nrs.fsp.api.submission.validator.ActionCodeContextValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.AgreementHolderValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.AmendmentApprovalRequiredValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.ContactDetailsValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.DistrictCodeValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.FduUniquenessValidator;
@@ -61,6 +62,7 @@ class SubmissionValidationServiceTest {
         noOpValidator(AgreementHolderValidator.class),
         noOpValidator(DistrictCodeValidator.class),
         noOpValidator(FduUniquenessValidator.class),
+        noOpValidator(AmendmentApprovalRequiredValidator.class),
         new SubmissionPreviewMapper(
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.Sil21ClientSearchDao.class)),
@@ -181,6 +183,7 @@ class SubmissionValidationServiceTest {
         noOpValidator(AgreementHolderValidator.class),
         noOpValidator(DistrictCodeValidator.class),
         noOpValidator(FduUniquenessValidator.class),
+        noOpValidator(AmendmentApprovalRequiredValidator.class),
         new SubmissionPreviewMapper(
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.Sil21ClientSearchDao.class)),
