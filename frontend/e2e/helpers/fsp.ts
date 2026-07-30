@@ -155,7 +155,9 @@ export async function recordDdmApproval(page: Page): Promise<void> {
       (r) => /\/workflow\/action\b/.test(r.url()) && r.request().method() === 'POST',
       { timeout: 30_000 },
     ),
-    modal.getByRole('button', { name: /^Save/ }).click(),
+    // The DDM modal's submit button is "Record decision" ("Saving…" while in
+    // flight) — not "Save". Match either so a busy-state re-query still works.
+    modal.getByRole('button', { name: /Record decision|Saving/i }).click(),
   ]);
   await expect(modal).toBeHidden({ timeout: 30_000 });
 }
