@@ -16,6 +16,7 @@ import {
   Tile,
 } from '@carbon/react';
 import { CheckmarkFilled, Search as SearchIcon, SubtractAlt } from '@carbon/icons-react';
+import { AddDocument } from '@carbon/pictograms-react';
 import {
   type FC,
   type FormEvent,
@@ -574,6 +575,7 @@ const SubmissionHistoryPage: FC = () => {
               !error &&
               (activeOrgClientNumber ? (
                 <EmptyState
+                  icon={<AddDocument width={48} height={48} />}
                   title="No results found"
                   body={
                     <>

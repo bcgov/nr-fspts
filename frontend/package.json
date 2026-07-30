@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@carbon/icons-react": "^11.64.0",
+    "@carbon/pictograms-react": "^11.107.0",
     "@carbon/react": "^1.105.0",
     "aws-amplify": "^6.17.0",
     "jose": "^5.9.6",

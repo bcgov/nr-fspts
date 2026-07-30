@@ -71,6 +71,8 @@ const NewStandardModal: FC<Props> = ({
   const [errors, setErrors] = useState<{
     name?: string;
     objective?: string;
+    regenDelay?: string;
+    fgLate?: string;
     comment?: string;
   }>({});
 
@@ -99,6 +101,16 @@ const NewStandardModal: FC<Props> = ({
     if (!objective.trim()) next.objective = 'Objective is required.';
     else if (objective.length > OBJECTIVE_MAX) {
       next.objective = `Max ${OBJECTIVE_MAX} characters.`;
+    }
+    // With a regen obligation the Regen delay and Free growing late offsets
+    // are mandatory (Early stays optional).
+    if (regenObligation) {
+      if (regenDelayYrs.trim() === '') {
+        next.regenDelay = 'Regen delay is required.';
+      }
+      if (fgLateYrs.trim() === '') {
+        next.fgLate = 'Free growing late is required.';
+      }
     }
     if (comment.length > COMMENT_MAX) {
       next.comment = `Max ${COMMENT_MAX} characters.`;
@@ -208,7 +220,12 @@ const NewStandardModal: FC<Props> = ({
           legendText="Regen obligation"
           valueSelected={regenObligation ? 'Y' : 'N'}
           disabled={busy}
-          onChange={(v) => setRegenObligation(v === 'Y')}
+          onChange={(v) => {
+            setRegenObligation(v === 'Y');
+            // The Regen/Late requirement only applies under an obligation —
+            // drop any stale errors when it's toggled off.
+            setErrors((p) => ({ ...p, regenDelay: undefined, fgLate: undefined }));
+          }}
         >
           <RadioButton id="new-std-regen-yes" labelText="Yes" value="Y" />
           <RadioButton id="new-std-regen-no" labelText="No" value="N" />
@@ -224,6 +241,8 @@ const NewStandardModal: FC<Props> = ({
               hideSteppers
               value={regenDelayYrs === '' ? '' : Number(regenDelayYrs)}
               disabled={busy || !regenObligation}
+              invalid={!!errors.regenDelay}
+              invalidText={errors.regenDelay ?? ''}
               onChange={(_e, { value }) =>
                 setRegenDelayYrs(value === '' ? '' : String(value))
               }
@@ -250,6 +269,8 @@ const NewStandardModal: FC<Props> = ({
               hideSteppers
               value={fgLateYrs === '' ? '' : Number(fgLateYrs)}
               disabled={busy}
+              invalid={!!errors.fgLate}
+              invalidText={errors.fgLate ?? ''}
               onChange={(_e, { value }) =>
                 setFgLateYrs(value === '' ? '' : String(value))
               }

@@ -8,6 +8,7 @@ import ca.bc.gov.nrs.fsp.api.submission.parser.SubmissionXmlParser;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionType;
 import ca.bc.gov.nrs.fsp.api.submission.validator.ActionCodeContextValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.AgreementHolderValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.AmendmentApprovalRequiredValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.ContactDetailsValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.DistrictCodeValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.FduUniquenessValidator;
@@ -45,6 +46,7 @@ public class SubmissionValidationService {
   private final AgreementHolderValidator agreementHolderValidator;
   private final DistrictCodeValidator districtCodeValidator;
   private final FduUniquenessValidator fduUniquenessValidator;
+  private final AmendmentApprovalRequiredValidator amendmentApprovalRequiredValidator;
   private final SubmissionPreviewMapper previewMapper;
   private final VirusScanner virusScanner;
 
@@ -106,6 +108,10 @@ public class SubmissionValidationService {
       // or INE status — runs against the same table the proc consults,
       // so a clean validation error replaces the eventual ORA-01403.
       errors.addAll(actionCodeContextValidator.validate(outcome.submission()));
+      // An Amendment that declares an FDU and/or stocking-standard change must
+      // also require district approval — mirrors the Amend modal rule.
+      // (Replacements always force approval; Initial/Update ignore the flag.)
+      errors.addAll(amendmentApprovalRequiredValidator.validate(outcome.submission()));
       // Validates every <licenceNumber> against PROV_FOREST_USE so an
       // unknown id is caught here instead of as ORA-02291
       // (FDUL_PFU_FK) during FDU persistence after the FSP_300 header

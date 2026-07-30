@@ -1149,6 +1149,14 @@
 // Info banner at the top of the Workflow tab. Keep the notification's
 // title at regular weight so it reads as one plain sentence, and let it
 // span the full content width above the tile grid.
+// "Approved standard" read-only notice at the top of a locked standards
+// detail pane. Span the tile width (Carbon caps notifications) with a little
+// breathing room under the header.
+.fsp-info__detail-notice {
+  max-inline-size: none;
+  margin-block: 0.25rem 0.75rem;
+}
+
 .fsp-info__workflow-banner {
   max-inline-size: none;
   margin-block-start: 0.5rem;

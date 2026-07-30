@@ -80,6 +80,12 @@ public final class ProcErrorMessages {
       Map.entry("fsp.web.error.not_editable_status", new Info(FORBIDDEN,
           "This FSP can't be edited directly in its current status. To change "
               + "an approved or in-effect plan, create an amendment.")),
+      // A linked stocking standard is Approved — approved standards are
+      // read-only. The user must Copy it (which yields an editable draft)
+      // before making changes.
+      Map.entry("fsp.web.error.standards_not_editable", new Info(FORBIDDEN,
+          "This stocking standard is approved and can't be edited. Copy it to "
+              + "create an editable draft, then make your changes.")),
       Map.entry("FSP.INVALID.AGREEMENT.HOLDER", new Info(FORBIDDEN,
           "Your client number is not on this FSP's agreement holder list, so "
               + "you can't modify it. An agreement holder for this FSP needs "
@@ -191,13 +197,13 @@ public final class ProcErrorMessages {
       Map.entry("FSP.RPL_FDU_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
           "This version is marked as updating the Forest Development "
               + "Units, but no FDU changes were found on this version. Add "
-              + "the FDU spatial data on the FDU / Map tab (or attach a MAP "
-              + "document on the Attachments tab) before submitting.")),
+              + "the FDU spatial data on the FDU / Map tab before submitting. "
+              + "A MAP attachment on its own doesn't satisfy this.")),
       Map.entry("FSP.FDU_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
           "This amendment is marked as updating the Forest Development "
               + "Units, but no FDU changes were found on this version. Add "
-              + "the FDU spatial data on the FDU / Map tab (or attach a MAP "
-              + "document on the Attachments tab) before submitting.")),
+              + "the FDU spatial data on the FDU / Map tab before submitting. "
+              + "A MAP attachment on its own doesn't satisfy this.")),
       Map.entry("FSP.RPL_IA_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
           "This version is marked as updating the Identified Areas, but "
               + "no identified-area changes were found on this version. Add "

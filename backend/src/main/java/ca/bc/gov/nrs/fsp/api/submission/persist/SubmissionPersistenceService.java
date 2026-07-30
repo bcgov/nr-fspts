@@ -75,7 +75,11 @@ public class SubmissionPersistenceService {
   // SubmissionToFspRequestMapper#mapActionCode produces from the
   // XML's actionCode (I/U → ORG, A → AMD, R → RPL). The XML's letter
   // codes are an internal vocabulary; the proc layer speaks ORG/AMD/RPL.
-  /** Original FSP — XML actionCode=I or U → create a new FSP row. */
+  /**
+   * Original-row category. Both XML actionCode I (Initial) and U (Update)
+   * map here, so persist() must further split on the XML letter: I → create a
+   * new FSP row; U → update the existing one.
+   */
   private static final String ACTION_ORIGINAL = "ORG";
   /** Amendment — XML actionCode=A → AMEND a new row, then SAVE to populate. */
   private static final String ACTION_AMENDMENT = "AMD";
@@ -88,25 +92,63 @@ public class SubmissionPersistenceService {
     FspRequest request = mapper.toFspRequest(submission);
     resolveDistrictOrgUnitNumbers(request);
     String actionCode = request.getFspAmendmentCode();
+    // The XML intent letter (I/U/A/R). Needed to split I from U: both map to
+    // fsp_amendment_code=ORG, so the mapped `actionCode` above can't tell an
+    // Initial (new FSP) from an Update (edit the existing one).
+    ca.bc.gov.nrs.fsp.api.submission.parser.generated.ActionCodeType xmlAction =
+        mapper.actionCode(submission);
     log.info(
-        "Persisting FSP submission id={} amendment={} actionCode={}",
-        request.getFspId(), request.getFspAmendmentNumber(), actionCode);
+        "Persisting FSP submission id={} amendment={} actionCode={} xmlAction={}",
+        request.getFspId(), request.getFspAmendmentNumber(), actionCode, xmlAction);
 
-    // Header write routes by actionCode:
+    // Amendment metadata (approval-required flag, the FDU / stocking /
+    // identified-area update indicators, and the amendment name / authority /
+    // summary) only applies when the submission CREATES a new version — an
+    // Amendment (A) or Replacement (R). For Initial (I) and Update (U)
+    // submissions, ignore whatever the XML carries so, e.g., an Update can't
+    // flip the approval-required flag a user set in the UI. Nulling lets the
+    // Update path (which merges over the existing row) keep the current value.
+    if (!isCreatingAmendment(xmlAction)) {
+      request.setApprovalRequiredInd(null);
+      request.setFduUpdateInd(null);
+      request.setStockingStandardUpdateInd(null);
+      request.setIdentifiedAreasUpdateInd(null);
+      request.setAmendmentName(null);
+      request.setAmendmentAuthority(null);
+      request.setAmendmentReason(null);
+    }
+
+    // Header write routes by the XML intent:
     //   I → fspService.create() (proc assigns fsp_id from FSP_SEQ)
+    //   U → fspService.update() on the EXISTING fsp_id + amendment — an
+    //       Update must NOT create a new FSP row (both I and U carry
+    //       fsp_amendment_code=ORG, so we branch on the XML letter, not it).
     //   A → fspService.amend() to create the new amendment row, then
     //       fspService.update() on the proc-assigned amendment_number
     //       to populate the body (AMEND only seeds the skeleton).
     //   R → fspService.replace() — same shape as AMEND but the proc
     //       stamps fsp_amendment_code='RPL' and forces approval-required.
-    //   U → fspService.update() on the existing fsp_id + amendment.
     FspRequest saved;
-    if (ACTION_ORIGINAL.equals(actionCode)) {
+    boolean isUpdate =
+        xmlAction == ca.bc.gov.nrs.fsp.api.submission.parser.generated.ActionCodeType.U;
+    if (ACTION_ORIGINAL.equals(actionCode) && !isUpdate) {
+      // I (Initial) — brand-new FSP.
       saved = fspService.create(request);
       if (saved.getFspId() == null || saved.getFspId().isBlank()) {
         throw new IllegalStateException(
             "FSP creation succeeded but proc did not return an assigned fsp_id");
       }
+    } else if (ACTION_ORIGINAL.equals(actionCode) && isUpdate) {
+      // U (Update) — edit the existing FSP/amendment in place. update() reads
+      // the current row and overlays the submitted fields, so the existing
+      // fsp_amendment_code / status / revision_count are preserved (SAVE, not
+      // a new row). The FSP's status still gates the edit
+      // (FspAccessGuard.assertContentEditable inside update()).
+      if (request.getFspId() == null || request.getFspId().isBlank()) {
+        throw new IllegalArgumentException(
+            "submission with actionCode=U requires an fspID");
+      }
+      saved = fspService.update(request.getFspId(), request);
     } else if (ACTION_AMENDMENT.equals(actionCode)) {
       if (request.getFspId() == null || request.getFspId().isBlank()) {
         throw new IllegalArgumentException(
@@ -134,14 +176,13 @@ public class SubmissionPersistenceService {
       // The APP/INE-amendment precondition is enforced upstream by
       // ActionCodeContextValidator at upload time; reaching here means
       // it already passed validation.
-      // Replacement is mandatory-ministry-approval per FRPA — mirrors
-      // the legacy Fsp304ReplaceInformationAction hard-coded "Y".
-      // Default-set rather than overwrite so an admin tool can still
-      // override if a future workflow needs it.
-      if (request.getApprovalRequiredInd() == null
-          || request.getApprovalRequiredInd().isBlank()) {
-        request.setApprovalRequiredInd("Y");
-      }
+      // Replacement is mandatory-ministry-approval per FRPA — force it
+      // unconditionally, matching legacy FSP_SUBMISSION_PROCESS (which hard-sets
+      // v_amd_app_req_in := 'Y' for actionCode R regardless of the XML value)
+      // and Fsp304ReplaceInformationAction. Overriding any value the XML
+      // carries closes the gap where a replacement declaring approval=false
+      // would otherwise persist as not-required.
+      request.setApprovalRequiredInd("Y");
       FspRequest replaced = fspService.replace(request.getFspId(), request);
       String assignedAmendment = replaced.getFspAmendmentNumber();
       if (assignedAmendment == null || assignedAmendment.isBlank()) {
@@ -159,12 +200,12 @@ public class SubmissionPersistenceService {
       // not waiting for approval like fsp_approval does.
       retirePriorApprovedAmendmentsForReplace(saved);
     } else {
-      // U (Update) — existing FSP, existing amendment
-      if (request.getFspId() == null || request.getFspId().isBlank()) {
-        throw new IllegalArgumentException(
-            "submission with actionCode=" + actionCode + " requires an fspID");
-      }
-      saved = fspService.update(request.getFspId(), request);
+      // I/U/A/R are all handled above (I/U under ORG, A under AMD, R under
+      // RPL). Reaching here means the XML carried no recognizable actionCode
+      // (mapActionCode returned null) — fail loudly rather than guess.
+      throw new IllegalArgumentException(
+          "submission has a missing or unrecognized actionCode (fsp_amendment_code="
+              + actionCode + ")");
     }
 
     // Use the (possibly newly-assigned) id for the spatial + standards
@@ -198,6 +239,17 @@ public class SubmissionPersistenceService {
       return 0L;
     }
     return Long.parseLong(s);
+  }
+
+  /**
+   * True when the submission creates a new plan version — an Amendment (A) or
+   * Replacement (R). Only then do the XML's amendment-metadata fields apply;
+   * Initial (I) and Update (U) submissions ignore them.
+   */
+  private static boolean isCreatingAmendment(
+      ca.bc.gov.nrs.fsp.api.submission.parser.generated.ActionCodeType xmlAction) {
+    return xmlAction == ca.bc.gov.nrs.fsp.api.submission.parser.generated.ActionCodeType.A
+        || xmlAction == ca.bc.gov.nrs.fsp.api.submission.parser.generated.ActionCodeType.R;
   }
 
   /**

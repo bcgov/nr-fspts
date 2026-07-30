@@ -168,6 +168,7 @@ public class StandardRegimeService {
       String fspId, String regimeId, String amendmentNumber,
       StandardRegimeOverviewUpdate edits) {
     accessGuard.assertContentEditable(fspId, amendmentNumber);
+    accessGuard.assertStandardsRegimeEditable(regimeId);
     StandardRegimeDetail current = getDetail(fspId, amendmentNumber, regimeId);
     if (current == null) {
       throw new IllegalStateException(
@@ -444,6 +445,7 @@ public class StandardRegimeService {
       String fspId, String regimeId, String layerCode, String layerId,
       String amendmentNumber, StandardRegimeLayerUpdate edits) {
     accessGuard.assertContentEditable(fspId, amendmentNumber);
+    accessGuard.assertStandardsRegimeEditable(regimeId);
     // Blank layerId = ADD path. The legacy SAVE proc routes to ADD when
     // P_REVISION_COUNT is null, so we skip the current-detail fetch (no
     // current exists) and pass nulls for both the layer id and revision.
@@ -516,6 +518,7 @@ public class StandardRegimeService {
   public StandardRegimeDetail convertLayers(
       String fspId, String amendmentNumber, String regimeId) {
     accessGuard.assertContentEditable(fspId, amendmentNumber);
+    accessGuard.assertStandardsRegimeEditable(regimeId);
     String regimeRev = dao.getRevisionCount(regimeId);
     if (regimeRev == null) {
       throw new IllegalStateException(
@@ -564,6 +567,7 @@ public class StandardRegimeService {
       String fspId, String regimeId, String layerCode, String layerId,
       String speciesCode, String minHeight, boolean preferred) {
     accessGuard.assertContentEditable(fspId, null);
+    accessGuard.assertStandardsRegimeEditable(regimeId);
     // Cheaper than the full GET proc (5 cursors) and avoids the
     // proc's FSP+amendment-scope check, which trips noRecord when
     // we don't have those in hand.
@@ -598,6 +602,7 @@ public class StandardRegimeService {
       String fspId, String regimeId, String layerCode, String layerId,
       String speciesCode, boolean preferred, String revisionCount) {
     accessGuard.assertContentEditable(fspId, null);
+    accessGuard.assertStandardsRegimeEditable(regimeId);
     String regimeRev = dao.getRevisionCount(regimeId);
     if (regimeRev == null) {
       throw new IllegalStateException(
@@ -635,6 +640,7 @@ public class StandardRegimeService {
       String siteSeriesId, String rowRevisionCount,
       StandardRegimeBgcZoneUpsert edits) {
     accessGuard.assertContentEditable(fspId, amendmentNumber);
+    accessGuard.assertStandardsRegimeEditable(regimeId);
     String regimeRev = dao.getRevisionCount(regimeId);
     if (regimeRev == null) {
       throw new IllegalStateException(
@@ -673,6 +679,7 @@ public class StandardRegimeService {
       String fspId, String amendmentNumber, String regimeId,
       String siteSeriesId, String rowRevisionCount) {
     accessGuard.assertContentEditable(fspId, amendmentNumber);
+    accessGuard.assertStandardsRegimeEditable(regimeId);
     String regimeRev = dao.getRevisionCount(regimeId);
     if (regimeRev == null) {
       throw new IllegalStateException(
@@ -717,6 +724,7 @@ public class StandardRegimeService {
       String fspId, String amendmentNumber, String regimeId,
       MultipartFile file, String description) throws IOException {
     accessGuard.assertContentEditable(fspId, amendmentNumber);
+    accessGuard.assertStandardsRegimeEditable(regimeId);
     String fileName = file.getOriginalFilename();
     validateAttachment(fileName, file.getSize());
     // Reject infected uploads before anything touches the DB (→ 422).
@@ -754,6 +762,7 @@ public class StandardRegimeService {
   public StandardRegimeDetail deleteAttachment(
       String fspId, String amendmentNumber, String regimeId, String attachId) {
     accessGuard.assertContentEditable(fspId, amendmentNumber);
+    accessGuard.assertStandardsRegimeEditable(regimeId);
     String regimeRev = dao.getRevisionCount(regimeId);
     if (regimeRev == null) {
       throw new IllegalArgumentException("Standards regime " + regimeId + " not found.");

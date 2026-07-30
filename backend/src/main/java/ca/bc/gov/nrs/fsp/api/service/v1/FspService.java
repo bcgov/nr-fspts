@@ -490,6 +490,12 @@ public class FspService {
     // branch deliberately skips it — so a DFT→SUB submit would otherwise
     // go through without the legal document. Throws BAD_REQUEST when missing.
     assertLegalDocumentPresent(fspId, current.getFspAmendmentNumber());
+    // App-level guard the proc's Draft→Submitted branch misses: when this
+    // version declares an FDU update, it must carry ACTUAL new FDU spatial —
+    // the proc's has_fdu_changes is also satisfied by a MAP attachment, so a
+    // "Map of FDUs" document would otherwise let submit through with no real
+    // FDU edit. Throws BAD_REQUEST when declared-but-not-modified.
+    assertFduModifiedIfDeclared(fspId, current.getFspAmendmentNumber());
     callInformation(ACTION_SUBMIT, fspId, nz(amendmentNumber), current);
     // The inner submit() call updates the row's fsp_status_code, but
     // MAINLINE's IN/OUT parameters don't get refreshed from the row
@@ -524,6 +530,26 @@ public class FspService {
       throw new IllegalArgumentException(
           ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(
               CODE_NO_LEGAL_DOCUMENT));
+    }
+  }
+
+  /**
+   * Hard submit guard for the FDU-declared rule. When this version's
+   * {@code fdu_update_ind = 'Y'} it must carry ACTUAL new FDU spatial
+   * ({@code has_new_fdu_spatial}), not merely a MAP attachment (which the
+   * proc's {@code has_fdu_changes} would accept). Throws
+   * {@link IllegalArgumentException} (→ 400) with the same curated code the
+   * preflight surfaces, so the checklist and the real submit agree.
+   */
+  private void assertFduModifiedIfDeclared(String fspId, String amendmentNumber) {
+    ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao.UpdateIndicatorState ind =
+        validationDao.getUpdateIndicatorState(
+            Long.parseLong(fspId), parseLongOrZero(amendmentNumber));
+    if ("Y".equals(ind.fduUpdateInd()) && !ind.fduSpatialChanges()) {
+      String code = "AMD".equals(ind.amendmentCode())
+          ? "FSP.FDU_UPDATE_IND.NOCHANGE" : "FSP.RPL_FDU_UPDATE_IND.NOCHANGE";
+      throw new IllegalArgumentException(
+          ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(code));
     }
   }
 
@@ -581,7 +607,10 @@ public class FspService {
         validationDao.getUpdateIndicatorState(fspIdLong, amendmentLong);
     boolean isAmendment = "AMD".equals(ind.amendmentCode());
     boolean isTransition = "Y".equals(ind.transitionInd());
-    if ("Y".equals(ind.fduUpdateInd()) && !ind.fduHasChanges()) {
+    // FDU rule keys off actual FDU spatial (has_new_fdu_spatial), NOT
+    // has_fdu_changes — the latter also passes on a MAP attachment, which
+    // shouldn't stand in for a real FDU edit at submit time.
+    if ("Y".equals(ind.fduUpdateInd()) && !ind.fduSpatialChanges()) {
       addPreflightIssue(issues, isAmendment
           ? "FSP.FDU_UPDATE_IND.NOCHANGE" : "FSP.RPL_FDU_UPDATE_IND.NOCHANGE");
     }

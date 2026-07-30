@@ -27,12 +27,20 @@ public interface FspValidationDao {
    * has_identified_area_changes / has_stocking_standard_changes} — the exact
    * functions SUBMIT calls, so the preflight matches submit behaviour. A rule
    * only bites when an indicator is 'Y' and its matching hasChanges is false.
+   *
+   * <p>{@code fduSpatialChanges} is the stricter {@code has_new_fdu_spatial}
+   * result — actual newly-created FDU records only. {@code has_fdu_changes}
+   * ALSO returns true when a {@code MAP}-type attachment is present, which
+   * lets a "Map of FDUs" document satisfy the FDU-declared rule without any
+   * real FDU edit. We enforce the FDU rule on {@code fduSpatialChanges} so an
+   * attachment can't stand in for an actual FDU modification.
    */
   record UpdateIndicatorState(
       String amendmentCode,
       String transitionInd,
       String fduUpdateInd,
       boolean fduHasChanges,
+      boolean fduSpatialChanges,
       String iaUpdateInd,
       boolean iaHasChanges,
       String ssUpdateInd,

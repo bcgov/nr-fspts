@@ -40,6 +40,10 @@ public class FspAccessGuard {
   // a distinct key so the message accurately says "amend it" rather than the
   // misleading "you don't have access / wrong org".
   private static final String NOT_EDITABLE_STATUS = "fsp.web.error.not_editable_status";
+  // A linked stocking standard is Approved — approved standards are read-only
+  // regardless of the parent FSP's own edit state.
+  private static final String STANDARDS_NOT_EDITABLE = "fsp.web.error.standards_not_editable";
+  private static final String STANDARDS_STATUS_APPROVED = "APP";
 
   private final JdbcTemplate jdbcTemplate;
 
@@ -206,6 +210,46 @@ public class FspAccessGuard {
       log.info("Attachment edit to FSP {} amd {} denied: role={} status={}",
           fspIdLong, amendment, role, status);
       throw denyStatus(fspId, status, role);
+    }
+  }
+
+  /**
+   * Assert a stocking standard (standards regime) is NOT approved. An approved
+   * standard linked to an FSP is read-only — the user must Copy it (which
+   * yields an editable draft) to change it — independent of the parent FSP's
+   * own edit state. Call this IN ADDITION to {@link #assertContentEditable} on
+   * every standards content-edit path (overview / layers / species / BGC /
+   * attachments). Structural operations (create, copy, associate, delete,
+   * unlink) are exempt.
+   *
+   * <p>Throws a 403-mapped {@link StoredProcedureException} when the regime is
+   * Approved. Fails <b>open</b> (allows the edit) when the status can't be read
+   * — a missing/unreadable regime is left to the write proc to reject, and we
+   * don't want a transient lookup blip to block legitimate draft edits.
+   */
+  public void assertStandardsRegimeEditable(String regimeId) {
+    final long id;
+    try {
+      id = Long.parseLong(regimeId);
+    } catch (NumberFormatException e) {
+      return; // non-numeric → let the write proc handle it
+    }
+    String status;
+    try {
+      String s = jdbcTemplate.queryForObject(
+          "SELECT standards_regime_status_code FROM standards_regime"
+              + " WHERE standards_regime_id = ?",
+          String.class, id);
+      status = s == null ? "" : s.trim().toUpperCase();
+    } catch (DataAccessException e) {
+      // No row, or a lookup error — fail open (see javadoc).
+      return;
+    }
+    if (STANDARDS_STATUS_APPROVED.equals(status)) {
+      log.info("Content edit to standards regime {} denied: status={}", regimeId, status);
+      throw new StoredProcedureException(
+          "FspAccessGuard", "assertStandardsRegimeEditable",
+          STANDARDS_NOT_EDITABLE + " (regime " + regimeId + ": status=" + status + ")");
     }
   }
 
