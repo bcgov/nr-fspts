@@ -271,7 +271,7 @@ const MapTab: FC<Props> = ({
                       <TableCell>{dash(f.fduName)}</TableCell>
                       <TableCell>{dash(f.licences)}</TableCell>
                       <TableCell>
-                        <div className="fsp-info__actions-cell">
+                        <div className="fsp-info__row-actions">
                           <Button
                             kind="ghost"
                             size="sm"

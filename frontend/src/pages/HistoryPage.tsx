@@ -36,7 +36,7 @@ const HEADERS = [
   { key: 'amendmentNumber', header: 'Amnd #' },
   { key: 'extensionNumber', header: 'Ext #' },
   { key: 'eventDateTime', header: 'Event date / time' },
-  { key: 'userId', header: 'User ID' },
+  { key: 'userId', header: 'User' },
   { key: 'approvalRequestIndicator', header: 'Appr rqd' },
   { key: 'event', header: 'Event' },
   { key: 'description', header: 'Description' },

@@ -1043,15 +1043,16 @@
   }
 }
 
-// FDU/Map actions column. Same right-aligned actions as the agreement-holders
-// table, but its cell holds TWO wide buttons (Map view / Edit licences) — so
-// the 2.5rem header inset used above would sit "Actions" to the LEFT of the
-// button cluster and read as a separate column. Right-align the label to the
-// column's own edge (default th padding, which matches the td) so it lands
-// directly over the right-aligned buttons instead.
+// FDU/Map actions column. Left-anchored (OTBH pattern): the cell uses
+// `.fsp-info__row-actions` (margin-inline-start: -1rem cancels the ghost
+// button's left padding), and the header label stays left-aligned at the
+// same content edge — so "Actions" lines up over the FIRST button ("Map
+// view"). Aligning to the leftmost button (always present) is why we don't
+// right-align or use a fixed inset: "Edit licences" is role-gated, so a
+// right/inset alignment would drift between the 1- and 2-button states.
 .cds--data-table th.fsp-info__fdu-col-actions .cds--table-header-label {
-  text-align: right;
-  justify-content: flex-end;
+  text-align: start;
+  justify-content: flex-start;
 }
 
 // Cluster a section title with an inline tag (status pill / "Optional")
