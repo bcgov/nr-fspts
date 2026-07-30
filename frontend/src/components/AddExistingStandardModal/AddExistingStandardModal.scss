@@ -13,7 +13,11 @@
 }
 
 .add-std-modal .cds--modal-content {
-  padding-inline: 1.5rem;
+  // Match the modal header's padding-inline-start ($spacing-05 = 1rem) so the
+  // intro, form fields and results table share the same left edge as the
+  // "Add existing stocking standard" title (Carbon's header sits at 1rem while
+  // this content was overridden to 1.5rem, leaving them misaligned).
+  padding-inline: 1rem;
   padding-block-end: 1rem;
 }
 
@@ -34,7 +38,7 @@
 
 .add-std-modal__intro {
   margin: 0 0 1rem 0;
-  color: var(--cds-text-secondary);
+  color: #131315;
 }
 
 .add-std-modal__form {
@@ -150,4 +154,10 @@
   align-items: center;
   gap: 0.25rem;
   flex-wrap: nowrap;
+}
+
+// Nudge the trailing "Actions" header label 1rem to the right so it sits
+// better over the Add / Copy buttons. Last header cell = the actions column.
+.add-std-modal .cds--data-table thead th:last-child .cds--table-header-label {
+  padding-inline-start: 1rem;
 }

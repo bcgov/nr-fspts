@@ -11,7 +11,7 @@ import {
   TableRow,
   Tag,
 } from '@carbon/react';
-import { Add, CalendarAdd, Edit, Stamp } from '@carbon/icons-react';
+import { Add, CalendarAdd, Chat, Edit, Launch, ListChecked, Stamp } from '@carbon/icons-react';
 import { type FC, type ReactNode, useEffect, useState } from 'react';
 
 import DdmDecisionEditModal, {
@@ -24,7 +24,9 @@ import ExtensionDecisionEditModal, {
 import OtbhEditModal, { type OtbhDialogValue } from '@/components/OtbhEditModal';
 import ReviewMilestoneEditModal from '@/components/ReviewMilestoneEditModal';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
+import UserName from '@/components/UserName';
 import { useNotification } from '@/context/notification/useNotification';
+import { useAttachmentViewer } from '@/hooks/useAttachmentViewer';
 import { safeErrorMessage } from '@/lib/errorMessage';
 import {
   type FspDdmDecision,
@@ -33,10 +35,26 @@ import {
   type FspReviewItem,
   type FspWorkflowRoles,
   type FspWorkflowState,
+  getExtensionAttachments,
+  getFspAttachments,
   getFspExtensions,
   getFspWorkflowState,
   submitFspWorkflowAction,
 } from '@/services/fspSearch';
+
+// The DDM / extension decision-letter attachments, normalised to a common
+// shape so both tiles render them the same way. The DDM letter comes from
+// the FSP-level attachment list (its category cursor), the extension letter
+// from the per-extension list — different endpoints, same {id, name} here.
+interface DecisionLetter {
+  id: string;
+  name: string | null;
+}
+
+// The extension decision letter is stored under this attachment type code
+// (matches EXTENSION_DECISION_TYPE_CODE in ExtensionDecisionEditModal and the
+// FSP_700_WORKFLOW proc's EXDDMD check).
+const EXTENSION_DECISION_TYPE_CODE = 'EXDDMD';
 
 interface Props {
   fspId: string;
@@ -169,6 +187,37 @@ const Field: FC<FieldEntry> = ({ label, value, full }) => (
   </div>
 );
 
+// "Decision letter" block shown in the DDM / Extension decision tiles: the
+// letter's filename as a link that opens the file inline in a new tab (same
+// viewer as the Attachments tab). Renders nothing when no letter is on file.
+const DecisionLetterSection: FC<{
+  letters: DecisionLetter[];
+  onView: (id: string, name: string | null) => void;
+  viewingId: string | null;
+}> = ({ letters, onView, viewingId }) => {
+  if (letters.length === 0) return null;
+  return (
+    <div className="fsp-info__decision-letter">
+      <span className="fsp-info__decision-letter-label">Decision letter</span>
+      <ul className="fsp-info__decision-letter-list">
+        {letters.map((letter) => (
+          <li key={letter.id}>
+            <button
+              type="button"
+              className="fsp-info__attachment-link"
+              disabled={viewingId === letter.id}
+              onClick={() => onView(letter.id, letter.name)}
+            >
+              <span>{letter.name ?? 'Decision letter'}</span>
+              <Launch size={16} />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
 // ─── Section-level edit gating ──────────────────────────────────────
 //
 // Mirrors the legacy Fsp700WorkflowForm.java enableXxx() methods. We
@@ -297,7 +346,10 @@ const ReviewDetailsTile: FC<{
   <section className="fsp-info__tile fsp-info__tile--full">
     <header className="fsp-info__tile-header">
       <div className="fsp-info__title-group">
-        <h2 className="fsp-info__section-title">Review details</h2>
+        <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+          <ListChecked size={20} />
+          <span>Review details</span>
+        </h2>
         {optionalTag}
       </div>
     </header>
@@ -325,7 +377,9 @@ const ReviewDetailsTile: FC<{
                 <TableRow key={item.code}>
                   <TableCell>{item.label}</TableCell>
                   <TableCell>{completeTag(item.completedInd)}</TableCell>
-                  <TableCell>{dash(item.entryUserId)}</TableCell>
+                  <TableCell>
+                    <UserName userId={item.entryUserId} />
+                  </TableCell>
                   <TableCell>{dash(item.entryTimestamp)}</TableCell>
                   <TableCell>{dash(item.comment)}</TableCell>
                   {canEdit && (
@@ -370,8 +424,9 @@ const OtbhDetailsTile: FC<{
     <section className="fsp-info__tile fsp-info__tile--full">
       <header className="fsp-info__tile-header">
         <div className="fsp-info__title-group">
-          <h2 className="fsp-info__section-title">
-            Opportunity to be heard (OTBH)
+          <h2 className="fsp-info__section-title fsp-info__section-title--icon">
+            <Chat size={20} />
+            <span>Opportunity to be heard (OTBH)</span>
           </h2>
           {optionalTag}
         </div>
@@ -390,7 +445,11 @@ const OtbhDetailsTile: FC<{
                 <TableHeader>Status</TableHeader>
                 <TableHeader>Date</TableHeader>
                 <TableHeader>Comment</TableHeader>
-                {anyEditable && <TableHeader>Actions</TableHeader>}
+                {anyEditable && (
+                  <TableHeader style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                    Actions
+                  </TableHeader>
+                )}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -442,6 +501,10 @@ const DdmDecisionTile: FC<{
    * (the parent passes null otherwise, so a truthy value is the gate).
    */
   amendmentApprovalDate: string | null;
+  /** DDM decision letter(s) on file for this version — shown as view links. */
+  letters: DecisionLetter[];
+  onViewLetter: (id: string, name: string | null) => void;
+  viewingLetterId: string | null;
   canEdit: boolean;
   onEdit: () => void;
   onOpenAttachments?: () => void;
@@ -449,6 +512,9 @@ const DdmDecisionTile: FC<{
   decision,
   expiryDate,
   amendmentApprovalDate,
+  letters,
+  onViewLetter,
+  viewingLetterId,
   canEdit,
   onEdit,
   onOpenAttachments,
@@ -480,13 +546,15 @@ const DdmDecisionTile: FC<{
         )}
       </header>
       <p className="fsp-info__section-desc">
-        Determination for this version of the FSP. Supporting documents are
-        stored under “DDM Decision” on the{' '}
-        <AttachmentsLink onOpen={onOpenAttachments} /> tab.
+        Determination for this version of the FSP.
       </p>
-      {hasData ? (
-        <dl className="fsp-info__field-list fsp-info__field-list--emphasis">
-          <Field full label="Decided by" value={dash(decision.name)} />
+      {hasData && (
+        <dl className="fsp-info__field-list fsp-info__field-list--emphasis fsp-info__field-list--ddm-dates">
+          <Field
+            full
+            label="Decided by"
+            value={<UserName userId={decision.name} />}
+          />
           <Field
             label="Submission date"
             value={dash(decision.submissionDate)}
@@ -507,9 +575,12 @@ const DdmDecisionTile: FC<{
             <Field full label="Comment" value={dash(decision.comment)} />
           )}
         </dl>
-      ) : (
-        <p className="fsp-info__placeholder">No decision recorded yet.</p>
       )}
+      <DecisionLetterSection
+        letters={letters}
+        onView={onViewLetter}
+        viewingId={viewingLetterId}
+      />
     </section>
   );
 };
@@ -524,10 +595,24 @@ const ExtensionRequestTile: FC<{
    */
   summary: FspExtension | null;
   extensionIds: string | null;
+  /** Extension decision letter(s) (EXDDMD) — shown as view links. */
+  letters: DecisionLetter[];
+  onViewLetter: (id: string, name: string | null) => void;
+  viewingLetterId: string | null;
   canEdit: boolean;
   onEdit: () => void;
   onOpenAttachments?: () => void;
-}> = ({ decision, summary, extensionIds, canEdit, onEdit, onOpenAttachments }) => {
+}> = ({
+  decision,
+  summary,
+  extensionIds,
+  letters,
+  onViewLetter,
+  viewingLetterId,
+  canEdit,
+  onEdit,
+  onOpenAttachments,
+}) => {
   // A decision is only "recorded" once the extension is Approved / In
   // Effect / Rejected. A still-open (Submitted) request has a status but no
   // decision yet — so show "Pending" + "Record decision", mirroring the DDM
@@ -569,36 +654,45 @@ const ExtensionRequestTile: FC<{
         Determination on the request to extend the FSP expiry. Applies to the
         whole FSP.
         <br />
-        Supporting documents are stored under “Extension DDM Decision” on the{' '}
-        <AttachmentsLink onOpen={onOpenAttachments} /> tab.
       </p>
-      <dl className="fsp-info__field-list fsp-info__field-list--emphasis">
-        <Field full label="Decided by" value={dash(decision.name)} />
-        <Field
-          full
-          label="Extension number"
-          value={dash(extensionIds ?? decision.extensionId)}
-        />
-        <Field
-          label="Submission date"
-          value={dash(decision.submissionDate)}
-        />
-        <Field label="Decision date" value={dash(decision.decisionDate)} />
-        {isApproved && (
-          <Field label="Approval date" value={dash(summary?.approvalDate)} />
-        )}
-        {isRejected && (
-          <Field label="Reject date" value={dash(summary?.rejectDate)} />
-        )}
-        <Field label="Extended expiry date" value={dash(extendedExpiry)} />
-        <Field
-          label="Extension effective date"
-          value={dash(extensionEffective)}
-        />
-        {!isBlank(decision.comment) && (
-          <Field full label="Comment" value={dash(decision.comment)} />
-        )}
-      </dl>
+      {hasDecision && (
+        <dl className="fsp-info__field-list fsp-info__field-list--emphasis">
+          <Field
+            full
+            label="Decided by"
+            value={<UserName userId={decision.name} />}
+          />
+          <Field
+            full
+            label="Extension number"
+            value={dash(extensionIds ?? decision.extensionId)}
+          />
+          <Field
+            label="Submission date"
+            value={dash(decision.submissionDate)}
+          />
+          <Field label="Decision date" value={dash(decision.decisionDate)} />
+          {isApproved && (
+            <Field label="Approval date" value={dash(summary?.approvalDate)} />
+          )}
+          {isRejected && (
+            <Field label="Reject date" value={dash(summary?.rejectDate)} />
+          )}
+          <Field label="Extended expiry date" value={dash(extendedExpiry)} />
+          <Field
+            label="Extension effective date"
+            value={dash(extensionEffective)}
+          />
+          {!isBlank(decision.comment) && (
+            <Field full label="Comment" value={dash(decision.comment)} />
+          )}
+        </dl>
+      )}
+      <DecisionLetterSection
+        letters={letters}
+        onView={onViewLetter}
+        viewingId={viewingLetterId}
+      />
     </section>
   );
 };
@@ -636,9 +730,17 @@ const WorkflowDataTab: FC<Props> = ({
   // Extension decision tile can show approval / reject / extended-expiry /
   // extension-effective dates that FSP_700's projection omits.
   const [extSummary, setExtSummary] = useState<FspExtension | null>(null);
+  // Decision letters shown inline in the DDM / Extension tiles (view links).
+  // DDM letter comes from the FSP attachment list (its "DDM Decision"
+  // category cursor, filtered to the version in view); the extension letter
+  // from the per-extension list (type EXDDMD).
+  const [ddmLetters, setDdmLetters] = useState<DecisionLetter[]>([]);
+  const [extLetters, setExtLetters] = useState<DecisionLetter[]>([]);
   // Dismissible IDIR-visibility notice at the top of the tab.
   const [bannerVisible, setBannerVisible] = useState(true);
   const { display } = useNotification();
+  const { view: viewLetter, viewingId: viewingLetterId } =
+    useAttachmentViewer(fspId);
 
   useEffect(() => {
     if (!fspId) return;
@@ -681,6 +783,67 @@ const WorkflowDataTab: FC<Props> = ({
       })
       .catch(() => {
         if (!cancelled) setExtSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fspId, extensionIdForSummary, refreshKey]);
+
+  // DDM decision letter for the version in view. The FSP attachment list
+  // groups letters into per-category cursors; only the "DDM Decision" cursor
+  // carries a category label containing "decision", so that regex isolates
+  // it. Filter to the current amendment so an earlier version's letter
+  // doesn't leak into a later one.
+  useEffect(() => {
+    if (!fspId) {
+      setDdmLetters([]);
+      return;
+    }
+    let cancelled = false;
+    getFspAttachments(fspId)
+      .then((rows) => {
+        if (cancelled) return;
+        const letters = rows
+          .filter(
+            (r) =>
+              r.fspAttachmentId != null &&
+              r.category != null &&
+              /ddm|decision/i.test(r.category) &&
+              (isBlank(amendmentNumber) ||
+                r.fspAmendmentNumber === amendmentNumber),
+          )
+          .map((r) => ({ id: r.fspAttachmentId as string, name: r.attachmentName }));
+        setDdmLetters(letters);
+      })
+      .catch(() => {
+        if (!cancelled) setDdmLetters([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fspId, amendmentNumber, refreshKey]);
+
+  // Extension decision letter (type EXDDMD) for the workflow's extension.
+  useEffect(() => {
+    if (!fspId || isBlank(extensionIdForSummary)) {
+      setExtLetters([]);
+      return;
+    }
+    let cancelled = false;
+    getExtensionAttachments(fspId, extensionIdForSummary as string)
+      .then((rows) => {
+        if (cancelled) return;
+        const letters = rows
+          .filter(
+            (r) =>
+              r.attachmentId != null &&
+              (r.typeCode ?? '').toUpperCase() === EXTENSION_DECISION_TYPE_CODE,
+          )
+          .map((r) => ({ id: r.attachmentId as string, name: r.attachmentName }));
+        setExtLetters(letters);
+      })
+      .catch(() => {
+        if (!cancelled) setExtLetters([]);
       });
     return () => {
       cancelled = true;
@@ -758,7 +921,9 @@ const WorkflowDataTab: FC<Props> = ({
     onWorkflowChanged?.();
     display({
       kind: 'success',
-      title: 'Review milestone updated.',
+      title: reviewHasRecord(reviewEditTarget)
+        ? 'Milestone updated'
+        : 'Milestone recorded',
       subtitle: reviewEditTarget.label,
       timeout: 6000,
     });
@@ -789,12 +954,15 @@ const WorkflowDataTab: FC<Props> = ({
     onWorkflowChanged?.();
     display({
       kind: 'success',
-      title:
+      title: ddmHasData(state.ddmDecision)
+        ? 'Decision updated'
+        : 'Decision recorded',
+      subtitle:
         payload.decision === 'APP'
-          ? 'Decision recorded: Approved.'
-          : payload.decision === 'DFT'
-            ? 'Clarification requested.'
-            : 'Decision recorded: Rejected.',
+          ? 'FSP status changed to Approved.'
+          : payload.decision === 'REJ'
+            ? 'FSP status changed to Rejected.'
+            : 'Clarification requested — FSP status returned to Draft.',
       timeout: 6000,
     });
   };
@@ -823,12 +991,16 @@ const WorkflowDataTab: FC<Props> = ({
     });
     setState(updated);
     onWorkflowChanged?.();
+    // Prior decision (edit) when the extension already carries a decision
+    // status (APP/INE/REJ) — mirrors the modal's decisionFromStatus.
+    const extStatus = (state.extensionDecision.statusCode ?? '').toUpperCase();
+    const extAlreadyDecided =
+      extStatus === 'APP' || extStatus === 'INE' || extStatus === 'REJ';
     display({
       kind: 'success',
-      title:
-        payload.decision === 'APP'
-          ? 'Extension approved.'
-          : 'Extension rejected.',
+      title: extAlreadyDecided ? 'Decision updated' : 'Decision recorded',
+      subtitle:
+        payload.decision === 'APP' ? 'Extension approved.' : 'Extension rejected.',
       timeout: 6000,
     });
   };
@@ -852,10 +1024,11 @@ const WorkflowDataTab: FC<Props> = ({
     onWorkflowChanged?.();
     display({
       kind: 'success',
-      title:
+      title: 'Event recorded',
+      subtitle:
         otbhEditTarget.key === 'offered'
-          ? 'OTBH Offered recorded.'
-          : 'OTBH Heard recorded.',
+          ? 'OTBH offered — FSP status changed to Opportunity to Be Heard Sent.'
+          : 'OTBH heard — FSP status returned to Submitted.',
       timeout: 6000,
     });
   };
@@ -879,6 +1052,9 @@ const WorkflowDataTab: FC<Props> = ({
           decision={state.ddmDecision}
           expiryDate={fspExpiryDate ?? state.fspExpiryDate}
           amendmentApprovalDate={ddmAmendmentApprovalDate}
+          letters={ddmLetters}
+          onViewLetter={viewLetter}
+          viewingLetterId={viewingLetterId}
           canEdit={ddmEditable}
           onEdit={() => setDdmModalOpen(true)}
           onOpenAttachments={onOpenAttachments}
@@ -889,6 +1065,9 @@ const WorkflowDataTab: FC<Props> = ({
             decision={state.extensionDecision}
             summary={extSummary}
             extensionIds={state.extensionIds}
+            letters={extLetters}
+            onViewLetter={viewLetter}
+            viewingLetterId={viewingLetterId}
             canEdit={extensionEditable}
             onEdit={() => setExtensionModalOpen(true)}
             onOpenAttachments={onOpenAttachments}

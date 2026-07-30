@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Authentication is enforced at the JWT validation layer: every request is
@@ -509,4 +510,8 @@ public interface FspApiEndpoint {
             @RequestParam(name = "firstName", required = false) String firstName,
             @RequestParam(name = "lastName", required = false) String lastName,
             @RequestParam(name = "size", required = false, defaultValue = "0") int size);
+
+    @PostMapping(URL.USER_RESOLVE)
+    @Operation(summary = "Resolve a batch of user ids (IDIR/BCeID) to display names")
+    ResponseEntity<Map<String, String>> resolveUserNames(@RequestBody UserResolveRequest request);
 }

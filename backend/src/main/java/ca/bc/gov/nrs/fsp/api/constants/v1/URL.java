@@ -166,6 +166,11 @@ public final class URL {
   // + email server-side.
   public static final String USER_SEARCH = "/users/search";
 
+  // Batch resolve of user ids (IDIR / BCeID) to display names. Used by the
+  // front-end <UserName> component to enrich audit / decision-maker labels
+  // and table cells that store a raw login.
+  public static final String USER_RESOLVE = "/users/resolve";
+
   // FSP XML submission — Phase 1 read-only validation endpoint. Replaces
   // the legacy ESF agent path that pulled XML off MOF_QUEUES.ESF_STATUS_Q.
   public static final String SUBMISSIONS_VALIDATE = "/submissions/validate";

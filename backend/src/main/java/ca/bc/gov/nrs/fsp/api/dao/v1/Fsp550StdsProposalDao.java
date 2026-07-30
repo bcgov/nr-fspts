@@ -50,6 +50,16 @@ public interface Fsp550StdsProposalDao {
   String getRevisionCount(String regimeId);
 
   /**
+   * Force a standards regime's status to Draft (DFT). Used right after a COPY:
+   * the FSP_550 proc sets the copy's status from the FSP's status (APP/INE FSP
+   * → the copy is APP), but a copy is meant to be an editable draft. The DFT
+   * and APP copy branches produce an otherwise-identical row (approved / rejected
+   * / submitted fields are all NULL in both), so overriding the status code alone
+   * yields exactly what the proc's DFT branch would have written.
+   */
+  void forceStatusDraft(String regimeId);
+
+  /**
    * Wraps {@code FSP_550_STDS_PROPOSAL.SAVE}. On insert the proc
    * assigns a new STANDARDS_REGIME_ID — pass {@code regimeId=null}
    * and {@code revisionCount=null} to trigger that branch; the

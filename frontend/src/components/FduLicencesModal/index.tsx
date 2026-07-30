@@ -131,14 +131,21 @@ const FduLicencesModal: FC<Props> = ({
         add: added,
         remove: removedLicences,
       });
+      const plural = (n: number) => `${n} licence${n === 1 ? '' : 's'}`;
+      let subtitle: string;
+      if (res.added > 0 && res.removed > 0) {
+        subtitle = `${plural(res.added)} added and ${res.removed} removed for ${fduName}`;
+      } else if (res.added > 0) {
+        subtitle = `${plural(res.added)} added to ${fduName}`;
+      } else if (res.removed > 0) {
+        subtitle = `${plural(res.removed)} removed from ${fduName}`;
+      } else {
+        subtitle = `No changes made for ${fduName}`;
+      }
       display({
         kind: 'success',
-        title: 'FDU licences updated',
-        subtitle: `${fduName}: ${res.added} added, ${res.removed} removed${
-          res.skippedAlreadyPresent > 0
-            ? `, ${res.skippedAlreadyPresent} skipped`
-            : ''
-        }`,
+        title: 'Licences updated',
+        subtitle,
         timeout: 6000,
       });
       onSaved(res.licences);
@@ -264,7 +271,10 @@ const FduLicencesModal: FC<Props> = ({
             size="md"
             renderIcon={checking ? BusyIcon : Add}
             onClick={() => void stageAdd()}
-            disabled={submitting || checking || draft.trim() === ''}
+            // Always enabled (except mid-request) so clicking with an empty
+            // field surfaces the "Enter a licence number to add." error via
+            // stageAdd, rather than silently doing nothing.
+            disabled={submitting || checking}
           >
             {checking ? 'Checking…' : 'Add licence'}
           </Button>

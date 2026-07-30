@@ -11,6 +11,7 @@ import {
 import {CheckmarkFilled, SubtractFilled} from '@carbon/icons-react';
 import {type FC, useEffect, useMemo, useState} from 'react';
 
+import UserName from '@/components/UserName';
 import {safeErrorMessage} from '@/lib/errorMessage';
 import {type FspWorkflowEvent, getFspWorkflow} from '@/services/fspSearch';
 
@@ -235,7 +236,9 @@ const WorkflowTab: FC<Props> = ({ fspId, refreshKey }) => {
                 <TableCell>
                   <ApprovalRequired value={r.approvalRequestIndicator ?? ''} />
                 </TableCell>
-                <TableCell>{dash(r.userId)}</TableCell>
+                <TableCell>
+                  <UserName userId={r.userId} />
+                </TableCell>
                 <TableCell>{formatAmendment(r.amendmentNumber)}</TableCell>
                 <TableCell>{dash(r.extensionNumber)}</TableCell>
               </TableRow>

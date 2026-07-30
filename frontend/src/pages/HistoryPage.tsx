@@ -18,6 +18,7 @@ import {type FC, useEffect, useMemo, useState} from 'react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 
 import {useNotification} from '@/context/notification/useNotification';
+import UserName from '@/components/UserName';
 import {type FspWorkflowEvent, getFspHistory} from '@/services/fspSearch';
 
 import './FspInformation/fsp-info.scss';
@@ -35,7 +36,7 @@ const HEADERS = [
   { key: 'amendmentNumber', header: 'Amnd #' },
   { key: 'extensionNumber', header: 'Ext #' },
   { key: 'eventDateTime', header: 'Event date / time' },
-  { key: 'userId', header: 'User ID' },
+  { key: 'userId', header: 'User' },
   { key: 'approvalRequestIndicator', header: 'Appr rqd' },
   { key: 'event', header: 'Event' },
   { key: 'description', header: 'Description' },
@@ -101,7 +102,9 @@ const HistoryPage: FC = () => {
     amendmentNumber: formatAmendment(r.amendmentNumber),
     extensionNumber: dash(r.extensionNumber),
     eventDateTime: dash(r.eventDateTime),
-    userId: dash(r.userId),
+    // Keep the raw login here — the <UserName> cell resolves it to a display
+    // name (and renders its own em-dash fallback when blank).
+    userId: r.userId ?? '',
     approvalRequestIndicator: r.approvalRequestIndicator === 'Y' ? 'Yes' : 'No',
     event: dash(r.event),
     description: dash(r.description),
@@ -172,9 +175,15 @@ const HistoryPage: FC = () => {
                       <TableBody>
                         {r.map((row) => (
                           <TableRow {...getRowProps({ row })} key={row.id}>
-                            {row.cells.map((cell) => (
-                              <TableCell key={cell.id}>{cell.value as string}</TableCell>
-                            ))}
+                            {row.cells.map((cell) =>
+                              cell.info.header === 'userId' ? (
+                                <TableCell key={cell.id}>
+                                  <UserName userId={cell.value as string} />
+                                </TableCell>
+                              ) : (
+                                <TableCell key={cell.id}>{cell.value as string}</TableCell>
+                              ),
+                            )}
                           </TableRow>
                         ))}
                       </TableBody>

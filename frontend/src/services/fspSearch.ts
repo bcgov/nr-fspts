@@ -1748,6 +1748,28 @@ export async function searchUsers(params: UserSearchParams): Promise<UserSearchR
   return res.json() as Promise<UserSearchResponse>;
 }
 
+/**
+ * POST /api/v1/fsp/users/resolve — batch-resolves user ids (IDIR or BCeID,
+ * bare or {@code DIR\name}-prefixed) to display names. Returns a map keyed by
+ * the exact ids sent; ids that couldn't be resolved are simply absent. Used
+ * by the {@code <UserName>} component / name cache — never call it directly
+ * from a component (go through the cache so lookups are batched + de-duped).
+ */
+export async function resolveUserNames(
+  userIds: string[],
+): Promise<Record<string, string>> {
+  const res = await apiFetch('/v1/fsp/users/resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userIds }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `User name resolve failed (${res.status})`);
+  }
+  return res.json() as Promise<Record<string, string>>;
+}
+
 /** GET /api/v1/fsp/admin/district-notifications?orgUnitNo=… */
 export async function getDistrictDesignates(orgUnitNo: string): Promise<NotificationDesignate[]> {
   const path = `/v1/fsp/admin/district-notifications?orgUnitNo=${encodeURIComponent(orgUnitNo)}`;

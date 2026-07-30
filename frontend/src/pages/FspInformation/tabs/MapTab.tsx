@@ -52,8 +52,8 @@ const dash = (value: string | null | undefined): string =>
 // keeps the lines a crisp ~1.5px at any rendered size.
 const EmptyMapIcon = () => (
   <svg
-    width="112"
-    height="112"
+    width="48"
+    height="48"
     viewBox="0 0 32 32"
     fill="none"
     stroke="currentColor"
@@ -257,7 +257,12 @@ const MapTab: FC<Props> = ({
                       FDU name
                     </TableHeader>
                     <TableHeader>Licence</TableHeader>
-                    <TableHeader>Actions</TableHeader>
+                    <TableHeader
+                      className="fsp-info__fdu-col-actions"
+                      style={{ width: '18rem' }}
+                    >
+                      Actions
+                    </TableHeader>
                   </TableRow>
                 </TableHead>
                 <TableBody>

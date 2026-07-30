@@ -5,8 +5,11 @@ import ca.bc.gov.nrs.fsp.api.client.UserLookupClient.IdirUser;
 import ca.bc.gov.nrs.fsp.api.struct.v1.UserSearchResponse;
 import ca.bc.gov.nrs.fsp.api.struct.v1.UserSummary;
 
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -108,6 +111,67 @@ public class UserDirectoryService {
       LOG.debug("user-lookup miss for userId={} ({})", userId, ex.getMessage());
       return Optional.empty();
     }
+  }
+
+  /**
+   * Resolves display names for a batch of user ids (IDIR or BCeID), keyed by
+   * the exact id passed in. Ids that can't be resolved are simply absent from
+   * the map — the caller keeps showing the raw id. Best-effort: an upstream
+   * error on one id drops that entry rather than failing the whole batch.
+   *
+   * <p>Directory routing: a {@code IDIR\name} / {@code BCEID\name} prefix
+   * selects the directory; a bare id (the form read paths use) is tried
+   * against IDIR first, then Business BCeID.
+   */
+  public Map<String, String> resolveDisplayNames(Collection<String> userIds) {
+    Map<String, String> out = new LinkedHashMap<>();
+    if (userIds == null) return out;
+    for (String raw : userIds) {
+      String key = normalize(raw);
+      if (key == null || out.containsKey(key)) continue;
+      resolveOne(key).ifPresent(name -> out.put(key, name));
+    }
+    return out;
+  }
+
+  private Optional<String> resolveOne(String rawId) {
+    String directory = null;
+    String bare = rawId;
+    int slash = rawId.indexOf('\\');
+    if (slash >= 0) {
+      directory = rawId.substring(0, slash).trim();
+      bare = rawId.substring(slash + 1).trim();
+    }
+    if (!StringUtils.hasText(bare)) return Optional.empty();
+    try {
+      if ("BCEID".equalsIgnoreCase(directory)) {
+        return bceidDisplayName(bare);
+      }
+      if ("IDIR".equalsIgnoreCase(directory)) {
+        return idirDisplayName(bare);
+      }
+      // Bare id, no directory hint — try IDIR, then fall back to BCeID.
+      Optional<String> idir = idirDisplayName(bare);
+      return idir.isPresent() ? idir : bceidDisplayName(bare);
+    } catch (RuntimeException ex) {
+      LOG.debug("resolveDisplayName miss for {} ({})", rawId, ex.getMessage());
+      return Optional.empty();
+    }
+  }
+
+  private Optional<String> idirDisplayName(String bare) {
+    return client.getIdirDetail(bare)
+        .map(u -> buildDisplayName(trimmed(u.firstName()), trimmed(u.lastName()), null))
+        .filter(StringUtils::hasText);
+  }
+
+  private Optional<String> bceidDisplayName(String bare) {
+    return client.getBusinessBceid(UserLookupClient.SearchBy.userId, bare)
+        .map(u -> {
+          String personal = buildDisplayName(trimmed(u.firstName()), trimmed(u.lastName()), null);
+          return StringUtils.hasText(personal) ? personal : trimmed(u.businessLegalName());
+        })
+        .filter(StringUtils::hasText);
   }
 
   // ── Internals ─────────────────────────────────────────────────────

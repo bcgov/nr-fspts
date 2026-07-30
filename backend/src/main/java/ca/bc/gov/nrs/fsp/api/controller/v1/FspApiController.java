@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @Slf4j
@@ -462,5 +463,11 @@ public class FspApiController implements FspApiEndpoint {
     public ResponseEntity<UserSearchResponse> searchUsers(
             String userId, String firstName, String lastName, int size) {
         return ResponseEntity.ok(userDirectoryService.searchUsers(userId, firstName, lastName, size));
+    }
+
+    @Override
+    public ResponseEntity<Map<String, String>> resolveUserNames(UserResolveRequest request) {
+        List<String> ids = request == null ? null : request.userIds();
+        return ResponseEntity.ok(userDirectoryService.resolveDisplayNames(ids));
     }
 }

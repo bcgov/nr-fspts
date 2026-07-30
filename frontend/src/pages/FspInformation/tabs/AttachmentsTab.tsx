@@ -19,15 +19,16 @@ import { type FC, useEffect, useMemo, useState } from 'react';
 
 import DragDropFileInput from '@/components/DragDropFileInput';
 import EmptyState from '@/components/EmptyState/EmptyState';
+import { EmptyDocumentAddIcon } from '@/components/EmptyState/EmptyDocumentAddIcon';
 import { useAuth } from '@/context/auth/useAuth';
 import { useNotification } from '@/context/notification/useNotification';
 import { canAttachDecisionLetter, canEditAttachments } from '@/routes/access';
 import { findDecisionLetterCategory } from '@/lib/attachmentCategories';
 import { safeErrorMessage } from '@/lib/errorMessage';
+import { useAttachmentViewer } from '@/hooks/useAttachmentViewer';
 import {
   type CodeOption,
   deleteFspAttachment,
-  fetchFspAttachmentBlob,
   type FspAttachmentRow,
   getAttachmentCategories,
   getFspAttachments,
@@ -53,40 +54,28 @@ interface Props {
    * Decision Maker on SUB/OHS; Reviewer on SUB; read-only otherwise.
    */
   fspStatusCode?: string | null;
+  /**
+   * The plan's version list (code = amendment number, description = the
+   * dropdown label, e.g. "Original" / "1 - Replacement"). Used to name the
+   * version in the add / delete toasts.
+   */
+  amendments?: CodeOption[];
+  /** Amendment number currently in view — the version an upload attaches to. */
+  currentAmendment?: string;
 }
 
 const dash = (value: string | null | undefined): string =>
   value && value.trim() !== '' ? value : '—';
+
+// Attachment size is stored as a KB figure — always suffix the unit.
+const formatSize = (value: string | null | undefined): string =>
+  value && String(value).trim() !== '' ? `${value} KB` : '—';
 
 // Amendment 0 is the original plan — render "Original" rather than "0".
 const formatAmendment = (value: string | null | undefined): string => {
   if (value == null || value.trim() === '') return '—';
   return Number(value) === 0 ? 'Original' : value;
 };
-
-// Thin-stroke "document + plus" glyph for the empty state. Carbon's filled
-// DocumentAdd reads too heavy at pictogram size; a stroked SVG with
-// non-scaling-stroke keeps the lines a crisp ~1.5px at any rendered size.
-const EmptyDocumentAddIcon = () => (
-  <svg
-    width="112"
-    height="112"
-    viewBox="0 0 32 32"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1.5}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path
-      d="M18 4H8a1 1 0 0 0-1 1v22a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V11z"
-      vectorEffect="non-scaling-stroke"
-    />
-    <path d="M18 4v7h7" vectorEffect="non-scaling-stroke" />
-    <path d="M16 15v8M12 19h8" vectorEffect="non-scaling-stroke" />
-  </svg>
-);
 
 // Shared attachment constraints (extension allow-list, 50-char
 // filename cap, 50 MB size cap) live in @/lib/attachmentConstraints
@@ -102,15 +91,31 @@ import {
 // default full-viewport dim layer; `small` matches Button's icon area.
 const UploadingIcon = () => <Loading small withOverlay={false} description="" />;
 
-const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
+const AttachmentsTab: FC<Props> = ({
+  fspId,
+  refreshKey,
+  fspStatusCode,
+  amendments = [],
+  currentAmendment = '',
+}) => {
   const { user } = useAuth();
+  // Human label for a version — the dropdown description ("Original",
+  // "1 - Replacement"), falling back to the bare amendment number. When no
+  // amendment is given (an upload), name the version currently in view.
+  const versionLabel = (amdNum: string | null | undefined): string => {
+    const code =
+      amdNum == null || String(amdNum).trim() === ''
+        ? currentAmendment
+        : String(amdNum);
+    return amendments.find((a) => a.code === code)?.description ?? formatAmendment(code);
+  };
   // Submitter-only on SUB and View-Only never see add affordances.
   // Other roles fall through to existing behaviour.
   const canEdit = canEditAttachments(user, fspStatusCode);
   const [rows, setRows] = useState<FspAttachmentRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewingId, setViewingId] = useState<string | null>(null);
+  const { view: handleView, viewingId } = useAttachmentViewer(fspId);
   // Default to newest amendment first, with the sort indicator shown on
   // the Amendment column; clicking the header toggles the direction.
   const [sortDir, setSortDir] = useState<SortDir>('DESC');
@@ -171,42 +176,9 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fspId, refreshKey]);
 
-  // Open an attachment inline in a new browser tab. The tab is opened
-  // synchronously on the click (pre-fetch) so pop-up blockers don't reject
-  // it; we then swap in the blob URL once the authenticated fetch resolves.
-  const handleView = async (attachmentId: string, fileName: string | null) => {
-    if (viewingId) return;
-    const popup = window.open('about:blank', '_blank');
-    if (!popup) {
-      display({
-        kind: 'error',
-        title: 'Pop-up blocked',
-        subtitle: 'Allow pop-ups for this site to view attachments.',
-        timeout: 7000,
-      });
-      return;
-    }
-    setViewingId(attachmentId);
-    try {
-      const blob = await fetchFspAttachmentBlob(fspId, attachmentId, fileName);
-      // Object URL is left un-revoked — the new tab needs it while it
-      // loads; the browser releases it when that tab closes.
-      popup.location.href = URL.createObjectURL(blob);
-    } catch (e) {
-      popup.close();
-      display({
-        kind: 'error',
-        title: 'Could not open attachment',
-        subtitle: e instanceof Error ? e.message : 'Unknown error',
-        timeout: 7000,
-      });
-    } finally {
-      setViewingId(null);
-    }
-  };
-
   const confirmDelete = async () => {
-    const attachmentId = pendingDelete?.fspAttachmentId;
+    const row = pendingDelete;
+    const attachmentId = row?.fspAttachmentId;
     if (!attachmentId) return;
     setDeleting(true);
     try {
@@ -216,7 +188,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
       display({
         kind: 'success',
         title: 'Attachment deleted.',
-        subtitle: pendingDelete?.attachmentName ?? undefined,
+        subtitle: `${row.attachmentName ?? 'Attachment'} deleted from ${versionLabel(row.fspAmendmentNumber)}`,
         timeout: 6000,
       });
     } catch (e) {
@@ -300,7 +272,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
       display({
         kind: 'success',
         title: 'Attachment added.',
-        subtitle: selectedFile.name,
+        subtitle: `${selectedFile.name} added to ${versionLabel(currentAmendment)}`,
         timeout: 6000,
       });
     } catch (e) {
@@ -393,7 +365,7 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
                       <TableCell>{dash(r.category)}</TableCell>
                       <TableCell>{dash(r.attachmentName)}</TableCell>
                       <TableCell>{dash(r.attachmentDescription)}</TableCell>
-                      <TableCell>{dash(r.attachmentSize)}</TableCell>
+                      <TableCell>{formatSize(r.attachmentSize)}</TableCell>
                       <TableCell>{formatAmendment(r.fspAmendmentNumber)}</TableCell>
                       <TableCell>{r.consolidatedInd === 'Y' ? 'Yes' : 'No'}</TableCell>
                       <TableCell>
@@ -495,6 +467,8 @@ const AttachmentsTab: FC<Props> = ({ fspId, refreshKey, fspStatusCode }) => {
             id="attachment-description"
             labelText="Description (optional)"
             maxLength={2000}
+            enableCounter
+            maxCount={2000}
             rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}

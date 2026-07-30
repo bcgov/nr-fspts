@@ -134,10 +134,10 @@ const NewStandardModal: FC<Props> = ({
       onClose();
       display({
         kind: 'success',
-        title: 'Standards regime created.',
+        title: 'Stocking standard created',
         subtitle: created.standardsRegimeId
-          ? `Standards ID: ${created.standardsRegimeId}`
-          : undefined,
+          ? `SSID ${created.standardsRegimeId} created as draft.`
+          : 'Created as draft.',
         timeout: 6000,
       });
     } catch (e) {

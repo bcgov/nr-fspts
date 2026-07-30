@@ -298,7 +298,12 @@ public class StandardRegimeService {
             RequestUtil.getCurrentClientNumber(),
             userId,
             revisionCount));
-    log.info("Copied standards regime {} → {} on fsp {} amendment {} by {}",
+    // A copy is meant to be an editable Draft. The FSP_550 proc sets the copy's
+    // status from the FSP's status (an APP/INE FSP yields an APP copy), so force
+    // it back to DFT — the proc's DFT and APP copy branches are otherwise
+    // identical, so only the status code needs correcting.
+    dao.forceStatusDraft(result.newRegimeId());
+    log.info("Copied standards regime {} → {} (forced to Draft) on fsp {} amendment {} by {}",
         sourceRegimeId, result.newRegimeId(), fspId, amendmentNumber, userId);
     return getDetail(fspId, amendmentNumber, result.newRegimeId());
   }

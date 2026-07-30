@@ -13,7 +13,7 @@
 
   &__helper {
     font-size: 0.75rem;
-    color: var(--cds-text-secondary);
+    color: #131315;
     letter-spacing: 0.32px;
     margin: 0 0 0.75rem;
   }
@@ -79,6 +79,9 @@
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--cds-border-subtle);
     border-radius: 2px;
+    // White surface so the uploaded-file chip reads as a card rather than
+    // blending into the modal's grey body.
+    background: #ffffff;
     font-size: 0.875rem;
     color: var(--cds-text-primary);
 

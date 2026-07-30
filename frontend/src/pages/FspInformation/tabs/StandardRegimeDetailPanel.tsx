@@ -20,14 +20,16 @@ import {
   TextArea,
   TextInput,
 } from '@carbon/react';
-import {Add, Copy, DocumentAdd, Edit, Launch, TrashCan, Unlink} from '@carbon/icons-react';
-import {type FC, useEffect, useRef, useState} from 'react';
+import {Add, Copy, Edit, Launch, TrashCan, Unlink} from '@carbon/icons-react';
+import { EmptyDocumentAddIcon } from '@/components/EmptyState/EmptyDocumentAddIcon';
+import {type FC, type ReactNode, useEffect, useRef, useState} from 'react';
 
 import BgcZoneSearchModal from '@/components/BgcZoneSearchModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import {StandardsSearchIcon} from '@/components/Layout/navIcons';
 import StandardRegimeAttachmentModal from '@/components/StandardRegimeAttachmentModal';
 import {StatusTag} from '@/components/StatusTag/StatusTag';
+import UserName from '@/components/UserName';
 import {useNotification} from '@/context/notification/useNotification';
 import type {BgcSearchResult} from '@/services/bgcSearch';
 import {
@@ -422,17 +424,21 @@ const StandardRegimeDetailPanel: FC<Props> = ({
       amendmentNumber || undefined,
     );
     setDetail(updated);
-    display({
-      kind: 'success',
-      title: 'BGC zone removed.',
-      subtitle: [
+    // "<Zone - Subzone - Variant - Phase> has been removed from this regime"
+    // (mirrors the district removal toast style).
+    const zoneLabel =
+      [
         bgcDeleteTarget.bgcZoneCode,
         bgcDeleteTarget.bgcSubzoneCode,
         bgcDeleteTarget.bgcVariant,
         bgcDeleteTarget.bgcPhase,
       ]
         .filter(Boolean)
-        .join(' - ') || undefined,
+        .join(' - ') || '(unnamed)';
+    display({
+      kind: 'success',
+      title: 'BGC zone removed.',
+      subtitle: `${zoneLabel} has been removed from this regime.`,
       timeout: 6000,
     });
   };
@@ -541,10 +547,13 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   // Standards ID + Status now live in the panel header; Version is in
   // the standards table; the regen / free-growing offsets render as
   // their own matrix below. What's left is the plain field grid.
-  const overview: { label: string; value: string; newRow?: boolean }[] = [
+  const overview: { label: string; value: ReactNode; newRow?: boolean }[] = [
     { label: 'Standards name', value: dash(detail.standardsRegimeName) },
     { label: 'Default standard', value: yesNo(detail.mofDefaultStandardInd) },
-    { label: 'Submitted by', value: dash(detail.submittedByUserid) },
+    {
+      label: 'Submitted by',
+      value: <UserName userId={detail.submittedByUserid} />,
+    },
     // Effective date breaks to its own row, taking Expiry date with it.
     { label: 'Effective date', value: dash(detail.effectiveDate), newRow: true },
     { label: 'Expiry date', value: dash(detail.expiryDate) },
@@ -619,7 +628,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
           <Tab>Overview</Tab>
           <Tab>Layers</Tab>
           <Tab>Districts</Tab>
-          <Tab>Agreement holders</Tab>
+          <Tab>Clients</Tab>
           <Tab>BGC zones</Tab>
           <Tab>Attachments</Tab>
         </TabList>
@@ -1140,7 +1149,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
                                   }
                                   onClick={() => setBgcDeleteTarget(b)}
                                 >
-                                  Delete
+                                  Remove
                                 </Button>
                               </TableCell>
                             )}
@@ -1158,7 +1167,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
             <div className="fsp-info__tab-panel">
               {detail.attachments.length === 0 ? (
                 <div className="fsp-info__attachments-empty">
-                  <DocumentAdd size={32} aria-hidden="true" />
+                  <EmptyDocumentAddIcon />
                   <p className="fsp-info__attachments-empty-title">
                     No attachments for this stocking standard
                   </p>
@@ -1274,14 +1283,13 @@ const StandardRegimeDetailPanel: FC<Props> = ({
       <ConfirmationModal
         open={bgcDeleteTarget != null}
         onClose={() => setBgcDeleteTarget(null)}
-        heading="Delete BGC zone"
-        confirmLabel="Delete"
+        heading="Are you sure you want to remove this BGC zone?"
+        confirmLabel="Remove"
         danger
         errorTitle="Failed to remove BGC zone"
         onConfirm={handleBgcDeleteConfirmed}
       >
         <p>
-          Remove BGC zone{' '}
           <strong>
             {[
               bgcDeleteTarget?.bgcZoneCode,
@@ -1292,7 +1300,7 @@ const StandardRegimeDetailPanel: FC<Props> = ({
               .filter(Boolean)
               .join(' - ') || '(unnamed)'}
           </strong>{' '}
-          from this regime? This cannot be undone.
+          will be removed from this regime.
         </p>
       </ConfirmationModal>
 

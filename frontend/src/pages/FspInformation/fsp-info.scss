@@ -345,7 +345,7 @@
 // a dialog heading. Shared by the Amend/Replace, DDM, and Review dialogs.
 .fsp-species-modal__subtitle {
   margin: 0;
-  color: var(--cds-text-secondary, #525252);
+  color: #131315;
 }
 
 // Trim Carbon's default 3rem ($spacing-09) modal-content bottom padding
@@ -965,6 +965,13 @@
   margin-block-end: 1.5rem;
 }
 
+// When an icon section title is immediately followed by a description line
+// (DDM decision, Review details, OTBH), the full 1.5rem below the title reads
+// as too much whitespace before the subtitle — tighten it.
+.fsp-info__tile-header:has(.fsp-info__section-title--icon):has(+ .fsp-info__section-desc) {
+  margin-block-end: 0.5rem;
+}
+
 // Tab-level section titles (Attachments / History / FDU-Map) sit directly
 // on the tab canvas above a table, not inside a tile — the 1.5rem gap above
 // is roomier than they need, so tighten it. Two classes match the rule
@@ -1009,6 +1016,7 @@
 .fsp-info__actions-cell {
   display: flex;
   justify-content: flex-end;
+  gap: 0.25rem;
 }
 
 // Inset ONLY the "Actions" header — the button stays near the edge. Force it to
@@ -1018,6 +1026,11 @@
 // Table (Districts) that was making the inset look uneven.
 .cds--data-table th.fsp-info__col-actions {
   padding-inline-end: 2.5rem !important;
+  // Right-align at the th level too: in a plain table the header label is a
+  // shrink-wrapped inline block, so its own text-align can't move it — this
+  // pushes "Actions" to the padded right edge (2.5rem inset). No-op for the
+  // sortable tables, whose header is a full-width flex sort button.
+  text-align: right;
 
   // The label is a block in a plain table, a flex child in a sortable one —
   // right-align it either way, and strip its own inline padding so "Actions"
@@ -1028,6 +1041,18 @@
     padding-inline: 0 !important;
     margin-inline: 0 !important;
   }
+}
+
+// FDU/Map actions column. Left-anchored (OTBH pattern): the cell uses
+// `.fsp-info__row-actions` (margin-inline-start: -1rem cancels the ghost
+// button's left padding), and the header label stays left-aligned at the
+// same content edge — so "Actions" lines up over the FIRST button ("Map
+// view"). Aligning to the leftmost button (always present) is why we don't
+// right-align or use a fixed inset: "Edit licences" is role-gated, so a
+// right/inset alignment would drift between the 1- and 2-button states.
+.cds--data-table th.fsp-info__fdu-col-actions .cds--table-header-label {
+  text-align: start;
+  justify-content: flex-start;
 }
 
 // Cluster a section title with an inline tag (status pill / "Optional")
@@ -1042,7 +1067,7 @@
 
 // Muted description line beneath a section heading (Workflow tab tiles).
 .fsp-info__section-desc {
-  margin: 0 0 1.25rem;
+  margin: 0 0 0.75rem;
   color: var(--cds-text-secondary);
   font-size: 0.875rem;
   line-height: 1.5;
@@ -1061,6 +1086,63 @@
 
   &:hover {
     color: var(--cds-link-primary-hover, #0043ce);
+  }
+}
+
+// "Decision letter" block in the DDM / Extension decision tiles: a bold
+// label above one or more attachment view-links (filename ↗). Sits below
+// the decision date grid, separated by a hairline like the other tile
+// sub-sections.
+.fsp-info__decision-letter {
+  margin-block-start: 1rem;
+}
+
+.fsp-info__decision-letter-label {
+  display: block;
+  margin-block-end: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+}
+
+.fsp-info__decision-letter-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li + li {
+    margin-block-start: 0.25rem;
+  }
+}
+
+// Filename view-link (opens the attachment inline in a new tab). The
+// trailing Launch icon sits inline after the underlined filename.
+.fsp-info__attachment-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--cds-link-primary, #0f62fe);
+  cursor: pointer;
+
+  span {
+    text-decoration: underline;
+  }
+
+  svg {
+    flex: 0 0 auto;
+  }
+
+  &:hover {
+    color: var(--cds-link-primary-hover, #0043ce);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
   }
 }
 
@@ -1204,6 +1286,15 @@
   color: var(--cds-text-primary);
 }
 
+// DDM decision dates — keep Submission / Decision / Effective / Expiry on a
+// single row (4 columns) instead of letting Expiry wrap under the emphasis
+// list's 3-column layout. Compound selector (2 classes) beats --emphasis.
+.fsp-info__field-list.fsp-info__field-list--ddm-dates {
+  @media (min-width: 672px) {
+    grid-template-columns: repeat(4, minmax(0, max-content));
+  }
+}
+
 // The Plan-details read-only list wants more breathing room than the
 // default emphasised list (which the tighter Workflow tiles reuse) —
 // larger gaps between rows and between each label and its value. Two
@@ -1261,9 +1352,13 @@
   padding: 3rem 1.5rem;
   text-align: center;
 
-  svg {
-    color: var(--cds-icon-secondary, #525252);
-    margin-bottom: 0.25rem;
+  // Direct child only = the document pictogram (EmptyDocumentAddIcon). Blue
+  // link-primary to match the FSP AttachmentsTab empty state. The `> ` is
+  // important: a bare `svg` would also recolour the "+" icon inside the
+  // "Add attachment" button below, overriding the tertiary button's own blue.
+  > svg {
+    color: var(--cds-link-primary);
+    margin-bottom: 0.5rem;
   }
 }
 
@@ -1528,6 +1623,26 @@
 // sit below the density table with a little breathing room.
 .fsp-info__layer-extra {
   margin-block-start: 1.5rem;
+
+  // "Max coniferous" / "Height relative to comp" are short numeric inputs —
+  // keep them compact and grouped at the left instead of each stretching to
+  // fill half the row. Content-sized columns pack the two fields together
+  // (still stacked below 672px, matching the base edit-grid).
+  &.fsp-info__edit-grid {
+    justify-content: start;
+
+    @media (min-width: 672px) {
+      grid-template-columns: repeat(2, max-content);
+    }
+  }
+
+  // Shrink the inner <input> directly — Carbon pins it to
+  // `min-inline-size: 9.375rem` on `.cds--number input[type=...]` (0,2,1), so
+  // a wrapper width can't shrink it. Match at higher specificity (0,3,1).
+  &.fsp-info__edit-grid .cds--number input {
+    min-inline-size: 0;
+    inline-size: 14rem;
+  }
 }
 
 // Thin section rule between the density/species blocks on the Layers tab.
@@ -1619,6 +1734,12 @@
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
+    // Keep the search field white in EVERY state. Carbon derives the search
+    // background from --cds-field (default) and --cds-field-hover (hover/
+    // focus), both of which resolve to the gray field-01 in this tab's layer
+    // context — which is why it greyed on focus. Pin both to white.
+    --cds-field: #ffffff;
+    --cds-field-hover: #ffffff;
   }
   // Full-length search with a thin vertical divider on its trailing edge
   // that reads as a separator between the search and the Download link.
@@ -1661,6 +1782,13 @@
   // for the last row only).
   .cds--data-table tbody tr:last-child td {
     border-block-end: 1px solid #c6c6c8;
+  }
+
+  // The "no results" empty state (shown when the search filters out every row)
+  // is otherwise transparent and shows the gray tab-panel behind it — give it
+  // a white surface so it reads as part of the white results panel.
+  .bc-empty-state {
+    background-color: #ffffff;
   }
 }
 

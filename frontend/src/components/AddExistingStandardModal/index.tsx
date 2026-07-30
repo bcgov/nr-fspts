@@ -103,14 +103,14 @@ const HEADERS = [
   { key: 'standardsRegimeId', header: 'Standards ID' },
   { key: 'standardsRegimeName', header: 'Standards name' },
   { key: 'standardsObjective', header: 'Objective' },
-  { key: 'isDefault', header: 'Default' },
   { key: 'bgc', header: 'BGC' },
   { key: 'clientNumber', header: 'Client number' },
   { key: 'status', header: 'Status' },
   { key: 'expiryDate', header: 'Expiry date' },
   { key: 'fspIdList', header: 'FSP ID' },
-  // Trailing actions column — per-row Add button. Empty header text.
-  { key: 'actions', header: '', isSortable: false },
+  { key: 'isDefault', header: 'Default' },
+  // Trailing actions column — per-row Add / Copy buttons.
+  { key: 'actions', header: 'Actions', isSortable: false },
 ];
 
 interface SearchForm {
@@ -404,7 +404,7 @@ const AddExistingStandardModal: FC<Props> = ({
       preventCloseOnClickOutside
     >
       <p className="add-std-modal__intro">
-        Search for an existing standards regime, then add it to this FSP.
+        Search for an existing stocking standard, then add or copy it to this FSP.
       </p>
 
       <form className="add-std-modal__form" onSubmit={handleSubmit}>
@@ -603,8 +603,12 @@ const AddExistingStandardModal: FC<Props> = ({
               <div className="add-std-modal__banner" role="note">
                 <InformationFilled className="add-std-modal__banner-icon" size={20} />
                 <span>
-                  The selected regime is copied onto the FSP as a new Draft —
-                  the original is left untouched.
+                  Use <strong>Add</strong> to link the standard to this FSP: it
+                  stays approved and cannot be edited, but you can unlink it
+                  later.
+                  <br />
+                  Use <strong>Copy</strong> if you need to change it — this
+                  creates an editable draft.
                 </span>
               </div>
               <div className="add-std-modal__results-header">
