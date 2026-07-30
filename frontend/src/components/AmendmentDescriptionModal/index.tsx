@@ -308,6 +308,18 @@ const AmendmentDescriptionModal: FC<Props> = ({
               replacement and makes a decision.
             </p>
           </div>
+        ) : forceApproval ? (
+          // Answering "Yes" to either question above makes approval
+          // mandatory. Rather than a disabled radio pinned to Yes, state it
+          // as a fact — the underlying approvalRequired state is still forced
+          // true by the effect, so submit sends 'Y'.
+          <div className="amend-modal__approval">
+            <p className="amend-modal__approval-title">Approval required</p>
+            <p className="amend-modal__approval-desc">
+              Because this {noun} changes FDU boundaries, stocking standards, or
+              both, the district must review it before it takes effect.
+            </p>
+          </div>
         ) : (
           <div className="amend-modal__approval">
             <p className="amend-modal__approval-title">
@@ -317,16 +329,10 @@ const AmendmentDescriptionModal: FC<Props> = ({
               name={`${idp}-approval`}
               legendText=""
               valueSelected={
-                forceApproval
-                  ? 'Y'
-                  : approvalRequired === null
-                    ? ''
-                    : approvalRequired
-                      ? 'Y'
-                      : 'N'
+                approvalRequired === null ? '' : approvalRequired ? 'Y' : 'N'
               }
               onChange={(v) => setApprovalRequired(v === 'Y')}
-              disabled={busy || forceApproval}
+              disabled={busy}
             >
               <RadioButton id={`${idp}-approval-yes`} labelText="Yes" value="Y" />
               <RadioButton id={`${idp}-approval-no`} labelText="No" value="N" />
