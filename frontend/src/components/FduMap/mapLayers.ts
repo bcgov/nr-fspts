@@ -15,10 +15,76 @@ export type MapLayer = {
   transparent: boolean;
   styles: { name: string; title: string }[];
   filterable: boolean;
+  /**
+   * Optional SLD (for `sld_body`) that draws feature labels this layer's
+   * published styles don't provide. When present, the map pairs the coloured
+   * WMS layer with a second, label-only WMS layer (see {@link SldWmsTileLayer})
+   * so the labels turn on/off together with the layer.
+   */
+  labelSld?: string;
+  /**
+   * Layer opacity (0–1) for the coloured WMS tile. Omitted → fully opaque.
+   * Used to let the basemap / lower layers show through a filled overlay.
+   */
+  opacity?: number;
 };
 
 /** WMS endpoint every overlay layer is served from. */
 export const WMS_URL = 'https://openmaps.gov.bc.ca/geo/ows';
+
+/**
+ * Build a label-only SLD for `sld_body`: a single `TextSymbolizer` (no
+ * polygon fill) that labels every feature of `layerName` with `labelExpr`, in
+ * bold dark text with a white halo so it reads over the coloured layer
+ * beneath. `<NamedLayer><Name>` identifies the layer because BCGW only honours
+ * `sld_body` when the GetMap request omits the `layers` param entirely.
+ *
+ * @param labelExpr the inner XML of the SLD `<Label>` — either a bare
+ *   `<ogc:PropertyName>` (see {@link propLabel}) or a richer expression such as
+ *   an `<ogc:Function name="Concatenate">` that stitches literals + fields.
+ * @param filterXml optional `<ogc:Filter>` inserted at the top of the `<Rule>`
+ *   so only matching features are labelled (see {@link eqFilter}).
+ */
+export const propLabel = (field: string): string =>
+  `<ogc:PropertyName>${field}</ogc:PropertyName>`;
+
+/** An `<ogc:Filter>` that matches features where `field` equals `value`. */
+export const eqFilter = (field: string, value: string): string =>
+  '<ogc:Filter><ogc:PropertyIsEqualTo>' +
+  `<ogc:PropertyName>${field}</ogc:PropertyName>` +
+  `<ogc:Literal>${value}</ogc:Literal>` +
+  '</ogc:PropertyIsEqualTo></ogc:Filter>';
+
+export const labelOnlySld = (
+  layerName: string,
+  labelExpr: string,
+  filterXml = '',
+): string =>
+  '<StyledLayerDescriptor version="1.0.0"' +
+  ' xmlns="http://www.opengis.net/sld" xmlns:ogc="http://www.opengis.net/ogc">' +
+  `<NamedLayer><Name>${layerName}</Name><UserStyle><FeatureTypeStyle><Rule>` +
+  // Filter (if any) must precede the symbolizer inside the Rule.
+  filterXml +
+  '<TextSymbolizer>' +
+  `<Label>${labelExpr}</Label>` +
+  '<Font><CssParameter name="font-family">SansSerif</CssParameter>' +
+  '<CssParameter name="font-size">11</CssParameter>' +
+  '<CssParameter name="font-weight">bold</CssParameter></Font>' +
+  '<LabelPlacement><PointPlacement><AnchorPoint>' +
+  '<AnchorPointX>0.5</AnchorPointX><AnchorPointY>0.5</AnchorPointY>' +
+  '</AnchorPoint></PointPlacement></LabelPlacement>' +
+  '<Halo><Radius>1.6</Radius><Fill>' +
+  '<CssParameter name="fill">#FFFFFF</CssParameter>' +
+  '<CssParameter name="fill-opacity">0.85</CssParameter></Fill></Halo>' +
+  '<Fill><CssParameter name="fill">#131315</CssParameter></Fill>' +
+  // group: merge multi-part features under one label; partials: allow labels
+  // clipped by the tile edge; spaceAround/goodnessOfFit: de-clutter placement.
+  '<VendorOption name="group">yes</VendorOption>' +
+  '<VendorOption name="partials">true</VendorOption>' +
+  '<VendorOption name="spaceAround">6</VendorOption>' +
+  '<VendorOption name="goodnessOfFit">0.3</VendorOption>' +
+  '</TextSymbolizer>' +
+  '</Rule></FeatureTypeStyle></UserStyle></NamedLayer></StyledLayerDescriptor>';
 
 // Polygon styling (nr-silva's `defaultStyle`) — a vibrant-but-professional
 // blue fill with a dark stroke, semi-transparent so it blends with the
@@ -52,6 +118,20 @@ export const allLayers: MapLayer[] = [
     transparent: true,
     filterable: false,
     styles: [{ name: '1417,1418,1419,1420', title: 'FDU_All_Statuses' }],
+    // Label each FDU "FSP <id> - FDU <id>". No published style labels the
+    // polygons, so we overlay a label-only SLD. numberFormat('#', …) keeps the
+    // decimal ids clean (no trailing ".0").
+    labelSld: labelOnlySld(
+      'WHSE_FOREST_TENURE.FSP_FDU_POLY_SPG',
+      '<ogc:Function name="Concatenate">' +
+        '<ogc:Literal>FSP </ogc:Literal>' +
+        '<ogc:Function name="numberFormat"><ogc:Literal>#</ogc:Literal>' +
+        '<ogc:PropertyName>FSP_ID</ogc:PropertyName></ogc:Function>' +
+        '<ogc:Literal> - FDU </ogc:Literal>' +
+        '<ogc:Function name="numberFormat"><ogc:Literal>#</ogc:Literal>' +
+        '<ogc:PropertyName>FDU_ID</ogc:PropertyName></ogc:Function>' +
+        '</ogc:Function>',
+    ),
   },
   {
     position: 2,
@@ -161,6 +241,14 @@ export const allLayers: MapLayer[] = [
     transparent: true,
     filterable: false,
     styles: [{ name: '6', title: 'BC_Timber_Sale_Areas_Colour_Filled' }],
+    // Half-opacity so the solid colour fill doesn't hide the layers beneath.
+    opacity: 0.5,
+    // BCTS business-area name (e.g. "Chinook", "Seaward-Tlasta"); the colour
+    // style has no labels, so overlay a label-only SLD.
+    labelSld: labelOnlySld(
+      'WHSE_ADMIN_BOUNDARIES.FADM_BCTS_AREA_SP',
+      propLabel('BCTS_NAME'),
+    ),
   },
   {
     position: 13,
@@ -183,6 +271,14 @@ export const allLayers: MapLayer[] = [
       { name: '2893', title: 'Managed_Licence_Poly_Pending_FTEN_Colour_Themed' },
       { name: '2895', title: 'Managed_Licence_Poly_Retired_FTEN_Colour_Themed' },
     ],
+    // Label active managed licences with their forest file id (e.g. "N1A",
+    // "W0025"). Filtered to ACTIVE to match the Active-themed colour style
+    // rendered above; group=yes merges the per-schedule-block duplicates.
+    labelSld: labelOnlySld(
+      'WHSE_FOREST_TENURE.FTEN_MANAGED_LICENCE_POLY_SVW',
+      propLabel('FOREST_FILE_ID'),
+      eqFilter('LIFE_CYCLE_STATUS_CODE', 'ACTIVE'),
+    ),
   },
   {
     position: 15,

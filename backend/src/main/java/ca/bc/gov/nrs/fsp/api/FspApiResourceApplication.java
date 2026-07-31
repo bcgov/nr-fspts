@@ -62,10 +62,22 @@ public class FspApiResourceApplication {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
       http
+              // CSRF is intentionally disabled: this is a STATELESS OAuth2
+              // resource server (see sessionManagement below) authenticated
+              // solely by Bearer JWTs in the Authorization header. CSRF attacks
+              // rely on the browser auto-attaching an ambient credential
+              // (cookie/session); there is none here, so CSRF does not apply.
+              // Enabling it would break every API call. (Static-analysis flags
+              // this generically — it is a false positive for token auth.)
               .csrf(AbstractHttpConfigurer::disable)
               .authorizeHttpRequests(auth -> auth
+                      // Only the two actuator endpoints we actually expose
+                      // (management.endpoints.web.exposure.include=health,
+                      // prometheus) are anonymous — for k8s health probes and
+                      // Prometheus scraping. No broad /actuator/** wildcard, so
+                      // any other management endpoint stays authenticated.
                       .requestMatchers("/v3/api-docs/**",
-                              "/actuator/health", "/actuator/prometheus", "/actuator/**",
+                              "/actuator/health", "/actuator/prometheus",
                               "/swagger-ui/**").permitAll()
                       .anyRequest().authenticated()
               )
