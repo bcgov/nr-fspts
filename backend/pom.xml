@@ -24,6 +24,11 @@
     <ojdbc.version>21.3.0.0</ojdbc.version>
     <log4j2.version>2.25.4</log4j2.version>
     <guava.version>33.3.1-jre</guava.version>
+    <!-- Override the Spring Boot 3.5.13-managed 2.0.12 to pick up the fix for
+         CVE-2026-41710 (cache exhaustion DoS in stateful retries). We don't
+         use @Retryable so it's not reachable, but this clears the scanner
+         finding and keeps us patched. -->
+    <spring-retry.version>2.0.13</spring-retry.version>
   </properties>
 
   <parent>
