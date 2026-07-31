@@ -37,6 +37,12 @@
   font-size: 0.875rem;
 }
 
+// Darker variant — used for the Information edit form's "All fields are
+// required…" intro.
+.fsp-info__subtitle--primary {
+  color: #131315;
+}
+
 // Type-summary card below the version picker: up to three columns
 // (Amendment / Replacement / Extension), each conditionally rendered,
 // with a "View …" link (and a status pill for the extension). Sits on
@@ -1083,6 +1089,48 @@
   color: var(--cds-link-primary, #0f62fe);
   text-decoration: underline;
   cursor: pointer;
+
+  &:hover {
+    color: var(--cds-link-primary-hover, #0043ce);
+  }
+}
+
+// Sub-heading under a radio-group question legend (e.g. the FRPA s.197
+// election) — a muted, regular-weight helper line beneath the bold question.
+.fsp-info__legend-subhelp {
+  display: block;
+  margin-block-start: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #131315;
+}
+
+// "← Back to <page>" link at the top of the FSP details page (replaces the
+// breadcrumb). Arrow + text, styled as an interactive link-button.
+.fsp-info__back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-block: 0.5rem 0.25rem;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--cds-link-primary, #0f62fe);
+  cursor: pointer;
+
+  svg {
+    flex: 0 0 auto;
+  }
+
+  span {
+    text-decoration: none;
+  }
+
+  &:hover span {
+    text-decoration: underline;
+  }
 
   &:hover {
     color: var(--cds-link-primary-hover, #0043ce);

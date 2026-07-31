@@ -71,8 +71,14 @@ public class FduGeometryGeoJsonService {
       Object geometry = toGeoJsonGeometry(geom, transform);
       if (geometry == null) continue;
 
-      Map<String, Object> properties = new LinkedHashMap<>(1);
+      Map<String, Object> properties = new LinkedHashMap<>(2);
       properties.put("index", index);
+      // FDU name → the map label (rendered as a permanent tooltip by the
+      // Leaflet FduMap). Absent when the column is null/blank.
+      Object fduName = row.columns().get("FDU_NAME");
+      if (fduName instanceof String s && !s.isBlank()) {
+        properties.put("fduName", s);
+      }
 
       Map<String, Object> feature = new LinkedHashMap<>(4);
       feature.put("type", "Feature");

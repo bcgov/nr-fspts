@@ -62,6 +62,12 @@ interface Props {
   amendments?: CodeOption[];
   /** Amendment number currently in view — the version an upload attaches to. */
   currentAmendment?: string;
+  /**
+   * Monotonic counter — each increment asks this tab to open its add-
+   * attachment dialog. Driven by the Submit modal's "Add FSP legal document"
+   * shortcut (which also switches to this tab).
+   */
+  openAddSignal?: number;
 }
 
 const dash = (value: string | null | undefined): string =>
@@ -97,6 +103,7 @@ const AttachmentsTab: FC<Props> = ({
   fspStatusCode,
   amendments = [],
   currentAmendment = '',
+  openAddSignal = 0,
 }) => {
   const { user } = useAuth();
   // Human label for a version — the dropdown description ("Original",
@@ -237,6 +244,15 @@ const AttachmentsTab: FC<Props> = ({
         .finally(() => setCategoriesLoading(false));
     }
   };
+
+  // Open the add dialog when the parent bumps openAddSignal (the Submit
+  // modal's "Add FSP legal document" shortcut). Skips the initial 0.
+  useEffect(() => {
+    if (openAddSignal > 0) openAddDialog();
+    // openAddDialog is stable enough for this one-shot trigger; keying only
+    // on the signal avoids re-opening on unrelated re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openAddSignal]);
 
   const closeDialog = () => {
     if (uploading) return;

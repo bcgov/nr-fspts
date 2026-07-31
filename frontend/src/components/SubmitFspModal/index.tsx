@@ -1,4 +1,4 @@
-import { Button, Link, Loading } from '@carbon/react';
+import { Button, Loading } from '@carbon/react';
 import { Modal } from '@/components/Modal';
 import { useEffect, useState, type FC } from 'react';
 
@@ -23,11 +23,12 @@ interface Props {
    */
   onSubmitted: (updated: FspInformation) => void;
   /**
-   * Switches the FSP detail to the Attachments tab. Wired to the link in
-   * the "missing FSP Legal Document" view so the user lands where they can
-   * upload it; the modal closes itself first.
+   * Switches the FSP detail to the Attachments tab AND opens the add-
+   * attachment dialog. Wired to the "Add FSP legal document" button in the
+   * "missing required document" view so the user lands ready to upload it;
+   * the modal closes itself first.
    */
-  onOpenAttachments: () => void;
+  onAddLegalDocument: () => void;
 }
 
 /**
@@ -55,7 +56,7 @@ const SubmitFspModal: FC<Props> = ({
   fallbackAmendmentNumber,
   onClose,
   onSubmitted,
-  onOpenAttachments,
+  onAddLegalDocument,
 }) => {
   const { display } = useNotification();
   const fspId = fsp?.fspId ?? null;
@@ -137,9 +138,9 @@ const SubmitFspModal: FC<Props> = ({
   const otherIssues = issues?.filter((i) => i.code !== CODE_NO_LEGAL_DOCUMENT);
   const hasOtherIssues = (otherIssues?.length ?? 0) > 0;
 
-  const goToAttachments = () => {
+  const addLegalDocument = () => {
     onClose();
-    onOpenAttachments();
+    onAddLegalDocument();
   };
 
   const heading = missingLegalDocument
@@ -169,25 +170,10 @@ const SubmitFspModal: FC<Props> = ({
         )}
 
         {!preflightLoading && !preflightError && missingLegalDocument && (
-          <>
-            <p>
-              FSP {fspId} can't be submitted yet.
-            </p>
-            <p>
-              Upload the <strong>FSP Legal Document</strong> under the{' '}
-              <Link
-                href="#"
-                style={{ fontSize: 'inherit', lineHeight: 'inherit' }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  goToAttachments();
-                }}
-              >
-                Attachments
-              </Link>{' '}
-              tab before submitting.
-            </p>
-          </>
+          <p>
+            FSP {fspId} can't be submitted without an FSP legal document. Add it
+            now to continue, or add it later from the Attachments tab.
+          </p>
         )}
 
         {!preflightLoading &&
@@ -224,23 +210,34 @@ const SubmitFspModal: FC<Props> = ({
         )}
       </div>
 
-      {/* When validation blocks submission there's nothing to confirm —
-          the only action is to dismiss, which the modal's top X already
-          provides. Show the footer buttons only in the ready state. */}
+      {/* Ready → Cancel + Submit. Missing FSP legal document → Cancel + a
+          shortcut to add it (navigates to Attachments + opens the add
+          dialog). Other blocking states have no action but dismiss (top X). */}
       {ready && (
-      <div className="fsp-species-modal__actions">
-        <Button kind="tertiary" disabled={submitting} onClick={closeDialog}>
-          Cancel
-        </Button>
-        <Button
-          kind="primary"
-          disabled={submitting}
-          renderIcon={submitting ? BusyIcon : undefined}
-          onClick={() => void handleSubmit()}
-        >
-          {submitting ? 'Submitting…' : 'Submit'}
-        </Button>
-      </div>
+        <div className="fsp-species-modal__actions">
+          <Button kind="tertiary" disabled={submitting} onClick={closeDialog}>
+            Cancel
+          </Button>
+          <Button
+            kind="primary"
+            disabled={submitting}
+            renderIcon={submitting ? BusyIcon : undefined}
+            onClick={() => void handleSubmit()}
+          >
+            {submitting ? 'Submitting…' : 'Submit'}
+          </Button>
+        </div>
+      )}
+
+      {!preflightLoading && !preflightError && missingLegalDocument && (
+        <div className="fsp-species-modal__actions">
+          <Button kind="tertiary" onClick={closeDialog}>
+            Cancel
+          </Button>
+          <Button kind="primary" onClick={addLegalDocument}>
+            Add FSP legal document
+          </Button>
+        </div>
       )}
     </Modal>
   );

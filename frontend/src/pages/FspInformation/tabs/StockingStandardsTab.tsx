@@ -35,6 +35,12 @@ import {
   deleteStandardRegime,
   type FspStandardRow,
   getFspStandards,
+  getStandardRegimeDetail,
+  getStandardRegimeLayerDetail,
+  type StandardRegimeBgcZone,
+  type StandardRegimeDetail,
+  type StandardRegimeLayerDetail,
+  type StandardRegimeSpecies,
   unlinkDefaultStandard,
 } from '@/services/fspSearch';
 
@@ -92,6 +98,150 @@ const HEADERS = [
   { key: 'defaultStandard', header: 'Default standard' },
 ];
 
+// ── Comprehensive CSV export ────────────────────────────────────────
+// The table shows summary columns only; the download pulls each standard's
+// FULL detail (overview + layers/species + districts + agreement holders +
+// BGC zones + attachments) and flattens it into one wide row. Multi-element
+// fields become multi-line cells — RFC-4180 quoting keeps embedded newlines
+// valid so a spreadsheet renders them as line breaks in one cell.
+
+type StandardExport = {
+  row: FspStandardRow;
+  detail: StandardRegimeDetail;
+  layers: StandardRegimeLayerDetail[];
+};
+
+const CSV_COLUMNS = [
+  'Standards ID',
+  'Standards name',
+  'Objective',
+  'Version',
+  'Status',
+  'Default standard',
+  'Effective date',
+  'Expiry date',
+  'Regulation',
+  'Geographic description',
+  'Regen obligation',
+  'Regen delay (yrs)',
+  'Free growing early (yrs)',
+  'Free growing late (yrs)',
+  'No-regen early (yrs)',
+  'No-regen late (yrs)',
+  'Additional standards',
+  'Submitted by',
+  'Associated FSPs',
+  'Districts',
+  'Agreement holders',
+  'BGC zones',
+  'Attachments',
+  'Layers',
+];
+
+const csvEscape = (v: unknown): string => {
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+const nz = (v: string | null | undefined): string =>
+  v && v.trim() !== '' ? v.trim() : '';
+
+const versionLabel = (amd: string | null | undefined): string =>
+  String(amd ?? '').trim() === '0' ? 'Original' : nz(amd);
+
+const yesNoInd = (ind: string | null | undefined): string =>
+  ind === 'Y' ? 'Yes' : ind === 'N' ? 'No' : '';
+
+const formatBgcZone = (z: StandardRegimeBgcZone): string => {
+  const zone =
+    `${nz(z.bgcZoneCode)}${nz(z.bgcSubzoneCode)}${nz(z.bgcVariant)}` +
+    (z.bgcPhase ? ` ${z.bgcPhase}` : '');
+  const site = [nz(z.becSiteSeriesCd), nz(z.becSiteSeriesPhaseCd)]
+    .filter(Boolean)
+    .join('');
+  const parts = [zone.trim(), site && `site series ${site}`].filter(Boolean);
+  return parts.join(' / ') + (z.becSeral ? ` (seral ${z.becSeral})` : '');
+};
+
+const formatSpecies = (list: StandardRegimeSpecies[]): string =>
+  list
+    .map((s) => {
+      const name = [nz(s.code), nz(s.description)].filter(Boolean).join(' — ');
+      return s.minHeight ? `${name} (min ht ${s.minHeight} m)` : name;
+    })
+    .join('; ');
+
+const formatLayer = (l: StandardRegimeLayerDetail): string => {
+  const scalars: [string, string | null][] = [
+    ['Target stocking', l.targetStocking],
+    ['Min stocking', l.minStockingStandard],
+    ['Min preferred stocking', l.minPrefStockingStandard],
+    ['Min horizontal distance', l.minHorizontalDistance],
+    ['Residual basal area', l.residualBasalArea],
+    ['Min post-spacing', l.minPostSpacing],
+    ['Max post-spacing', l.maxPostSpacing],
+    ['Max coniferous', l.maxConifer],
+    ['Height relative to comp', l.heightRelativeToComp],
+    ['Tree size unit', l.treeSizeUnitCode],
+  ];
+  const scalarLine = scalars
+    .filter(([, v]) => nz(v) !== '')
+    .map(([label, v]) => `${label}: ${v}`)
+    .join(', ');
+  const pref = l.preferredSpecies?.length
+    ? `Preferred: ${formatSpecies(l.preferredSpecies)}`
+    : '';
+  const acc = l.acceptableSpecies?.length
+    ? `Acceptable: ${formatSpecies(l.acceptableSpecies)}`
+    : '';
+  return [`Layer ${nz(l.layerCode) || '—'}`, scalarLine, pref, acc]
+    .filter(Boolean)
+    .join('\n');
+};
+
+const buildStandardsCsv = (items: StandardExport[]): string => {
+  const lines = [CSV_COLUMNS.map(csvEscape).join(',')];
+  for (const { row, detail, layers } of items) {
+    const cells = [
+      nz(detail.standardsRegimeId) || nz(row.standardsRegimeId),
+      nz(detail.standardsRegimeName),
+      nz(detail.standardsObjective),
+      versionLabel(detail.standardsAmendNumber ?? row.standardsAmndNumber),
+      nz(detail.statusDescription) || nz(row.standardsRegimeStatus),
+      detail.mofDefaultStandardInd === 'Y' ? 'Yes' : 'No',
+      nz(detail.effectiveDate),
+      nz(detail.expiryDate),
+      [nz(detail.regulationCode), nz(detail.regulationDescription)]
+        .filter(Boolean)
+        .join(' — '),
+      nz(detail.geographicDescription),
+      yesNoInd(detail.regenObligationInd),
+      nz(detail.regenDelayOffsetYrs),
+      nz(detail.freeGrowingEarlyOffsetYrs),
+      nz(detail.freeGrowingLateOffsetYrs),
+      nz(detail.noRegenEarlyOffsetYrs),
+      nz(detail.noRegenLateOffsetYrs),
+      nz(detail.additionalStandards),
+      nz(detail.submittedByUserid),
+      nz(detail.fspIdList),
+      (detail.districts ?? [])
+        .map((d) => [nz(d.orgUnitCode), nz(d.orgUnitName)].filter(Boolean).join(' — '))
+        .join('\n'),
+      (detail.agreementHolders ?? [])
+        .map((h) => [nz(h.clientNumber), nz(h.clientName)].filter(Boolean).join(' — '))
+        .join('\n'),
+      (detail.bgcZones ?? []).map(formatBgcZone).join('\n'),
+      (detail.attachments ?? [])
+        .map((a) => nz(a.attachmentName))
+        .filter(Boolean)
+        .join('\n'),
+      layers.map(formatLayer).join('\n\n'),
+    ];
+    lines.push(cells.map(csvEscape).join(','));
+  }
+  return lines.join('\n');
+};
+
 const StockingStandardsTab: FC<Props> = ({
   fspId,
   amendmentNumber,
@@ -100,6 +250,7 @@ const StockingStandardsTab: FC<Props> = ({
   isAdmin,
 }) => {
   const [rows, setRows] = useState<FspStandardRow[] | null>(null);
+  const [csvBusy, setCsvBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Drives the FSP250 detail panel below the table. null = nothing
@@ -553,52 +704,61 @@ const StockingStandardsTab: FC<Props> = ({
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * pageSize;
 
-  // Export the ENTIRE table (all rows, ignoring the current search filter).
-  const downloadCsv = () => {
-    const cols = [
-      'Standards ID',
-      'Standards name',
-      'Objective',
-      'Version',
-      'BGC',
-      'Status',
-      'Effective date',
-      'Default standard',
-    ];
-    const esc = (v: unknown) => {
-      const s = String(v ?? '');
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const lines = [cols.join(',')];
-    for (const rr of rows) {
-      lines.push(
-        [
-          rr.standardsRegimeId,
-          rr.standardsRegimeName,
-          rr.standardsObjective,
-          String(rr.standardsAmndNumber ?? '').trim() === '0'
-            ? 'Original'
-            : rr.standardsAmndNumber,
-          rr.standardsBgc,
-          rr.standardsRegimeStatus,
-          rr.standardsEffectiveDate,
-          rr.defaultStandardInd === 'Y' ? 'Yes' : 'No',
-        ]
-          .map(esc)
-          .join(','),
+  // Export the ENTIRE table (all rows, ignoring the current search filter),
+  // with each standard's FULL detail. Pulls the overview + per-layer species
+  // for every standard, so it's async + shows a busy state while it runs.
+  const downloadCsv = async () => {
+    if (csvBusy || !rows || rows.length === 0) return;
+    setCsvBusy(true);
+    try {
+      const items = await Promise.all(
+        rows.map(async (rr): Promise<StandardExport> => {
+          const regimeId = rr.standardsRegimeId ?? '';
+          const amd = String(rr.standardsAmndNumber ?? amendmentNumber ?? '');
+          const detail = await getStandardRegimeDetail(fspId, regimeId, amd);
+          const layers = await Promise.all(
+            (detail.layers ?? []).map((l) =>
+              getStandardRegimeLayerDetail(
+                fspId,
+                regimeId,
+                l.layerCode ?? '',
+                l.layerId ?? '',
+              ).catch(() => null),
+            ),
+          );
+          return {
+            row: rr,
+            detail,
+            layers: layers.filter(
+              (l): l is StandardRegimeLayerDetail => l != null,
+            ),
+          };
+        }),
       );
+      const blob = new Blob([buildStandardsCsv(items)], {
+        type: 'text/csv;charset=utf-8;',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fsp-${fspId}-stocking-standards.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      display({
+        kind: 'error',
+        title: 'Could not build the CSV',
+        subtitle: safeErrorMessage(
+          e,
+          'The full standards detail could not be loaded. Please try again.',
+        ),
+        timeout: 7000,
+      });
+    } finally {
+      setCsvBusy(false);
     }
-    const blob = new Blob([lines.join('\n')], {
-      type: 'text/csv;charset=utf-8;',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `fsp-${fspId}-stocking-standards.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -624,9 +784,10 @@ const StockingStandardsTab: FC<Props> = ({
                       size="sm"
                       className="fsp-info__link-icon-btn"
                       renderIcon={Download}
-                      onClick={downloadCsv}
+                      disabled={csvBusy}
+                      onClick={() => void downloadCsv()}
                     >
-                      Download (.csv)
+                      {csvBusy ? 'Preparing…' : 'Download (.csv)'}
                     </Button>
                   </TableToolbarContent>
                 </TableToolbar>

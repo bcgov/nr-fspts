@@ -172,7 +172,9 @@ const FduMap: FC<Props> = ({
                   format: layer.format,
                   layers: layer.layers,
                   transparent: layer.transparent,
-                  styles: layer.styles[0]!.name,
+                  // Empty style name → the layer's DEFAULT published style
+                  // (used by NR Districts to get its labelled default).
+                  styles: layer.styles[0]?.name ?? '',
                 }}
               />
             </LayersControl.Overlay>
@@ -180,7 +182,25 @@ const FduMap: FC<Props> = ({
         </LayersControl>
 
         {hasFeatures && (
-          <GeoJSON key={dataKey} data={data} style={() => FDU_STYLE} />
+          <GeoJSON
+            key={dataKey}
+            data={data}
+            style={() => FDU_STYLE}
+            // Label each FDU with its name — a permanent tooltip centred on
+            // the polygon, always visible (like the district labels on the
+            // NR Districts overlay).
+            onEachFeature={(feature, layer) => {
+              const name = (feature.properties as { fduName?: string } | null)
+                ?.fduName;
+              if (name) {
+                layer.bindTooltip(name, {
+                  permanent: true,
+                  direction: 'center',
+                  className: 'fdu-map__label',
+                });
+              }
+            }}
+          />
         )}
         <FitBounds data={data} />
         <ResizeFix height={height} />

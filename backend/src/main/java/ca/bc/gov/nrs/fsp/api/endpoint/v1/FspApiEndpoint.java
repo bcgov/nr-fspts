@@ -308,6 +308,7 @@ public interface FspApiEndpoint {
     ResponseEntity<FduLicencesUpdated> updateFduLicences(
             @PathVariable String fspId,
             @PathVariable long fduId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
             @Valid @RequestBody FduLicencesUpdate body);
 
     @GetMapping(URL.LICENCE_EXISTS)

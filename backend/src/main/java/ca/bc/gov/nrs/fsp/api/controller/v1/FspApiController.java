@@ -290,8 +290,9 @@ public class FspApiController implements FspApiEndpoint {
 
     @Override
     public ResponseEntity<FduLicencesUpdated> updateFduLicences(
-            String fspId, long fduId, FduLicencesUpdate body) {
-        return ResponseEntity.ok(fduService.updateLicences(fspId, fduId, body));
+            String fspId, long fduId, String amendmentNumber, FduLicencesUpdate body) {
+        return ResponseEntity.ok(
+                fduService.updateLicences(fspId, fduId, amendmentNumber, body));
     }
 
     @Override

@@ -6,8 +6,6 @@ import oracle.jdbc.OracleTypes;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.Struct;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,7 +15,6 @@ import java.util.Map;
 public class FduGeometryDaoImpl extends AbstractStoredProcedureDao implements FduGeometryDao {
 
   private static final String SP_FDU_BY_ID = "{ ? = call " + PACKAGE_NAME + ".fdu_geometry_gets(?) }";
-  private static final String SP_FDU_BY_FSP_AMEND = "{ ? = call " + PACKAGE_NAME + ".fdu_geometry_gets(?,?) }";
 
   public FduGeometryDaoImpl(JdbcTemplate jdbcTemplate) {
     super(jdbcTemplate);
@@ -35,28 +32,26 @@ public class FduGeometryDaoImpl extends AbstractStoredProcedureDao implements Fd
 
   @Override
   public List<FduGeometryRow> getFduGeometry(int fspId, int fspAmendmentNumber) {
-    return executeCall(SP_FDU_BY_FSP_AMEND,
-        cs -> {
-          cs.registerOutParameter(1, OracleTypes.CURSOR);
-          cs.setInt(2, fspId);
-          cs.setInt(3, fspAmendmentNumber);
+    // Direct query rather than FSP_COMMON.fdu_geometry_gets: that proc's cursor
+    // selects the geometry only, and we need the FDU name too (for the map
+    // label). The join replicates the proc exactly — the FDU row at the
+    // requested fsp+amendment, its geometry matched by fdu_id — so the same
+    // polygons render. GEOMETRY stays the FIRST column so callers that read the
+    // first map entry as the SDO_GEOMETRY (FspExtentService, the GeoJSON
+    // service) are unaffected; FDU_NAME rides along as a second column.
+    return jdbcTemplate.query(
+        "SELECT fdug.geometry, fdu.fdu_name "
+            + "FROM forest_development_unit_geom fdug, forest_development_unit fdu "
+            + "WHERE fdu.fsp_id = ? "
+            + "AND fdu.fsp_amendment_number = ? "
+            + "AND fdu.fdu_id = fdug.fdu_id",
+        (rs, rowNum) -> {
+          Map<String, Object> row = new LinkedHashMap<>(2);
+          row.put("GEOMETRY", rs.getObject(1));
+          row.put("FDU_NAME", rs.getString(2));
+          return new FduGeometryRow(row);
         },
-        cs -> {
-          List<FduGeometryRow> out = new java.util.ArrayList<>();
-          Object obj = cs.getObject(1);
-          if (obj instanceof ResultSet rs) {
-            try (ResultSet auto = rs) {
-              ResultSetMetaData md = auto.getMetaData();
-              while (auto.next()) {
-                Map<String, Object> row = new LinkedHashMap<>(md.getColumnCount());
-                for (int i = 1; i <= md.getColumnCount(); i++) {
-                  row.put(md.getColumnLabel(i), auto.getObject(i));
-                }
-                out.add(new FduGeometryRow(row));
-              }
-            }
-          }
-          return out;
-        });
+        fspId,
+        fspAmendmentNumber);
   }
 }

@@ -57,7 +57,7 @@
 
         .landing-subtitle {
           @include type.type-style('fluid-paragraph-01', true);
-          color: var(--#{vars.$bcgov-prefix}-text-secondary);
+          color: #131315;
         }
       }
 
@@ -115,5 +115,77 @@
         object-position: center;
       }
     }
+  }
+}
+
+// Groups the login buttons with the "Request access" block so the wrapper's
+// large inter-section gap sits above the whole group; the internal spacing
+// (buttons ↔ link) is tight, matching the design.
+.landing-actions {
+  display: flex;
+  flex-direction: column;
+}
+
+// "Request access to FSPTS" link + supporting note beneath the login buttons.
+.landing-request-access {
+  margin-top: 3rem;
+}
+
+.landing-request-access__link {
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--cds-link-primary, #0f62fe);
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--cds-link-primary-hover, #0043ce);
+  }
+}
+
+.landing-request-access__note {
+  margin: 0.5rem 0 0;
+  color: #131315;
+  font-size: 0.875rem;
+}
+
+// Bold the "You've been logged out" title in the session-expired banner.
+.landing-session-expired .cds--inline-notification__title {
+  font-weight: 700;
+}
+
+.landing-request-modal {
+  color: #131315;
+  font-size: 16px;
+
+  ul {
+    margin: 0.25rem 0 1rem;
+    // Restore the disc bullets a global list reset strips off.
+    list-style: disc;
+    padding-inline-start: 1.5rem;
+  }
+
+  li {
+    margin-block: 0.25rem;
+    font-size: 16px;
+  }
+
+  p {
+    margin: 0 0 0.75rem;
+    font-size: 16px;
+  }
+
+  &__group-title {
+    margin: 0 0 0.25rem;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  ul:last-child {
+    margin-bottom: 0;
   }
 }

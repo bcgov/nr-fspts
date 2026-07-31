@@ -627,7 +627,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
           </header>
           {editing ? (
             <div className="fsp-info__edit">
-              <p className="fsp-info__subtitle">
+              <p className="fsp-info__subtitle fsp-info__subtitle--primary">
                 All fields are required unless marked optional.
               </p>
 
@@ -766,7 +766,15 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                 <div className="fsp-info__edit-questions">
                   <RadioButtonGroup
                     name="frpa197electionInd"
-                    legendText="Are you electing FRPA s.197 for stocking standards?"
+                    legendText={
+                      <>
+                        Does this FSP elect FRPA s.197 for stocking standards?
+                        <span className="fsp-info__legend-subhelp">
+                          Carries forward your original plan&apos;s stocking
+                          standards instead of re-establishing them.
+                        </span>
+                      </>
+                    }
                     valueSelected={form.frpa197electionInd ? 'Y' : 'N'}
                     disabled={saving}
                     onChange={(value) =>
@@ -907,11 +915,6 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                                   h.key === 'actions' ? false : undefined,
                               })}
                               key={h.key}
-                              className={
-                                h.key === 'actions'
-                                  ? 'fsp-info__col-actions'
-                                  : undefined
-                              }
                               style={
                                 h.key === 'actions'
                                   ? { width: '1%', whiteSpace: 'nowrap' }
@@ -928,11 +931,8 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                           <TableRow {...getRowProps({ row })} key={row.id}>
                             {row.cells.map((cell) =>
                               cell.info.header === 'actions' ? (
-                                <TableCell
-                                  key={cell.id}
-                                  className="fsp-info__col-actions"
-                                >
-                                  <div className="fsp-info__actions-cell">
+                                <TableCell key={cell.id}>
+                                  <div className="fsp-info__row-actions">
                                     <Button
                                       kind="danger--ghost"
                                       size="sm"
@@ -996,10 +996,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                     <TableRow>
                       <TableHeader>Code</TableHeader>
                       <TableHeader>Name</TableHeader>
-                      <TableHeader
-                        className="fsp-info__col-actions"
-                        style={{ width: '1%', whiteSpace: 'nowrap' }}
-                      >
+                      <TableHeader style={{ width: '1%', whiteSpace: 'nowrap' }}>
                         Actions
                       </TableHeader>
                     </TableRow>
@@ -1011,8 +1008,8 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
                       >
                         <TableCell>{dash(d.orgUnitCode)}</TableCell>
                         <TableCell>{dash(d.orgUnitName)}</TableCell>
-                        <TableCell className="fsp-info__col-actions">
-                          <div className="fsp-info__actions-cell">
+                        <TableCell>
+                          <div className="fsp-info__row-actions">
                             {canEdit && (
                               <Button
                                 kind="danger--ghost"

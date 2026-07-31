@@ -63,18 +63,26 @@ public class FduService {
    */
   @Transactional
   public FduLicencesUpdated updateLicences(
-      String fspId, long fduId, FduLicencesUpdate payload) {
-    // Resolve the amendment to write against — same path the read uses
-    // so we can't be operating on a different amendment than the user
-    // is looking at.
+      String fspId, long fduId, String amendmentNumberParam, FduLicencesUpdate payload) {
     long fspIdLong = Long.parseLong(fspId);
-    Fsp600MapDao.Result current = dao.get(
-        fspId,
-        RequestUtil.getCurrentClientNumber(),
-        RequestUtil.getCurrentLegacyRoles());
-    long amendmentNumber = current.fduAmendmentNumber() == null
-        ? 0L
-        : Long.parseLong(current.fduAmendmentNumber());
+    // Use the amendment the user is VIEWING (passed by the SPA). Only when it's
+    // absent do we fall back to resolving via FSP_600_MAP.GET — and that
+    // resolution follows the shared-geometry fdu_id join, so for a draft
+    // amendment that reuses the original's FDU geometry it lands on the
+    // ORIGINAL (approved/in-effect) amendment and wrongly denies a submitter
+    // editing the draft ("can't be edited directly in its current status").
+    long amendmentNumber;
+    if (amendmentNumberParam != null && !amendmentNumberParam.isBlank()) {
+      amendmentNumber = Long.parseLong(amendmentNumberParam.trim());
+    } else {
+      Fsp600MapDao.Result current = dao.get(
+          fspId,
+          RequestUtil.getCurrentClientNumber(),
+          RequestUtil.getCurrentLegacyRoles());
+      amendmentNumber = current.fduAmendmentNumber() == null
+          ? 0L
+          : Long.parseLong(current.fduAmendmentNumber());
+    }
 
     // Content-edit fence (ownership + status), the same rule as every other
     // FSP edit: Administrators can't edit APP/INE/SUB plans; Submitters only

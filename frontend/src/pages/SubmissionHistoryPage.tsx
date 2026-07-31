@@ -15,7 +15,7 @@ import {
   TextInput,
   Tile,
 } from '@carbon/react';
-import { CheckmarkFilled, Search as SearchIcon, SubtractAlt } from '@carbon/icons-react';
+import { ArrowRight, CheckmarkFilled, Search as SearchIcon, SubtractAlt } from '@carbon/icons-react';
 import { AddDocument } from '@carbon/pictograms-react';
 import {
   type FC,
@@ -471,6 +471,8 @@ const SubmissionHistoryPage: FC = () => {
                                     const params = new URLSearchParams({ fspId: fspIdRaw });
                                     if (amendmentNumber)
                                       params.set('amendmentNumber', amendmentNumber);
+                                    // Source for the FSP page's "Back to …" link.
+                                    params.set('from', 'submission-history');
                                     navigate(`/fsp/information?${params.toString()}`);
                                   };
                                   return (
@@ -577,12 +579,15 @@ const SubmissionHistoryPage: FC = () => {
                 <EmptyState
                   icon={<AddDocument width={48} height={48} />}
                   title="No results found"
-                  body={
-                    <>
-                      No submissions match your search criteria.
-                      <br />
-                      Try adjusting your filters and searching again.
-                    </>
+                  body="Once your organization submits a Forest Stewardship Plan, you'll be able to track it here. Head to Data submission to upload your first FSP."
+                  action={
+                    <Button
+                      kind="primary"
+                      renderIcon={ArrowRight}
+                      onClick={() => navigate('/data-submission')}
+                    >
+                      Go to Data submission
+                    </Button>
                   }
                 />
               ) : (

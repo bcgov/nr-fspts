@@ -147,7 +147,11 @@ export const allLayers: MapLayer[] = [
     layers: 'WHSE_ADMIN_BOUNDARIES.ADM_NR_DISTRICTS_SPG',
     transparent: true,
     filterable: false,
-    styles: [{ name: '365', title: 'Natural_Resource_Districts_Colour_Themed' }],
+    // Empty style name → the layer's DEFAULT published style, which renders
+    // the districts coloured AND labelled with their codes. The named
+    // '365' (Colour_Themed) style has no labels; BCGW ignores custom SLD, so
+    // the default is the only way to get district labels via WMS.
+    styles: [{ name: '', title: 'Natural_Resource_Districts (default, labelled)' }],
   },
   {
     position: 12,

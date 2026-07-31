@@ -196,14 +196,12 @@ public final class ProcErrorMessages {
       // "FSP.RPL_FDU_UPDATE_IND.NOCHANGE" (the "RPL_" prevents a false match).
       Map.entry("FSP.RPL_FDU_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
           "This version is marked as updating the Forest Development "
-              + "Units, but no FDU changes were found on this version. Add "
-              + "the FDU spatial data on the FDU / Map tab before submitting. "
-              + "A MAP attachment on its own doesn't satisfy this.")),
+              + "Units, but no FDU changes were found on this version. Modify "
+              + "the FDU data via a new data submission update.")),
       Map.entry("FSP.FDU_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
           "This amendment is marked as updating the Forest Development "
-              + "Units, but no FDU changes were found on this version. Add "
-              + "the FDU spatial data on the FDU / Map tab before submitting. "
-              + "A MAP attachment on its own doesn't satisfy this.")),
+              + "Units, but no FDU changes were found on this version. Modify "
+              + "the FDU data via a new data submission update.")),
       Map.entry("FSP.RPL_IA_UPDATE_IND.NOCHANGE", new Info(BAD_REQUEST,
           "This version is marked as updating the Identified Areas, but "
               + "no identified-area changes were found on this version. Add "

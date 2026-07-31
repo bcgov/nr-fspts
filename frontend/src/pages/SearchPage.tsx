@@ -795,6 +795,8 @@ const SearchPage: FC = () => {
                                       });
                                       if (amendmentNumber)
                                         params.set('amendmentNumber', amendmentNumber);
+                                      // Source for the FSP page's "Back to …" link.
+                                      params.set('from', 'search');
                                       navigate(`/fsp/information?${params.toString()}`);
                                     };
                                     return (
