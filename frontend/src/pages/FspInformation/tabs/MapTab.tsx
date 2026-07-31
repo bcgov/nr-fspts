@@ -314,6 +314,7 @@ const MapTab: FC<Props> = ({
           fspId={fspId}
           fduId={editTarget.fduId}
           fduName={editTarget.fduName}
+          amendmentNumber={amendmentNumber}
           initialLicences={editTarget.licences}
           onClose={() => setEditTarget(null)}
           onSaved={(licences) => {

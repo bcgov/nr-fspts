@@ -37,3 +37,27 @@
     }
   }
 }
+
+// FDU name labels — permanent tooltips centred on each polygon. Styled as a
+// bare map label (no tooltip chrome): transparent, no border/shadow/arrow,
+// with a white halo so the text stays legible over any basemap.
+.leaflet-tooltip.fdu-map__label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  color: #1a1a1a;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow:
+    0 0 3px #fff,
+    0 0 3px #fff,
+    0 0 3px #fff;
+}
+
+// Leaflet draws a little arrow via ::before on tooltips — hide it for labels.
+.leaflet-tooltip.fdu-map__label::before {
+  display: none;
+}

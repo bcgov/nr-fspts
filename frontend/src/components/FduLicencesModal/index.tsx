@@ -21,6 +21,9 @@ interface Props {
   fspId: string;
   fduId: string;
   fduName: string;
+  /** Version being viewed — threaded to the update so the content-edit check
+   * targets this amendment, not the FDU's shared-geometry amendment. */
+  amendmentNumber: string;
   /** Current licence list (comma-joined string from the FDU row). */
   initialLicences: string;
   onClose: () => void;
@@ -39,6 +42,7 @@ const FduLicencesModal: FC<Props> = ({
   fspId,
   fduId,
   fduName,
+  amendmentNumber,
   initialLicences,
   onClose,
   onSaved,
@@ -127,7 +131,7 @@ const FduLicencesModal: FC<Props> = ({
     }
     setSubmitting(true);
     try {
-      const res = await updateFduLicences(fspId, fduId, {
+      const res = await updateFduLicences(fspId, fduId, amendmentNumber, {
         add: added,
         remove: removedLicences,
       });

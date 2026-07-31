@@ -1,5 +1,6 @@
-import {Breadcrumb, BreadcrumbItem, Button, Column, Grid, Link, Loading, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs,} from '@carbon/react';
+import {Button, Column, Grid, Link, Loading, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs,} from '@carbon/react';
 import {
+  ArrowLeft,
   CalendarAdd,
   DocumentAdd,
   DocumentAttachment,
@@ -36,6 +37,21 @@ import {type CodeOption, type FspExtension, type FspInformation, deleteFsp, getF
 
 import { useProvideEditLock } from './editLock';
 import AttachmentsTab from './tabs/AttachmentsTab';
+
+// "Back to …" targets, keyed by the `from` query param the list pages stamp
+// onto the FSP link. Each source page persists its own filters/sorting/
+// pagination in sessionStorage, so navigating back to the route restores that
+// state. Falls back to the user's default landing page when `from` is absent
+// (e.g. a bookmarked/shared FSP link).
+const BACK_TARGETS: Record<string, { label: string; route: string }> = {
+  search: { label: 'FSP search', route: '/search' },
+  inbox: { label: 'Inbox', route: '/inbox' },
+  'submission-history': {
+    label: 'Submission history',
+    route: '/submission-history',
+  },
+};
+
 import InformationTab from './tabs/InformationTab';
 import MapTab from './tabs/MapTab';
 import StockingStandardsTab from './tabs/StockingStandardsTab';
@@ -106,6 +122,9 @@ const FspInformationPage: FC = () => {
   // Order mirrors the <Tab> list below: 0 Information, 1 Stocking, 2 FDU/Map,
   // 3 Attachments, 4 History, 5 Workflow.
   const [selectedTab, setSelectedTab] = useState(0);
+  // Bumped to ask the Attachments tab to open its add-attachment dialog —
+  // driven by the "Add FSP legal document" shortcut in the Submit modal.
+  const [attachmentAddSignal, setAttachmentAddSignal] = useState(0);
   /**
    * Swap the FSP DTO in place AND bump refreshKey so the tabs
    * re-fetch their own slices. Use after any mutation whose effects
@@ -443,26 +462,30 @@ const FspInformationPage: FC = () => {
         latestExtension.statusCode)
       : (EXTENSION_STAT_LABEL[extensionStat] ?? ''));
 
+  // Where the "← Back to …" link returns to: the list page the user came from
+  // (via the `from` query param), else their role-based default landing page.
+  const fromParam = searchParams.get('from');
+  const backTarget =
+    (fromParam ? BACK_TARGETS[fromParam] : undefined) ??
+    Object.values(BACK_TARGETS).find(
+      (t) => t.route === defaultRouteForUser(user),
+    ) ??
+    BACK_TARGETS.search;
+
   return (
     <Grid fullWidth className="default-grid fsp-info-grid">
       <Column sm={4} md={8} lg={16}>
-        {/* Breadcrumb steers per role — BCeID submitters land at
-            /submission-history (the FSP Search page is gated off for
-            them), everyone else lands at /search. Carbon shows a trailing
-            slash by default, giving the "FSP Search /" look. */}
-        <Breadcrumb noTrailingSlash={false} className="fsp-info__breadcrumb">
-          <BreadcrumbItem
-            href={defaultRouteForUser(user)}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate(defaultRouteForUser(user));
-            }}
-          >
-            {defaultRouteForUser(user) === '/submission-history'
-              ? 'Submission history'
-              : 'FSP Search'}
-          </BreadcrumbItem>
-        </Breadcrumb>
+        {/* Back link to the originating list page. Each source persists its
+            filters/sorting/pagination in sessionStorage, so returning to the
+            route restores that state. */}
+        <button
+          type="button"
+          className="fsp-info__back-link"
+          onClick={() => navigate(backTarget.route)}
+        >
+          <ArrowLeft size={16} />
+          <span>Back to {backTarget.label}</span>
+        </button>
       </Column>
 
       <Column sm={4} md={8} lg={16}>
@@ -730,6 +753,7 @@ const FspInformationPage: FC = () => {
                     fspStatusCode={fsp?.fspStatusCode}
                     amendments={amendments}
                     currentAmendment={selectedAmendment}
+                    openAddSignal={attachmentAddSignal}
                   />
                 </div>
               </TabPanel>
@@ -821,7 +845,10 @@ const FspInformationPage: FC = () => {
         fallbackAmendmentNumber={amendmentNumber || null}
         onClose={() => setConfirmSubmitOpen(false)}
         onSubmitted={refreshAfterMutation}
-        onOpenAttachments={() => setSelectedTab(3)}
+        onAddLegalDocument={() => {
+          setSelectedTab(3);
+          setAttachmentAddSignal((n) => n + 1);
+        }}
       />
       <AmendmentDescriptionModal
         open={confirmAmendOpen}

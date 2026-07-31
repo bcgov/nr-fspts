@@ -685,10 +685,18 @@ export interface FduLicencesUpdated {
 export async function updateFduLicences(
   fspId: string,
   fduId: string,
+  amendmentNumber: string,
   payload: FduLicencesPayload,
 ): Promise<FduLicencesUpdated> {
+  // Thread the version being viewed so the backend's content-edit check (and
+  // the write) target THIS amendment — not the amendment the FDU's shared
+  // geometry resolves to (which can be the approved original, wrongly
+  // blocking a submitter editing a draft amendment).
+  const qs = amendmentNumber
+    ? `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
+    : '';
   const res = await apiFetch(
-    `/v1/fsp/${encodeURIComponent(fspId)}/fdus/${encodeURIComponent(fduId)}/licences`,
+    `/v1/fsp/${encodeURIComponent(fspId)}/fdus/${encodeURIComponent(fduId)}/licences${qs}`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

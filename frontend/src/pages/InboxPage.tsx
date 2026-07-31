@@ -586,6 +586,8 @@ const InboxPage: FC = () => {
                                       const params = new URLSearchParams({ fspId: fspIdRaw });
                                       if (amendmentNumber)
                                         params.set('amendmentNumber', amendmentNumber);
+                                      // Source for the FSP page's "Back to …" link.
+                                      params.set('from', 'inbox');
                                       navigate(`/fsp/information?${params.toString()}`);
                                     };
                                     return (
