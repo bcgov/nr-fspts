@@ -42,14 +42,29 @@ export const WMS_URL = 'https://openmaps.gov.bc.ca/geo/ows';
  * @param labelExpr the inner XML of the SLD `<Label>` — either a bare
  *   `<ogc:PropertyName>` (see {@link propLabel}) or a richer expression such as
  *   an `<ogc:Function name="Concatenate">` that stitches literals + fields.
+ * @param filterXml optional `<ogc:Filter>` inserted at the top of the `<Rule>`
+ *   so only matching features are labelled (see {@link eqFilter}).
  */
 export const propLabel = (field: string): string =>
   `<ogc:PropertyName>${field}</ogc:PropertyName>`;
 
-export const labelOnlySld = (layerName: string, labelExpr: string): string =>
+/** An `<ogc:Filter>` that matches features where `field` equals `value`. */
+export const eqFilter = (field: string, value: string): string =>
+  '<ogc:Filter><ogc:PropertyIsEqualTo>' +
+  `<ogc:PropertyName>${field}</ogc:PropertyName>` +
+  `<ogc:Literal>${value}</ogc:Literal>` +
+  '</ogc:PropertyIsEqualTo></ogc:Filter>';
+
+export const labelOnlySld = (
+  layerName: string,
+  labelExpr: string,
+  filterXml = '',
+): string =>
   '<StyledLayerDescriptor version="1.0.0"' +
   ' xmlns="http://www.opengis.net/sld" xmlns:ogc="http://www.opengis.net/ogc">' +
   `<NamedLayer><Name>${layerName}</Name><UserStyle><FeatureTypeStyle><Rule>` +
+  // Filter (if any) must precede the symbolizer inside the Rule.
+  filterXml +
   '<TextSymbolizer>' +
   `<Label>${labelExpr}</Label>` +
   '<Font><CssParameter name="font-family">SansSerif</CssParameter>' +
@@ -256,6 +271,14 @@ export const allLayers: MapLayer[] = [
       { name: '2893', title: 'Managed_Licence_Poly_Pending_FTEN_Colour_Themed' },
       { name: '2895', title: 'Managed_Licence_Poly_Retired_FTEN_Colour_Themed' },
     ],
+    // Label active managed licences with their forest file id (e.g. "N1A",
+    // "W0025"). Filtered to ACTIVE to match the Active-themed colour style
+    // rendered above; group=yes merges the per-schedule-block duplicates.
+    labelSld: labelOnlySld(
+      'WHSE_FOREST_TENURE.FTEN_MANAGED_LICENCE_POLY_SVW',
+      propLabel('FOREST_FILE_ID'),
+      eqFilter('LIFE_CYCLE_STATUS_CODE', 'ACTIVE'),
+    ),
   },
   {
     position: 15,
