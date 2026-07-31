@@ -6,6 +6,7 @@ import L from 'leaflet';
 import { useEffect, useState, type FC } from 'react';
 import {
   GeoJSON,
+  LayerGroup,
   LayersControl,
   MapContainer,
   TileLayer,
@@ -17,6 +18,7 @@ import {
 import { safeErrorMessage } from '@/lib/errorMessage';
 import { getFspFduGeometry } from '@/services/fspSearch';
 import { allLayers, FDU_STYLE, WMS_URL, type MapLayer } from './mapLayers';
+import { SldWmsTileLayer } from './SldWmsTileLayer';
 
 /**
  * Embedded Leaflet map of an FSP's FDU polygons — replaces the legacy
@@ -164,10 +166,11 @@ const FduMap: FC<Props> = ({
 
           {/* BC-gov WMS overlays — the same catalogue nr-silva exposes,
               toggled off by default. */}
-          {allLayers.map((layer: MapLayer) => (
-            <LayersControl.Overlay key={layer.name} name={layer.name}>
+          {allLayers.map((layer: MapLayer) => {
+            const colour = (
               <WMSTileLayer
                 url={WMS_URL}
+                opacity={layer.opacity ?? 1}
                 params={{
                   format: layer.format,
                   layers: layer.layers,
@@ -177,8 +180,32 @@ const FduMap: FC<Props> = ({
                   styles: layer.styles[0]?.name ?? '',
                 }}
               />
-            </LayersControl.Overlay>
-          ))}
+            );
+            return (
+              <LayersControl.Overlay key={layer.name} name={layer.name}>
+                {layer.labelSld ? (
+                  // Pair the coloured layer with a label-only overlay so the
+                  // labels toggle on/off together with the layer. The label
+                  // layer sits above (higher zIndex) so text isn't hidden.
+                  <LayerGroup>
+                    {colour}
+                    <SldWmsTileLayer
+                      url={WMS_URL}
+                      zIndex={500}
+                      params={{
+                        format: 'image/png',
+                        transparent: true,
+                        styles: '',
+                        sld_body: layer.labelSld,
+                      }}
+                    />
+                  </LayerGroup>
+                ) : (
+                  colour
+                )}
+              </LayersControl.Overlay>
+            );
+          })}
         </LayersControl>
 
         {hasFeatures && (
