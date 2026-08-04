@@ -42,14 +42,13 @@ public class EmailEventDispatcher {
   private String fromAddress;
 
   /**
-   * Master kill-switch for automatic outbound email. Off by default —
-   * an environment must explicitly opt in (ConfigMap / env
-   * {@code EMAIL_SEND_ENABLED=true}) for any email to actually leave the
-   * app. When off the workflow event is still processed and logged, but
-   * the SMTP send is skipped. Set on PROD only once the mail path is
-   * signed off; every other environment stays silent by default.
+   * Master kill-switch for automatic outbound email. On by default —
+   * an environment that should stay silent must explicitly opt out
+   * (ConfigMap / env {@code EMAIL_SEND_ENABLED=false}). When off the
+   * workflow event is still processed and logged, but the SMTP send is
+   * skipped.
    */
-  @Value("${fsp.mail.send-enabled:false}")
+  @Value("${fsp.mail.send-enabled:true}")
   private boolean sendEnabled;
 
   /** Announce the kill-switch state in the pod log at boot. */

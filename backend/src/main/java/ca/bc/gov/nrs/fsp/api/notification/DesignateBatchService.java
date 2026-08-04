@@ -67,7 +67,7 @@ public class DesignateBatchService {
   private final String fromAddress;
   /**
    * Master kill-switch for automatic outbound email (shared with
-   * {@link EmailEventDispatcher}). Off by default; when off the batch
+   * {@link EmailEventDispatcher}). On by default; when off the batch
    * still runs and logs, but each SMTP send is skipped.
    */
   private final boolean sendEnabled;
@@ -78,7 +78,7 @@ public class DesignateBatchService {
       JavaMailSender mailSender,
       DesignateEmailResolver emailResolver,
       @Value("${fsp.mail.from:donotreply.fsp@gov.bc.ca}") String fromAddress,
-      @Value("${fsp.mail.send-enabled:false}") boolean sendEnabled) {
+      @Value("${fsp.mail.send-enabled:true}") boolean sendEnabled) {
     this.batchDao = batchDao;
     this.renderer = renderer;
     this.mailSender = mailSender;

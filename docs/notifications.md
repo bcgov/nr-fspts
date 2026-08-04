@@ -128,14 +128,14 @@ handing anything to SMTP. Both services also log the active state once at startu
 
 | Env var | Default | Purpose |
 |---------|---------|---------|
-| `EMAIL_SEND_ENABLED` | `false` | Master send switch. `false` = render/queue as usual but **never hand to SMTP** (logs "would have sent"). `true` = actually send. |
+| `EMAIL_SEND_ENABLED` | `true` | Master send switch. `false` = render/queue as usual but **never hand to SMTP** (logs "would have sent"). `true` = actually send. |
 
-- **Wiring:** `EMAIL_SEND_ENABLED` (OpenShift template param, default `"false"`)
-  → container env → `application.properties` `fsp.mail.send-enabled=${EMAIL_SEND_ENABLED:false}`
-  → `@Value("${fsp.mail.send-enabled:false}")`.
+- **Wiring:** `EMAIL_SEND_ENABLED` (OpenShift template param, default `"true"`)
+  → container env → `application.properties` `fsp.mail.send-enabled=${EMAIL_SEND_ENABLED:true}`
+  → `@Value("${fsp.mail.send-enabled:true}")`.
 - **Non-secret** — set as a GitHub Environment **variable** (`vars.EMAIL_SEND_ENABLED`),
   threaded through `reusable-deploy.yml` as
-  `-p EMAIL_SEND_ENABLED="${{ vars.EMAIL_SEND_ENABLED || 'false' }}"`.
-- **Fail-safe default:** unset anywhere in the chain resolves to `false`, so a
-  deployment never sends email unless the variable is explicitly set `true` on
-  that environment. Set it `true` only where email should actually go out.
+  `-p EMAIL_SEND_ENABLED="${{ vars.EMAIL_SEND_ENABLED || 'true' }}"`.
+- **Default is ON:** unset anywhere in the chain resolves to `true`, so a
+  deployment sends email unless the variable is explicitly set `false` on that
+  environment. Set it `false` where email should stay suppressed.
