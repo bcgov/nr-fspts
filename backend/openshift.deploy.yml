@@ -92,11 +92,11 @@ parameters:
     required: false
     value: "false"
   # Master kill-switch for automatic outbound email. Non-sensitive plain
-  # env. OFF by default — set "true" (via the EMAIL_SEND_ENABLED deploy var,
-  # typically only on PROD) to let workflow / designate emails actually send.
+  # env. ON by default — set "false" (via the EMAIL_SEND_ENABLED deploy var)
+  # to keep an environment silent while still rendering / logging emails.
   - name: EMAIL_SEND_ENABLED
     required: false
-    value: "false"
+    value: "true"
   - name: DATABASE_HOST
     required: true
   - name: DATABASE_SERVICE_NAME

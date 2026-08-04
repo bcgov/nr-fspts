@@ -220,7 +220,7 @@ jobs:
             -p CLAMAV_HOST="$CLAMAV_HOST"
             -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"
             -p CLAMAV_FAIL_OPEN="${{ vars.CLAMAV_FAIL_OPEN || 'false' }}"
-            -p EMAIL_SEND_ENABLED="${{ vars.EMAIL_SEND_ENABLED || 'false' }}"
+            -p EMAIL_SEND_ENABLED="${{ vars.EMAIL_SEND_ENABLED || 'true' }}"
             -p DATABASE_HOST="${{ secrets.database_host }}"
             -p DATABASE_SERVICE_NAME="${{ secrets.database_service_name }}"
             -p DATABASE_USER="${{ secrets.database_user }}"
