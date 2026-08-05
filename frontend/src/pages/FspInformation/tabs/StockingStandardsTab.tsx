@@ -710,29 +710,39 @@ const StockingStandardsTab: FC<Props> = ({
   const downloadCsv = async () => {
     if (csvBusy || !rows || rows.length === 0) return;
     setCsvBusy(true);
+    // Layers that couldn't make it into the export. Tracked so a partial CSV
+    // is reported rather than handed over as if it were complete — the
+    // per-layer catch below swallows failures to keep one bad layer from
+    // killing the whole download.
+    let omittedLayers = 0;
     try {
       const items = await Promise.all(
         rows.map(async (rr): Promise<StandardExport> => {
           const regimeId = rr.standardsRegimeId ?? '';
           const amd = String(rr.standardsAmndNumber ?? amendmentNumber ?? '');
           const detail = await getStandardRegimeDetail(fspId, regimeId, amd);
+          // A layer the regime reported without an id (or code) can't be
+          // fetched: the detail GET needs a real (regimeId, layerId) pair and
+          // FSP_550_SUB_LAYERS answers a blank one with record.invalid. Skip
+          // those rather than firing a request that can only fail.
+          const declared = detail.layers ?? [];
+          const fetchable = declared.filter((l) => l.layerCode && l.layerId);
+          omittedLayers += declared.length - fetchable.length;
           const layers = await Promise.all(
-            (detail.layers ?? []).map((l) =>
+            fetchable.map((l) =>
               getStandardRegimeLayerDetail(
                 fspId,
                 regimeId,
-                l.layerCode ?? '',
-                l.layerId ?? '',
+                l.layerCode as string,
+                l.layerId as string,
               ).catch(() => null),
             ),
           );
-          return {
-            row: rr,
-            detail,
-            layers: layers.filter(
-              (l): l is StandardRegimeLayerDetail => l != null,
-            ),
-          };
+          const loaded = layers.filter(
+            (l): l is StandardRegimeLayerDetail => l != null,
+          );
+          omittedLayers += layers.length - loaded.length;
+          return { row: rr, detail, layers: loaded };
         }),
       );
       const blob = new Blob([buildStandardsCsv(items)], {
@@ -746,6 +756,16 @@ const StockingStandardsTab: FC<Props> = ({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      // The file downloaded, but say so if it's short — otherwise a partial
+      // export reads as a complete one.
+      if (omittedLayers > 0) {
+        display({
+          kind: 'warning',
+          title: 'CSV downloaded, but some layer detail is missing',
+          subtitle: `${omittedLayers} layer${omittedLayers === 1 ? '' : 's'} could not be loaded and ${omittedLayers === 1 ? 'was' : 'were'} left out of the file.`,
+          timeout: 9000,
+        });
+      }
     } catch (e) {
       display({
         kind: 'error',
@@ -926,6 +946,14 @@ const StockingStandardsTab: FC<Props> = ({
       <div ref={detailRef}>
       {selectedRegimeId ? (
         <StandardRegimeDetailPanel
+          // Remount on regime change. Without this the panel re-renders with
+          // the NEW regimeId while `detail` still holds the OLD regime's data
+          // (setDetail(null) runs in an effect, i.e. after paint), so the
+          // Layers child fires FSP_550_SUB_LAYERS.GET with the new regime id
+          // and the previous regime's layerCode/layerId — an unmatchable pair
+          // that returns record.invalid and toasts "Unable to load layer
+          // detail" before the correct fetch lands a moment later.
+          key={selectedRegimeId}
           fspId={fspId}
           amendmentNumber={amendmentNumber}
           regimeId={selectedRegimeId}

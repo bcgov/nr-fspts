@@ -577,6 +577,10 @@ const StandardsSearchPage: FC = () => {
       >
         {selectedRegime && (
           <StandardRegimeDetailPanel
+            // Same remount-on-regime-change guard as StockingStandardsTab —
+            // keeps the Layers child from ever pairing a new regime id with
+            // the previous regime's layer ids.
+            key={selectedRegime.regimeId}
             fspId=""
             amendmentNumber=""
             regimeId={selectedRegime.regimeId}

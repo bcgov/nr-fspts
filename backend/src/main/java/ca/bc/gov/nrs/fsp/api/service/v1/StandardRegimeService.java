@@ -493,6 +493,18 @@ public class StandardRegimeService {
         regimeId, effectiveLayerId, layerCode,
         isAdd ? "created" : "saved",
         RequestUtil.getCurrentAuditUserId(), r.pRevisionCount());
+    // The ADD branch hands the new row's id back through the INOUT
+    // pStandardsRegimeLayerId slot. If it comes back empty the re-read below
+    // would call FSP_550_SUB_LAYERS.GET with a blank layer id, which the proc
+    // answers with record.invalid — surfacing as a "record not found" pinned
+    // on a save that actually ran, with nothing in the log naming the real
+    // problem. Fail here instead, while we still have the context to say so.
+    if (effectiveLayerId == null || effectiveLayerId.isBlank()) {
+      throw new IllegalStateException(
+          "FSP_550_SUB_LAYERS.SAVE created layer " + layerCode + " on standards "
+              + "regime " + regimeId + " but returned no "
+              + "standards_regime_layer_id, so the new layer can't be read back.");
+    }
     return getLayerDetail(regimeId, layerCode, effectiveLayerId);
   }
 
