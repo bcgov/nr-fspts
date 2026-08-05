@@ -35,14 +35,17 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
 # with most of the pod's memory unused. Percentage sizing tracks whatever
 # limit openshift.deploy.yml sets instead of drifting out of sync again.
 #
-# 70% leaves ~30% for the non-heap footprint this app actually uses:
+# 60% leaves ~40% for the non-heap footprint this app actually uses:
 # Metaspace (capped at 200m below), JIT code cache, ~50 thread stacks, and
-# the direct ByteBuffers Undertow allocates for I/O. Raising MaxRAMPercentage
-# much past 70 risks the kernel OOM-killing the container instead — a harder
-# failure than a heap OOM because it produces no dump and no Java stack.
+# the direct ByteBuffers Undertow allocates for I/O. That overhead is roughly
+# fixed at ~250-300MB regardless of heap size, so at the 1Gi limit the prod
+# namespace quota allows it is a large fraction of the container — hence 60
+# rather than a more typical 70-75. Raising this risks the kernel OOM-killing
+# the container instead, a harder failure than a heap OOM because it produces
+# no dump and no Java stack.
 #
 # HeapDumpOnOutOfMemoryError writes to /temp (an emptyDir; the root FS is
 # read-only). The dump is written before ExitOnOutOfMemoryError terminates
 # the JVM. Keep the Deployment's ephemeral-storage limit above the max heap
 # size or the dump will fill the volume and get the pod evicted.
-ENTRYPOINT ["java","-Duser.name=FSP-API","-XX:InitialRAMPercentage=30","-XX:MaxRAMPercentage=70","-XX:TieredStopAtLevel=1","-XX:+UseParallelGC","-XX:MinHeapFreeRatio=20","-XX:MaxHeapFreeRatio=40","-XX:GCTimeRatio=4","-XX:AdaptiveSizePolicyWeight=90","-XX:MaxMetaspaceSize=200m","-XX:ParallelGCThreads=2","-Djava.util.concurrent.ForkJoinPool.common.parallelism=8","-XX:CICompilerCount=2","-XX:+HeapDumpOnOutOfMemoryError","-XX:HeapDumpPath=/temp","-XX:+ExitOnOutOfMemoryError","-Djava.security.egd=file:/dev/./urandom","-cp","app:app/lib/*","ca.bc.gov.nrs.fsp.api.FspApiResourceApplication"]
+ENTRYPOINT ["java","-Duser.name=FSP-API","-XX:InitialRAMPercentage=30","-XX:MaxRAMPercentage=60","-XX:TieredStopAtLevel=1","-XX:+UseParallelGC","-XX:MinHeapFreeRatio=20","-XX:MaxHeapFreeRatio=40","-XX:GCTimeRatio=4","-XX:AdaptiveSizePolicyWeight=90","-XX:MaxMetaspaceSize=200m","-XX:ParallelGCThreads=2","-Djava.util.concurrent.ForkJoinPool.common.parallelism=8","-XX:CICompilerCount=2","-XX:+HeapDumpOnOutOfMemoryError","-XX:HeapDumpPath=/temp","-XX:+ExitOnOutOfMemoryError","-Djava.security.egd=file:/dev/./urandom","-cp","app:app/lib/*","ca.bc.gov.nrs.fsp.api.FspApiResourceApplication"]
