@@ -37,7 +37,7 @@ parameters:
   - name: MIN_CPU
     value: "200m"
   - name: MIN_MEM
-    value: "500Mi"
+    value: "1Gi"
   - name: APP_LOG_LEVEL
     value: INFO
   - name: SPRING_SECURITY_LOG_LEVEL
@@ -245,15 +245,27 @@ objects:
                     secretKeyRef:
                       name: ${NAME}-backend-secret-${ZONE}
                       key: KEYSTORE_SECRET
+              # The JVM sizes its heap as a percentage of the memory LIMIT
+              # (-XX:MaxRAMPercentage=70 in the Dockerfile), so changing the
+              # limit changes the heap. The old 800Mi limit paired with a
+              # hardcoded -Xmx200m, which OOMed on attachment uploads while
+              # ~500Mi of the pod sat unused. 2Gi ⇒ ~1.4GB heap, enough to
+              # serve the 100MB spring.servlet.multipart.max-file-size the
+              # app advertises.
+              #
+              # ephemeral-storage must exceed the max heap size: the JVM
+              # writes a heap dump to /temp (emptyDir) on OOM, and an emptyDir
+              # counts against this limit — undersize it and the pod is
+              # evicted mid-dump, losing the diagnostic we added it for.
               resources:
                 requests:
                   cpu: ${MIN_CPU}
                   memory: ${MIN_MEM}
-                  ephemeral-storage: "200Mi"
+                  ephemeral-storage: "500Mi"
                 limits:
                   cpu: "1000m"
-                  memory: "800Mi"
-                  ephemeral-storage: "500Mi"
+                  memory: "2Gi"
+                  ephemeral-storage: "2Gi"
               livenessProbe:
                 httpGet:
                   path: /actuator/health
