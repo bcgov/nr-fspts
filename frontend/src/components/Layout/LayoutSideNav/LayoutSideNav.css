@@ -124,3 +124,37 @@
 .side-nav-drawer:not(.side-nav-drawer--open) .cds--side-nav__link:hover .cds--side-nav__link-text {
   opacity: 1;
 }
+
+/* ── Support link, pinned to the bottom ────────────────────────────
+   Carbon nests <nav class="…__navigation"> → <ul class="…__items">. Making
+   both full-height flex columns lets the Support heading absorb the leftover
+   space via margin-block-start: auto, so it and the link after it sit against
+   the bottom edge no matter how many role-dependent entries render above. */
+.side-nav-drawer .cds--side-nav__navigation {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+}
+
+.side-nav-drawer .cds--side-nav__items {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+/* padding-inline-start matches Carbon's 2rem link indent so the heading
+   lines up with the labels above it rather than the icons. */
+.side-nav-support-heading {
+  margin-block-start: auto;
+  padding-block: 0 0.25rem;
+  padding-inline: 2rem 1rem;
+  color: var(--cds-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.34;
+}
+
+/* No room for a section label in the 48px rail — the link's hover tooltip
+   already names it. */
+.side-nav-drawer:not(.side-nav-drawer--open) .side-nav-support-heading {
+  display: none;
+}

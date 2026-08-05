@@ -240,7 +240,32 @@ const StandardRegimeDetailPanel: FC<Props> = ({
   // backend enforces the same rule (FspAccessGuard.assertStandardsRegimeEditable).
   const isApprovedRegime = detail?.standardsRegimeStatusCode === 'APP';
   const readOnly = readOnlyProp || isApprovedRegime;
-  const [loading, setLoading] = useState(false);
+  // Starts true so the very first paint shows the spinner rather than the
+  // `if (!detail)` "not found" branch — the fetch effect below only flips this
+  // on after paint. Matters because the call sites now key={regimeId}, so
+  // every regime switch is a fresh mount and would otherwise flash "Standards
+  // regime NNN not found." for a frame. Mirrors the effect's own `if
+  // (!regimeId) return` guard so a blank regime doesn't spin forever.
+  const [loading, setLoading] = useState(() => Boolean(regimeId));
+  // Which regime `detail` was actually loaded for. When the regimeId prop
+  // changes we drop the stale detail DURING RENDER (React's "adjust state on
+  // prop change" pattern) instead of waiting for the fetch effect below,
+  // which only runs after paint. Without this the panel paints once with the
+  // NEW regimeId still holding the OLD regime's detail, and the Layers child
+  // fires FSP_550_SUB_LAYERS.GET pairing the new regime id with the previous
+  // regime's layerCode/layerId — an unmatchable pair that comes back
+  // record.invalid and toasts "Unable to load layer detail" a beat before the
+  // correct fetch succeeds. Both call sites also pass key={regimeId}, which
+  // makes this unreachable today; it stays so the panel is correct on its own
+  // if a key is ever dropped. Clearing detail here hits the `if (!detail)`
+  // early return, so no child ever sees a mismatched regime/layer pair.
+  const [loadedRegimeId, setLoadedRegimeId] = useState(regimeId);
+  if (loadedRegimeId !== regimeId) {
+    setLoadedRegimeId(regimeId);
+    setDetail(null);
+    // Keep the spinner up rather than flashing "not found" for one frame.
+    setLoading(true);
+  }
   // Overview-tab edit state. Each inner tab gets its own toggle so a
   // save on Overview doesn't blow away the read-only context the user
   // had open on, say, Layers. Form state is null until the user clicks

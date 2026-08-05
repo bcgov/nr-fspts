@@ -254,5 +254,13 @@ public final class ProcErrorMessages {
           "The requested record could not be found.")),
       Map.entry("sil.web.usr.database.record.modified", new Info(CONFLICT,
           "This record was modified by someone else after you opened it. "
-              + "Reload and try again.")));
+              + "Reload and try again.")),
+      // Raised when a proc's SELECT INTO can't resolve the row for the key it
+      // was handed — e.g. FSP_550_SUB_LAYERS.GET with a standards_regime_id /
+      // standards_regime_layer_id pair that doesn't exist together. Note the
+      // proc emits this with no :~E trailer, so throwIfError takes its
+      // "no marker → throw for safety" branch; without a mapping here it
+      // surfaced as an unhandled 500 rather than a 404.
+      Map.entry("sil.web.usr.database.record.invalid", new Info(NOT_FOUND,
+          "The requested record could not be found.")));
 }
