@@ -131,10 +131,15 @@ public class AttachmentsService {
     // the B2 rule (Admin any status; Submitter Draft; DM on SUB/OHS;
     // Reviewer on SUB) — see FspAccessGuard.assertAttachmentEditable.
     accessGuard.assertAttachmentEditable(fspId, null);
+    // Read the upload into heap ONCE and reuse it for both the scan and the
+    // BLOB write. MultipartFile.getBytes() allocates a fresh full-size array
+    // on every call, so calling it twice held 2x the file in heap at once —
+    // a reliable OutOfMemoryError under the configured 100MB max-file-size.
+    byte[] content = file.getBytes();
     // Virus scan the raw bytes before storing — throws
     // VirusDetectedException (→ 422) on rejection. No-op when
     // fsp.clamav.enabled=false.
-    virusScanner.scanOrThrow(file.getBytes(), file.getOriginalFilename());
+    virusScanner.scanOrThrow(content, file.getOriginalFilename());
     // Resolve the FSP's current latest amendment number — the old
     // hardcoded "1" tripped FAX_FSP_FK whenever the FSP's amendments
     // didn't include 1 (e.g. original-only FSPs sitting at amendment 0).
@@ -153,7 +158,7 @@ public class AttachmentsService {
         description == null ? "" : description.trim(),
         DEFAULT_CONSOLIDATED_IND,
         userId);
-    attachmentsDao.saveAttachmentContent(created.createdAttachmentId(), file.getBytes());
+    attachmentsDao.saveAttachmentContent(created.createdAttachmentId(), content);
     return AttachmentResponse.builder()
         .fspAttachmentId(String.valueOf(created.createdAttachmentId()))
         .fspAmendmentNumber(amendmentNumber)

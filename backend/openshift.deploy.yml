@@ -36,8 +36,15 @@ parameters:
     value: "2"
   - name: MIN_CPU
     value: "200m"
+  # Memory request. Kept equal to MAX_MEM for Guaranteed QoS — see the
+  # resources block on the backend container for the quota arithmetic.
   - name: MIN_MEM
-    value: "500Mi"
+    value: "1Gi"
+  # Memory limit. The JVM derives its max heap from this value
+  # (-XX:MaxRAMPercentage=60), so raising it raises the heap. Bounded by the
+  # PROD namespace's 4Gi quota across 3 backend + 3 frontend replicas.
+  - name: MAX_MEM
+    value: "1Gi"
   - name: APP_LOG_LEVEL
     value: INFO
   - name: SPRING_SECURITY_LOG_LEVEL
@@ -245,15 +252,42 @@ objects:
                     secretKeyRef:
                       name: ${NAME}-backend-secret-${ZONE}
                       key: KEYSTORE_SECRET
+              # The JVM sizes its heap as a percentage of the memory LIMIT
+              # (-XX:MaxRAMPercentage=60 in the Dockerfile), so changing the
+              # limit here changes the heap. The old 800Mi limit paired with a
+              # hardcoded -Xmx200m, which OOMed on attachment uploads while
+              # ~500Mi of the pod sat unused. 1Gi ⇒ ~614MB heap, 3x the old
+              # ceiling.
+              #
+              # 1Gi is a quota ceiling, not a tuning choice. The PROD namespace
+              # caps at 4Gi total and merge.yml pins BOTH backend and frontend
+              # to 3 replicas there, so the budget is:
+              #   frontend 3 x 128Mi = 384Mi
+              #   backend  3 x   1Gi = 3072Mi
+              #   total              = 3456Mi, leaving 640Mi of namespace slack
+              # Anything above ~1237Mi per backend pod exceeds the quota and the
+              # 3rd replica will fail to schedule. Raise the namespace quota
+              # before raising this.
+              #
+              # requests == limits puts the pod in the Guaranteed QoS class, so
+              # it is the last thing evicted under node memory pressure. Since
+              # MIN_REPLICAS == MAX_REPLICAS in every zone (see reusable-deploy.yml)
+              # the footprint is fixed anyway — there is no burst headroom to
+              # reclaim by requesting less.
+              #
+              # ephemeral-storage must exceed the max heap size: the JVM writes
+              # a heap dump to /temp (emptyDir) on OOM, and an emptyDir counts
+              # against this limit — undersize it and the pod is evicted
+              # mid-dump, losing the diagnostic we added it for.
               resources:
                 requests:
                   cpu: ${MIN_CPU}
                   memory: ${MIN_MEM}
-                  ephemeral-storage: "200Mi"
+                  ephemeral-storage: "500Mi"
                 limits:
                   cpu: "1000m"
-                  memory: "800Mi"
-                  ephemeral-storage: "500Mi"
+                  memory: ${MAX_MEM}
+                  ephemeral-storage: "1Gi"
               livenessProbe:
                 httpGet:
                   path: /actuator/health
