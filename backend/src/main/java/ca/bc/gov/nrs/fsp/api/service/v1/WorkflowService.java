@@ -12,6 +12,7 @@ import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
@@ -20,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * /workflow GET reuses FSP_800_HISTORY (legacy app's audit cursor); workflow
@@ -53,11 +55,20 @@ public class WorkflowService {
       "SAVE_EXT_APP",
       "SAVE_EXT_REJ");
 
+  /** FSP_ATTACHMENT_TYPE_CODE for the FSP-level DDM decision letter. */
+  private static final String TYPE_DDM_DECISION = "DDMD";
+  /** FSP_ATTACHMENT_TYPE_CODE for the extension-linked DDM decision letter. */
+  private static final String TYPE_EXTENSION_DDM_DECISION = "EXDDMD";
+  private static final String DDM_LETTER_DESCRIPTION = "DDM decision letter";
+  private static final String EXTENSION_LETTER_DESCRIPTION = "Extension decision letter";
+
   private final Fsp700WorkflowDao workflowDao;
   private final Fsp800HistoryDao historyDao;
   private final FspService fspService;
   private final EmailNotificationService emailService;
   private final ca.bc.gov.nrs.fsp.api.dao.v1.FspWorkflowQueryDao workflowQueryDao;
+  private final AttachmentsService attachmentsService;
+  private final ExtensionService extensionService;
 
   public List<WorkflowResponse> getWorkflow(String fspId) {
     // FSP id flows in via P_NEW_FSP_ID; P_FSP_ID + both amendment slots
@@ -221,6 +232,51 @@ public class WorkflowService {
    * are threaded — everything else stays blank to avoid accidentally
    * overwriting unrelated columns.
    */
+  /**
+   * Record the FSP-level DDM decision together with its decision letter,
+   * in a single transaction.
+   *
+   * <p>The letter is persisted BEFORE the workflow save — not a stylistic
+   * choice: {@code FSP_700_WORKFLOW}'s validation counts the attachment,
+   * so uploading afterwards makes the decision fail. The dialog already
+   * ran that order client-side, but as two independent commits: a decision
+   * that failed after a successful upload left an orphaned letter on the
+   * FSP, and the reverse left a decision with no letter. Both halves now
+   * roll back together.
+   *
+   * @param letter the decision letter, or null when the decision is being
+   *               edited and a letter is already on file.
+   */
+  @Transactional
+  public WorkflowState submitDdmDecisionWithLetter(
+      String fspId, WorkflowRequest request, MultipartFile letter) throws IOException {
+    if (letter != null && !letter.isEmpty()) {
+      attachmentsService.upload(fspId, letter, TYPE_DDM_DECISION, DDM_LETTER_DESCRIPTION);
+    }
+    return submitAction(fspId, request);
+  }
+
+  /**
+   * Record an extension approve/reject together with its EXDDMD letter, in
+   * a single transaction. Same ordering rule and rationale as
+   * {@link #submitDdmDecisionWithLetter} — here the linkage
+   * {@code FSP_700_WORKFLOW.validate_ext_approve_reject} checks is
+   * {@code fsp_extension_xref}, which only
+   * {@code FSP_302_EXTENSION_REQUEST.CREATE_ATTACHMENT} writes, so the
+   * upload goes through {@link ExtensionService#uploadAttachment} rather
+   * than the FSP-level attachment path.
+   */
+  @Transactional
+  public WorkflowState submitExtensionDecisionWithLetter(
+      String fspId, String extensionId, WorkflowRequest request, MultipartFile letter)
+      throws IOException {
+    if (letter != null && !letter.isEmpty()) {
+      extensionService.uploadAttachment(
+          fspId, extensionId, letter, TYPE_EXTENSION_DDM_DECISION, EXTENSION_LETTER_DESCRIPTION);
+    }
+    return submitAction(fspId, request);
+  }
+
   @Transactional
   public WorkflowState submitAction(String fspId, WorkflowRequest request) {
     // Block the legacy "reverse decision" path. SAVE_DDM_* with

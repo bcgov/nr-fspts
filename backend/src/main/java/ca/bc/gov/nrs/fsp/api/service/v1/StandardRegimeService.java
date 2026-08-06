@@ -11,6 +11,7 @@ import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeLayerDetail;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeLayerUpdate;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeOverviewUpdate;
+import ca.bc.gov.nrs.fsp.api.util.AttachmentConstraints;
 import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,15 +41,10 @@ public class StandardRegimeService {
   private final FspAccessGuard accessGuard;
   private final VirusScanner virusScanner;
 
-  // Attachment upload constraints — mirror the frontend
-  // @/lib/attachmentConstraints so a client that bypasses the SPA can't
-  // slip an oversized / wrong-type / long-named file past the API. The
-  // filename cap matches STANDARDS_REGIME_ATTACHMENT.ATTACHMENT_NAME
-  // (VARCHAR2(50)); over that the insert would trip ORA-12899.
-  private static final long MAX_ATTACHMENT_BYTES = 50L * 1024 * 1024; // 50 MB
-  private static final int MAX_ATTACHMENT_FILENAME_LEN = 50;
-  private static final List<String> ACCEPTED_ATTACHMENT_EXTENSIONS =
-      List.of(".pdf", ".doc", ".docx");
+  // Attachment upload constraints live in the shared
+  // AttachmentConstraints so this path and AttachmentsService can't drift
+  // apart (they previously did: only this one validated filenames, and it
+  // counted characters where the column counts bytes).
 
   public StandardRegimeDetail getDetail(String fspId, String amendmentNumber, String regimeId) {
     return getDetailInternal(fspId, amendmentNumber, regimeId, "Y");
@@ -738,7 +734,7 @@ public class StandardRegimeService {
     accessGuard.assertContentEditable(fspId, amendmentNumber);
     accessGuard.assertStandardsRegimeEditable(regimeId);
     String fileName = file.getOriginalFilename();
-    validateAttachment(fileName, file.getSize());
+    AttachmentConstraints.validate(fileName, file.getSize());
     // Reject infected uploads before anything touches the DB (→ 422).
     virusScanner.scanOrThrow(file.getBytes(), fileName);
 
@@ -788,31 +784,6 @@ public class StandardRegimeService {
     log.info("Standards regime {} — removed attachment id={} by {}",
         regimeId, attachId, RequestUtil.getCurrentAuditUserId());
     return getDetail(fspId, amendmentNumber, regimeId);
-  }
-
-  /**
-   * Enforce the shared attachment constraints server-side (type / size /
-   * filename length). Throws {@link IllegalArgumentException} (→ 400 with
-   * a clean message) on the first violation, mirroring the front-end
-   * order so the messages line up.
-   */
-  private static void validateAttachment(String fileName, long size) {
-    String name = fileName == null ? "" : fileName;
-    String lower = name.toLowerCase(Locale.ROOT);
-    boolean okType = ACCEPTED_ATTACHMENT_EXTENSIONS.stream().anyMatch(lower::endsWith);
-    if (!okType) {
-      throw new IllegalArgumentException(
-          "File type not supported. Upload a .pdf, .doc, or .docx file.");
-    }
-    if (name.length() > MAX_ATTACHMENT_FILENAME_LEN) {
-      throw new IllegalArgumentException(
-          "File name too long. Use 50 characters or fewer, including the extension.");
-    }
-    if (size > MAX_ATTACHMENT_BYTES) {
-      throw new IllegalArgumentException(
-          "File exceeds size limit. Max file size is 50 MB. "
-              + "Select a smaller file and try again.");
-    }
   }
 
   /**

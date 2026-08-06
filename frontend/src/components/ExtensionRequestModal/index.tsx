@@ -17,11 +17,9 @@ import {
   ACCEPTED_ATTACHMENT_EXTENSIONS,
   validateAttachmentFile,
 } from '@/lib/attachmentConstraints';
+import { safeErrorMessage } from '@/lib/errorMessage';
 import {
-  createExtensionRequest,
-  getAttachmentCategories,
-  uploadFspAttachment,
-  type CodeOption,
+  submitExtensionWithAttachments,
   type FspInformation,
 } from '@/services/fspSearch';
 
@@ -80,21 +78,19 @@ const formatTerm = (
   return `${y} ${y === 1 ? 'year' : 'years'}, ${m} ${m === 1 ? 'month' : 'months'}`;
 };
 
-// No category picker in this dialog, so choose the most fitting
-// attachment type for an extension letter, falling back to the first
-// available category.
-const pickCategory = (cats: CodeOption[]): CodeOption | null => {
-  const find = (re: RegExp) =>
-    cats.find((c) => re.test(`${c.description ?? ''} ${c.code ?? ''}`));
-  return (
-    find(/extension/i) ??
-    find(/letter/i) ??
-    find(/legal/i) ??
-    find(/support/i) ??
-    cats[0] ??
-    null
-  );
-};
+/**
+ * FSP_ATTACHMENT_TYPE_CODE {@code EXT} ("Extension Request") — the
+ * category an extension letter belongs under.
+ *
+ * The dialog no longer resolves this itself. It used to fetch the FSP's
+ * category list and guess with a regex chain (/extension/ then /letter/
+ * then /legal/ then /support/, else cats[0]) — non-deterministic, and
+ * /legal/ matches the FSP Legal Document category first, so an extension
+ * letter could be filed as a legal document. The combined submit endpoint
+ * now fixes the type server-side in
+ * {@code ExtensionService.EXTENSION_REQUEST_TYPE_CODE}, which is also the
+ * only code {@code FspAccessGuard}'s carve-out accepts from a Submitter.
+ */
 
 const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => {
   const { display } = useNotification();
@@ -105,7 +101,6 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
   const [expiryDate, setExpiryDate] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [comment, setComment] = useState('');
-  const [categories, setCategories] = useState<CodeOption[]>([]);
   const [errors, setErrors] = useState<{
     term?: string;
     expiry?: string;
@@ -121,13 +116,6 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
     setFiles([]);
     setComment('');
     setErrors({});
-    // Attachments piggy-back on the FSP attachment list, so we need a
-    // category code to file them under. Fetch the list once per open.
-    if (fsp?.fspId) {
-      getAttachmentCategories(fsp.fspId)
-        .then(setCategories)
-        .catch(() => setCategories([]));
-    }
   }, [open, fsp?.fspId]);
 
   const closeIfIdle = () => {
@@ -189,62 +177,42 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
     if (!validate()) return;
     setBusy(true);
     try {
-      const result = await createExtensionRequest(fsp.fspId, {
-        planTermYears: extendBy === 'term' ? years.trim() || null : null,
-        planTermMonths: extendBy === 'term' ? months.trim() || null : null,
-        fspExpiryDate: extendBy === 'expiry' ? expiryDate || null : null,
-        statusComment: comment.trim() || null,
-        revisionCount: fsp.revisionCount,
-      });
-
-      // Upload any attachments to the FSP's attachment list (the
-      // extensions API can't carry files). A failed upload shouldn't
-      // undo the request, so collect failures and warn.
-      const failedUploads: string[] = [];
-      if (files.length > 0) {
-        const category = pickCategory(categories);
-        if (!category?.code) {
-          failedUploads.push(...files.map((f) => f.name));
-        } else {
-          for (const f of files) {
-            try {
-              await uploadFspAttachment(
-                fsp.fspId,
-                category.code,
-                f,
-                'Extension request supporting document',
-              );
-            } catch {
-              failedUploads.push(f.name);
-            }
-          }
-        }
-      }
+      // ONE atomic call — the request and its supporting documents commit
+      // or fail together. This used to create the request, commit, then
+      // upload each file in a loop, treating upload failures as non-fatal:
+      // the extension went on record and the letter vanished, with no way
+      // for a Submitter to attach it afterwards. There is now no partial
+      // outcome to report, so the failure path is a plain error and the
+      // modal stays open with the files still loaded for retry.
+      const result = await submitExtensionWithAttachments(
+        fsp.fspId,
+        {
+          planTermYears: extendBy === 'term' ? years.trim() || null : null,
+          planTermMonths: extendBy === 'term' ? months.trim() || null : null,
+          fspExpiryDate: extendBy === 'expiry' ? expiryDate || null : null,
+          statusComment: comment.trim() || null,
+          revisionCount: fsp.revisionCount,
+        },
+        files,
+      );
 
       onCreated(result.extensionId);
       onClose();
-      if (failedUploads.length > 0) {
-        display({
-          kind: 'warning',
-          title: 'Extension submitted, some attachments failed',
-          subtitle: `Could not upload: ${failedUploads.join(', ')}. Add them from the Attachments tab.`,
-          timeout: 0,
-        });
-      } else {
-        display({
-          kind: 'success',
-          title: 'Extension request submitted.',
-          subtitle: result.extensionId
-            ? `New extension #${result.extensionId}`
-            : undefined,
-          timeout: 6000,
-        });
-      }
+      display({
+        kind: 'success',
+        title: 'Extension request submitted.',
+        subtitle: result.extensionId
+          ? `New extension #${result.extensionId}`
+          : undefined,
+        timeout: 6000,
+      });
     } catch (e) {
+      // Nothing was committed, so the user can correct and resubmit —
+      // keep the dialog open rather than closing it out from under them.
       display({
         kind: 'error',
         title: 'Failed to submit extension request',
-        subtitle: e instanceof Error ? e.message : 'Unknown error',
+        subtitle: safeErrorMessage(e, 'Please try again later.'),
         timeout: 9000,
       });
     } finally {

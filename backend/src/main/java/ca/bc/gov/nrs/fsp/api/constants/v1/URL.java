@@ -40,6 +40,16 @@ public final class URL {
   // the FSP_800 audit cursor — the legacy app shipped both, repurposed
   // for the History and Workflow tabs respectively.
   public static final String WORKFLOW_STATE = "/{fspId}/workflow-state";
+  // POST (multipart) — record the DDM decision AND its decision letter in
+  // ONE transaction. The letter must exist BEFORE the workflow save (the
+  // proc's validation counts it), so the combined call persists the
+  // attachment first and rolls the whole thing back if the save fails.
+  public static final String WORKFLOW_DDM_DECISION = "/{fspId}/workflow/ddm-decision";
+  // POST (multipart) — same shape for the extension approve/reject, whose
+  // EXDDMD letter FSP_700_WORKFLOW.validate_ext_approve_reject requires to
+  // be linked via fsp_extension_xref before the decision will succeed.
+  public static final String WORKFLOW_EXTENSION_DECISION =
+      "/{fspId}/extensions/{extensionId}/decision";
   public static final String STANDARDS = "/{fspId}/standards";
   public static final String STANDARD_BY_ID = "/{fspId}/standards/{standardId}";
   public static final String STANDARD_DETAIL = "/{fspId}/standards/{regimeId}/detail";
@@ -111,6 +121,13 @@ public final class URL {
   public static final String INBOX = "/inbox";
   public static final String HISTORY = "/{fspId}/history";
   public static final String EXTENSIONS = "/{fspId}/extensions";
+  // POST (multipart) — create an extension request AND persist its
+  // supporting documents in ONE transaction. Supersedes the two-call
+  // client-orchestrated sequence (POST /extensions then POST
+  // /attachments), which committed the request before the upload was
+  // attempted: any failure past that point left the extension on record
+  // with its letter silently dropped, and the Submitter could not retry.
+  public static final String EXTENSION_SUBMIT = "/{fspId}/extensions/submit";
   // POST (multipart) — upload an extension-linked attachment (e.g. the
   // EXDDMD decision letter) via FSP_302_EXTENSION_REQUEST.CREATE_ATTACHMENT.
   public static final String EXTENSION_ATTACHMENTS =

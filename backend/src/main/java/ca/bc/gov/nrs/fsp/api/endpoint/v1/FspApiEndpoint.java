@@ -155,6 +155,30 @@ public interface FspApiEndpoint {
     ResponseEntity<WorkflowState> submitWorkflowAction(
             @PathVariable String fspId, @Valid @RequestBody WorkflowRequest workflowRequest);
 
+    // The decision letter and the decision itself are ONE unit of work.
+    // The `request` part is the same WorkflowRequest JSON the non-multipart
+    // endpoint takes, sent as an application/json part alongside the file.
+    @PostMapping(value = URL.WORKFLOW_DDM_DECISION, consumes = "multipart/form-data")
+    @PreAuthorize(FspAuthorities.WORKFLOW_DECISION)
+    @Operation(summary = "Record the DDM decision and its decision letter (DDMD) in one "
+            + "transaction; letter is persisted before FSP_700_WORKFLOW.MAINLINE runs")
+    ResponseEntity<WorkflowState> submitDdmDecision(
+            @PathVariable String fspId,
+            @RequestPart("request") @Valid WorkflowRequest workflowRequest,
+            @RequestPart(value = "file", required = false) MultipartFile file)
+            throws IOException;
+
+    @PostMapping(value = URL.WORKFLOW_EXTENSION_DECISION, consumes = "multipart/form-data")
+    @PreAuthorize(FspAuthorities.WORKFLOW_DECISION)
+    @Operation(summary = "Record an extension approve/reject and its EXDDMD letter in one "
+            + "transaction; letter is linked via fsp_extension_xref before the decision runs")
+    ResponseEntity<WorkflowState> submitExtensionDecision(
+            @PathVariable String fspId,
+            @PathVariable String extensionId,
+            @RequestPart("request") @Valid WorkflowRequest workflowRequest,
+            @RequestPart(value = "file", required = false) MultipartFile file)
+            throws IOException;
+
     // --- Stocking Standards ---
 
     @GetMapping(URL.STANDARDS)
@@ -275,6 +299,20 @@ public interface FspApiEndpoint {
     ResponseEntity<ExtensionRequestSaved> createExtension(
             @PathVariable String fspId,
             @Valid @RequestBody ExtensionRequestSave body);
+
+    // Preferred over POST /extensions when the request carries supporting
+    // documents: the request and its files commit or fail together, so a
+    // rejected upload can no longer leave an extension on record without
+    // the letter that justifies it.
+    @PostMapping(value = URL.EXTENSION_SUBMIT, consumes = "multipart/form-data")
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
+    @Operation(summary = "Create an extension request AND its supporting documents in one "
+            + "transaction via FSP_302_EXTENSION_REQUEST.SAVE + FSP_400_ATTACHMENTS")
+    ResponseEntity<ExtensionRequestSaved> submitExtensionWithAttachments(
+            @PathVariable String fspId,
+            @RequestPart("request") @Valid ExtensionRequestSave body,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files)
+            throws IOException;
 
     @GetMapping(URL.EXTENSION_ATTACHMENTS)
     @Operation(summary = "List attachments linked to an extension via fsp_extension_xref")

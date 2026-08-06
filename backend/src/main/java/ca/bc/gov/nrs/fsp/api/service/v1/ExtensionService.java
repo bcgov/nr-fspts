@@ -7,6 +7,7 @@ import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
 import ca.bc.gov.nrs.fsp.api.struct.v1.ExtensionAttachmentResponse;
 import ca.bc.gov.nrs.fsp.api.struct.v1.ExtensionRequestSave;
 import ca.bc.gov.nrs.fsp.api.struct.v1.ExtensionSummary;
+import ca.bc.gov.nrs.fsp.api.util.AttachmentConstraints;
 import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,17 @@ import java.util.List;
 public class ExtensionService {
 
   private static final String DEFAULT_CONSOLIDATED_IND = "N";
+
+  /**
+   * FSP_ATTACHMENT_TYPE_CODE {@code EXT} — "Extension Request", the
+   * purpose-built category for the letter accompanying an extension
+   * request (its sibling {@code EXDDMD} carries the decision). It is also
+   * the only code {@code FspAccessGuard}'s extension carve-out accepts
+   * from a Submitter, so the two must stay in step.
+   */
+  private static final String EXTENSION_REQUEST_TYPE_CODE = "EXT";
+  private static final String EXTENSION_SUPPORTING_DOC_DESCRIPTION =
+      "Extension request supporting document";
 
   private final Fsp303ExtensionSummaryDao dao;
   private final Fsp302ExtensionRequestDao requestDao;
@@ -118,6 +130,57 @@ public class ExtensionService {
   }
 
   /**
+   * Create an extension request and persist its supporting documents in a
+   * single transaction.
+   *
+   * <p>Replaces the client-orchestrated sequence the extension dialog used
+   * to run (POST /extensions, commit, then a POST /attachments per file).
+   * That ordering committed the request before any upload was attempted,
+   * so a rejected or interrupted upload left the extension on record with
+   * its letter gone — and because a Submitter can't upload to an Approved /
+   * In-Effect plan from anywhere else, there was no way to recover.
+   *
+   * <p>Ordering matters and is deliberate: the request is created first so
+   * the extension row exists, then the attachments are written. The
+   * supporting-document carve-out in
+   * {@code FspAccessGuard.assertAttachmentEditable} looks for an extension
+   * in {@code SUB} on this FSP — inside this transaction that lookup sees
+   * our own uncommitted insert, so the carve-out applies without being
+   * loosened. Any failure on any file throws, and the whole unit
+   * (extension + every attachment) rolls back.
+   *
+   * @param files supporting documents; may be empty.
+   */
+  @Transactional
+  public Fsp302ExtensionRequestDao.SaveResult createRequestWithAttachments(
+      String fspId, ExtensionRequestSave body, List<MultipartFile> files) throws IOException {
+    Fsp302ExtensionRequestDao.SaveResult result = createRequest(fspId, body);
+
+    if (files == null || files.isEmpty()) {
+      return result;
+    }
+    for (MultipartFile file : files) {
+      if (file == null || file.isEmpty()) {
+        continue;
+      }
+      // Routed through the EXTENSION-linked upload, not the FSP-level one.
+      // Both ultimately call fsp_common_db.fsp_attachment_create, but the
+      // overloads differ: passing (fsp_id, amendment) writes
+      // fsp_attachment_xref while passing extension_id writes
+      // fsp_extension_xref. Only the latter ties the file to the extension,
+      // and it is what the Extension Summary dialog reads — going through
+      // AttachmentsService stored the letter but left it invisible there.
+      // Same transaction, so a throw here unwinds the extension too.
+      uploadAttachment(
+          fspId, result.extensionId(), file,
+          EXTENSION_REQUEST_TYPE_CODE, EXTENSION_SUPPORTING_DOC_DESCRIPTION);
+    }
+    log.info("FSP_302 SAVE — fspId={} extensionId={} committed with {} attachment(s)",
+        fspId, result.extensionId(), files.size());
+    return result;
+  }
+
+  /**
    * Upload an attachment linked to an extension (not the FSP) via
    * FSP_302_EXTENSION_REQUEST.CREATE_ATTACHMENT + SAVE_ATTACHMENT_CONTENT.
    * Used for the extension decision letter (typeCode {@code EXDDMD}),
@@ -134,10 +197,22 @@ public class ExtensionService {
       String typeCode, String description) throws IOException {
     // Ownership fence (same rule the FSP attachment upload uses) — the
     // proc doesn't thread the caller's client number, so gate here.
-    accessGuard.assertAttachmentEditable(fspId, null);
+    // typeCode MUST be threaded: an extension decision is taken while the
+    // plan is Approved / In-Effect, which is outside a Decision Maker's
+    // normal B2 window, so the EXDDMD carve-out is what makes the
+    // decision letter uploadable at all.
+    accessGuard.assertAttachmentEditable(fspId, null, typeCode);
+    // Type / filename-length / size fence. This path had none — only the
+    // FSP-level upload did — so an over-long name reached the insert and
+    // died as an opaque ORA-12899. Same rules, one shared definition.
+    AttachmentConstraints.validate(file.getOriginalFilename(), file.getSize());
+    // Read the upload into heap ONCE and reuse it for the scan and the
+    // BLOB write. getBytes() allocates a fresh full-size array per call,
+    // so calling it twice held 2x the file in heap simultaneously.
+    byte[] content = file.getBytes();
     // Virus scan before storing — throws (→ 422) on rejection; no-op
     // when fsp.clamav.enabled=false.
-    virusScanner.scanOrThrow(file.getBytes(), file.getOriginalFilename());
+    virusScanner.scanOrThrow(content, file.getOriginalFilename());
     String userId = RequestUtil.getCurrentAuditUserId();
     Fsp302ExtensionRequestDao.CreateAttachmentResult created = requestDao.createAttachment(
         extensionId,
@@ -147,7 +222,7 @@ public class ExtensionService {
         description == null ? "" : description.trim(),
         DEFAULT_CONSOLIDATED_IND,
         userId);
-    requestDao.saveAttachmentContent(created.createdAttachmentId(), file.getBytes());
+    requestDao.saveAttachmentContent(created.createdAttachmentId(), content);
     log.info("FSP_302 CREATE_ATTACHMENT — extensionId={} type={} → attachmentId={}",
         extensionId, typeCode, created.createdAttachmentId());
   }

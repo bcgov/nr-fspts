@@ -45,6 +45,34 @@ public class FspAccessGuard {
   private static final String STANDARDS_NOT_EDITABLE = "fsp.web.error.standards_not_editable";
   private static final String STANDARDS_STATUS_APPROVED = "APP";
 
+  // --- Extension supporting-document carve-out (see assertAttachmentEditable) ---
+  /**
+   * FSP_ATTACHMENT_TYPE_CODE {@code EXT} — "Extension Request". Added to
+   * the code table on 2011-02-03, the same day as {@code EXDDMD}
+   * ("Extension DDM Decision"): the pair exists specifically for this
+   * feature, which is why the carve-out keys on it. Deliberately NOT
+   * {@code OTHR} ("Other Attachment") — that is a catch-all, and carving
+   * it out would let a Submitter attach any miscellaneous document to an
+   * Approved / In-Effect plan.
+   */
+  private static final String TYPE_EXTENSION_REQUEST = "EXT";
+  /**
+   * FSP_ATTACHMENT_TYPE_CODE {@code EXDDMD} — "Extension DDM Decision",
+   * {@code EXT}'s sibling (both added 2011-02-03). Carved out for the
+   * Decision Maker only; a Submitter must never be able to file the
+   * document that decides their own extension.
+   */
+  private static final String TYPE_EXTENSION_DECISION = "EXDDMD";
+  private static final String FSP_STATUS_APPROVED = "APP";
+  private static final String FSP_STATUS_IN_EFFECT = "INE";
+  /** An extension awaiting a DDM decision — FSP_TYPES.FSP_STAT_SUB. */
+  private static final String EXTENSION_STATUS_SUBMITTED = "SUB";
+  // Same signal FspExtensionQueryDao.hasOpenExtension uses. Queried here
+  // directly rather than injecting that DAO, to keep the guard's
+  // dependencies to the JdbcTemplate it already holds.
+  private static final String OPEN_EXTENSION_COUNT_SQL =
+      "SELECT COUNT(1) FROM the.fsp_extension WHERE fsp_id = ? AND fsp_status_code = ?";
+
   private final JdbcTemplate jdbcTemplate;
 
   public FspAccessGuard(JdbcTemplate jdbcTemplate) {
@@ -173,6 +201,45 @@ public class FspAccessGuard {
    * on violation; fails closed if the status can't be read.
    */
   public void assertAttachmentEditable(String fspId, String amendmentNumber) {
+    assertAttachmentEditable(fspId, amendmentNumber, null);
+  }
+
+  /**
+   * As {@link #assertAttachmentEditable(String, String)}, plus the
+   * <b>extension supporting-document carve-out</b>.
+   *
+   * <p>Requesting an extension is explicitly valid for a Submitter on an
+   * Approved / In-Effect plan — {@link #assertContentEditable} documents
+   * that exemption and {@code ExtensionService.createRequest} deliberately
+   * runs without a status guard. But B2 was never given the matching
+   * exemption, so the supporting letter the extension dialog uploads was
+   * refused with {@code not_editable_status} <em>after</em> the request had
+   * already been created. The request succeeded, the attachment was
+   * silently dropped, and the Submitter could not retry from anywhere.
+   *
+   * <p>The carve-out is deliberately narrow — all four must hold:
+   * <ul>
+   *   <li>the caller owns the FSP ({@link #assertWritable}, run first);</li>
+   *   <li>the attachment type is {@code OTHR} (Supporting Documents) —
+   *       never a legal document, amendment description, or decision
+   *       letter;</li>
+   *   <li>the plan is Approved or In-Effect — the only statuses an
+   *       extension can be requested on;</li>
+   *   <li>the FSP actually has an extension in {@code SUB} (awaiting a
+   *       decision), so the window is open only while a request is
+   *       genuinely pending.</li>
+   * </ul>
+   *
+   * <p>Deletion is intentionally NOT carved out: it still routes through
+   * the two-arg overload, so a Submitter cannot remove attachments from an
+   * Approved / In-Effect plan.
+   *
+   * @param attachmentTypeCode FSP_ATTACHMENT_TYPE_CODE of the upload, or
+   *                           null for callers with no type context (which
+   *                           get the unmodified B2 rule).
+   */
+  public void assertAttachmentEditable(
+      String fspId, String amendmentNumber, String attachmentTypeCode) {
     assertWritable(fspId, amendmentNumber);
 
     final long fspIdLong;
@@ -197,9 +264,20 @@ public class FspAccessGuard {
     if (FsptsRoles.ADMINISTRATOR.equals(role)) {
       editable = true;
     } else if (FsptsRoles.SUBMITTER.equals(role)) {
-      editable = "DFT".equals(status);
+      // + the EXT supporting letter, while their extension request is open.
+      editable = "DFT".equals(status)
+          || (TYPE_EXTENSION_REQUEST.equals(attachmentTypeCode)
+              && isDuringOpenExtension(fspIdLong, status));
     } else if (FsptsRoles.DECISION_MAKER.equals(role)) {
-      editable = "SUB".equals(status) || "OHS".equals(status);
+      // + the EXDDMD decision letter, while an extension awaits their
+      // decision. Without this a pure Decision Maker cannot approve or
+      // reject an extension at all: the plan is Approved / In-Effect (not
+      // SUB/OHS) for the whole request, so the upload is refused — and
+      // FSP_700_WORKFLOW.validate_ext_approve_reject raises
+      // FSP.CANNOT.APPROVE_OR_REJECT.NO_DMD_LETTER without that letter.
+      editable = "SUB".equals(status) || "OHS".equals(status)
+          || (TYPE_EXTENSION_DECISION.equals(attachmentTypeCode)
+              && isDuringOpenExtension(fspIdLong, status));
     } else if (FsptsRoles.REVIEWER.equals(role)) {
       editable = "SUB".equals(status);
     } else {
@@ -207,8 +285,8 @@ public class FspAccessGuard {
     }
 
     if (!editable) {
-      log.info("Attachment edit to FSP {} amd {} denied: role={} status={}",
-          fspIdLong, amendment, role, status);
+      log.info("Attachment edit to FSP {} amd {} denied: role={} status={} type={}",
+          fspIdLong, amendment, role, status, attachmentTypeCode);
       throw denyStatus(fspId, status, role);
     }
   }
@@ -287,6 +365,38 @@ public class FspAccessGuard {
     } catch (DataAccessException e) {
       log.warn("latest-amendment lookup failed for FSP {} (using 0): {}", fspId, e.getMessage());
       return 0L;
+    }
+  }
+
+  /**
+   * True when an extension request is genuinely open on this FSP and the
+   * plan is in one of the statuses an extension can be requested on.
+   *
+   * <p>This is the window both extension carve-outs hang off — the
+   * Submitter's {@code EXT} supporting letter and the Decision Maker's
+   * {@code EXDDMD} decision letter. Creating an extension never touches
+   * {@code forest_stewardship_plan.fsp_status_code} (traced through
+   * {@code FSP_302.save} → {@code fsp_common_db.fsp_create_extension} →
+   * {@code fsp_extension_status_update}: they write only
+   * {@code fsp_extension} and {@code fsp_status_history}), so the plan
+   * sits at Approved / In-Effect for the whole life of the request while
+   * only the extension row carries {@code SUB}. Neither role's normal B2
+   * window overlaps that, which is why both need the exemption.
+   *
+   * <p>Fails <b>closed</b>: if the extension lookup errors, no carve-out
+   * applies and the normal B2 rule stands.
+   */
+  private boolean isDuringOpenExtension(long fspId, String status) {
+    if (!FSP_STATUS_APPROVED.equals(status) && !FSP_STATUS_IN_EFFECT.equals(status)) {
+      return false;
+    }
+    try {
+      Integer open = jdbcTemplate.queryForObject(
+          OPEN_EXTENSION_COUNT_SQL, Integer.class, fspId, EXTENSION_STATUS_SUBMITTED);
+      return open != null && open > 0;
+    } catch (DataAccessException e) {
+      log.warn("Open-extension lookup failed for FSP {}; denying carve-out", fspId, e);
+      return false;
     }
   }
 

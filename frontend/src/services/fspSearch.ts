@@ -283,6 +283,43 @@ export async function createExtensionRequest(
 }
 
 /**
+ * Serialise a JSON payload as a multipart part. Spring's `@RequestPart`
+ * needs the part to carry `Content-Type: application/json` or it arrives
+ * as plain text and fails to bind — a bare `JSON.stringify` string in
+ * `FormData` does NOT set that, hence the Blob.
+ */
+const jsonPart = (payload: unknown): Blob =>
+  new Blob([JSON.stringify(payload)], { type: 'application/json' });
+
+/**
+ * Create an extension request AND upload its supporting documents in a
+ * single atomic call — the request and its files commit or fail together.
+ *
+ * Supersedes createExtensionRequest + a loop of uploadFspAttachment,
+ * which committed the request first: a rejected or interrupted upload
+ * then left the extension on record with the letter silently dropped,
+ * and a Submitter had no way to attach it afterwards.
+ */
+export async function submitExtensionWithAttachments(
+  fspId: string,
+  payload: ExtensionRequestPayload,
+  files: File[],
+): Promise<{ extensionId: string | null }> {
+  const form = new FormData();
+  form.append('request', jsonPart(payload));
+  for (const f of files) form.append('files', f);
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/extensions/submit`,
+    { method: 'POST', body: form },
+  );
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Extension request failed (${res.status})`);
+  }
+  return res.json() as Promise<{ extensionId: string | null }>;
+}
+
+/**
  * DELETE /v1/fsp/{fspId}?amendmentNumber=N — hard-delete a draft FSP
  * via FSP_300_INFORMATION REMOVE. The backend gates by status (DFT/REJ
  * only) and by role + client number, so this can 403 / 400 even when
@@ -600,6 +637,61 @@ export async function submitFspWorkflowAction(
     // shows just the curated proc message (e.g. "A decision-letter
     // attachment is required.") instead of the full ApiError JSON
     // envelope. Same pattern the other write helpers in this file use.
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Workflow action failed (${res.status})`);
+  }
+  return res.json() as Promise<FspWorkflowState>;
+}
+
+/**
+ * Record the DDM decision and its decision letter in ONE transaction.
+ *
+ * The letter must be persisted before FSP_700_WORKFLOW runs (the proc's
+ * validation counts it), which the dialog already did — but as two
+ * separate commits, so a decision that failed after a successful upload
+ * left an orphaned letter, and the reverse left a decision with none.
+ * Pass `file: null` when editing a decision whose letter is already filed.
+ */
+export async function submitDdmDecision(
+  fspId: string,
+  payload: FspWorkflowActionRequest,
+  file: File | null,
+): Promise<FspWorkflowState> {
+  const form = new FormData();
+  form.append('request', jsonPart(payload));
+  if (file) form.append('file', file);
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/workflow/ddm-decision`,
+    { method: 'POST', body: form },
+  );
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Workflow action failed (${res.status})`);
+  }
+  return res.json() as Promise<FspWorkflowState>;
+}
+
+/**
+ * Record an extension approve/reject and its EXDDMD letter in ONE
+ * transaction. The letter is linked via fsp_extension_xref, which is the
+ * linkage FSP_700_WORKFLOW.validate_ext_approve_reject requires before
+ * the decision will succeed.
+ */
+export async function submitExtensionDecision(
+  fspId: string,
+  extensionId: string,
+  payload: FspWorkflowActionRequest,
+  file: File | null,
+): Promise<FspWorkflowState> {
+  const form = new FormData();
+  form.append('request', jsonPart(payload));
+  if (file) form.append('file', file);
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}`
+    + `/extensions/${encodeURIComponent(extensionId)}/decision`,
+    { method: 'POST', body: form },
+  );
+  if (!res.ok) {
     const detail = await readErrorMessage(res);
     throw new Error(detail || `Workflow action failed (${res.status})`);
   }

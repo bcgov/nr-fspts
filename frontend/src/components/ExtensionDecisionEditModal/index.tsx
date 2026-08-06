@@ -9,7 +9,7 @@ import {
   TextArea,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
-import { useEffect, useRef, useState, type FC } from 'react';
+import { useEffect, useState, type FC } from 'react';
 
 import DragDropFileInput from '@/components/DragDropFileInput';
 import { useNotification } from '@/context/notification/useNotification';
@@ -17,10 +17,8 @@ import {
   ACCEPTED_ATTACHMENT_EXTENSIONS,
   validateAttachmentFile,
 } from '@/lib/attachmentConstraints';
-import {
-  uploadExtensionAttachment,
-  type FspExtensionDecision,
-} from '@/services/fspSearch';
+import { safeErrorMessage } from '@/lib/errorMessage';
+import { type FspExtensionDecision } from '@/services/fspSearch';
 // Reuse the DDM decision dialog's layout (body rhythm, full-width banner,
 // compact date row) so the two decision dialogs read identically.
 import '../DdmDecisionEditModal/ddm-decision-modal.scss';
@@ -30,8 +28,11 @@ import '../DdmDecisionEditModal/ddm-decision-modal.scss';
  * validate_ext_approve_reject requires an attachment of this type to be
  * linked to the extension (via fsp_extension_xref) before an approve or
  * reject will succeed — see FSP_302_EXTENSION_REQUEST.CREATE_ATTACHMENT.
+ *
+ * The code itself now lives server-side in
+ * {@code WorkflowService.TYPE_EXTENSION_DDM_DECISION}: the combined
+ * decision endpoint owns the upload, so the dialog only carries the file.
  */
-const EXTENSION_DECISION_TYPE_CODE = 'EXDDMD';
 
 /** Maps onto the two SAVE_EXT_* proc actions. */
 export type ExtensionDecisionChoice = 'APP' | 'REJ';
@@ -43,6 +44,13 @@ export interface ExtensionDecisionSubmitPayload {
   /** Only sent when decision is "APP". */
   effectiveDate?: string;
   comment: string;
+  /**
+   * The EXDDMD decision letter, handed to the parent rather than uploaded
+   * here. The letter and the decision are one unit of work — the parent
+   * posts both to the combined endpoint so they commit or roll back
+   * together. Null when the extension already has its letter on file.
+   */
+  letterFile: File | null;
 }
 
 interface ExtensionDecisionEditModalProps {
@@ -126,11 +134,6 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
   // the form doesn't open painted red. Set true when the user clicks Save
   // with something missing.
   const [showValidation, setShowValidation] = useState(false);
-  // Guards against re-uploading the letter when the decision save fails and
-  // the user retries — the file is uploaded before the save (see submit()),
-  // so a naive retry would attach a duplicate.
-  const letterUploadedRef = useRef(false);
-
   // "Record" = first decision (no prior). The decision letter is required
   // in this mode — the workflow proc blocks approve/reject without an
   // extension-linked EXDDMD attachment. An Edit of an existing decision
@@ -145,7 +148,6 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
     setEffectiveDate(value.effectiveDate ?? '');
     setComment(value.comment ?? '');
     setLetterFile(null);
-    letterUploadedRef.current = false;
     setShowValidation(false);
   }, [open, prevDecision, value]);
 
@@ -183,47 +185,25 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
       setShowValidation(true);
       return;
     }
-    setSaving(true);
-    // 1. Upload the decision letter FIRST. FSP_700_WORKFLOW's
-    //    validate_ext_approve_reject requires an extension-linked EXDDMD
-    //    attachment to already exist before an approve/reject save — so the
-    //    letter has to land (linked to the extension via fsp_extension_xref)
-    //    before we save the decision. Skip if it already uploaded on a prior
-    //    attempt (guarded ref) so a retry doesn't duplicate it.
-    if (letterFile && !letterUploadedRef.current) {
-      const extensionId = value.extensionId;
-      if (!extensionId) {
-        display({
-          kind: 'error',
-          title: 'Cannot upload the decision letter',
-          subtitle: 'This extension has no id yet.',
-          timeout: 9000,
-        });
-        setSaving(false);
-        return;
-      }
-      try {
-        await uploadExtensionAttachment(
-          fspId,
-          extensionId,
-          EXTENSION_DECISION_TYPE_CODE,
-          letterFile,
-          'Extension decision letter',
-        );
-        letterUploadedRef.current = true;
-      } catch (e) {
-        display({
-          kind: 'error',
-          title: 'Failed to upload the decision letter',
-          subtitle: e instanceof Error ? e.message : 'Unknown error',
-          timeout: 9000,
-        });
-        setSaving(false);
-        return;
-      }
+    if (letterFile && !value.extensionId) {
+      display({
+        kind: 'error',
+        title: 'Cannot upload the decision letter',
+        subtitle: 'This extension has no id yet.',
+        timeout: 9000,
+      });
+      return;
     }
-    // 2. Save the decision. On failure keep the modal open for retry — the
-    //    already-uploaded letter is reused (not re-uploaded) on the retry.
+    setSaving(true);
+    // The letter and the decision go up together in one atomic call — the
+    // parent posts both to /extensions/{id}/decision, which links the
+    // EXDDMD via fsp_extension_xref BEFORE running FSP_700_WORKFLOW (whose
+    // validate_ext_approve_reject requires that linkage) and rolls both
+    // back on failure. This dialog used to upload the letter itself in a
+    // separate committed request, so a decision that failed afterwards
+    // left an orphaned letter linked to the extension; a guard ref then
+    // had to suppress a re-upload on retry. Neither is needed now — a
+    // failed attempt commits nothing, so retrying re-sends the file.
     try {
       await onSubmit({
         decision,
@@ -231,13 +211,14 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
         decisionDate,
         effectiveDate: needsEffectiveDate ? effectiveDate : undefined,
         comment: comment.trim(),
+        letterFile,
       });
       onClose();
     } catch (e) {
       display({
         kind: 'error',
         title: 'Failed to save extension decision',
-        subtitle: e instanceof Error ? e.message : 'Unknown error',
+        subtitle: safeErrorMessage(e, 'Please try again later.'),
         timeout: 9000,
       });
     } finally {
@@ -249,7 +230,7 @@ const ExtensionDecisionEditModal: FC<ExtensionDecisionEditModalProps> = ({
     `Supported file types are ${ACCEPTED_ATTACHMENT_EXTENSIONS.join(', ')}. `
     + `Max file size is 50 MB.\n`
     + (isRecordMode ? 'Required before saving the decision. ' : '')
-    + 'Stored against this extension and visible on the Attachments tab.';
+    + 'Stored against this extension.';
 
   return (
     <Modal

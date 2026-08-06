@@ -40,6 +40,8 @@ import {
   getFspExtensions,
   getFspWorkflowState,
   submitFspWorkflowAction,
+  submitDdmDecision,
+  submitExtensionDecision,
 } from '@/services/fspSearch';
 
 // The DDM / extension decision-letter attachments, normalised to a common
@@ -936,20 +938,28 @@ const WorkflowDataTab: FC<Props> = ({
         : payload.decision === 'DFT'
           ? 'SAVE_DDM_DFT'
           : 'SAVE_DDM_REJ';
-    const updated = await submitFspWorkflowAction(fspId, {
-      action,
-      fspAmendmentNumber: state.fspAmendmentNumber ?? undefined,
-      // Echo the current status so the proc's branching can tell us
-      // apart from a Reverse call. completed='Y' is the "make this
-      // decision happen" branch (vs 'N' which means "undo").
-      fspStatusCode: state.fspStatusCode ?? undefined,
-      fspAmendmentCode: state.fspAmendmentCode ?? undefined,
-      completed: 'Y',
-      submissionDate: payload.submissionDate || undefined,
-      decisionDate: payload.decisionDate,
-      effectiveDate: payload.effectiveDate,
-      comments: payload.comment,
-    });
+    // Decision + letter as ONE transaction. The endpoint persists the
+    // attachment before FSP_700_WORKFLOW runs (the proc validates a DDM
+    // decision document is already attached) and rolls both back if the
+    // save fails, so there is no window where one exists without the other.
+    const updated = await submitDdmDecision(
+      fspId,
+      {
+        action,
+        fspAmendmentNumber: state.fspAmendmentNumber ?? undefined,
+        // Echo the current status so the proc's branching can tell us
+        // apart from a Reverse call. completed='Y' is the "make this
+        // decision happen" branch (vs 'N' which means "undo").
+        fspStatusCode: state.fspStatusCode ?? undefined,
+        fspAmendmentCode: state.fspAmendmentCode ?? undefined,
+        completed: 'Y',
+        submissionDate: payload.submissionDate || undefined,
+        decisionDate: payload.decisionDate,
+        effectiveDate: payload.effectiveDate,
+        comments: payload.comment,
+      },
+      payload.letterFile,
+    );
     setState(updated);
     onWorkflowChanged?.();
     display({
@@ -975,20 +985,28 @@ const WorkflowDataTab: FC<Props> = ({
       throw new Error('No extension id on the current FSP — cannot record decision.');
     }
     const action = payload.decision === 'APP' ? 'SAVE_EXT_APP' : 'SAVE_EXT_REJ';
-    const updated = await submitFspWorkflowAction(fspId, {
-      action,
-      fspAmendmentNumber: state.fspAmendmentNumber ?? undefined,
-      fspStatusCode: state.fspStatusCode ?? undefined,
-      fspAmendmentCode: state.fspAmendmentCode ?? undefined,
-      // Legacy proc rejects completed='N' on SAVE_EXT_* with FSP.NO.COMPLETE.IND
-      // — extensions have no Reverse path.
-      completed: 'Y',
-      extensionId: extId,
-      submissionDate: payload.submissionDate,
-      decisionDate: payload.decisionDate,
-      effectiveDate: payload.effectiveDate,
-      comments: payload.comment,
-    });
+    // Decision + EXDDMD letter as ONE transaction. The endpoint links the
+    // letter via fsp_extension_xref before running the decision (which
+    // validate_ext_approve_reject requires) and rolls both back on failure.
+    const updated = await submitExtensionDecision(
+      fspId,
+      extId,
+      {
+        action,
+        fspAmendmentNumber: state.fspAmendmentNumber ?? undefined,
+        fspStatusCode: state.fspStatusCode ?? undefined,
+        fspAmendmentCode: state.fspAmendmentCode ?? undefined,
+        // Legacy proc rejects completed='N' on SAVE_EXT_* with
+        // FSP.NO.COMPLETE.IND — extensions have no Reverse path.
+        completed: 'Y',
+        extensionId: extId,
+        submissionDate: payload.submissionDate,
+        decisionDate: payload.decisionDate,
+        effectiveDate: payload.effectiveDate,
+        comments: payload.comment,
+      },
+      payload.letterFile,
+    );
     setState(updated);
     onWorkflowChanged?.();
     // Prior decision (edit) when the extension already carries a decision

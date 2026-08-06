@@ -164,6 +164,22 @@ public class FspApiController implements FspApiEndpoint {
                 workflowService.submitAction(fspId, workflowRequest));
     }
 
+    @Override
+    public ResponseEntity<WorkflowState> submitDdmDecision(
+            String fspId, WorkflowRequest workflowRequest, MultipartFile file)
+            throws IOException {
+        return ResponseEntity.ok(
+                workflowService.submitDdmDecisionWithLetter(fspId, workflowRequest, file));
+    }
+
+    @Override
+    public ResponseEntity<WorkflowState> submitExtensionDecision(
+            String fspId, String extensionId, WorkflowRequest workflowRequest, MultipartFile file)
+            throws IOException {
+        return ResponseEntity.ok(workflowService.submitExtensionDecisionWithLetter(
+                fspId, extensionId, workflowRequest, file));
+    }
+
     // --- Stocking Standards ---
 
     @Override
@@ -266,6 +282,14 @@ public class FspApiController implements FspApiEndpoint {
     public ResponseEntity<ExtensionRequestSaved> createExtension(
             String fspId, ExtensionRequestSave body) {
         var result = extensionService.createRequest(fspId, body);
+        return ResponseEntity.ok(new ExtensionRequestSaved(result.extensionId()));
+    }
+
+    @Override
+    public ResponseEntity<ExtensionRequestSaved> submitExtensionWithAttachments(
+            String fspId, ExtensionRequestSave body, List<MultipartFile> files)
+            throws IOException {
+        var result = extensionService.createRequestWithAttachments(fspId, body, files);
         return ResponseEntity.ok(new ExtensionRequestSaved(result.extensionId()));
     }
 
