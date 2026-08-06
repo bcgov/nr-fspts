@@ -6,8 +6,18 @@
  * redeclaring locally.
  *
  * The 50-byte filename cap matches the database column width
- * (FSP_ATTACHMENT.FILE_NAME VARCHAR2(50)); an over-50-char filename
- * would otherwise blow up mid-upload with ORA-12899.
+ * (FSP_ATTACHMENT.ATTACHMENT_NAME VARCHAR2(50), and the identically
+ * named column on STANDARDS_REGIME_ATTACHMENT); over that, the insert
+ * blows up mid-upload with ORA-12899.
+ *
+ * The cap is measured in UTF-8 BYTES, not characters. Oracle VARCHAR2
+ * lengths are byte-semantic by default — a char-semantic column would
+ * read VARCHAR2(50 CHAR) — so counting `name.length` (UTF-16 code
+ * units) let a 50-"character" name occupy 52 bytes, pass this check,
+ * and then fail the insert. An en-dash (U+2013) costs 3 bytes and is
+ * what Word and Outlook autocorrect produce from a typed hyphen;
+ * accented letters cost 2. Keep this in step with the server-side
+ * ca.bc.gov.nrs.fsp.api.util.AttachmentConstraints.
  */
 
 /** Allow-list of file extensions, lowercase with leading dot. */
@@ -17,8 +27,15 @@ export const ACCEPTED_ATTACHMENT_EXTENSIONS: readonly string[] = [
   '.docx',
 ];
 
-/** Max filename length including the extension. Matches DB column. */
+/** Max filename length in UTF-8 bytes, including the extension. Matches DB column. */
 export const MAX_ATTACHMENT_FILENAME_LEN = 50;
+
+/**
+ * UTF-8 byte length of a filename — the value the DB column actually
+ * bounds. Differs from `name.length` for any non-ASCII character.
+ */
+export const filenameByteLength = (filename: string): number =>
+  new TextEncoder().encode(filename).length;
 
 /** Per-file upload cap, in bytes (50 MB). */
 export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
@@ -43,12 +60,21 @@ export const validateAttachmentFile = (
       subtitle: `Allowed: ${ACCEPTED_ATTACHMENT_EXTENSIONS.join(', ')}.`,
     };
   }
-  if (file.name.length > MAX_ATTACHMENT_FILENAME_LEN) {
+  const nameBytes = filenameByteLength(file.name);
+  if (nameBytes > MAX_ATTACHMENT_FILENAME_LEN) {
+    // Report the byte count as the count that matters, but only mention
+    // the multi-byte rule when it is actually what tipped the file over —
+    // otherwise a plainly-too-long ASCII name gets a confusing hint.
+    const inflated = nameBytes > file.name.length;
     return {
       title: 'File name too long',
       subtitle:
         `Max ${MAX_ATTACHMENT_FILENAME_LEN} characters including the extension `
-        + `(this file has ${file.name.length}). Rename and try again.`,
+        + `(this file counts as ${nameBytes}`
+        + (inflated
+          ? `, because accented letters and long dashes count as 2-3 each`
+          : '')
+        + `). Rename and try again.`,
     };
   }
   if (file.size > MAX_ATTACHMENT_BYTES) {

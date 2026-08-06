@@ -42,10 +42,16 @@ class WorkflowServiceDdmGuardTest {
   private final EmailNotificationService emailService = mock(EmailNotificationService.class);
   private final ca.bc.gov.nrs.fsp.api.dao.v1.FspWorkflowQueryDao workflowQueryDao =
       mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspWorkflowQueryDao.class);
+  // Only exercised by the combined decision+letter entry points, which
+  // these role/status guard tests don't reach — mocked to satisfy the
+  // constructor.
+  private final AttachmentsService attachmentsService = mock(AttachmentsService.class);
+  private final ExtensionService extensionService = mock(ExtensionService.class);
 
   private final WorkflowService service =
       new WorkflowService(
-          workflowDao, historyDao, fspService, emailService, workflowQueryDao);
+          workflowDao, historyDao, fspService, emailService, workflowQueryDao,
+          attachmentsService, extensionService);
 
   @AfterEach
   void clearAuth() {

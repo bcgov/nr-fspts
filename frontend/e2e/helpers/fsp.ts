@@ -140,9 +140,10 @@ export async function recordDdmApproval(page: Page): Promise<void> {
   await modal.getByLabel('Decision date', { exact: false }).fill(today);
   await modal.getByLabel('Effective date', { exact: false }).fill(today);
 
-  // Recording a decision requires the DDM decision letter; it's uploaded to
-  // the FSP attachments after the decision saves. The modal has a single
-  // file input (the letter dropzone).
+  // Recording a decision requires the DDM decision letter. It is no longer a
+  // separate upload: the letter rides along in the same multipart request as
+  // the decision, so there is exactly ONE POST to wait on below. The modal
+  // has a single file input (the letter dropzone).
   const letter = tinyPdfFile('e2e-ddm-decision-letter.pdf');
   await modal.locator('input[type="file"]').setInputFiles({
     name: letter.name,
@@ -151,8 +152,11 @@ export async function recordDdmApproval(page: Page): Promise<void> {
   });
 
   await Promise.all([
+    // /workflow/ddm-decision — the combined endpoint that persists the
+    // decision letter and runs FSP_700_WORKFLOW in one transaction. The
+    // decision no longer goes through the generic /workflow/action route.
     page.waitForResponse(
-      (r) => /\/workflow\/action\b/.test(r.url()) && r.request().method() === 'POST',
+      (r) => /\/workflow\/ddm-decision\b/.test(r.url()) && r.request().method() === 'POST',
       { timeout: 30_000 },
     ),
     // The DDM modal's submit button is "Record decision" ("Saving…" while in

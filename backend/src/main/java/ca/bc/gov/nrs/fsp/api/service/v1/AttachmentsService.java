@@ -5,6 +5,7 @@ import ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao;
 import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
 import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentBlob;
 import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentResponse;
+import ca.bc.gov.nrs.fsp.api.util.AttachmentConstraints;
 import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
 import lombok.extern.slf4j.Slf4j;
 // RequiredArgsConstructor dropped — explicit constructor below so
@@ -130,7 +131,19 @@ public class AttachmentsService {
     // org's FSP. Resolves the latest amendment internally. Attachments use
     // the B2 rule (Admin any status; Submitter Draft; DM on SUB/OHS;
     // Reviewer on SUB) — see FspAccessGuard.assertAttachmentEditable.
-    accessGuard.assertAttachmentEditable(fspId, null);
+    // typeCode is threaded so the guard can apply the extension
+    // supporting-document carve-out (OTHR + open extension on an APP/INE
+    // plan). Without it a Submitter's extension letter is refused after
+    // the extension request has already been created.
+    accessGuard.assertAttachmentEditable(fspId, null, typeCode);
+    // Type / filename-length / size fence. This path previously had NO
+    // filename validation at all — the browser was the only guard, so any
+    // non-SPA client (or any name the SPA's character count under-measured)
+    // reached the insert and died with ORA-12899 as an opaque 500. The
+    // extension-request dialog uploads through here, which is how a
+    // supporting letter could vanish after the extension was already
+    // created. See AttachmentConstraints on why this counts bytes.
+    AttachmentConstraints.validate(file.getOriginalFilename(), file.getSize());
     // Read the upload into heap ONCE and reuse it for both the scan and the
     // BLOB write. MultipartFile.getBytes() allocates a fresh full-size array
     // on every call, so calling it twice held 2x the file in heap at once —

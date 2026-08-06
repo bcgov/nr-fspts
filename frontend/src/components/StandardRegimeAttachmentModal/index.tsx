@@ -10,6 +10,7 @@ import {
   hasAcceptedAttachmentExtension,
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENT_FILENAME_LEN,
+  filenameByteLength,
 } from '@/lib/attachmentConstraints';
 
 const DESCRIPTION_MAX = 120;
@@ -38,8 +39,11 @@ const fileProblem = (file: File | null): string | null => {
     return 'File exceeds size limit. Max file size is 50 MB. '
       + 'Select a smaller file and try again.';
   }
-  if (file.name.length > MAX_ATTACHMENT_FILENAME_LEN) {
-    return 'File name too long. Use 50 characters or fewer, including the extension.';
+  // Byte length, not character length — the DB column is byte-semantic.
+  // See @/lib/attachmentConstraints.
+  if (filenameByteLength(file.name) > MAX_ATTACHMENT_FILENAME_LEN) {
+    return 'File name too long. Use 50 characters or fewer, including the '
+      + 'extension. Accented letters and long dashes count as 2-3 each.';
   }
   return null;
 };
