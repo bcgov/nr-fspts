@@ -48,4 +48,10 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
 # read-only). The dump is written before ExitOnOutOfMemoryError terminates
 # the JVM. Keep the Deployment's ephemeral-storage limit above the max heap
 # size or the dump will fill the volume and get the pod evicted.
+# Log timestamps are NOT pinned here. The timezone comes from the TZ env var
+# set on the Deployment (see openshift.deploy.yml), so it can be changed per
+# environment without rebuilding this image. The JVM resolves a named TZ from
+# the tzdb bundled inside the JDK, so it works on this Alpine base even though
+# the OS has no tzdata package. Do not add -Duser.timezone: it would override
+# TZ and make the deployment parameter silently ineffective.
 ENTRYPOINT ["java","-Duser.name=FSP-API","-XX:InitialRAMPercentage=30","-XX:MaxRAMPercentage=60","-XX:TieredStopAtLevel=1","-XX:+UseParallelGC","-XX:MinHeapFreeRatio=20","-XX:MaxHeapFreeRatio=40","-XX:GCTimeRatio=4","-XX:AdaptiveSizePolicyWeight=90","-XX:MaxMetaspaceSize=200m","-XX:ParallelGCThreads=2","-Djava.util.concurrent.ForkJoinPool.common.parallelism=8","-XX:CICompilerCount=2","-XX:+HeapDumpOnOutOfMemoryError","-XX:HeapDumpPath=/temp","-XX:+ExitOnOutOfMemoryError","-Djava.security.egd=file:/dev/./urandom","-cp","app:app/lib/*","ca.bc.gov.nrs.fsp.api.FspApiResourceApplication"]
