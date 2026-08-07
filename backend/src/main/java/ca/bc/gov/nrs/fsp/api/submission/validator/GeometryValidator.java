@@ -33,7 +33,6 @@ public class GeometryValidator {
 
   private final GmlGeometryConverter converter;
   private final SrsValidator srsValidator;
-  private final BcBoundaryValidator bcBoundary;
   private final GeometrySimplifier simplifier;
 
   public List<SubmissionValidationError> validate(FSPSubmissionType submission) {
@@ -96,16 +95,25 @@ public class GeometryValidator {
             path, "GEOMETRY_INVALID", topoErr.getMessage()));
         return;
       }
-      // 5. BC containment — check the (now-reprojected, topology-valid)
-      //    geometry sits inside the BC outline. Skip when prior steps
-      //    failed since a malformed polygon could throw under covers().
-      if (!bcBoundary.isInsideBc(jts)) {
-        errors.add(SubmissionValidationError.of(
-            path, "GEOMETRY_OUTSIDE_BC",
-            "geometry is not inside the BC provincial boundary"));
-        return;
-      }
-      // 6. Simplify (Douglas-Peucker 2.5m) + snap to 0.001m precision
+      // NOTE: there is deliberately NO provincial-boundary containment
+      // check here. One was added during the rewrite and had no
+      // counterpart in either predecessor system: ESF — which is where
+      // these XML submissions were actually uploaded — validated only XML
+      // schema conformance and GML parse correctness (its
+      // GmlGeometryExtractor.validate() is literally `return true`), and
+      // the legacy nr-fsp web app never ingested geometry at all (its
+      // FDUGeometryDAO is read-only). Rejecting on containment was
+      // therefore stricter than anything licensees submitted against
+      // before, and it refused valid coastal plans. Removed 2026-08-06.
+      //
+      // Nothing downstream re-imposes it: the FOREST_DEVELOPMENT_UNIT_GEOM
+      // trigger runs MOF_SPATIAL_VALIDATION.VALIDATE, which is a topology
+      // check (SDO_GEOM.VALIDATE_GEOMETRY_WITH_CONTEXT), and the
+      // USER_SDO_GEOM_METADATA bounds (X 200000-1900000, Y 300000-1800000)
+      // are a loose envelope well outside the province. If containment is
+      // ever wanted again, make it a WARNING, not a hard failure.
+
+      // 5. Simplify (Douglas-Peucker 2.5m) + snap to 0.001m precision
       //    grid + re-validate. Falls back to TopologyPreservingSimplifier
       //    if the DP output trips IsValidOp. Write the result back to
       //    the JAXB tree so persistence picks up the storage-ready

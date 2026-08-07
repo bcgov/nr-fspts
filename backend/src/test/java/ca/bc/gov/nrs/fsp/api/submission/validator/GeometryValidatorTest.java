@@ -23,15 +23,12 @@ class GeometryValidatorTest {
   private static GeometryValidator newValidator() {
     SrsValidator srs = new SrsValidator();
     srs.initTransforms();
-    BcBoundaryValidator bc = new BcBoundaryValidator();
-    bc.loadBoundary();
     return new GeometryValidator(
-        new GmlGeometryConverter(), srs, bc, new GeometrySimplifier());
+        new GmlGeometryConverter(), srs, new GeometrySimplifier());
   }
 
   // Test polygons live near central BC in EPSG:3005 (around Prince
-  // George ~1,200,000 E / 1,000,000 N) so they pass both the SRS
-  // check and the new BC-containment check.
+  // George ~1,200,000 E / 1,000,000 N) so they pass the SRS check.
   private static double[][] squareAt(double e, double n, double side) {
     return new double[][] {
       {e, n}, {e + side, n}, {e + side, n + side}, {e, n + side}, {e, n}
@@ -70,16 +67,34 @@ class GeometryValidatorTest {
   }
 
   @Test
-  void reports_outside_bc() {
-    // Far-east-of-BC polygon (Saskatchewan range in BC Albers) — same
-    // valid topology, just way past our boundary.
+  void does_not_reject_geometry_outside_the_province() {
+    // Deliberate: we do NOT enforce provincial containment. A check was
+    // added during the rewrite that neither predecessor had — ESF, where
+    // these submissions were actually uploaded, validated only XML schema
+    // and GML parse correctness, and the legacy nr-fsp app never ingested
+    // geometry at all. It rejected valid coastal plans, so it was removed.
+    //
+    // This polygon sits well east of BC (Saskatchewan range in BC Albers)
+    // with perfectly valid topology. It must pass.
     FSPSubmissionType submission = submissionWithFduExtent(
         polygonExtent(squareAt(3_000_000, 1_000_000, 1000)));
 
     List<SubmissionValidationError> errors = validator.validate(submission);
 
-    assertThat(errors).hasSize(1);
-    assertThat(errors.get(0).code()).isEqualTo("GEOMETRY_OUTSIDE_BC");
+    assertThat(errors).isEmpty();
+  }
+
+  @Test
+  void accepts_a_coastal_extent_that_the_old_boundary_check_rejected() {
+    // Taken from the central-coast submission that exposed the problem
+    // (Hailzaqv Territory). These coordinates are genuine BC Albers and
+    // were refused by the removed check's placeholder boundary.
+    FSPSubmissionType submission = submissionWithFduExtent(
+        polygonExtent(squareAt(720_431, 793_326, 1000)));
+
+    List<SubmissionValidationError> errors = validator.validate(submission);
+
+    assertThat(errors).isEmpty();
   }
 
   @Test

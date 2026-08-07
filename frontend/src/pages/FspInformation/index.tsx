@@ -117,6 +117,13 @@ const FspInformationPage: FC = () => {
   // WorkflowDataTab keep showing pre-submit status because they're
   // keyed on [fspId] alone.
   const [refreshKey, setRefreshKey] = useState(0);
+  // Bumped to force the FSP record itself to be re-fetched. Distinct from
+  // refreshKey: that one only tells the child tabs to refetch their own
+  // slices, and refreshAfterMutation needs a ready-made FspInformation to
+  // swap in. Mutations that DON'T return the updated FSP (e.g. saving FDU
+  // licences, which returns only the new licence list) bump this instead
+  // so the record is re-read from the server.
+  const [reloadSignal, setReloadSignal] = useState(0);
   // Controlled tab index so cross-tab links (e.g. the "Attachments" links
   // in the Workflow tab's decision sub-headings) can switch tabs.
   // Order mirrors the <Tab> list below: 0 Information, 1 Stocking, 2 FDU/Map,
@@ -133,6 +140,18 @@ const FspInformationPage: FC = () => {
    */
   const refreshAfterMutation = (updated: FspInformation) => {
     setFsp(updated);
+    setRefreshKey((k) => k + 1);
+  };
+
+  /**
+   * Full reload for mutations that don't hand back an updated FSP DTO:
+   * re-reads the FSP record from the server AND bumps refreshKey so every
+   * tab re-fetches its own data. Use where the write can move state the
+   * caller can't see locally (licence edits alter FDU rows the header and
+   * other tabs derive from).
+   */
+  const reloadFsp = () => {
+    setReloadSignal((n) => n + 1);
     setRefreshKey((k) => k + 1);
   };
 
@@ -165,7 +184,9 @@ const FspInformationPage: FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [fspId, amendmentNumber, display]);
+    // reloadSignal is a dep so reloadFsp() re-runs this fetch; it is
+    // otherwise unused inside the effect.
+  }, [fspId, amendmentNumber, display, reloadSignal]);
 
   // Resolve the real extension status for the header pill. Runs whenever
   // the FSP reports an extension exists (stat other than blank/'N'); we
@@ -742,6 +763,16 @@ const FspInformationPage: FC = () => {
                     isAdmin={isAdmin}
                     readOnly={!canEditFsp(user, fsp?.fspStatusCode)}
                     refreshKey={refreshKey}
+                    onLicencesSaved={() => {
+                      // Licence edits change FDU rows the header and the
+                      // other tabs derive from, and the save returns only
+                      // the new licence list — so reload the whole record
+                      // rather than patching locally. Re-assert the FDU /
+                      // Map tab (index 2) so the reload can't leave the
+                      // user somewhere they didn't navigate to.
+                      reloadFsp();
+                      setSelectedTab(2);
+                    }}
                   />
                 </div>
               </TabPanel>

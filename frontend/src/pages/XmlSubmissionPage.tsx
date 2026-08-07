@@ -684,6 +684,11 @@ const VALIDATION_CODE_LABELS: Record<string, string> = {
   GEOMETRY_UNSUPPORTED: 'Unsupported geometry type',
   GEOMETRY_PARSE_ERROR: 'Geometry parse error',
   GEOMETRY_INVALID: 'Invalid geometry topology',
+  // GEOMETRY_OUTSIDE_BC is retired — the backend no longer performs a
+  // provincial-containment check (neither ESF nor the legacy app did, and
+  // it rejected valid coastal plans). Kept mapped so any submission
+  // validated before the change still renders a readable label rather
+  // than a raw code.
   GEOMETRY_OUTSIDE_BC: 'Geometry outside BC boundary',
   SRS_UNSUPPORTED: 'Unsupported coordinate system',
   SIMPLIFY_INVALID: 'Simplification produced invalid geometry',

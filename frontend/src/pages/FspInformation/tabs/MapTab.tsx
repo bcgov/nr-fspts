@@ -38,6 +38,13 @@ interface Props {
   readOnly?: boolean;
   /** Parent-bumped counter that forces a refetch on Submit/Extend/etc. */
   refreshKey?: number;
+  /**
+   * Fired after licences are saved for an FDU. The parent reloads the
+   * whole FSP: a licence change alters FDU rows that the header and the
+   * other tabs derive from, and the save endpoint returns only the new
+   * licence list, so there is nothing to patch those views with locally.
+   */
+  onLicencesSaved?: () => void;
 }
 
 const VARIANT_TITLE: Record<Props['variant'], string> = {
@@ -77,6 +84,7 @@ const MapTab: FC<Props> = ({
   isAdmin,
   readOnly,
   refreshKey,
+  onLicencesSaved,
 }) => {
   const { activeOrgClientNumber } = useOrg();
   const [extent, setExtent] = useState<string | null>(null);
@@ -318,9 +326,11 @@ const MapTab: FC<Props> = ({
           initialLicences={editTarget.licences}
           onClose={() => setEditTarget(null)}
           onSaved={(licences) => {
-            // Splice the refreshed licence list into the row in place
-            // so the table reflects the change immediately. The next
-            // tab switch re-fetches the proc-truth list anyway.
+            // Splice the refreshed licence list into the row in place so
+            // the table updates instantly. This is only the stop-gap for
+            // the moment before the parent's reload lands — the bumped
+            // refreshKey re-runs the FDU fetch below, and the proc-truth
+            // list then replaces this.
             setFduList((cur) => {
               if (!cur) return cur;
               return {
@@ -332,6 +342,11 @@ const MapTab: FC<Props> = ({
                 ),
               };
             });
+            // Ask the parent to reload the whole FSP. A licence change can
+            // move state this tab can't see (the header's derived fields,
+            // other tabs' slices), and the save returns only the licence
+            // list, so a local patch alone would leave those stale.
+            onLicencesSaved?.();
           }}
         />
       )}

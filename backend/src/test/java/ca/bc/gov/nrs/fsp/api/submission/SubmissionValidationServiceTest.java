@@ -232,16 +232,13 @@ class SubmissionValidationServiceTest {
       newGeometryValidator() {
     ca.bc.gov.nrs.fsp.api.submission.validator.SrsValidator srs =
         new ca.bc.gov.nrs.fsp.api.submission.validator.SrsValidator();
-    ca.bc.gov.nrs.fsp.api.submission.validator.BcBoundaryValidator bc =
-        new ca.bc.gov.nrs.fsp.api.submission.validator.BcBoundaryValidator();
     try {
       invokePostConstruct(srs, "initTransforms");
-      invokePostConstruct(bc, "loadBoundary");
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
     return new ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator(
-        new ca.bc.gov.nrs.fsp.api.submission.parser.GmlGeometryConverter(), srs, bc,
+        new ca.bc.gov.nrs.fsp.api.submission.parser.GmlGeometryConverter(), srs,
         new ca.bc.gov.nrs.fsp.api.submission.validator.GeometrySimplifier());
   }
 }
