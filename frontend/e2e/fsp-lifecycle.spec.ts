@@ -15,6 +15,12 @@ import { uniqueSuffix } from './utils';
  *   5. Record an Approve DDM decision              → Submitted → In Effect
  *   6. Amend the FSP                               → new Draft amendment
  *   7. Delete the amendment                        → back to the approved one
+ *   8. Request an extension + supporting document  → one atomic POST
+ *   9. Open the extension summary                  → the document is listed
+ *
+ * Steps 8-9 run LAST on purpose: `canAmend` requires `!hasOpenExtension`
+ * (FspInformation/index.tsx), so creating the extension any earlier hides
+ * the Amend button and breaks steps 6-7.
  *
  * Serial: each step depends on the previous, and the suite shares one
  * FSP id captured in step 1. A failure stops the chain (Playwright's
@@ -227,5 +233,76 @@ test.describe.serial('FSP lifecycle', () => {
     // Back on the surviving approved amendment — no Delete Amendment
     // affordance (it's not a Draft), and the FSP id is unchanged.
     await expect(page).toHaveURL(new RegExp(`fspId=${fspId}\\b`), { timeout: 30_000 });
+  });
+
+  test('requests an extension with a supporting document', async ({ page }) => {
+    await openFsp(page, fspId);
+
+    await page.getByRole('button', { name: 'Extend FSP' }).click();
+    const modal = page.getByRole('dialog');
+    await expect(modal.getByText(`Extend FSP ${fspId}`)).toBeVisible({ timeout: 30_000 });
+
+    // Extend by term (the default) — 1 year.
+    await modal.getByLabel('Years', { exact: true }).fill('1');
+
+    // Regression guard for the reported incident: this name is 50
+    // CHARACTERS but 52 UTF-8 BYTES (the en-dash is 3 bytes), and
+    // FSP_ATTACHMENT.ATTACHMENT_NAME is VARCHAR2(50) with byte semantics.
+    // Counting characters let it through to an ORA-12899 mid-upload. It
+    // must now be refused in the browser, before any request is sent.
+    const tooLong = tinyPdfFile('FSP_Extension_Request_–_Supporting_Letter_2026.pdf');
+    await modal.locator('input[type="file"]').setInputFiles({
+      name: tooLong.name,
+      mimeType: tooLong.mimeType,
+      buffer: tooLong.buffer,
+    });
+    await expect(page.getByText('File name too long')).toBeVisible({ timeout: 30_000 });
+
+    // A short ASCII name passes and is the one we actually submit.
+    const letter = tinyPdfFile('e2e-extension-letter.pdf');
+    await modal.locator('input[type="file"]').setInputFiles({
+      name: letter.name,
+      mimeType: letter.mimeType,
+      buffer: letter.buffer,
+    });
+
+    // ONE request carries both the extension and its attachment —
+    // /extensions/submit, not the old create-then-upload pair. If the
+    // request fails, nothing commits, so there is no half-created
+    // extension to clean up before a retry.
+    await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          new RegExp(`/api/v1/fsp/${fspId}/extensions/submit\\b`).test(r.url()) &&
+          r.request().method() === 'POST',
+        { timeout: 60_000 },
+      ),
+      modal.getByRole('button', { name: /Submit request|Submitting/i }).click(),
+    ]);
+
+    await expect(page.getByText('Extension request submitted.')).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+
+  test('shows the supporting document in the extension summary', async ({ page }) => {
+    await openFsp(page, fspId);
+
+    // The header pill appears once the FSP has an extension.
+    await page.getByRole('button', { name: 'View extension summary' }).click();
+    const summary = page.getByRole('dialog');
+    await expect(summary).toBeVisible({ timeout: 30_000 });
+
+    // Attachments load lazily when a row expands.
+    await summary.getByRole('button', { name: /Expand extension/i }).first().click();
+
+    // The real assertion. The letter is only listed here if it was linked
+    // via fsp_extension_xref — which only FSP_302's CREATE_ATTACHMENT
+    // writes. Routing the upload through the FSP-level FSP_400 path
+    // instead stored the file but left this list empty, so this catches
+    // that regression specifically.
+    await expect(summary.getByText('e2e-extension-letter.pdf')).toBeVisible({
+      timeout: 30_000,
+    });
   });
 });
