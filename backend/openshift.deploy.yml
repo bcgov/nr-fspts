@@ -45,6 +45,13 @@ parameters:
   # PROD namespace's 4Gi quota across 3 backend + 3 frontend replicas.
   - name: MAX_MEM
     value: "1Gi"
+  # Container timezone. Drives the JVM default zone, which both log patterns
+  # (%d in logging.pattern.console / .file) render against — OpenShift
+  # containers are UTC by default, which puts every log line 7-8 hours off the
+  # BC business day. A named zone resolves from the tzdb bundled in the JDK,
+  # so no OS tzdata package is required on the Alpine base image.
+  - name: TZ
+    value: America/Vancouver
   - name: APP_LOG_LEVEL
     value: INFO
   - name: SPRING_SECURITY_LOG_LEVEL
@@ -192,6 +199,8 @@ objects:
                 - containerPort: 8080
                   protocol: TCP
               env:
+                - name: TZ
+                  value: ${TZ}
                 - name: SPRING_PROFILES_ACTIVE
                   value: oracle
                 - name: SERVER_PORT
