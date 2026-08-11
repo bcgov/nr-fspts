@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550StdsProposalDao;
@@ -12,6 +13,7 @@ import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubLayersDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubSpeciesDao;
 import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
 import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeDetail;
+import ca.bc.gov.nrs.fsp.api.struct.v1.StandardRegimeLayerUpdate;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -106,5 +108,71 @@ class StandardRegimeServiceTest {
         null, null, null, null, null, null, null, null, null, mofDefaultInd, // 11-20
         null, null, null, null, null, null, null, null, null, null, // 21-30
         null, null); // 31-32
+  }
+
+  // ── Layer numeric bounds ──
+  //
+  // STANDARDS_REGIME_LAYER's columns have tight precisions. Exceeding one
+  // raises ORA-01438 inside FSP_550_SUB_LAYERS, which escapes as an opaque
+  // 500 naming no field. These pin the boundaries so the failure is a clean
+  // 400 instead.
+
+  private static StandardRegimeLayerUpdate layerWithMinHoriz(String value) {
+    StandardRegimeLayerUpdate u = new StandardRegimeLayerUpdate();
+    u.setMinHorizontalDistance(value);
+    return u;
+  }
+
+  @Test
+  void saveLayer_rejects_minHorizontalDistanceOver99point9() {
+    // The reported production failure: MIN_HORIZONTAL_DISTANCE is
+    // NUMBER(3,1) — max 99.9 — but it sits beside stocking counts in the
+    // hundreds, so 350 looks plausible and blew up at the insert.
+    assertThatThrownBy(() ->
+        service.saveLayer(FSP, REGIME, "1", "145584", AMEND, layerWithMinHoriz("350")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Min horizontal distance")
+        .hasMessageContaining("99.9");
+
+    verifyNoInteractions(layersDao);
+  }
+
+  @Test
+  void saveLayer_rejects_minHorizontalDistanceWithTwoDecimals() {
+    assertThatThrownBy(() ->
+        service.saveLayer(FSP, REGIME, "1", "145584", AMEND, layerWithMinHoriz("12.34")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("decimal place");
+  }
+
+  @Test
+  void saveLayer_rejects_aWholeNumberFieldGivenADecimal() {
+    StandardRegimeLayerUpdate u = new StandardRegimeLayerUpdate();
+    u.setTargetStocking("700.5"); // NUMBER(5) — scale 0
+    assertThatThrownBy(() ->
+        service.saveLayer(FSP, REGIME, "1", "145584", AMEND, u))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("whole number");
+  }
+
+  @Test
+  void saveLayer_rejects_targetStockingOverFiveDigits() {
+    StandardRegimeLayerUpdate u = new StandardRegimeLayerUpdate();
+    u.setTargetStocking("100000"); // NUMBER(5) — max 99999
+    assertThatThrownBy(() ->
+        service.saveLayer(FSP, REGIME, "1", "145584", AMEND, u))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("99999");
+  }
+
+  @Test
+  void saveLayer_boundsAreCheckedBeforeAnythingElseHappens() {
+    // Cheap input check runs ahead of the access guard and the regime
+    // fetch, so a bad number costs no DB round-trips.
+    assertThatThrownBy(() ->
+        service.saveLayer(FSP, REGIME, "1", "145584", AMEND, layerWithMinHoriz("350")))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    verify(dao, never()).get(any(), any(), any(), any());
   }
 }

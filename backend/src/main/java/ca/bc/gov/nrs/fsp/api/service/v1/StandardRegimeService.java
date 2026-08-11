@@ -437,11 +437,76 @@ public class StandardRegimeService {
    * count) so the UI can stay in sync.
    */
   @Transactional
+  /**
+   * Range-check the layer's numeric fields against the column precisions on
+   * {@code STANDARDS_REGIME_LAYER}. Oracle raises ORA-01438 ("value larger
+   * than specified precision") when a value needs more integer digits than
+   * the column allows, which escapes as an opaque 500 — the user is told
+   * nothing about which field was wrong.
+   *
+   * <p>The trap is {@code MIN_HORIZONTAL_DISTANCE NUMBER(3,1)}: 3 total
+   * digits with 1 decimal means the maximum is <b>99.9</b>, not 999. It sits
+   * in a form beside stocking counts that legitimately run to the hundreds,
+   * so a value like 350 looks reasonable and fails at the insert.
+   */
+  private static void validateLayerBounds(StandardRegimeLayerUpdate e) {
+    if (e == null) {
+      return;
+    }
+    // NUMBER(3,1) — 0 to 99.9, at most one decimal place.
+    checkRange(e.getMinHorizontalDistance(), "Min horizontal distance",
+        new java.math.BigDecimal("99.9"), 1);
+    // NUMBER(5) — integer, up to 5 digits.
+    java.math.BigDecimal max5 = new java.math.BigDecimal("99999");
+    checkRange(e.getTargetStocking(), "Target stocking", max5, 0);
+    checkRange(e.getMinPrefStockingStandard(), "Min preferred stocking standard", max5, 0);
+    checkRange(e.getMinStockingStandard(), "Min stocking standard", max5, 0);
+    checkRange(e.getResidualBasalArea(), "Residual basal area", max5, 0);
+    checkRange(e.getHeightRelativeToComp(), "Height relative to competition", max5, 0);
+    // NUMBER(10) — integer, up to 10 digits.
+    java.math.BigDecimal max10 = new java.math.BigDecimal("9999999999");
+    checkRange(e.getMinPostSpacing(), "Min post spacing", max10, 0);
+    checkRange(e.getMaxPostSpacing(), "Max post spacing", max10, 0);
+    checkRange(e.getMaxConifer(), "Max conifer", max10, 0);
+  }
+
+  /**
+   * @param raw      the submitted value; blank/null is "not supplied" and passes
+   * @param label    user-facing field name
+   * @param max      largest value the column can hold
+   * @param maxScale decimal places the column keeps (0 = integer column)
+   */
+  private static void checkRange(
+      String raw, String label, java.math.BigDecimal max, int maxScale) {
+    if (raw == null || raw.isBlank()) {
+      return;
+    }
+    java.math.BigDecimal value;
+    try {
+      value = new java.math.BigDecimal(raw.trim());
+    } catch (NumberFormatException nfe) {
+      throw new IllegalArgumentException(label + " must be a number.");
+    }
+    if (value.signum() < 0) {
+      throw new IllegalArgumentException(label + " cannot be negative.");
+    }
+    if (value.compareTo(max) > 0) {
+      throw new IllegalArgumentException(
+          label + " must be " + max.toPlainString() + " or less.");
+    }
+    if (value.scale() > maxScale) {
+      throw new IllegalArgumentException(maxScale == 0
+          ? label + " must be a whole number."
+          : label + " allows at most " + maxScale + " decimal place.");
+    }
+  }
+
   public StandardRegimeLayerDetail saveLayer(
       String fspId, String regimeId, String layerCode, String layerId,
       String amendmentNumber, StandardRegimeLayerUpdate edits) {
     accessGuard.assertContentEditable(fspId, amendmentNumber);
     accessGuard.assertStandardsRegimeEditable(regimeId);
+    validateLayerBounds(edits);
     // Blank layerId = ADD path. The legacy SAVE proc routes to ADD when
     // P_REVISION_COUNT is null, so we skip the current-detail fetch (no
     // current exists) and pass nulls for both the layer id and revision.
@@ -617,7 +682,12 @@ public class StandardRegimeService {
           "Standards regime " + regimeId + " not found");
     }
     speciesDao.mainline(
-        "DELETE",
+        // "REMOVE", not "DELETE" — FSP_550_SUB_SPECIES.MAINLINE dispatches on
+        // GET / SAVE / REMOVE and raises unknown_function_request for anything
+        // else, surfacing as
+        // "sil.web.usr.database.invalid.function:DELETE" → an unmapped 500.
+        // The HTTP verb is DELETE; the proc's action name is not.
+        "REMOVE",
         layerId,
         speciesCode,
         null,
