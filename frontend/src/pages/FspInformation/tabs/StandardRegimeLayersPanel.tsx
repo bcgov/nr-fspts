@@ -89,23 +89,54 @@ const sanitizeMinHeight = (raw: string): string => {
   return `${whole}.${frac}`;
 };
 
+/**
+ * Column precisions on STANDARDS_REGIME_LAYER. Exceeding one raises
+ * ORA-01438 ("value larger than specified precision") deep in the save
+ * proc, which surfaces as an opaque 500 naming no field — so bound them
+ * here and let the user fix it inline.
+ *
+ * The trap is minHorizontalDistance: NUMBER(3,1) is 3 digits with 1
+ * decimal, so the ceiling is 99.9 — not 999. It sits in the same column
+ * of the density matrix as stocking counts that legitimately reach the
+ * hundreds, which is exactly how a value like 350 gets typed in.
+ */
+const LAYER_BOUNDS: Partial<
+  Record<keyof LayerFormState, { max: number; decimals: number }>
+> = {
+  minHorizontalDistance: { max: 99.9, decimals: 1 }, // NUMBER(3,1)
+  targetStocking: { max: 99999, decimals: 0 }, // NUMBER(5)
+  minPrefStockingStandard: { max: 99999, decimals: 0 }, // NUMBER(5)
+  minStockingStandard: { max: 99999, decimals: 0 }, // NUMBER(5)
+  residualBasalArea: { max: 99999, decimals: 0 }, // NUMBER(5)
+  heightRelativeToComp: { max: 99999, decimals: 0 }, // NUMBER(5)
+  minPostSpacing: { max: 9999999999, decimals: 0 }, // NUMBER(10)
+  maxPostSpacing: { max: 9999999999, decimals: 0 }, // NUMBER(10)
+  maxConifer: { max: 9999999999, decimals: 0 }, // NUMBER(10)
+};
+
+const decimalPlaces = (s: string): number => {
+  const dot = s.indexOf('.');
+  return dot === -1 ? 0 : s.length - dot - 1;
+};
+
 const validateLayer = (form: LayerFormState): LayerErrors => {
   const errs: LayerErrors = {};
-  const numericFields: Array<keyof LayerFormState> = [
-    'targetStocking',
-    'minHorizontalDistance',
-    'minPrefStockingStandard',
-    'minStockingStandard',
-    'residualBasalArea',
-    'minPostSpacing',
-    'maxPostSpacing',
-    'maxConifer',
-    'heightRelativeToComp',
-  ];
+  const numericFields = Object.keys(LAYER_BOUNDS) as Array<keyof LayerFormState>;
   for (const key of numericFields) {
     const value = form[key];
-    if (value && !isNonNegNumber(value)) {
+    if (!value) continue;
+    if (!isNonNegNumber(value)) {
       errs[key] = 'Non-negative number.';
+      continue;
+    }
+    const bound = LAYER_BOUNDS[key];
+    if (!bound) continue;
+    if (Number(value) > bound.max) {
+      errs[key] = `Must be ${bound.max} or less.`;
+    } else if (decimalPlaces(value) > bound.decimals) {
+      errs[key] = bound.decimals === 0
+        ? 'Must be a whole number.'
+        : `At most ${bound.decimals} decimal place.`;
     }
   }
   return errs;
