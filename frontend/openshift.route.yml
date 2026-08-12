@@ -36,6 +36,12 @@ objects:
     kind: Route
     metadata:
       name: ${NAME}-frontend-${ZONE}
+      annotations:
+        # HAProxy's default server timeout is 30s, which cuts off large FSP
+        # submissions (a ~50MB XML/GeoJSON upload plus the backend's parse +
+        # geometry inserts) with a 504 mid-request. 300s gives the whole
+        # upload-and-process round trip room; lower it if submissions get faster.
+        haproxy.router.openshift.io/timeout: 300s
       labels:
         app: ${NAME}-frontend-${ZONE}
         app.kubernetes.io/instance: ${ZONE}
