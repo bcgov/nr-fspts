@@ -49,6 +49,10 @@ objects:
     metadata:
       # Distinct name from the default Route so both coexist in the namespace.
       name: ${NAME}-frontend-${ZONE}-vanity
+      annotations:
+        # Must match the default Route (frontend/openshift.route.yml): HAProxy's
+        # 30s default server timeout 504s large FSP submissions mid-request.
+        haproxy.router.openshift.io/timeout: 300s
       labels:
         app: ${NAME}-frontend-${ZONE}
         app.kubernetes.io/instance: ${ZONE}
