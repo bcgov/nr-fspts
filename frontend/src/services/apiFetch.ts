@@ -78,6 +78,12 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
  * proxy or an unhandled exception that surfaces as text).
  */
 export async function readErrorMessage(res: Response): Promise<string> {
+  // A 413 is raised by the Caddy/Coraza WAF in front of the API, not by
+  // Spring, so the body is empty and every caller would fall back to its
+  // generic "request failed (413)" text. Name the actual cause instead.
+  if (res.status === 413) {
+    return 'The upload is too large to send. Try a smaller file.';
+  }
   const raw = await res.text().catch(() => '');
   if (!raw) return '';
   let candidate = '';
