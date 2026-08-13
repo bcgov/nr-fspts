@@ -25,7 +25,7 @@ and credentials supplied via the gitignored `application-local.properties`.
 | `FSP_302/303_EXTENSION_*` | Extension requests + summary |
 | `FSP_400_ATTACHMENTS` | Attachments (create / content / blob / remove) |
 | `FSP_500 / FSP_550 / FSP_501` | Stocking standards (regime, sub-layers, sub-species, search) |
-| `FSP_600_MAP / FSP_650_IDENTIFIED_AREAS_MAP` | FDU + identified-area geometry |
+| `FSP_600_MAP` | FDU geometry |
 | `FSP_700_WORKFLOW` | Review milestones, OTBH, DDM decision, extension decisions |
 | `FSP_800_HISTORY` | Audit history |
 | `FSP_TOMBSTONE` | Access resolution + the `user_may_access` ownership fence |
