@@ -11,7 +11,7 @@
 The FSP submission system accepts spatial submissions as a single **GeoJSON `FeatureCollection`**. One file carries:
 
 - **Plan header information** (plan name, term, agreement holders, districts, contact, etc.) as a custom `fsp` member on the FeatureCollection.
-- **Spatial features** — Forest Development Unit (FDU) polygons — as standard GeoJSON `Feature` objects, each tagged with an `fspEntityType` so the system knows how to route it. Identified Area features are accepted but **not currently ingested** (see Section 7b).
+- **Spatial features** — Forest Development Unit (FDU) polygons — as standard GeoJSON `Feature` objects, each tagged with an `fspEntityType` so the system knows how to route it.
 
 The GeoJSON format is functionally equivalent to the legacy XML submission format; either is accepted. This document describes the GeoJSON option only.
 
@@ -49,7 +49,7 @@ The root document is a GeoJSON `FeatureCollection` with one FSP-specific extensi
 | `type` | string | **Yes** | Must be exactly `"FeatureCollection"`. |
 | `crs` | object | Recommended | Coordinate reference system. See Section 4. |
 | `fsp` | object | **Yes** | Plan-level header. See Section 5. |
-| `features` | array | **Yes** | The FDU features (and any Identified Area features, which are discarded — Section 7b). May be empty only if the submission genuinely has no spatial content. |
+| `features` | array | **Yes** | The FDU features. May be empty only if the submission genuinely has no spatial content. |
 
 ---
 
@@ -91,7 +91,6 @@ A single object carrying the plan-level fields that have no place inside per-fea
 | `transitional` | boolean | No | Transitional plan indicator. Defaults to `false` when omitted. |
 | `legalDocConsolidated` | boolean | No | Legal document consolidated indicator. |
 | `fduUpdate` | boolean | No | Marks that FDUs changed in this submission. |
-| `identifiedAreasUpdate` | boolean | No | Marks that identified areas changed in this submission. |
 | `stockingStandardsUpdate` | boolean | No | Marks that stocking standards changed in this submission. |
 
 ---
@@ -120,22 +119,22 @@ Optional, but **if you include the object, `contactName` and `emailAddress` are 
 
 ## 7. Spatial features (`features`)
 
-Every entry is a standard GeoJSON `Feature`. The system distinguishes feature kinds using a **required** `fspEntityType` property.
+Every entry is a standard GeoJSON `Feature`, tagged with a **required** `fspEntityType` property that tells the system how to route it.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | string | **Yes** | Standard GeoJSON value `"Feature"`. |
 | `geometry` | object | **Yes** | A `Polygon` or `MultiPolygon`. See Section 8. |
-| `properties` | object | **Yes** | Must include `fspEntityType` and `name`; other keys depend on the entity type. |
+| `properties` | object | **Yes** | Must include `fspEntityType` and `name`; the remaining keys are listed below. |
 
 ### Common properties (all features)
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `fspEntityType` | string | **Yes** | Routing discriminator. One of `FDU` or `IDENTIFIED_AREA`. Only `FDU` features are ingested — see Section 7b. |
-| `name` | string | **Yes** | Non-blank name for the feature. Names must be unique within their entity type. Enforced for `FDU` features only. |
+| `fspEntityType` | string | **Yes** | Routing discriminator. Must be `FDU`. |
+| `name` | string | **Yes** | Non-blank name for the feature. Names must be unique across features. |
 
-### 7a. FDU features (`fspEntityType: "FDU"`)
+### FDU features (`fspEntityType: "FDU"`)
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -153,22 +152,6 @@ Every entry is a standard GeoJSON `Feature`. The system distinguishes feature ki
   "geometry": { "type": "Polygon", "coordinates": [ /* ... */ ] }
 }
 ```
-
-### 7b. Identified Area features (`fspEntityType: "IDENTIFIED_AREA"`)
-
-> ⚠️ **Not currently ingested.** Identified Area features are accepted by the
-> validator without error, but they are **skipped entirely** — nothing is read
-> from them and nothing is stored. Do not rely on this submission channel to
-> record identified areas; submit them through the application instead.
-
-`IDENTIFIED_AREA` remains a valid value for `fspEntityType`, so a file
-containing these features will still validate and its **FDU** features will be
-processed normally. The identified areas themselves are simply discarded, and
-because they are never inspected, any `name` or `legislationTypeCode` on them
-is ignored rather than validated.
-
-If your submission's only spatial content is identified areas, it will report
-no errors and persist nothing.
 
 ---
 
@@ -353,17 +336,6 @@ The result:
 
 > For `A` (amendment) and `R` (replacement), the referenced FSP must already have an **approved or in-effect** amendment, or the submission is rejected. Replacement submissions **always require ministry approval** and supersede the prior approved amendment.
 
-### Legislation type codes (`legislationTypeCode`, Identified Areas only)
-
-> Retained for reference only. Identified Area features are not ingested
-> through this format (Section 7b), so this code is never read or validated.
-
-| Code | Reference |
-|------|-----------|
-| `FRPA196(1)` | Forest and Range Practices Act, s.196(1) |
-| `FRPA196(2)` | Forest and Range Practices Act, s.196(2) |
-| `FPPR14(4)` | Forest Planning and Practices Regulation, s.14(4) |
-
 ---
 
 ## 12. Validation and error handling
@@ -374,12 +346,12 @@ Validation covers, among others:
 
 - **Structure** — root is a `FeatureCollection`; the `fsp` header is present; required fields are populated; enumerated values are valid.
 - **Plan header** — `planName` present; `actionCode` valid; at least one `planHolder`; at least one `district` (each must exist and be unique).
-- **Features** — every feature has a valid `fspEntityType`; every **FDU** feature has a non-blank, unique `name` and a geometry. Identified Area features are skipped without validation (Section 7b), so nothing in them is checked.
+- **Features** — every feature has a valid `fspEntityType`; every **FDU** feature has a non-blank, unique `name` and a geometry.
 - **FDU licences** — every `licenceNumbers` entry exists in the provincial forest-use registry.
 - **Context** — for `A`/`R`, the referenced FSP must exist and have an approved or in-effect amendment to build on.
 - **Geometry** — supported type, well-formed rings, spatial validity.
 
-Each error identifies the offending location using a path such as `features[3].properties.legislationTypeCode` or `fsp.planHolders`, making it straightforward to locate in your file.
+Each error identifies the offending location using a path such as `features[3].properties.licenceNumbers` or `fsp.planHolders`, making it straightforward to locate in your file.
 
 ---
 
@@ -466,7 +438,6 @@ Each error identifies the offending location using a path such as `features[3].p
 - [ ] At least one `planHolder` client number and one `district` code, each unique.
 - [ ] If `submissionMetadata` is included, `contactName` and `emailAddress` are set.
 - [ ] Every feature has `fspEntityType`; every `FDU` feature has a unique, non-blank `name`.
-- [ ] Identified areas are **not** relied on here — they are accepted but discarded (Section 7b).
 - [ ] All FDU `licenceNumbers` are real provincial forest-use licence numbers.
 - [ ] Every geometry is a `Polygon` or `MultiPolygon`; each ring has ≥4 closed positions.
 - [ ] File is UTF-8 and under 100 MB.

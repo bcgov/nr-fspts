@@ -73,11 +73,11 @@ upload ──▶ scan ──▶ detect format ──▶ parse ──▶ validate
 - **Validate (dry run)** — `POST /api/v1/fsp/submissions/validate` returns
   `valid: true` (200) or the full list of issues (422) without persisting.
   Validators cover XSD/shape, geometry validity, agreement holders, district
-  codes, action-code context, licence numbers, plan term vs expiry, and FDU /
-  identified-area name uniqueness.
+  codes, action-code context, licence numbers, plan term vs expiry, and FDU
+  name uniqueness.
 - **Persist** — `POST /api/v1/fsp/submissions` validates again, then writes the
-  FSP (header + FDUs + identified areas + stocking standards + attachments) in
-  a single transaction. Geometry rings are normalized to the orientation Oracle
+  FSP (header + FDUs + stocking standards + attachments) in a single
+  transaction. Geometry rings are normalized to the orientation Oracle
   Spatial requires.
 
 Both endpoints require the **content-edit** capability (Administrator /
@@ -108,7 +108,7 @@ amendment to build on, or the submission is rejected up front.
 | GeoJSON parse | `submission/geojson/SubmissionGeoJsonParser` |
 | Validators | `submission/validator/*` |
 | Preview mapping | `submission/SubmissionPreviewMapper` |
-| Persistence | `submission/persist/*` (FSP request mapper, FDU, identified areas, standards, attachments) |
+| Persistence | `submission/persist/*` (FSP request mapper, FDU, standards, attachments) |
 | Geometry orientation | `submission/persist/GeometryOrientationNormalizer` |
 
 Test fixtures live in `backend/src/test/resources/fixtures/submissions/` and
