@@ -8,7 +8,8 @@ import ca.bc.gov.nrs.fsp.api.submission.validator.AgreementHolderValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.AmendmentApprovalRequiredValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.ContactDetailsValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.DistrictCodeValidator;
-import ca.bc.gov.nrs.fsp.api.submission.validator.FduUniquenessValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.AmendmentNameValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.FduNameValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.LicenceContextValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.PlanNameValidator;
@@ -58,10 +59,11 @@ class SubmissionValidationServiceTest {
         noOpValidator(LicenceContextValidator.class),
         noOpValidator(PlanTermValidator.class),
         noOpValidator(PlanNameValidator.class),
+        noOpValidator(AmendmentNameValidator.class),
         noOpValidator(ContactDetailsValidator.class),
         noOpValidator(AgreementHolderValidator.class),
         noOpValidator(DistrictCodeValidator.class),
-        noOpValidator(FduUniquenessValidator.class),
+        noOpValidator(FduNameValidator.class),
         noOpValidator(AmendmentApprovalRequiredValidator.class),
         new SubmissionPreviewMapper(
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
@@ -179,10 +181,11 @@ class SubmissionValidationServiceTest {
         noOpValidator(LicenceContextValidator.class),
         noOpValidator(PlanTermValidator.class),
         noOpValidator(PlanNameValidator.class),
+        noOpValidator(AmendmentNameValidator.class),
         noOpValidator(ContactDetailsValidator.class),
         noOpValidator(AgreementHolderValidator.class),
         noOpValidator(DistrictCodeValidator.class),
-        noOpValidator(FduUniquenessValidator.class),
+        noOpValidator(FduNameValidator.class),
         noOpValidator(AmendmentApprovalRequiredValidator.class),
         new SubmissionPreviewMapper(
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),

@@ -16,10 +16,19 @@ import java.util.List;
  * an Initial submission (I) lands without one — there's nothing to
  * carry forward in that case. Caught here so the submitter doesn't
  * have to round-trip the proc to learn that.
+ *
+ * <p>Length is checked for every action code, not just Initial: whenever a
+ * submission supplies a planName it is written to
+ * {@code FOREST_STEWARDSHIP_PLAN.PLAN_NAME VARCHAR2(120)}, and nothing
+ * between the parser and the proc bounds it — an over-long value surfaced as
+ * a raw {@code ORA-12899} 500 at persist time instead of a validation issue.
  */
 @Component
 @Slf4j
 public class PlanNameValidator {
+
+  /** {@code FOREST_STEWARDSHIP_PLAN.PLAN_NAME}. */
+  private static final int MAX_PLAN_NAME_LEN = 120;
 
   public List<SubmissionValidationError> validate(FSPSubmissionType submission) {
     List<SubmissionValidationError> errors = new ArrayList<>();
@@ -31,15 +40,23 @@ public class PlanNameValidator {
     if (plan == null) {
       return errors;
     }
-    if (plan.getActionCode() != ActionCodeType.I) {
-      return errors;
-    }
     String name = plan.getPlanName();
     if (name == null || name.isBlank()) {
+      // Only Initial has nothing to carry forward, so only Initial fails here.
+      if (plan.getActionCode() == ActionCodeType.I) {
+        errors.add(SubmissionValidationError.of(
+            "forestStewardshipPlan/planName",
+            "PLAN_NAME_REQUIRED",
+            "Initial submissions must include a planName."));
+      }
+      return errors;
+    }
+    if (name.trim().length() > MAX_PLAN_NAME_LEN) {
       errors.add(SubmissionValidationError.of(
           "forestStewardshipPlan/planName",
-          "PLAN_NAME_REQUIRED",
-          "Initial submissions must include a planName."));
+          "PLAN_NAME_TOO_LONG",
+          "planName must be " + MAX_PLAN_NAME_LEN + " characters or fewer (got "
+              + name.trim().length() + ")."));
     }
     return errors;
   }

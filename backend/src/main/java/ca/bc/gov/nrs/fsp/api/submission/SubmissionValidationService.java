@@ -9,9 +9,10 @@ import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionType;
 import ca.bc.gov.nrs.fsp.api.submission.validator.ActionCodeContextValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.AgreementHolderValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.AmendmentApprovalRequiredValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.AmendmentNameValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.ContactDetailsValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.DistrictCodeValidator;
-import ca.bc.gov.nrs.fsp.api.submission.validator.FduUniquenessValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.FduNameValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.LicenceContextValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.PlanNameValidator;
@@ -42,10 +43,11 @@ public class SubmissionValidationService {
   private final LicenceContextValidator licenceContextValidator;
   private final PlanTermValidator planTermValidator;
   private final PlanNameValidator planNameValidator;
+  private final AmendmentNameValidator amendmentNameValidator;
   private final ContactDetailsValidator contactDetailsValidator;
   private final AgreementHolderValidator agreementHolderValidator;
   private final DistrictCodeValidator districtCodeValidator;
-  private final FduUniquenessValidator fduUniquenessValidator;
+  private final FduNameValidator fduNameValidator;
   private final AmendmentApprovalRequiredValidator amendmentApprovalRequiredValidator;
   private final SubmissionPreviewMapper previewMapper;
   private final VirusScanner virusScanner;
@@ -130,10 +132,11 @@ public class SubmissionValidationService {
       // feature was removed, so any identified-area content in the
       // submission is neither validated nor persisted.
       errors.addAll(planNameValidator.validate(outcome.submission()));
+      errors.addAll(amendmentNameValidator.validate(outcome.submission()));
       errors.addAll(contactDetailsValidator.validate(outcome.submission()));
       errors.addAll(agreementHolderValidator.validate(outcome.submission()));
       errors.addAll(districtCodeValidator.validate(outcome.submission()));
-      errors.addAll(fduUniquenessValidator.validate(outcome.submission()));
+      errors.addAll(fduNameValidator.validate(outcome.submission()));
       // Preview is built even when geometry/schema errors are present —
       // the user still benefits from seeing what was parsed alongside
       // the errors that need fixing.
