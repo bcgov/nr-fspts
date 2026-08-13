@@ -77,9 +77,9 @@ A single object carrying the plan-level fields that have no place inside per-fea
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `fspId` | string (numeric) | Conditional | The existing FSP identifier. **Omit for a brand-new (initial) plan**; **required** when updating or amending an existing plan. Must contain digits only. |
-| `planName` | string | **Yes** | The plan name. |
+| `planName` | string | **Yes** | The plan name. Max **120** characters. |
 | `actionCode` | string | **Yes** | Submission intent. One of `I`, `U`, `A`, `R`. See Section 11. |
-| `amendmentName` | string | No | Licensee's name for the amendment. |
+| `amendmentName` | string | No | Licensee's name for the amendment. Max **30** characters — the tightest limit in the format. |
 | `amendmentComment` | string | No | Free-text description of the amendment. |
 | `amendmentApprovalRequired` | boolean | No | Whether the amendment requires ministry approval. |
 | `submissionMetadata` | object | No* | Contact details. See Section 6. *If present, some sub-fields become required. |
@@ -102,7 +102,7 @@ Optional, but **if you include the object, `contactName` and `emailAddress` are 
 ```json
 "submissionMetadata": {
   "contactName": "Jane Forester",
-  "telephoneNumber": "250-555-0144",
+  "telephoneNumber": "2505550144",
   "emailAddress": "jane.forester@example.com",
   "attachmentCount": 0
 }
@@ -110,10 +110,14 @@ Optional, but **if you include the object, `contactName` and `emailAddress` are 
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `contactName` | string | **Yes** (if metadata present) | Submitter / licensee contact name. |
-| `emailAddress` | string | **Yes** (if metadata present) | Contact email. |
-| `telephoneNumber` | string | No | Contact phone. |
+| `contactName` | string | **Yes** (if metadata present) | Submitter / licensee contact name. Max **120** characters. |
+| `emailAddress` | string | **Yes** (if metadata present) | Contact email. Max **120** characters. |
+| `telephoneNumber` | string | No | Contact phone. **Exactly 10 digits, no separators** — `"2507206237"`, not `"250-720-6237"`. |
 | `attachmentCount` | integer | No | Number of accompanying attachments. |
+
+> ⚠️ `telephoneNumber` is the most common trip-up. The underlying column holds
+> 10 characters, so any formatting — dashes, spaces, brackets, a leading `1` —
+> pushes it over. Strip it down to the ten digits.
 
 ---
 
@@ -132,13 +136,13 @@ Every entry is a standard GeoJSON `Feature`, tagged with a **required** `fspEnti
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `fspEntityType` | string | **Yes** | Routing discriminator. Must be `FDU`. |
-| `name` | string | **Yes** | Non-blank name for the feature. Names must be unique across features. |
+| `name` | string | **Yes** | Non-blank name for the feature. Max **120** characters. Names must be unique across features. |
 
 ### FDU features (`fspEntityType: "FDU"`)
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `name` | string | **Yes** | FDU name (unique among FDUs). |
+| `name` | string | **Yes** | FDU name (unique among FDUs). Max **120** characters. |
 | `licenceNumbers` | array of string | No | Associated forest-use licence numbers. Each is validated against the provincial forest-use registry; unknown numbers are rejected. |
 
 ```json
@@ -370,7 +374,7 @@ Each error identifies the offending location using a path such as `features[3].p
     "amendmentApprovalRequired": false,
     "submissionMetadata": {
       "contactName": "Jane Forester",
-      "telephoneNumber": "250-555-0144",
+      "telephoneNumber": "2505550144",
       "emailAddress": "jane.forester@example.com",
       "attachmentCount": 0
     },

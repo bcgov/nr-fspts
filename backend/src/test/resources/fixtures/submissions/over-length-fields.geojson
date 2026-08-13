@@ -1,0 +1,68 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:3005"
+    }
+  },
+  "fsp": {
+    "fspId": "96",
+    "planName": "PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP",
+    "actionCode": "A",
+    "amendmentName": "Road deactivation and stocking standards update",
+    "amendmentComment": "Every free-text field here is deliberately one over its column limit.",
+    "amendmentApprovalRequired": true,
+    "submissionMetadata": {
+      "contactName": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+      "telephoneNumber": "250-555-0000",
+      "emailAddress": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee@test.com",
+      "attachmentCount": 0
+    },
+    "planHolders": [
+      "00001271"
+    ],
+    "districts": [
+      "DMK"
+    ],
+    "planTermYears": 5,
+    "planTermMonths": 0,
+    "transitional": false
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "fspEntityType": "FDU",
+        "name": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1200000,
+              460000
+            ],
+            [
+              1200500,
+              460000
+            ],
+            [
+              1200500,
+              460500
+            ],
+            [
+              1200000,
+              460500
+            ],
+            [
+              1200000,
+              460000
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
