@@ -21,7 +21,7 @@
   // grey). Repoint the token within tables so even Carbon's own
   // `color: var(--cds-text-secondary)` rule resolves to the design's
   // near-black; the explicit cell colour below is belt-and-suspenders.
-  --cds-text-secondary: #131315;
+  --cds-text-secondary: var(--cds-text-primary);
 }
 
 // Header fill on the cell only — leave the sort button's own :hover
@@ -35,7 +35,7 @@
 .cds--data-table thead th,
 .cds--data-table thead th .cds--table-header-label,
 .cds--data-table thead th .cds--table-sort {
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.4;
@@ -45,7 +45,7 @@
 // Body cells — 16px near-black.
 .cds--data-table tbody td,
 .cds--data-table tbody td .cds--table-cell {
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
   font-size: 16px;
   line-height: 1.4;
   letter-spacing: 0.16px;

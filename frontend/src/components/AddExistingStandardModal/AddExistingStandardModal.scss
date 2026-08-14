@@ -38,7 +38,7 @@
 
 .add-std-modal__intro {
   margin: 0 0 1rem 0;
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
 }
 
 .add-std-modal__form {
@@ -127,7 +127,7 @@
   background-color: #dfdfe1;
   border: none;
   border-block-start: 1px solid #c6c6c8;
-  color: #606062;
+  color: var(--cds-text-secondary, #606062);
   font-size: 14px;
 }
 
@@ -138,7 +138,7 @@
 .add-std-modal__results .cds--pagination .cds--pagination__text,
 .add-std-modal__results .cds--pagination .cds--pagination__pages-text {
   background-color: transparent;
-  color: #606062;
+  color: var(--cds-text-secondary, #606062);
 }
 
 .add-std-modal__empty {

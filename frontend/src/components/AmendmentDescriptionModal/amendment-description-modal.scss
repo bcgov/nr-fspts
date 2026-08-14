@@ -10,7 +10,7 @@
 
 .amend-modal__intro {
   margin: 0;
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
 }
 
 // Custom info banner — mirrors Carbon's low-contrast info notification
@@ -88,7 +88,7 @@
 .amend-modal__approval-desc {
   margin: 0;
   // Match the modal intro copy rather than the muted secondary tone.
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
 }
 
 // Helper line under the Yes/No radios that explains what the chosen answer

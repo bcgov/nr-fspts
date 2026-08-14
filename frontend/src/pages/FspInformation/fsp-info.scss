@@ -40,7 +40,7 @@
 // Darker variant — used for the Information edit form's "All fields are
 // required…" intro.
 .fsp-info__subtitle--primary {
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
 }
 
 // Type-summary card below the version picker: up to three columns
@@ -362,7 +362,7 @@
 // a dialog heading. Shared by the Amend/Replace, DDM, and Review dialogs.
 .fsp-species-modal__subtitle {
   margin: 0;
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
 }
 
 // Trim Carbon's default 3rem ($spacing-09) modal-content bottom padding
@@ -1113,7 +1113,7 @@
   margin-block-start: 0.25rem;
   font-size: 0.75rem;
   font-weight: 400;
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
 }
 
 // "← Back to <page>" link at the top of the FSP details page (replaces the
@@ -1550,6 +1550,40 @@
     &:active {
       background-color: #e8e8e8;
     }
+  }
+
+  // Validation: keep the red border and the message, drop the icon. These
+  // fields are capped at 6rem, and Carbon reserves $spacing-08 (2.5rem) of
+  // trailing padding for that icon — on a two-digit offset field that pushes
+  // the value nearly out of view. The wording under the field already says
+  // what is wrong, so the icon is only costing space.
+  .cds--text-input__invalid-icon {
+    display: none;
+  }
+
+  // Reclaim the padding Carbon reserved for it.
+  .cds--data-table .cds--text-input--invalid {
+    padding-inline-end: 1rem;
+  }
+
+  // Keep the inputs on one line when only some of them are invalid.
+  //
+  // `td { vertical-align: middle }` centres each cell's OWN content, so a cell
+  // that has sprouted a "Required." message is taller than its neighbours and
+  // its input gets pushed up out of line with them. Reserve the message's line
+  // in every cell and take the message itself out of flow into that reserved
+  // strip: all cells then measure the same whether or not they are showing an
+  // error, so the inputs stay level and the row never changes height.
+  .cds--data-table td .cds--form-item {
+    position: relative;
+    padding-block-end: 1.25rem;
+  }
+
+  .cds--data-table td .cds--form-requirement {
+    position: absolute;
+    inset-block-end: 0;
+    inset-inline-start: 0;
+    margin: 0;
   }
 }
 

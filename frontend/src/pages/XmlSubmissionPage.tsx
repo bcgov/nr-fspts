@@ -750,7 +750,6 @@ function ValidationIssuesTable({ errors }: { errors: SubmissionValidationError[]
             alignItems: 'center',
             gap: '6px',
             fontSize: '14px',
-            color: '#005cb8',
             textDecoration: 'none',
           }}
         >

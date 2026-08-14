@@ -79,7 +79,7 @@
 
 .ddm-modal__letter-desc {
   margin: 0;
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
   // The record-mode copy carries a hard line break between the file
   // constraints and the storage note.
   white-space: pre-line;

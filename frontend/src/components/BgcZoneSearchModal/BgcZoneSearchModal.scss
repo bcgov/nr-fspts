@@ -15,7 +15,7 @@
 
 .bgc-search__intro {
   margin: 0 0 1.5rem;
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
 }
 
 .bgc-search__form {

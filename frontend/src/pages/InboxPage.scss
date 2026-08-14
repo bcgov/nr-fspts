@@ -244,13 +244,13 @@
 // (#525252) by default; repoint the token inside the table so they resolve
 // to the design's #131315 (the explicit cell colour is belt-and-braces).
 .fsp-inbox__table .cds--data-table {
-  --cds-text-secondary: #131315;
+  --cds-text-secondary: var(--cds-text-primary);
 }
 
 .fsp-inbox__table .cds--data-table thead th,
 .fsp-inbox__table .cds--data-table thead th .cds--table-header-label {
   background-color: #dfdfe1;
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.4;
@@ -260,7 +260,7 @@
 
 .fsp-inbox__table .cds--data-table tbody td,
 .fsp-inbox__table .cds--data-table tbody td .cds--table-cell {
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
   font-size: 16px;
   line-height: 1.4;
   letter-spacing: 0.16px;
