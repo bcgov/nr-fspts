@@ -4,6 +4,7 @@ import ca.bc.gov.nrs.fsp.api.submission.SubmissionValidationError;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.ActionCodeType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.ForestStewardshipPlanType;
+import ca.bc.gov.nrs.fsp.api.validation.FspFieldRules;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -28,7 +29,7 @@ import java.util.List;
 public class PlanNameValidator {
 
   /** {@code FOREST_STEWARDSHIP_PLAN.PLAN_NAME}. */
-  private static final int MAX_PLAN_NAME_LEN = 120;
+  private static final int MAX_PLAN_NAME_LEN = FspFieldRules.MAX_PLAN_NAME_LEN;
 
   public List<SubmissionValidationError> validate(FSPSubmissionType submission) {
     List<SubmissionValidationError> errors = new ArrayList<>();

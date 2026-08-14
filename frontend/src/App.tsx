@@ -20,6 +20,7 @@ import HistoryPage from './pages/HistoryPage';
 import DistrictNotificationPage from './pages/DistrictNotificationPage';
 import OrgSelectionPage from './pages/OrgSelectionPage';
 import SubmissionHistoryPage from './pages/SubmissionHistoryPage';
+import CreateFspPage from './pages/CreateFspPage';
 import XmlSubmissionPage from './pages/XmlSubmissionPage';
 import JcrsReportsPage from './pages/JcrsReports';
 
@@ -128,6 +129,12 @@ export default function App() {
               and Extension Summary are all dialogs now — no standalone
               routes. */}
           <Route path="/fsp/history"            element={guarded(withLayout(<HistoryPage />))} />
+
+          {/* Create FSP — the manual counterpart of Data Submission, for a
+              plan started from scratch rather than from a file. The feature
+              is a dialog; it gets a route so the nav entry has somewhere to
+              land and Back behaves. */}
+          <Route path="/fsp/create"             element={guarded(withLayout(<CreateFspPage />))} />
 
           {/* Data Submission — accepts both XML and GeoJSON. URL kept
               generic so it survives format additions. */}

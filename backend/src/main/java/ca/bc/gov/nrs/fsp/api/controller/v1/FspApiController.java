@@ -279,6 +279,13 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
+    public ResponseEntity<FspCreated> createFsp(FspCreateRequest body) {
+        FspCreated created = fspService.createFsp(body);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(created);
+    }
+
+    @Override
     public ResponseEntity<ExtensionRequestSaved> createExtension(
             String fspId, ExtensionRequestSave body) {
         var result = extensionService.createRequest(fspId, body);
@@ -310,6 +317,14 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<FduList> getFduList(String fspId) {
         return ResponseEntity.ok(fduService.getFdus(fspId));
+    }
+
+    @Override
+    public ResponseEntity<FduCreated> addFdu(
+            String fspId, String amendmentNumber, FduCreateRequest body) {
+        FduCreated created = fduService.addFdu(fspId, amendmentNumber, body);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(created);
     }
 
     @Override

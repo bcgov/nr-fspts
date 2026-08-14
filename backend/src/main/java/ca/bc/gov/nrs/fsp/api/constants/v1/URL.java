@@ -154,6 +154,9 @@ public final class URL {
   // so the SPA can render a checklist before the user hits Submit.
   public static final String SUBMIT_PREFLIGHT = "/{fspId}/submit/preflight";
   public static final String FDU_LIST = "/{fspId}/fdu-list";
+  // POST to add one FDU (name + boundary + optional licences) — the "Add FDU"
+  // dialog on the FDU/Map tab. Collection path; FDU_LIST stays the read.
+  public static final String FDUS = "/{fspId}/fdus";
   public static final String FDU_LICENCES = "/{fspId}/fdus/{fduId}/licences";
   // GET — existence check for a single licence number against
   // PROV_FOREST_USE. Lets the Edit-licences dialog validate a number

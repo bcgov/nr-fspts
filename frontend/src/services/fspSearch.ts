@@ -266,6 +266,50 @@ export interface ExtensionRequestPayload {
   revisionCount?: string | null;
 }
 
+/**
+ * Payload for POST /v1/fsp — the "Create FSP" dialog's minimum field set.
+ * Mirrors backend ca.bc.gov.nrs.fsp.api.struct.v1.FspCreateRequest.
+ *
+ * Plan term (years/months) and end date are mutually exclusive at the proc;
+ * send one or the other, never both.
+ */
+export interface FspCreatePayload {
+  planName: string;
+  contactName: string;
+  telephoneNumber: string;
+  emailAddress: string;
+  agreementHolderClientNumbers: string[];
+  /**
+   * District ORG UNIT NUMBERS (CodeOption.code from getOrgUnits), not the
+   * 3-letter codes — FSP_300_INFORMATION.save_org_units keys on org_unit_no
+   * and ignores the code attribute entirely.
+   */
+  districtOrgUnitNos: string[];
+  planTermYears?: string | null;
+  planTermMonths?: string | null;
+  planEndDate?: string | null;
+  frpa197?: boolean;
+}
+
+/**
+ * POST /v1/fsp — creates a brand-new draft FSP and returns the id the proc
+ * assigned from FSP_SEQ (nothing is known client-side until it returns).
+ */
+export async function createFsp(
+  payload: FspCreatePayload,
+): Promise<{ fspId: string; fspAmendmentNumber: string }> {
+  const res = await apiFetch('/v1/fsp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Could not create the FSP (${res.status})`);
+  }
+  return res.json() as Promise<{ fspId: string; fspAmendmentNumber: string }>;
+}
+
 export async function createExtensionRequest(
   fspId: string,
   payload: ExtensionRequestPayload,
@@ -774,6 +818,53 @@ export interface FduLicencesUpdated {
  * against PROV_FOREST_USE — an unknown licence rejects the whole batch
  * with 400.
  */
+/**
+ * Payload for POST /v1/fsp/{fspId}/fdus — the "Add FDU" dialog.
+ * Mirrors backend ca.bc.gov.nrs.fsp.api.struct.v1.FduCreateRequest.
+ */
+export interface FduCreatePayload {
+  fduName: string;
+  /** GeoJSON (geometry, Feature, or single-feature FeatureCollection) or WKT. */
+  geometry: string;
+  /** Assumed when the geometry carries none. Defaults server-side to 3005. */
+  srid?: number | null;
+  licenceNumbers?: string[];
+}
+
+export interface FduCreatedResult {
+  fduId: string;
+  fduName: string;
+  fspAmendmentNumber: string;
+  areaHa: number;
+  perimeterKm: number;
+  licencesAttached: number;
+}
+
+/**
+ * POST /v1/fsp/{fspId}/fdus — adds one FDU. The boundary is validated,
+ * reprojected to EPSG:3005 and measured server-side, so the response carries
+ * the area/perimeter actually written.
+ */
+export async function addFdu(
+  fspId: string,
+  amendmentNumber: string | null | undefined,
+  payload: FduCreatePayload,
+): Promise<FduCreatedResult> {
+  const qs = amendmentNumber
+    ? `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`
+    : '';
+  const res = await apiFetch(`/v1/fsp/${encodeURIComponent(fspId)}/fdus${qs}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Could not add the FDU (${res.status})`);
+  }
+  return res.json() as Promise<FduCreatedResult>;
+}
+
 export async function updateFduLicences(
   fspId: string,
   fduId: string,

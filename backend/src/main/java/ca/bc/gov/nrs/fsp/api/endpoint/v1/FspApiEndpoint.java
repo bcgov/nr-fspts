@@ -74,6 +74,16 @@ public interface FspApiEndpoint {
     ResponseEntity<PageableResponse<StandardsSearchResult>> searchStandards(
             @Valid StandardsSearchRequest request);
 
+    // "Create FSP" dialog. No {fspId} in the path — the proc assigns one from
+    // FSP_SEQ. FspAccessGuard can't apply here (both its checks key off an
+    // existing FSP), so CONTENT_EDIT plus the proc's own agreement-holder
+    // membership guard are the authorization.
+    @PostMapping
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
+    @Operation(summary = "Create a new draft FSP via fsp_300_information.MAINLINE "
+            + "(P_ACTION=SAVE with a blank fsp id → fsp_common_db.fsp_create_new)")
+    ResponseEntity<FspCreated> createFsp(@Valid @RequestBody FspCreateRequest body);
+
     @GetMapping(URL.FSP_BY_ID)
     @Operation(summary = "Get FSP by ID via fsp_300_information.MAINLINE")
     ResponseEntity<FspRequest> getFspById(
@@ -337,6 +347,18 @@ public interface FspApiEndpoint {
     @GetMapping(URL.FDU_LIST)
     @Operation(summary = "Get the per-FDU list via FSP_600_MAP.GET")
     ResponseEntity<FduList> getFduList(@PathVariable String fspId);
+
+    @PostMapping(URL.FDUS)
+    @PreAuthorize(FspAuthorities.CONTENT_EDIT)
+    @Operation(summary =
+            "Add one FDU (name + boundary + optional licences) to the FSP/amendment. "
+                    + "Boundary accepts GeoJSON or WKT and is validated, reprojected to "
+                    + "EPSG:3005 and measured server-side. Status-gated like every other "
+                    + "content edit: Submitters on Draft, Administrators in any status.")
+    ResponseEntity<FduCreated> addFdu(
+            @PathVariable String fspId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber,
+            @Valid @RequestBody FduCreateRequest body);
 
     @PutMapping(URL.FDU_LICENCES)
     @PreAuthorize(FspAuthorities.CONTENT_EDIT)

@@ -1,0 +1,275 @@
+// "Add FDU" dialog. Single column — the boundary textarea wants the full
+// width, and splitting the three fields across columns would only make the
+// paste target smaller.
+
+.add-fdu__intro {
+  margin-block-end: 1.5rem;
+  max-inline-size: 44rem;
+}
+
+.add-fdu__error {
+  margin-block-end: 1rem;
+  padding: 0.75rem 1rem;
+  border-inline-start: 3px solid var(--cds-support-error, #da1e28);
+  background: var(--cds-layer-01);
+}
+
+.add-fdu__field {
+  margin-block-end: 1.5rem;
+}
+
+// Pasted coordinates are far more legible monospaced, and a wrapped ring
+// stays scannable when checking which vertex is wrong.
+.add-fdu__field .cds--text-area {
+  font-family: var(--cds-code-01-font-family, monospace);
+  font-size: 0.8125rem;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+// Text input + Add button on one line. Mirrors
+// .fdu-licences-modal__inline-form: anchor both cells to the TOP and drop the
+// button past the field label (Carbon label = 1rem line + 0.5rem margin =
+// 1.5rem) so it lines up with the input. Bottom-aligning instead pushes the
+// button down as soon as an invalid message grows the input cell.
+.add-fdu__licence-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: start;
+
+  > .cds--btn {
+    margin-block-start: 1.5rem;
+  }
+}
+
+.add-fdu__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-block-start: 0.5rem;
+}
+
+// Boundary examples disclosure.
+//
+// Carbon emits `.cds--accordion { margin: 0 }` after our component CSS at the
+// same specificity, so the gap can't live on the accordion element — it goes
+// on this wrapper, which nothing else touches.
+.add-fdu__examples-wrap {
+  margin-block-start: 0.875rem;
+}
+
+// The disclosure, to the V2 handoff.
+//
+// Carbon's accordion is a full-width list with hairlines above and below; the
+// design is a single bordered card with a blue trigger. Every measurement below
+// is taken from the handoff; the colours are Carbon tokens rather than its hex
+// values, because the handoff says outright that its palette was matched by eye
+// and should be replaced with real tokens before merging.
+//
+// Several of these fight Carbon's own rules. Its stylesheet is emitted after
+// this one, so an equal-specificity override loses the tie - hence the `&`
+// anchors, which add the accordion's own class and settle it on specificity.
+.add-fdu__examples {
+  // `&.cds--accordion` on purpose: Carbon sets `border: 0` on that class and
+  // its stylesheet is emitted after this one, so a single-class rule here is
+  // silently discarded. Measured, not assumed - the computed border was
+  // `0px none` before this.
+  &.cds--accordion {
+    border: 1px solid var(--cds-border-subtle-01, #e4e7eb);
+    border-radius: 6px;
+  }
+
+  // White, literally. The dialog's own surface is #f4f4f4 and every Carbon
+  // layer token inside it resolves to that grey, so the card has to name white
+  // rather than ask for a layer.
+  background: #ffffff;
+
+  // The card corners clip the trigger's hover wash, which would otherwise
+  // square them off.
+  overflow: hidden;
+
+  // The border belongs to the card now, so the item must not draw its own.
+  .cds--accordion__item {
+    border-block: 0;
+  }
+
+  .cds--accordion__heading {
+    background: none;
+    padding: 11px 14px;
+
+    // Carbon holds the trigger at a 40px minimum; the padding above sets the
+    // height instead, which is what the handoff specifies.
+    min-block-size: auto;
+
+    // The one hard-coded colour here. The handoff tints the trigger with a
+    // blue wash on hover and Carbon has no token for it - every hover token in
+    // the neutral theme is grey, which would read as a different design rather
+    // than an approximation of this one.
+    &:hover {
+      background: #e8f0fe;
+    }
+  }
+
+  // Blue, medium weight - the trigger reads as an action, not a section label.
+  .cds--accordion__title {
+    margin: 0;
+    padding-inline-start: 9px;
+    color: var(--cds-link-primary, #2f6fe0);
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 18px;
+  }
+
+  .cds--accordion__arrow {
+    margin: 0;
+    fill: var(--cds-link-primary, #2f6fe0);
+    transition: transform 0.14s ease;
+  }
+
+  // No rotation override here. Carbon's chevron is a right-pointing glyph that
+  // its own CSS already turns - 90deg closed, -90deg open - which lands on the
+  // down-then-up the handoff asks for. A `rotate(180deg)` looks like the right
+  // answer and is not: transforms replace rather than compose, so it turns the
+  // raw glyph and the chevron ends up pointing left.
+
+  .cds--accordion__content {
+    max-inline-size: none;
+    padding: 4px 14px 16px;
+    background: #ffffff;
+
+    // Separates the panel from the trigger, and is the only line inside the
+    // card.
+    border-block-start: 1px solid var(--cds-border-subtle-01);
+  }
+
+  // `align="start"` puts the chevron on the left and indents the content to
+  // clear it, with a 2rem `margin-inline-start` rather than padding. The panel
+  // is inset by its own padding instead, aligned with the trigger.
+  &.cds--accordion--start .cds--accordion__content {
+    margin-inline-start: 0;
+  }
+
+  &.cds--accordion--start .cds--accordion__arrow {
+    margin: 0;
+  }
+
+  // Carbon pads the wrapper open; the panel's own padding does that here.
+  .cds--accordion__item--active > .cds--accordion__wrapper {
+    padding-block: 0;
+  }
+
+  // Carbon pads every tab panel by 1rem. The panel sets its own insets, and
+  // that padding is most of why the open state read as too loose.
+  .cds--tab-content {
+    padding: 0;
+  }
+
+  // Underline tabs, secondary to the dialog's own.
+  .cds--tabs .cds--tabs__nav-link {
+    padding: 8px 14px;
+    font-size: 13.5px;
+    block-size: auto;
+    border-block-end: 2px solid transparent;
+  }
+
+  // The rule under the tabs runs the width of the panel, not just the width of
+  // the two tabs. It goes on the tabs wrapper rather than the list: the list is
+  // a content-sized flex item, and a width set on it loses to Carbon's own
+  // rule anyway.
+  .cds--tabs {
+    border-block-end: 1px solid var(--cds-border-subtle-01, #e4e7eb);
+    margin-block: 8px 14px;
+  }
+
+  // One element carries all three classes - nav-item, nav-link and
+  // nav-item--selected - so this is a compound selector, not a descendant one.
+  // As a descendant it matches nothing and the tab stays black.
+  .cds--tabs__nav-link.cds--tabs__nav-item--selected {
+    border-block-end-color: var(--cds-link-primary, #2f6fe0);
+    color: var(--cds-link-primary, #2f6fe0);
+    font-weight: 600;
+  }
+
+  // The code sample: a filled card with its own hairline, not Carbon's
+  // full-bleed snippet.
+  .cds--snippet--multi {
+    background: #f7f8fa;
+    border: 1px solid var(--cds-border-subtle-01, #e4e7eb);
+    border-radius: 6px;
+    margin-block-end: 10px;
+
+    // Room on the right for the copy control, which sits inside the card.
+    padding: 13px 44px 13px 13px;
+
+    // Carbon pads the <pre> itself by `0 1.5rem 1.5rem 0` on top of the card's
+    // own padding, which is the band of empty space under the last line. Its
+    // rule is `.cds--snippet--multi .cds--snippet-container pre`, so the
+    // container has to be named here too - without it the two tie and Carbon,
+    // emitted later, keeps its padding.
+    // Carbon masks the container with two gradients: one fading the right edge
+    // to hint at horizontal scroll, one fading the bottom 16px to hint at
+    // vertical scroll. The first is useful - a long ring does scroll sideways.
+    // The second is not: these samples never exceed the 240px cap, so nothing
+    // is ever hidden below, and 16px is exactly one line - it greys out the
+    // last line of every example and reads as clipped or disabled.
+    .cds--snippet-container {
+      mask-image: linear-gradient(
+        to right,
+        #000 calc(100% - 32px),
+        transparent 100%
+      );
+    }
+
+    .cds--snippet-container pre {
+      padding: 0;
+      font-size: 11.5px;
+      line-height: 16px;
+    }
+  }
+
+  // "Use this example" is a text link in the design, not a 48px Carbon button.
+  .cds--btn--ghost {
+    min-block-size: auto;
+    padding: 6px 10px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--cds-link-primary, #2f6fe0);
+  }
+}
+
+// Both example paragraphs are the handoff's `.note`: 12/17. Set once for the
+// pair, because the handoff gives them a single class and they sit a few lines
+// apart on screen, where any difference would show.
+//
+// Scoped under the accordion for specificity, not tidiness. Carbon has
+// `.cds--accordion__content > p { font-size: .875rem; line-height: 1.42857 }`,
+// which outranks a lone class - and because it is a child combinator it caught
+// only the closing note, leaving the two paragraphs at different sizes.
+//
+// No width cap. The handoff sets `max-width: 64ch`, which is what was breaking
+// both lines well short of the panel edge; these read as single lines instead.
+.add-fdu__examples {
+  .add-fdu__example-desc,
+  .add-fdu__example-note {
+    font-size: 12px;
+    line-height: 17px;
+    color: var(--cds-text-secondary);
+  }
+}
+
+.add-fdu__example-desc {
+  margin: 0 0 10px;
+}
+
+// The snippet holds one long coordinate line per ring — let it scroll rather
+// than wrap, so a ring stays readable as a single row.
+.add-fdu__examples .cds--snippet--multi {
+  max-inline-size: none;
+}
+
+.add-fdu__example-note {
+  // The closing note sits tighter to the panel above it than the tab notes do
+  // to their samples.
+  margin: 6px 0 0;
+}

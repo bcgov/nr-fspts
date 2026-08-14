@@ -37,6 +37,16 @@ export const InboxIcon = (props: IconProps) => (
   </Svg>
 );
 
+// Document with a plus — "start a new plan". Distinct from SubmitFspIcon
+// (upload) so the two submission-adjacent entries don't read as the same
+// action in the rail.
+export const CreateFspIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M18 2H8a2 2 0 0 0-2 2v24a2 2 0 0 0 2 2h10v-2H8V4h8v6a2 2 0 0 0 2 2h6v2h2v-4L18 2Zm0 8V4.4L23.6 10H18Z" />
+    <path d="M28 22h-3v-3h-2v3h-3v2h3v3h2v-3h3v-2Z" />
+  </Svg>
+);
+
 export const SubmitFspIcon = (props: IconProps) => (
   <Svg viewBox="0 0 24 24" {...props}>
     <path d="M15 17.25L16.0605 18.3105L18 16.371V22.5H19.5V16.371L21.4395 18.3105L22.5 17.25L18.75 13.5L15 17.25Z" />

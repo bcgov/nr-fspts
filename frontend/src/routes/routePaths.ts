@@ -1,4 +1,5 @@
 import {
+  CreateFspIcon,
   DistrictNotificationIcon,
   FspSearchIcon,
   InboxIcon,
@@ -98,6 +99,16 @@ const NAV: MenuItem[] = [
       'FSPTS_REVIEWER',
       'FSPTS_VIEW_ALL',
     ],
+  },
+  {
+    // Manual FSP creation — the counterpart of Data Submission's file
+    // upload, for a plan a licensee is starting from scratch. Same roles:
+    // only content-editing roles create plans.
+    id: 'Create FSP',
+    label: 'Create FSP',
+    path: '/fsp/create',
+    icon: CreateFspIcon,
+    roles: ['FSPTS_ADMINISTRATOR', 'FSPTS_SUBMITTER'],
   },
   {
     // Single-entry top-level leaf; if more submission flows land
