@@ -18,6 +18,7 @@ import {useNotification} from '@/context/notification/useNotification';
 import {useOrg} from '@/context/org/useOrg';
 import {safeErrorMessage} from '@/lib/errorMessage';
 import {type FspFduList, getFspExtent, getFspFduList,} from '@/services/fspSearch';
+import AddFduModal from '@/components/AddFduModal';
 
 interface Props {
   fspId: string;
@@ -39,12 +40,13 @@ interface Props {
   /** Parent-bumped counter that forces a refetch on Submit/Extend/etc. */
   refreshKey?: number;
   /**
-   * Fired after licences are saved for an FDU. The parent reloads the
-   * whole FSP: a licence change alters FDU rows that the header and the
-   * other tabs derive from, and the save endpoint returns only the new
-   * licence list, so there is nothing to patch those views with locally.
+   * Fired after this tab changes FDU data — a licence save, or a new FDU.
+   * The parent reloads the whole FSP: both alter state the header and other
+   * tabs derive from (adding an FDU also flips the submit-time "FDUs
+   * modified" signal), and neither response carries enough to patch those
+   * views locally.
    */
-  onLicencesSaved?: () => void;
+  onFduDataChanged?: () => void;
 }
 
 const VARIANT_TITLE: Record<Props['variant'], string> = {
@@ -84,7 +86,7 @@ const MapTab: FC<Props> = ({
   isAdmin,
   readOnly,
   refreshKey,
-  onLicencesSaved,
+  onFduDataChanged,
 }) => {
   const { activeOrgClientNumber } = useOrg();
   const [extent, setExtent] = useState<string | null>(null);
@@ -110,11 +112,18 @@ const MapTab: FC<Props> = ({
   // admins only, everything else read-only. We don't try to detect "is
   // this user a submitter" on the client — the read path's tombstone
   // gate already rejected unauthorised users before the table loaded.
-  const canEditLicences =
+  const [addFduOpen, setAddFduOpen] = useState(false);
+  // Bumped after a local mutation (adding an FDU) to re-run the fetch below
+  // without waiting on the parent's refreshKey round trip.
+  const [localRefresh, setLocalRefresh] = useState(0);
+  // Adding an FDU is a content edit, so it follows exactly the same rule as
+  // editing licences — the backend re-checks via assertContentEditable.
+  const canAddFdu =
     !readOnly &&
     variant === 'fdu' &&
     (fspStatusCode === 'DFT' ||
       (fspStatusCode === 'APP' && !!isAdmin));
+  const canEditLicences = canAddFdu;
 
   useEffect(() => {
     if (!fspId) return;
@@ -160,7 +169,7 @@ const MapTab: FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [fspId, variant, display, refreshKey]);
+  }, [fspId, variant, display, refreshKey, localRefresh]);
 
   /**
    * Open the standalone Leaflet FDU map in a new tab, scoped to this FSP
@@ -238,11 +247,20 @@ const MapTab: FC<Props> = ({
             <Loading description="Loading FDUs…" withOverlay={false} />
           </div>
         ) : !fduList || fduList.fdus.length === 0 ? (
-          <EmptyState
-            icon={<EmptyMapIcon />}
-            title="No FDUs for this FSP"
-            body="FDU boundaries come from the spatial data (XML/GeoJSON) submitted for this FSP. None have been submitted for this version yet."
-          />
+          <>
+            <EmptyState
+              icon={<EmptyMapIcon />}
+              title="No FDUs for this FSP"
+              body="FDU boundaries usually come from the spatial data (XML/GeoJSON) submitted for this FSP. None have been submitted for this version yet — you can also add one directly."
+            />
+            {canAddFdu && (
+              <div className="fsp-info__fdu-empty-actions">
+                <Button kind="primary" onClick={() => setAddFduOpen(true)}>
+                  Add FDU
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
           <>
           <header className="fsp-info__tile-header fsp-info__tile-header--tab">
@@ -250,6 +268,15 @@ const MapTab: FC<Props> = ({
               <Map size={20} />
               <span>{title}</span>
             </h2>
+            {canAddFdu && (
+              <Button
+                kind="tertiary"
+                size="sm"
+                onClick={() => setAddFduOpen(true)}
+              >
+                Add FDU
+              </Button>
+            )}
           </header>
           <div className="bordered-table fsp-info__fdu-table">
             <TableContainer>
@@ -346,7 +373,31 @@ const MapTab: FC<Props> = ({
             // move state this tab can't see (the header's derived fields,
             // other tabs' slices), and the save returns only the licence
             // list, so a local patch alone would leave those stale.
-            onLicencesSaved?.();
+            onFduDataChanged?.();
+          }}
+        />
+      )}
+      {canAddFdu && (
+        <AddFduModal
+          open={addFduOpen}
+          fspId={fspId}
+          amendmentNumber={amendmentNumber}
+          onClose={() => setAddFduOpen(false)}
+          onAdded={(result) => {
+            setAddFduOpen(false);
+            display({
+              kind: 'success',
+              title: `FDU ${result.fduName} added`,
+              subtitle: `${result.areaHa.toFixed(1)} ha`
+                + (result.licencesAttached > 0
+                  ? ` · ${result.licencesAttached} licence(s)`
+                  : ''),
+              timeout: 5000,
+            });
+            // Refetch rather than patch: the new row's licence string and the
+            // FSP's derived spatial state both come from the server.
+            setLocalRefresh((n) => n + 1);
+            onFduDataChanged?.();
           }}
         />
       )}

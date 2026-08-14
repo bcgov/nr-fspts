@@ -4,11 +4,14 @@ import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp100SearchDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp300InformationDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.bean.LicenseeArrayElement;
 import ca.bc.gov.nrs.fsp.api.dao.v1.bean.OrgUnitArrayElement;
+import ca.bc.gov.nrs.fsp.api.struct.v1.FspCreateRequest;
+import ca.bc.gov.nrs.fsp.api.struct.v1.FspCreated;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspRequest;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspSearchRequest;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FspSearchResult;
 import ca.bc.gov.nrs.fsp.api.struct.v1.PageableResponse;
 import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
+import ca.bc.gov.nrs.fsp.api.validation.FspFieldRules;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -385,6 +388,222 @@ public class FspService {
    * caller must populate {@code request.agreementHolders} before
    * invoking this.
    */
+  /**
+   * Interactive "Create FSP" — validates the dialog's minimum field set, maps
+   * it onto the same {@link FspRequest} the submission pipeline builds, and
+   * delegates to {@link #create(FspRequest)}.
+   *
+   * <p>Validation runs here rather than being left to the proc for two
+   * reasons: an over-long value reaches Oracle as {@code ORA-12899} and
+   * surfaces as an opaque 500 naming no field, and the proc's own
+   * {@code FSP.NO.*} errors arrive one at a time. Collecting them means the
+   * dialog can show every problem in a single pass, which is how the
+   * submission validators already behave.
+   *
+   * <p>There is no {@code FspAccessGuard} call: both guards key off an
+   * existing {@code fspId}, and a create has none. Authorization is therefore
+   * the endpoint's {@code CONTENT_EDIT} authority plus the proc's own
+   * agreement-holder membership check (see
+   * {@link #assertHolderIncludesCaller}).
+   */
+  @Transactional
+  public FspCreated createFsp(FspCreateRequest body) {
+    validateCreate(body);
+    FspRequest request = toCreateRequest(body);
+    FspRequest saved = create(request);
+    log.info("Created FSP {} amendment {} by {}",
+        saved.getFspId(), saved.getFspAmendmentNumber(),
+        RequestUtil.getCurrentAuditUserId());
+    return new FspCreated(saved.getFspId(), saved.getFspAmendmentNumber());
+  }
+
+  /**
+   * Collects every problem with the create payload and throws once. Ordered
+   * to match the dialog's field order so the message reads top-to-bottom.
+   */
+  private void validateCreate(FspCreateRequest body) {
+    if (body == null) {
+      throw new IllegalArgumentException("A request body is required.");
+    }
+    List<String> errors = new java.util.ArrayList<>();
+
+    if (FspFieldRules.isBlank(body.getPlanName())) {
+      errors.add("Plan name is required.");
+    } else if (FspFieldRules.trimmedLength(body.getPlanName())
+        > FspFieldRules.MAX_PLAN_NAME_LEN) {
+      errors.add("Plan name must be " + FspFieldRules.MAX_PLAN_NAME_LEN
+          + " characters or fewer.");
+    }
+
+    if (FspFieldRules.isBlank(body.getContactName())) {
+      errors.add("Contact name is required.");
+    } else if (FspFieldRules.trimmedLength(body.getContactName())
+        > FspFieldRules.MAX_CONTACT_NAME_LEN) {
+      errors.add("Contact name must be " + FspFieldRules.MAX_CONTACT_NAME_LEN
+          + " characters or fewer.");
+    }
+
+    if (FspFieldRules.isBlank(body.getTelephoneNumber())) {
+      errors.add("Contact telephone number is required.");
+    } else if (!FspFieldRules.isValidPhone(body.getTelephoneNumber())) {
+      errors.add("Contact telephone number must be exactly 10 digits with no"
+          + " spaces, dashes or brackets (e.g. 2507206237).");
+    }
+
+    if (FspFieldRules.isBlank(body.getEmailAddress())) {
+      errors.add("Contact email address is required.");
+    } else if (FspFieldRules.trimmedLength(body.getEmailAddress())
+        > FspFieldRules.MAX_EMAIL_LEN) {
+      errors.add("Contact email address must be " + FspFieldRules.MAX_EMAIL_LEN
+          + " characters or fewer.");
+    }
+
+    List<String> holders = nonBlank(body.getAgreementHolderClientNumbers());
+    if (holders.isEmpty()) {
+      errors.add("At least one agreement holder is required.");
+    } else {
+      if (holders.stream().anyMatch(
+          h -> h.length() > FspFieldRules.MAX_CLIENT_NUMBER_LEN)) {
+        errors.add("Agreement holder client numbers must be "
+            + FspFieldRules.MAX_CLIENT_NUMBER_LEN + " characters or fewer.");
+      }
+      if (Set.copyOf(holders).size() != holders.size()) {
+        errors.add("Agreement holders must be unique.");
+      }
+    }
+
+    List<String> districts = nonBlank(body.getDistrictOrgUnitNos());
+    if (districts.isEmpty()) {
+      errors.add("At least one district is required.");
+    } else {
+      if (Set.copyOf(districts).size() != districts.size()) {
+        errors.add("Districts must be unique.");
+      }
+      // The proc keys the org-unit VARRAY on org_unit_no; a 3-letter code
+      // here would insert a district with a null number rather than fail
+      // loudly, so reject anything non-numeric up front.
+      if (districts.stream().anyMatch(d -> !d.matches("\\d+"))) {
+        errors.add("Districts must be identified by org unit number.");
+      }
+    }
+
+    errors.addAll(planTermErrors(body));
+
+    if (errors.isEmpty()) {
+      assertHolderIncludesCaller(holders, errors);
+    }
+
+    if (!errors.isEmpty()) {
+      throw new IllegalArgumentException(String.join(" ", errors));
+    }
+  }
+
+  /**
+   * Term (years/months) and end date are mutually exclusive at the proc
+   * ({@code FSP.BOTH.PLAN.TERM_OR_END_DATE}) and one of them is mandatory
+   * ({@code PLAN_TERM_OR_END_DATE_REQUIRED}).
+   */
+  private static List<String> planTermErrors(FspCreateRequest body) {
+    boolean hasTerm = !FspFieldRules.isBlank(body.getPlanTermYears())
+        || !FspFieldRules.isBlank(body.getPlanTermMonths());
+    boolean hasEndDate = !FspFieldRules.isBlank(body.getPlanEndDate());
+    if (hasTerm && hasEndDate) {
+      return List.of("Enter either a plan term (years/months) or a plan end"
+          + " date, not both.");
+    }
+    if (!hasTerm && !hasEndDate) {
+      return List.of("Enter either a plan term (years/months) or a plan end date.");
+    }
+    if (hasTerm) {
+      List<String> errors = new java.util.ArrayList<>();
+      digitsError("Plan term years", body.getPlanTermYears()).ifPresent(errors::add);
+      digitsError("Plan term months", body.getPlanTermMonths()).ifPresent(errors::add);
+      return errors;
+    }
+    return List.of();
+  }
+
+  /** PLAN_TERM_YEARS / PLAN_TERM_MONTHS are NUMBER(3) — digits only, max 3. */
+  private static java.util.Optional<String> digitsError(String label, String value) {
+    if (FspFieldRules.isBlank(value)) {
+      return java.util.Optional.empty();
+    }
+    String trimmed = value.trim();
+    if (!trimmed.matches("\\d{1," + FspFieldRules.MAX_PLAN_TERM_DIGITS + "}")) {
+      return java.util.Optional.of(label + " must be a whole number of up to "
+          + FspFieldRules.MAX_PLAN_TERM_DIGITS + " digits.");
+    }
+    return java.util.Optional.empty();
+  }
+
+  /**
+   * The proc rejects a create whose agreement holders don't include the
+   * caller's own client number ({@code FSP.INVALID.AGREEMENT.HOLDER}, raised
+   * when {@code p_user_client_number IS NOT NULL} and no holder matches).
+   * Administrators pass an empty client number, which Oracle treats as NULL,
+   * so the guard doesn't apply to them.
+   *
+   * <p>Pre-checked here purely so the submitter gets a sentence naming their
+   * own org rather than a bare proc error code.
+   */
+  private void assertHolderIncludesCaller(List<String> holders, List<String> errors) {
+    if (RequestUtil.isCurrentUserAdmin()) {
+      return;
+    }
+    String callerClient = RequestUtil.getCurrentClientNumber();
+    if (FspFieldRules.isBlank(callerClient)) {
+      return; // no client number on the token — the proc skips the check too
+    }
+    if (holders.stream().noneMatch(h -> h.equals(callerClient.trim()))) {
+      errors.add("Your organization (client " + callerClient.trim()
+          + ") must be one of the agreement holders on a plan you create.");
+    }
+  }
+
+  /** Maps the dialog payload onto the proc-facing DTO. */
+  private static FspRequest toCreateRequest(FspCreateRequest body) {
+    return FspRequest.builder()
+        .fspPlanName(body.getPlanName().trim())
+        .fspContactName(body.getContactName().trim())
+        .fspTelephoneNumber(body.getTelephoneNumber().trim())
+        .fspEmailAddress(body.getEmailAddress().trim())
+        .fspPlanTermYears(trimToEmpty(body.getPlanTermYears()))
+        .fspPlanTermMonths(trimToEmpty(body.getPlanTermMonths()))
+        .fspPlanEndDate(trimToEmpty(body.getPlanEndDate()))
+        // An Initial plan is an "original" row, not an amendment — the same
+        // mapping SubmissionToFspRequestMapper applies for actionCode I.
+        .fspAmendmentCode("ORG")
+        // Transitional FSPs are deprecated; the submission path hard-codes
+        // 'N' and the flag isn't editable in the app either.
+        .transitionInd("N")
+        .frpa197electionInd(Boolean.TRUE.equals(body.getFrpa197()) ? "Y" : "N")
+        .agreementHolders(nonBlank(body.getAgreementHolderClientNumbers()).stream()
+            .map(c -> new FspRequest.AgreementHolder(c, null, null, null))
+            .toList())
+        // org_unit_no in the FIRST slot: FSP_300_INFORMATION.save_org_units
+        // reads only p_org_units(i).org_unit_no and ignores the code/name
+        // attributes, so those stay null rather than being filled with
+        // values the proc never looks at.
+        .districts(nonBlank(body.getDistrictOrgUnitNos()).stream()
+            .map(no -> new FspRequest.District(no, null, null))
+            .toList())
+        .build();
+  }
+
+  private static List<String> nonBlank(List<String> values) {
+    if (values == null) {
+      return List.of();
+    }
+    return values.stream()
+        .filter(v -> !FspFieldRules.isBlank(v))
+        .map(String::trim)
+        .toList();
+  }
+
+  private static String trimToEmpty(String value) {
+    return value == null ? "" : value.trim();
+  }
+
   @Transactional
   public FspRequest create(FspRequest request) {
     Fsp300InformationDao.Result r = callInformation(ACTION_SAVE, null, null, request);

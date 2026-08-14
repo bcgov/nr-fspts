@@ -1,0 +1,20 @@
+// "Create FSP" landing surface. The feature is the dialog; this page only
+// has to hold the title and a way back into it, so it borrows the same
+// header rhythm as the other single-purpose pages (District Notification).
+
+.fsp-create-page {
+  display: flex;
+  flex-direction: column;
+  padding-block-start: 1rem;
+}
+
+.fsp-create__subtitle {
+  margin: 0.25rem 0 1.5rem;
+  color: var(--cds-text-secondary);
+  max-inline-size: 44rem;
+}
+
+.fsp-create__actions {
+  display: flex;
+  gap: 0.5rem;
+}

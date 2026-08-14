@@ -3,6 +3,7 @@ package ca.bc.gov.nrs.fsp.api.submission.validator;
 import ca.bc.gov.nrs.fsp.api.submission.SubmissionValidationError;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionMetadataType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionType;
+import ca.bc.gov.nrs.fsp.api.validation.FspFieldRules;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -33,9 +34,11 @@ import java.util.List;
 @Slf4j
 public class ContactDetailsValidator {
 
-  /** {@code FOREST_STEWARDSHIP_PLAN.CONTACT_NAME} / {@code .EMAIL_ADDRESS}. */
-  private static final int MAX_NAME_LEN = 120;
-  private static final int MAX_EMAIL_LEN = 120;
+  // Limits live in FspFieldRules so this path and the interactive
+  // "Create FSP" dialog can't drift apart — both write the same columns
+  // through the same proc.
+  private static final int MAX_NAME_LEN = FspFieldRules.MAX_CONTACT_NAME_LEN;
+  private static final int MAX_EMAIL_LEN = FspFieldRules.MAX_EMAIL_LEN;
 
   public List<SubmissionValidationError> validate(FSPSubmissionType submission) {
     List<SubmissionValidationError> errors = new ArrayList<>();
@@ -66,7 +69,7 @@ public class ContactDetailsValidator {
           "fspSubmissionMetadata/telephoneNumber",
           "CONTACT_PHONE_REQUIRED",
           "Contact telephone number is required."));
-    } else if (!phone.trim().matches("\\d{10}")) {
+    } else if (!FspFieldRules.isValidPhone(phone)) {
       errors.add(SubmissionValidationError.of(
           "fspSubmissionMetadata/telephoneNumber",
           "CONTACT_PHONE_INVALID",

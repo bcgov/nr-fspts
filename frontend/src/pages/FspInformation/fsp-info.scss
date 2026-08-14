@@ -240,6 +240,17 @@
 // label sits directly above the buttons instead of floating to the far
 // cell edge (Carbon ghost buttons carry a trailing icon + padding, which
 // otherwise pushes the label out of line with the header).
+// Action under the FDU empty state. Centred to sit beneath EmptyState's
+// centred body text — without a button here the FIRST FDU could never be
+// added from this tab, since the populated header is the only other place
+// the action lives.
+.fsp-info__fdu-empty-actions {
+  display: flex;
+  justify-content: center;
+  margin-block-start: 1rem;
+  margin-block-end: 2rem;
+}
+
 .fsp-info__fdu-table {
   .cds--data-table {
     table-layout: fixed;

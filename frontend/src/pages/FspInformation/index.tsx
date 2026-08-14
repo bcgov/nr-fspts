@@ -763,7 +763,7 @@ const FspInformationPage: FC = () => {
                     isAdmin={isAdmin}
                     readOnly={!canEditFsp(user, fsp?.fspStatusCode)}
                     refreshKey={refreshKey}
-                    onLicencesSaved={() => {
+                    onFduDataChanged={() => {
                       // Licence edits change FDU rows the header and the
                       // other tabs derive from, and the save returns only
                       // the new licence list — so reload the whole record

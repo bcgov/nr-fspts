@@ -3,6 +3,10 @@ package ca.bc.gov.nrs.fsp.api.service.v1;
 import ca.bc.gov.nrs.fsp.api.dao.v1.FduWriteDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp600MapDao;
 import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
+import ca.bc.gov.nrs.fsp.api.submission.persist.GeometryOrientationNormalizer;
+import ca.bc.gov.nrs.fsp.api.validation.FspFieldRules;
+import ca.bc.gov.nrs.fsp.api.struct.v1.FduCreateRequest;
+import ca.bc.gov.nrs.fsp.api.struct.v1.FduCreated;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FduLicencesUpdate;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FduLicencesUpdated;
 import ca.bc.gov.nrs.fsp.api.struct.v1.FduList;
@@ -10,6 +14,8 @@ import ca.bc.gov.nrs.fsp.api.struct.v1.LicenceExistsResponse;
 import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.WKTWriter;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +41,10 @@ public class FduService {
   private final Fsp600MapDao dao;
   private final FduWriteDao writeDao;
   private final FspAccessGuard accessGuard;
+  private final FduGeometryInputParser geometryParser;
+
+  /** {@code FOREST_DEVELOPMENT_UNIT.FDU_NAME VARCHAR2(120)}. */
+  private static final int MAX_FDU_NAME_LEN = FspFieldRules.MAX_FDU_NAME_LEN;
 
   public FduList getFdus(String fspId) {
     Fsp600MapDao.Result r = dao.get(
@@ -139,6 +149,121 @@ public class FduService {
         .map(r -> splitLicences(r.licences()))
         .orElse(Collections.emptyList());
     return new FduLicencesUpdated(updated, added, removed, skipped);
+  }
+
+  /**
+   * Add one FDU to the FSP/amendment — name, boundary, and optional licences.
+   *
+   * <p>Gated by the same content-edit fence as every other FSP write, so a
+   * Submitter can add FDUs to a Draft only and needs an amendment on an
+   * approved plan.
+   *
+   * <p>Geometry is <b>required</b>, and that is deliberate rather than
+   * incidental: {@code fsp_common_db.has_new_fdu_spatial} — the function
+   * gating "FDUs modified" on submit — counts FDU <em>header</em> rows and
+   * never inspects geometry, so a header-only FDU would let a plan be
+   * submitted claiming FDU changes with no spatial data behind them. Same
+   * shape as the MAP-attachment quirk that rule was hardened against.
+   *
+   * <p>Ordering matters: everything that can fail is checked before the first
+   * insert, because the three writes (header, geometry, licences) are
+   * separate statements and a half-written FDU is worse than a rejected one.
+   */
+  @Transactional
+  public FduCreated addFdu(String fspId, String amendmentNumberParam, FduCreateRequest body) {
+    if (body == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A request body is required.");
+    }
+    long fspIdLong = Long.parseLong(fspId);
+    long amendmentNumber = resolveAmendment(fspId, amendmentNumberParam);
+    accessGuard.assertContentEditable(fspId, String.valueOf(amendmentNumber));
+
+    String fduName = body.getFduName() == null ? "" : body.getFduName().trim();
+    if (fduName.isEmpty()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "FDU name is required.");
+    }
+    if (fduName.length() > MAX_FDU_NAME_LEN) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+          "FDU name must be " + MAX_FDU_NAME_LEN + " characters or fewer (got "
+              + fduName.length() + ").");
+    }
+    // Uniqueness within the amendment — the proc raises FSP.DUPLICATE.FDU.NAME
+    // on the second insert, and the comparison there is NLS_UPPER-based.
+    Fsp600MapDao.Result existing = dao.get(
+        fspId, RequestUtil.getCurrentClientNumber(), RequestUtil.getCurrentLegacyRoles());
+    boolean duplicate = existing.fdus().stream()
+        .map(Fsp600MapDao.FduRow::fduName)
+        .filter(java.util.Objects::nonNull)
+        .anyMatch(n -> n.trim().equalsIgnoreCase(fduName));
+    if (duplicate) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+          "An FDU named \"" + fduName + "\" already exists on this plan.");
+    }
+
+    // Parse + validate + reproject + measure before anything is written.
+    FduGeometryInputParser.ParsedGeometry parsed =
+        geometryParser.parse(body.getGeometry(), body.getSrid());
+
+    Set<String> licences = normalise(body.getLicenceNumbers());
+    List<String> invalid = new ArrayList<>();
+    for (String id : licences) {
+      if (!writeDao.licenceExists(id)) invalid.add(id);
+    }
+    if (!invalid.isEmpty()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+          "Unknown licence number(s): " + String.join(", ", invalid));
+    }
+
+    // Oracle's MOF_SPATIAL_VALIDATION raises ORA-13367 on clockwise exterior
+    // rings, which plenty of source files produce — normalise before WKT.
+    Geometry normalised = GeometryOrientationNormalizer.normalize(parsed.geometry());
+    String wkt = new WKTWriter().write(normalised);
+
+    String userId = RequestUtil.getCurrentAuditUserId();
+    long fduId = writeDao.nextFduId();
+    writeDao.insertFduHeader(fspIdLong, amendmentNumber, fduId, fduName, userId);
+    writeDao.insertFduGeometry(
+        fspIdLong,
+        amendmentNumber,
+        fduId,
+        writeDao.lookupFduFeatureClassSkey(),
+        wkt,
+        parsed.srid(),
+        parsed.areaHa(),
+        parsed.perimeterKm(),
+        userId);
+    for (String id : licences) {
+      writeDao.insertFduLicence(fspIdLong, amendmentNumber, fduId, id, userId);
+    }
+
+    log.info("FDU {} \"{}\" added to FSP {}/{} by {} — {} ha, {} licence(s)",
+        fduId, fduName, fspId, amendmentNumber, userId, parsed.areaHa(), licences.size());
+
+    return new FduCreated(
+        Long.toString(fduId),
+        fduName,
+        Long.toString(amendmentNumber),
+        parsed.areaHa(),
+        parsed.perimeterKm(),
+        licences.size());
+  }
+
+  /**
+   * Prefer the amendment the SPA says the user is VIEWING; only fall back to
+   * FSP_600_MAP.GET when it's absent. That resolution follows the
+   * shared-geometry fdu_id join, so on a draft amendment reusing the
+   * original's geometry it lands on the ORIGINAL — which would then deny a
+   * submitter editing the draft. Same trap {@link #updateLicences} documents.
+   */
+  private long resolveAmendment(String fspId, String amendmentNumberParam) {
+    if (amendmentNumberParam != null && !amendmentNumberParam.isBlank()) {
+      return Long.parseLong(amendmentNumberParam.trim());
+    }
+    Fsp600MapDao.Result current = dao.get(
+        fspId, RequestUtil.getCurrentClientNumber(), RequestUtil.getCurrentLegacyRoles());
+    return current.fduAmendmentNumber() == null
+        ? 0L
+        : Long.parseLong(current.fduAmendmentNumber());
   }
 
   /**
