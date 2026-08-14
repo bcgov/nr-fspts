@@ -21,4 +21,21 @@ public interface FspAttachmentQueryDao {
    * enforce it here at submit time instead.
    */
   boolean hasLegalDocument(long fspId, long amendmentNumber);
+
+  /**
+   * True when the given {@code (fspId, amendmentNumber)} has at least one
+   * {@code FOREST_DEVELOPMENT_UNIT} row.
+   *
+   * <p>Counts header rows, which is the same thing the FDU/Map tab lists.
+   * Amendment creation copies FDUs forward ({@code fsp_common_db.fdu_copy}),
+   * so every amendment carries its own rows and a plain count on this
+   * amendment is the right question — no need to look back at the original.
+   *
+   * <p>Deliberately NOT {@code has_new_fdu_spatial}: that function answers
+   * "were FDUs created on this amendment" (it compares entry/update
+   * timestamps) and returns false for FDUs merely carried forward, which is
+   * a perfectly valid plan. This asks the weaker question the rule needs —
+   * does the plan have any FDU at all.
+   */
+  boolean hasFdu(long fspId, long amendmentNumber);
 }

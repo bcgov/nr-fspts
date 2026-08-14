@@ -24,6 +24,13 @@ public class FspAttachmentQueryDaoImpl implements FspAttachmentQueryDao {
           + "   AND fax.fsp_amendment_number = ? "
           + "   AND fa.fsp_attachment_type_code = ?";
 
+  // FDU header rows for this exact fsp/amendment. FOREST_DEVELOPMENT_UNIT is
+  // keyed on both, and fsp_create_amendment copies rows forward, so this needs
+  // no join or fallback to the original amendment.
+  private static final String FDU_COUNT_SQL =
+      "SELECT COUNT(1) FROM the.forest_development_unit "
+          + " WHERE fsp_id = ? AND fsp_amendment_number = ?";
+
   private final JdbcTemplate jdbcTemplate;
 
   public FspAttachmentQueryDaoImpl(JdbcTemplate jdbcTemplate) {
@@ -35,6 +42,13 @@ public class FspAttachmentQueryDaoImpl implements FspAttachmentQueryDao {
     Integer count = jdbcTemplate.queryForObject(
         LEGAL_DOC_COUNT_SQL, Integer.class,
         fspId, amendmentNumber, TYPE_LEGAL_DOCS);
+    return count != null && count > 0;
+  }
+
+  @Override
+  public boolean hasFdu(long fspId, long amendmentNumber) {
+    Integer count = jdbcTemplate.queryForObject(
+        FDU_COUNT_SQL, Integer.class, fspId, amendmentNumber);
     return count != null && count > 0;
   }
 }

@@ -1271,3 +1271,38 @@ so this matches without repeating the literals.
   color: var(--cds-text-inverse);
 }
 
+/* ---------------------------------------------------------------
+Dark mode: Amend / Replace modal info banner.
+
+Same shape as the Carbon banners and the Data Submission .notif, and broken
+the same way — but it is none of those. AmendmentDescriptionModal builds its
+own `.amend-modal__banner` div on purpose (its comment: Carbon's
+InlineNotification forbids interactive children, and this one carries the
+inline "Data submission" link), so neither of the earlier fixes reached it.
+
+Its panel already comes out right because it reads
+--cds-notification-background-info, which is pinned to the BC Gov pale blue in
+both themes. What flips is the ink: --cds-text-primary is #f4f4f4 under g100,
+and the icon's --cds-support-info brightens to #4589ff.
+
+Pinned to the same -inverse pair as the other two, so all three banners read
+identically. The link is given the same colour as the icon rather than
+--cds-link-inverse: that token resolves to the `SelectedItemText` system
+keyword here, which is not guaranteed to contrast with a fixed pale-blue
+panel, whereas support-info-inverse is #0043ce — exactly what the light theme
+paints this banner with.
+--------------------------------------------------------------- */
+:root[data-carbon-theme='g100'] .amend-modal__banner,
+.cds--g100 .amend-modal__banner {
+  color: var(--cds-text-inverse);
+
+  .amend-modal__banner-icon {
+    fill: var(--cds-support-info-inverse);
+  }
+
+  a,
+  .cds--link {
+    color: var(--cds-support-info-inverse);
+  }
+}
+

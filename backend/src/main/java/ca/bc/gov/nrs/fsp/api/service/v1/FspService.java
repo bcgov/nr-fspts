@@ -715,6 +715,11 @@ public class FspService {
     // "Map of FDUs" document would otherwise let submit through with no real
     // FDU edit. Throws BAD_REQUEST when declared-but-not-modified.
     assertFduModifiedIfDeclared(fspId, current.getFspAmendmentNumber());
+    // App-level guard with no proc equivalent at all: the plan must describe
+    // some ground. fsp_common_validation's FDU rules only fire when
+    // fdu_update_ind='Y', so a plan that never declared an FDU update could
+    // otherwise submit carrying no FDU record whatsoever.
+    assertFduPresent(fspId, current.getFspAmendmentNumber());
     callInformation(ACTION_SUBMIT, fspId, nz(amendmentNumber), current);
     // The inner submit() call updates the row's fsp_status_code, but
     // MAINLINE's IN/OUT parameters don't get refreshed from the row
@@ -727,6 +732,31 @@ public class FspService {
   // Curated code for the app-level "FSP Legal Document required on this
   // amendment" rule. Not a proc code — see ProcErrorMessages.
   private static final String CODE_NO_LEGAL_DOCUMENT = "FSP.NO.LEGAL.DOCUMENT";
+  // Curated code for the app-level "at least one FDU" rule. Also not a proc
+  // code — the proc has no equivalent check.
+  private static final String CODE_NO_FDU = "FSP.NO.FDU";
+
+  /**
+   * True when the amendment being submitted has at least one FDU record.
+   * Blank/unparsable amendment numbers resolve to 0 (the original), same as
+   * the rest of the submit path.
+   */
+  private boolean hasFdu(String fspId, String amendmentNumber) {
+    return attachmentQueryDao.hasFdu(
+        Long.parseLong(fspId), parseLongOrZero(amendmentNumber));
+  }
+
+  /**
+   * Hard submit guard — throws {@link IllegalArgumentException} (→ 400) with
+   * the curated {@link #CODE_NO_FDU} message when the amendment carries no
+   * Forest Development Unit.
+   */
+  private void assertFduPresent(String fspId, String amendmentNumber) {
+    if (!hasFdu(fspId, amendmentNumber)) {
+      throw new IllegalArgumentException(
+          ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(CODE_NO_FDU));
+    }
+  }
 
   /**
    * True when an FSP Legal Document (attachment type {@code 'FSP'}) is
@@ -815,6 +845,11 @@ public class FspService {
           CODE_NO_LEGAL_DOCUMENT, null,
           ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(
               CODE_NO_LEGAL_DOCUMENT)));
+    }
+    // Same rule as the assertFduPresent guard in submit(), surfaced here so
+    // the SPA checklist matches what submit will actually enforce.
+    if (!attachmentQueryDao.hasFdu(fspIdLong, amendmentLong)) {
+      addPreflightIssue(issues, CODE_NO_FDU);
     }
     // Draft→Submitted "declared an update but carries no change" rules.
     // validate_fsp (the chain above) never runs the status-change branch, so
