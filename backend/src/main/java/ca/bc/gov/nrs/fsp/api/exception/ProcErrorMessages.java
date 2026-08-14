@@ -185,6 +185,14 @@ public final class ProcErrorMessages {
       Map.entry("FSP.NO.LEGAL.DOCUMENT", new Info(BAD_REQUEST,
           "Please upload the FSP Legal Document on the Attachments tab "
               + "(category \"FSP legal document\") before submitting.")),
+      // App-level submit guard (NOT a proc code). A plan has to describe the
+      // ground it covers, but fsp_common_validation never checks that any FDU
+      // exists — its FDU rules only fire when fdu_update_ind='Y', so a plan
+      // that never declared an FDU update could be submitted with no spatial
+      // record at all.
+      Map.entry("FSP.NO.FDU", new Info(BAD_REQUEST,
+          "Please add at least one Forest Development Unit on the FDU/Map tab "
+              + "before submitting.")),
       // Draft→Submitted checks from fsp_common_validation.validate_status_change:
       // every update indicator set to 'Y' must be backed by real changes on
       // this version. These fire on SUBMIT only — the Submit preflight
