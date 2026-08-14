@@ -342,13 +342,13 @@
 // cell colour below is then belt-and-suspenders. (The "No" approval cell
 // keeps its own #525252 via .fsp-search__bool--no, so it's unaffected.)
 .fsp-search__table .cds--data-table {
-  --cds-text-secondary: #131315;
+  --cds-text-secondary: var(--cds-text-primary);
 }
 
 .fsp-search__table .cds--data-table thead th,
 .fsp-search__table .cds--data-table thead th .cds--table-header-label {
   background-color: #dfdfe1;
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.4;
@@ -360,7 +360,7 @@
 
 .fsp-search__table .cds--data-table tbody td,
 .fsp-search__table .cds--data-table tbody td .cds--table-cell {
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
   font-size: 16px;
   line-height: 1.4;
   letter-spacing: 0.16px;
@@ -414,7 +414,7 @@
     border: none;
     border-block-start: 1px solid #c6c6c8;
     border-block-end: 1px solid #c6c6c8;
-    color: #606062;
+    color: var(--cds-text-secondary, #606062);
     font-size: 14px;
   }
 
@@ -472,7 +472,7 @@
   .cds--pagination .cds--pagination__text,
   .cds--pagination .cds--pagination__pages-text {
     background-color: transparent;
-    color: #606062;
+    color: var(--cds-text-secondary, #606062);
   }
 }
 

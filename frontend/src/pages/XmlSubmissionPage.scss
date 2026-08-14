@@ -21,8 +21,8 @@
   --fds-interactive:        #0073e6;
   --fds-interactive-hover:  #005db5;
   --fds-interactive-light:  #ebf2fc;
-  --fds-text-primary:       #131315;
-  --fds-text-secondary:     #606062;
+  --fds-text-primary:       var(--cds-text-primary, #131315);
+  --fds-text-secondary:     var(--cds-text-secondary, #606062);
   --fds-background:         #f3f3f5;
   --fds-layer-01:           #ffffff;
   --fds-border-subtle:      #dfdfe1;
@@ -370,6 +370,15 @@
     background: var(--fds-layer-01);
     border-bottom: 1px solid var(--fds-border-subtle);
   }
+  // Matches the drop-zone label ("Drag and drop files here"). The colour used
+  // to be an inline style on the <a>, which no stylesheet could override — so
+  // it stayed a different blue in both themes. Driving it from the page token
+  // keeps the two links in step; the dark pairing is in _overrides.scss, which
+  // sets both selectors in one rule.
+  .vtable-download {
+    color: var(--fds-interactive);
+  }
+
   .vtable-header__title {
     font-size: 14px;
     font-weight: 400;

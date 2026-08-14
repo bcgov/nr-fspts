@@ -13,7 +13,7 @@
 
   &__helper {
     font-size: 0.75rem;
-    color: #131315;
+    color: var(--cds-text-primary, #131315);
     letter-spacing: 0.32px;
     margin: 0 0 0.75rem;
   }

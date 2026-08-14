@@ -722,16 +722,18 @@ explicitly at the end.
   --fds-interactive-hover: var(--cds-link-primary);
   --fds-interactive-light: var(--cds-layer-hover-01);
 
-  // Status colours + notification tints (Carbon notification component
-  // tokens flip per-theme; dark fallbacks in case they're unset)
+  // Status colours. Kept dark-theme bright because they're used well beyond
+  // the alert box — the invalid-file chip's border, for instance.
   --fds-support-error:        var(--cds-support-error);
   --fds-support-success:      var(--cds-support-success);
-  --fds-support-error-bg:     var(--cds-notification-background-error, #2c1a1c);
-  --fds-support-success-bg:   var(--cds-notification-background-success, #1a2a1c);
-  --fds-support-info-bg:      var(--cds-notification-background-info, #1a2230);
-  --fds-notif-info-border:    var(--cds-support-info);
-  --fds-notif-error-border:   var(--cds-support-error);
-  --fds-notif-success-border: var(--cds-support-success);
+
+  // The notification tints and their borders are deliberately NOT re-pointed
+  // here. The page defines them on .fsp-submit as the BC Gov pastels
+  // (#fff0f1 / #defbe6 / #c2e0ff and matching borders), and those are wanted
+  // in both themes — same call as the Carbon banners above. Leaving them
+  // alone means the light values simply carry through, with no second copy of
+  // the hexes to drift. The ink on top is corrected in the .notif block that
+  // follows this one.
 
   // Tables
   --fds-table-header: var(--cds-layer-accent-01);
@@ -885,3 +887,387 @@ strong,
 b {
   font-weight: 700;
 }
+
+/* ---------------------------------------------------------------
+Dark-mode sweep — surfaces and borders that name a light literal.
+
+Found by grepping every .scss for bare hex values, minus those already
+inside a g100 block and minus `var(--token, #fallback)` fallbacks (which
+theme correctly on their own). Text literals were fixed at source instead:
+#131315 and #606062 are exactly what --cds-text-primary / --cds-text-secondary
+resolve to under the light theme, so swapping those in place could not shift
+light mode. The values below have no exact token equivalent (#c6c6c8 vs
+#c6c6c6, #dfdfe1 vs #e0e0e0, #f3f3f5 vs #f4f4f4), so re-pointing them at
+source WOULD have nudged the light theme — hence this g100-scoped block, which
+light mode never sees.
+
+Deliberately NOT included:
+  • FduMap label colour + white text halo — those sit on map tiles, which stay
+    light whatever the app theme is. Following the theme would make them
+    invisible against the imagery.
+  • The `#000` in .cds--snippet-container's mask-image — a mask alpha stop, not
+    a colour.
+--------------------------------------------------------------- */
+:root[data-carbon-theme='g100'] {
+  // ── FSP Information ──
+  .fsp-info__species-section {
+    border-block-start-color: var(--cds-border-subtle-01);
+  }
+
+  .fsp-info__tile:has(.fsp-info__section-title--icon) {
+    border-color: var(--cds-border-subtle-01);
+  }
+
+  // fsp-info.scss pins these to #ffffff so the dialog's inputs stay white on
+  // its white surface. A `var(--cds-field-01)` self-reference here would be a
+  // cycle — CSS treats that as guaranteed-invalid and the inputs lose their
+  // background entirely — so name the dark layers directly. These are the
+  // values Carbon's own g100 field tokens carry.
+  .new-std-modal {
+    --cds-field-01: var(--cds-layer-01);
+    --cds-field-02: var(--cds-layer-02);
+  }
+
+  // Stocking-standards table toolbar + footer.
+  //
+  // fsp-info.scss whitens this toolbar deliberately ("force white so the row
+  // matches the table") and pins --cds-field/--cds-field-hover to #ffffff so
+  // the search stays white through hover and focus. Under g100 that leaves a
+  // white slab carrying light text. Re-point the same selector set at layer
+  // tokens; the toolbar then matches the table exactly as intended, just on
+  // the dark side.
+  .fsp-info__standards-table {
+    .cds--table-toolbar,
+    .cds--toolbar-content,
+    .fsp-info__standards-toolbar .cds--toolbar-search-container-persistent,
+    .fsp-info__standards-toolbar .cds--search,
+    .fsp-info__standards-toolbar .cds--search-input {
+      background-color: var(--cds-layer-01);
+    }
+
+    .fsp-info__standards-toolbar {
+      --cds-field: var(--cds-field-01);
+      --cds-field-hover: var(--cds-field-hover-01);
+    }
+
+    // Light mode darkens the placeholder because Carbon's default reads too
+    // faint on white; on a dark toolbar the default is the right weight.
+    .fsp-info__standards-toolbar .cds--search-input::placeholder {
+      color: var(--cds-text-placeholder);
+    }
+
+    // Footer bar — same treatment the FSP Search / Inbox pagination gets
+    // above, so all three table footers read alike.
+    .cds--pagination {
+      background-color: var(--cds-layer-01);
+    }
+  }
+
+  // ── Search / Inbox ──
+  .fsp-search__searching-spinner,
+  .fsp-inbox__searching-spinner {
+    border-color: var(--cds-border-subtle-01);
+  }
+
+  // "No" indicator: a mid grey that disappears against the dark surface.
+  .fsp-search__bool--no {
+    color: var(--cds-text-secondary);
+
+    svg {
+      fill: var(--cds-icon-secondary);
+    }
+  }
+
+  // Inbox row hover/focus wash — a pale blue that reads as white-ish against
+  // the dark table. Same selector pair InboxPage.scss uses.
+  .fsp-inbox__table .cds--data-table tbody tr.fsp-search__row--selectable:hover td,
+  .fsp-inbox__table
+    .cds--data-table
+    tbody
+    tr.fsp-search__row--selectable:focus-visible
+    td {
+    background-color: var(--cds-layer-hover-01);
+  }
+
+  // ── Dialogs ──
+  .add-std-modal__results-header {
+    background-color: var(--cds-layer-01);
+  }
+
+  .amend-modal__divider {
+    background-color: var(--cds-border-subtle-01);
+  }
+
+  // Add-FDU examples card: white card, blue hover wash and a tinted code
+  // panel in light mode — all named literally because the dialog's own
+  // surface is already grey. Their dark counterparts are layer tokens.
+  .add-fdu__examples {
+    background: var(--cds-layer-01);
+
+    .cds--accordion__heading:hover {
+      background: var(--cds-layer-hover-01);
+    }
+
+    .cds--accordion__content {
+      background: var(--cds-layer-01);
+    }
+
+    .cds--snippet--multi {
+      background: var(--cds-layer-02);
+    }
+  }
+
+  // ── Drag & drop upload ──
+  .ddfi__zone--drag {
+    border-color: var(--cds-focus);
+    background: var(--cds-layer-hover-01);
+  }
+
+  // The drop-zone label and the "Download issues (.csv)" link are the two
+  // action links on the Data Submission page — one rule so they can't drift
+  // apart the way they had (the download link carried an inline #005cb8 that
+  // no stylesheet could reach).
+  .ddfi__zone-label,
+  .fsp-submit .vtable-download {
+    color: var(--cds-link-primary);
+  }
+
+  .ddfi__chip {
+    background: var(--cds-layer-02);
+  }
+}
+
+/* ---------------------------------------------------------------
+Dark mode: tertiary hover, and the search criteria panel.
+
+Both are light-theme rules that only misbehave once the surface behind them
+turns dark.
+
+1. `.cds--btn--tertiary:hover` above paints a light-blue wash (#ebf2fc) and
+   takes its text from --cds-button-tertiary. Under g100 that token is WHITE,
+   so hover was white-on-near-white — the button's label vanished. Keep the
+   design's "subtle wash, text keeps its colour" intent, but pick a wash that
+   is dark: layer-hover-01 (#333) under white text.
+
+2. `.fsp-search__tile.cds--tile` zeroes the inline padding so the fields line
+   up with the page title, which sits outside the Tile. That reads fine in
+   light mode because the tile is layer-02 = #ffffff on a white page — there
+   is no visible panel to inset from. Under g100 layer-02 is #393939 against a
+   #161616 page, so the panel becomes visible and the fields sit flush against
+   its edges, which looks clipped. Restore real padding for dark only.
+--------------------------------------------------------------- */
+:root[data-carbon-theme='g100'] {
+  .cds--btn--tertiary:hover {
+    background-color: var(--cds-layer-hover-01);
+    border-color: var(--cds-button-tertiary);
+    color: var(--cds-button-tertiary);
+  }
+
+  // Every criteria panel in the app repeats the same shape: a layer-02
+  // surface with padding-inline zeroed so fields align with the page title.
+  // Submission History reuses .fsp-search__tile, so these three selectors
+  // cover FSP Search, Stocking Standards Search, Submission History, Inbox
+  // and District Notification.
+  .fsp-search__tile.cds--tile,
+  .fsp-inbox__tile.cds--tile,
+  .fsp-district__tile.cds--tile {
+    padding-inline: 1.5rem;
+    padding-block: 1.5rem;
+  }
+}
+
+/* ---------------------------------------------------------------
+Dark mode: inline notification (alert banner) colours.
+
+The g100 :root block above already merges the LIGHT notification overrides on
+purpose, so BC Gov's pale tints are meant to survive into dark mode. They
+didn't, because ThemeProvider wraps the app in Carbon's <Theme>, which renders
+a `.cds--g100` div — and that class carries Carbon's own
+`--cds-notification-background-*: #262626`. Custom properties resolve from the
+NEAREST defining ancestor, so the wrapper beat :root every time and the banners
+came out dark.
+
+Re-assert the same override map at the `.cds--g100` scope. Driven off
+$light-notification-token-overrides rather than repeating the hexes, so the two
+places can't drift.
+
+The contents then need the light treatment too: title/body read
+--cds-text-primary (#f4f4f4 under g100) and the accent bar + icon read
+--cds-support-*, which brighten in dark. Both are pinned back — text to
+--cds-text-inverse (the dark ink under g100) and the status colour to the
+-inverse support pair. Selectors cover BOTH the wrapper class and :root,
+because Carbon portals modals to <body>, outside the <Theme> div.
+
+Toasts are deliberately untouched: they sit on the page surface, not a light
+tint, so Carbon's dark treatment is right for them.
+--------------------------------------------------------------- */
+.cds--g100 {
+  @each $token, $value in light-notification-overrides.$light-notification-token-overrides {
+    --cds-#{$token}: #{$value};
+  }
+}
+
+:root[data-carbon-theme='g100'] .cds--inline-notification,
+.cds--g100 .cds--inline-notification {
+  // Carbon paints title + body from these, so re-pointing them covers the
+  // markup without chasing every element.
+  --cds-text-primary: var(--cds-text-inverse);
+  --cds-text-secondary: var(--cds-text-inverse);
+  color: var(--cds-text-inverse);
+
+  .cds--inline-notification__title,
+  .cds--inline-notification__subtitle,
+  .cds--inline-notification__text-wrapper {
+    color: var(--cds-text-inverse);
+  }
+
+  .cds--inline-notification__close-button svg {
+    fill: var(--cds-text-inverse);
+  }
+}
+
+@each $type in ('error', 'info', 'success', 'warning') {
+  :root[data-carbon-theme='g100'] div.cds--inline-notification--#{$type},
+  .cds--g100 div.cds--inline-notification--#{$type} {
+    border-left-color: var(--cds-support-#{$type}-inverse);
+  }
+
+  :root[data-carbon-theme='g100']
+    .cds--inline-notification--#{$type}
+    .cds--inline-notification__icon,
+  .cds--g100
+    .cds--inline-notification--#{$type}
+    .cds--inline-notification__icon {
+    fill: var(--cds-support-#{$type}-inverse);
+  }
+}
+
+/* ---------------------------------------------------------------
+Dark mode: toast notification colours.
+
+Same story as the inline banners directly above. The backgrounds and the
+low-contrast border tints already come from the notification token map
+re-asserted at `.cds--g100`, so the panels are the BC Gov pastels in both
+themes. What was left flipping is what sits on them:
+
+  • title / subtitle / caption read --cds-text-primary, which is #f4f4f4
+    under g100 — near-white on a pastel panel.
+  • the left accent bar and status icon read --cds-support-*, whose dark
+    variants are the brighter pair (error #da1e28 → #fa4d56).
+
+Pinned back exactly as the inline banners are, so a toast and a banner of the
+same kind are indistinguishable in colour. Both selector families again,
+since the toast is portaled and may render outside the <Theme> wrapper.
+--------------------------------------------------------------- */
+:root[data-carbon-theme='g100'] .cds--toast-notification,
+.cds--g100 .cds--toast-notification {
+  --cds-text-primary: var(--cds-text-inverse);
+  --cds-text-secondary: var(--cds-text-inverse);
+  color: var(--cds-text-inverse);
+
+  .cds--toast-notification__title,
+  .cds--toast-notification__subtitle,
+  .cds--toast-notification__caption,
+  .cds--toast-notification__details {
+    color: var(--cds-text-inverse);
+  }
+
+  .cds--toast-notification__close-button svg {
+    fill: var(--cds-text-inverse);
+  }
+}
+
+@each $type in ('error', 'info', 'success', 'warning') {
+  :root[data-carbon-theme='g100'] div.cds--toast-notification--#{$type},
+  .cds--g100 div.cds--toast-notification--#{$type},
+  :root[data-carbon-theme='g100']
+    div.cds--toast-notification--low-contrast.cds--toast-notification--#{$type},
+  .cds--g100
+    div.cds--toast-notification--low-contrast.cds--toast-notification--#{$type} {
+    border-left-color: var(--cds-support-#{$type}-inverse);
+  }
+
+  :root[data-carbon-theme='g100']
+    .cds--toast-notification--#{$type}
+    .cds--toast-notification__icon,
+  .cds--g100
+    .cds--toast-notification--#{$type}
+    .cds--toast-notification__icon {
+    fill: var(--cds-support-#{$type}-inverse);
+  }
+}
+
+/* ---------------------------------------------------------------
+Dark mode: density + regen matrix inputs.
+
+The density cells (Target / Min horiz / Min pref / Min / Max) hard-code their
+fill: `background-color: #f4f4f4` with #e8e8e8 on hover. fsp-info.scss explains
+why — the detail panel maps --cds-field to field-02 (white in light mode), so a
+token-driven fill would have made these inputs white-on-white and they'd stop
+reading as fields.
+
+Under g100 that reasoning inverts: field-02 is #393939, a perfectly good dark
+field, while the literal stays #f4f4f4 — a pale box carrying light text. Max
+coniferous sits two rows below reading --cds-field and looks correct, which is
+the inconsistency being reported.
+
+So for dark only, hand these back to the same token Max coniferous uses. Light
+mode keeps its deliberate gray-input-on-white-row contrast untouched.
+
+The zebra-kill rule below is the same story: it paints even rows #ffffff to
+make the matrix one solid surface, which is a white band in dark mode.
+`transparent` gets the same uniformity from whatever the table's own
+background is, in either theme.
+--------------------------------------------------------------- */
+:root[data-carbon-theme='g100'] .fsp-info__density-table,
+:root[data-carbon-theme='g100'] .fsp-info__regen-table,
+.cds--g100 .fsp-info__density-table,
+.cds--g100 .fsp-info__regen-table {
+  .cds--data-table .cds--text-input {
+    background-color: var(--cds-field);
+
+    &:hover,
+    &:focus,
+    &:active {
+      background-color: var(--cds-field-hover);
+    }
+  }
+
+  .cds--data-table tbody tr:nth-child(even),
+  .cds--data-table tbody tr:nth-child(even) td {
+    background-color: transparent;
+  }
+}
+
+/* ---------------------------------------------------------------
+Dark mode: Data Submission alert box (.notif).
+
+This one is not a Carbon notification — XmlSubmissionPage builds its own
+`.notif--error / --info / --success` div off the page's --fds-* tokens. Its
+tints now carry through from light mode (see the .fsp-submit block above), but
+its text and icon still read tokens that flip:
+
+  • .notif__title / .notif__msg use --fds-text-primary, which resolves to
+    --cds-text-primary — #f4f4f4 under g100, so the wording disappeared into
+    the pale panel while the panel itself looked right.
+  • the icon uses --fds-support-error / --fds-interactive, whose dark variants
+    are the brighter pair.
+
+Both are corrected on the alert only, so the surrounding page keeps its dark
+treatment — the same status tokens still paint the invalid-file chip's border
+elsewhere on the screen, and those belong bright.
+
+--cds-*-inverse is the light-theme pair under g100 (text-inverse #161616,
+support-error-inverse #da1e28 — exactly what .fsp-submit names in light mode),
+so this matches without repeating the literals.
+--------------------------------------------------------------- */
+:root[data-carbon-theme='g100'] .fsp-submit .notif,
+.cds--g100 .fsp-submit .notif {
+  --fds-text-primary: var(--cds-text-inverse);
+  --fds-text-secondary: var(--cds-text-inverse);
+  --fds-support-error: var(--cds-support-error-inverse);
+  --fds-support-success: var(--cds-support-success-inverse);
+  --fds-interactive: var(--cds-support-info-inverse);
+  color: var(--cds-text-inverse);
+}
+

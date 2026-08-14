@@ -57,7 +57,11 @@
 
         .landing-subtitle {
           @include type.type-style('fluid-paragraph-01', true);
-          color: #131315;
+          // Token, not a literal: .landing-title sets no colour and so
+          // inherits the theme's text colour, which is why it stayed legible
+          // under g100 while this line went black-on-black. Fallback keeps
+          // the light theme byte-identical.
+          color: var(--cds-text-primary, #131315);
         }
       }
 
@@ -149,7 +153,8 @@
 
 .landing-request-access__note {
   margin: 0.5rem 0 0;
-  color: #131315;
+  // Same reason as .landing-subtitle — was invisible in dark mode.
+  color: var(--cds-text-primary, #131315);
   font-size: 0.875rem;
 }
 
@@ -159,7 +164,9 @@
 }
 
 .landing-request-modal {
-  color: #131315;
+  // Matches the dialog's own heading, which Carbon paints with
+  // --cds-text-primary.
+  color: var(--cds-text-primary, #131315);
   font-size: 16px;
 
   ul {

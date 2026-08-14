@@ -43,7 +43,7 @@
 // data-submission dialogs use.
 .client-search__intro {
   margin: 0 0 1.5rem 0;
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
 }
 
 // Single Agreement Holder combobox — same widget as the main SearchPage

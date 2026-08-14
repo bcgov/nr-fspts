@@ -34,7 +34,7 @@
 
 .session-timeout__body p {
   margin: 0 0 0.75rem;
-  color: #131315;
+  color: var(--cds-text-primary, #131315);
   line-height: 1.5;
 }
 
