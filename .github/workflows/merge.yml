@@ -113,8 +113,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-      # Consolidated from bcgov/action-sysdig-monitor into the bcgov/actions
-      # suite. v0.5.0 is the first release carrying sysdig-monitor, and it
+      # v0.5.0 is the first release carrying sysdig-monitor, and it
       # keeps the __APP__ template substitution that monitoring/alerts/*.json
       # depend on — don't downgrade this pin.
       - uses: bcgov/actions/sysdig-monitor@4ad61a784f1c17765b03d8d6de9737c1d3f4c0f2 # v0.5.0
