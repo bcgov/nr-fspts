@@ -95,7 +95,7 @@ interface ResultRow {
   status: string;
   expiryDate: string;
   fspIdList: string;
-  /** MoF default standard → offer Add(link); otherwise Copy only. */
+  /** MoF default standard → Copy only (never offered as an Add/link). */
   isDefault: boolean;
 }
 
@@ -608,7 +608,8 @@ const AddExistingStandardModal: FC<Props> = ({
                   later.
                   <br />
                   Use <strong>Copy</strong> if you need to change it — this
-                  creates an editable draft.
+                  creates an editable draft. Default standards can only be
+                  copied.
                 </span>
               </div>
               <div className="add-std-modal__results-header">
@@ -648,6 +649,9 @@ const AddExistingStandardModal: FC<Props> = ({
                           //              AND Copy (clone into a new draft)
                           //   Draft    → Copy only
                           // Anything else has no add/copy action.
+                          // MoF default standards (Default = Yes) are never
+                          // linkable — Copy only, so the FSP gets its own
+                          // editable draft rather than sharing the default.
                           const rowData = (results ?? []).find(
                             (r) => r.id === row.id,
                           );
@@ -666,7 +670,7 @@ const AddExistingStandardModal: FC<Props> = ({
                                   return (
                                     <TableCell key={cell.id}>
                                       <div className="add-std-modal__row-actions">
-                                        {isApproved && (
+                                        {isApproved && !rowIsDefault && (
                                           <Button
                                             kind="ghost"
                                             size="sm"
