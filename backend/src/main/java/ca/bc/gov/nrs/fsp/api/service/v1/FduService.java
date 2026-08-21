@@ -2,6 +2,7 @@ package ca.bc.gov.nrs.fsp.api.service.v1;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.FduWriteDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp600MapDao;
+import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp600MapDirectDao;
 import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
 import ca.bc.gov.nrs.fsp.api.submission.persist.GeometryOrientationNormalizer;
 import ca.bc.gov.nrs.fsp.api.validation.FspFieldRules;
@@ -39,18 +40,38 @@ import java.util.Set;
 public class FduService {
 
   private final Fsp600MapDao dao;
+  private final Fsp600MapDirectDao directDao;
   private final FduWriteDao writeDao;
   private final FspAccessGuard accessGuard;
   private final FduGeometryInputParser geometryParser;
+
+  // When true (default), the FDU list is read with direct SQL
+  // (Fsp600MapDirectDao) instead of FSP_600_MAP.GET. The proc raises
+  // ORA-01422 on any FSP whose FDU geometry spans two amendment levels —
+  // which is every plan an FDU has been added to via addFdu — so the proc
+  // path is a rollback switch only, not a supported configuration.
+  @org.springframework.beans.factory.annotation.Value("${fsp.fdu.direct:true}")
+  private boolean fduDirect;
+
+  /**
+   * The FDU-list read every path here shares: the amendment the caller may
+   * see, that amendment's FDU rows, and the amendment its geometry lives
+   * at. Routed through {@link Fsp600MapDirectDao} unless
+   * {@code fsp.fdu.direct=false} rolls it back onto the proc.
+   */
+  private Fsp600MapDao.Result mapGet(String fspId) {
+    String clientNumber = RequestUtil.getCurrentClientNumber();
+    String roles = RequestUtil.getCurrentLegacyRoles();
+    return fduDirect
+        ? directDao.get(fspId, clientNumber, roles)
+        : dao.get(fspId, clientNumber, roles);
+  }
 
   /** {@code FOREST_DEVELOPMENT_UNIT.FDU_NAME VARCHAR2(120)}. */
   private static final int MAX_FDU_NAME_LEN = FspFieldRules.MAX_FDU_NAME_LEN;
 
   public FduList getFdus(String fspId) {
-    Fsp600MapDao.Result r = dao.get(
-        fspId,
-        RequestUtil.getCurrentClientNumber(),
-        RequestUtil.getCurrentLegacyRoles());
+    Fsp600MapDao.Result r = mapGet(fspId);
     List<FduList.Fdu> fdus = r.fdus().stream()
         .map(f -> new FduList.Fdu(f.fduId(), f.fduName(), f.licences()))
         .toList();
@@ -85,10 +106,7 @@ public class FduService {
     if (amendmentNumberParam != null && !amendmentNumberParam.isBlank()) {
       amendmentNumber = Long.parseLong(amendmentNumberParam.trim());
     } else {
-      Fsp600MapDao.Result current = dao.get(
-          fspId,
-          RequestUtil.getCurrentClientNumber(),
-          RequestUtil.getCurrentLegacyRoles());
+      Fsp600MapDao.Result current = mapGet(fspId);
       amendmentNumber = current.fduAmendmentNumber() == null
           ? 0L
           : Long.parseLong(current.fduAmendmentNumber());
@@ -138,11 +156,8 @@ public class FduService {
         fduId, userId, fspId, amendmentNumber, added, removed, skipped);
 
     // Re-read the FDU row so the response carries the post-update list
-    // for the SPA. Cheap — same proc the page already calls on load.
-    Fsp600MapDao.Result refreshed = dao.get(
-        fspId,
-        RequestUtil.getCurrentClientNumber(),
-        RequestUtil.getCurrentLegacyRoles());
+    // for the SPA. Cheap — same read the page already does on load.
+    Fsp600MapDao.Result refreshed = mapGet(fspId);
     List<String> updated = refreshed.fdus().stream()
         .filter(r -> r.fduId() != null && Long.toString(fduId).equals(r.fduId()))
         .findFirst()
@@ -189,8 +204,7 @@ public class FduService {
     }
     // Uniqueness within the amendment — the proc raises FSP.DUPLICATE.FDU.NAME
     // on the second insert, and the comparison there is NLS_UPPER-based.
-    Fsp600MapDao.Result existing = dao.get(
-        fspId, RequestUtil.getCurrentClientNumber(), RequestUtil.getCurrentLegacyRoles());
+    Fsp600MapDao.Result existing = mapGet(fspId);
     boolean duplicate = existing.fdus().stream()
         .map(Fsp600MapDao.FduRow::fduName)
         .filter(java.util.Objects::nonNull)
@@ -259,8 +273,7 @@ public class FduService {
     if (amendmentNumberParam != null && !amendmentNumberParam.isBlank()) {
       return Long.parseLong(amendmentNumberParam.trim());
     }
-    Fsp600MapDao.Result current = dao.get(
-        fspId, RequestUtil.getCurrentClientNumber(), RequestUtil.getCurrentLegacyRoles());
+    Fsp600MapDao.Result current = mapGet(fspId);
     return current.fduAmendmentNumber() == null
         ? 0L
         : Long.parseLong(current.fduAmendmentNumber());

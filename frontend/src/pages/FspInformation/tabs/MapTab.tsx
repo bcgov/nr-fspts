@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import {Edit, Launch, Map} from '@carbon/icons-react';
+import {Add, Edit, Launch, Map} from '@carbon/icons-react';
 import {type FC, useEffect, useMemo, useState} from 'react';
 
 import EmptyState from '@/components/EmptyState/EmptyState';
@@ -255,7 +255,11 @@ const MapTab: FC<Props> = ({
             />
             {canAddFdu && (
               <div className="fsp-info__fdu-empty-actions">
-                <Button kind="primary" onClick={() => setAddFduOpen(true)}>
+                <Button
+                  kind="primary"
+                  renderIcon={Add}
+                  onClick={() => setAddFduOpen(true)}
+                >
                   Add FDU
                 </Button>
               </div>
@@ -272,6 +276,7 @@ const MapTab: FC<Props> = ({
               <Button
                 kind="tertiary"
                 size="sm"
+                renderIcon={Add}
                 onClick={() => setAddFduOpen(true)}
               >
                 Add FDU
