@@ -11,7 +11,16 @@ import {
   TableRow,
   Tag,
 } from '@carbon/react';
-import { Add, CalendarAdd, Chat, Edit, Launch, ListChecked, Stamp } from '@carbon/icons-react';
+import {
+  Add,
+  CalendarAdd,
+  Chat,
+  Download,
+  Edit,
+  Launch,
+  ListChecked,
+  Stamp,
+} from '@carbon/icons-react';
 import { type FC, type ReactNode, useEffect, useState } from 'react';
 
 import DdmDecisionEditModal, {
@@ -35,6 +44,7 @@ import {
   type FspReviewItem,
   type FspWorkflowRoles,
   type FspWorkflowState,
+  canViewAttachmentInline,
   getExtensionAttachments,
   getFspAttachments,
   getFspExtensions,
@@ -190,8 +200,9 @@ const Field: FC<FieldEntry> = ({ label, value, full }) => (
 );
 
 // "Decision letter" block shown in the DDM / Extension decision tiles: the
-// letter's filename as a link that opens the file inline in a new tab (same
-// viewer as the Attachments tab). Renders nothing when no letter is on file.
+// letter's filename as a link that opens a PDF / Word file in a new tab and
+// downloads anything else (same viewer as the Attachments tab). Renders
+// nothing when no letter is on file.
 const DecisionLetterSection: FC<{
   letters: DecisionLetter[];
   onView: (id: string, name: string | null) => void;
@@ -211,7 +222,11 @@ const DecisionLetterSection: FC<{
               onClick={() => onView(letter.id, letter.name)}
             >
               <span>{letter.name ?? 'Decision letter'}</span>
-              <Launch size={16} />
+              {canViewAttachmentInline(letter.name) ? (
+                <Launch size={16} />
+              ) : (
+                <Download size={16} />
+              )}
             </button>
           </li>
         ))}
@@ -741,7 +756,7 @@ const WorkflowDataTab: FC<Props> = ({
   // Dismissible IDIR-visibility notice at the top of the tab.
   const [bannerVisible, setBannerVisible] = useState(true);
   const { display } = useNotification();
-  const { view: viewLetter, viewingId: viewingLetterId } =
+  const { open: viewLetter, viewingId: viewingLetterId } =
     useAttachmentViewer(fspId);
 
   useEffect(() => {

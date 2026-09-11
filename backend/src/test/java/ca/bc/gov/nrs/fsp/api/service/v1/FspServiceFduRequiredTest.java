@@ -37,7 +37,7 @@ class FspServiceFduRequiredTest {
   /** Nothing declared, so only the FDU-presence rule can bite. */
   private static final FspValidationDao.UpdateIndicatorState CLEAN_INDICATORS =
       new FspValidationDao.UpdateIndicatorState(
-          "ORG", "N", "N", false, false, "N", false, "N", false);
+          "ORG", "N", "N", false, false, "N", false, "N", false, "N");
 
   private FspAttachmentQueryDao attachmentQueryDao;
   private FspValidationDao validationDao;

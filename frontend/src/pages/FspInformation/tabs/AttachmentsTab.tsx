@@ -14,7 +14,7 @@ import {
   TextArea,
 } from '@carbon/react';
 import { Modal } from '@/components/Modal';
-import { Add, Launch, TrashCan } from '@carbon/icons-react';
+import { Add, Download, Launch, TrashCan } from '@carbon/icons-react';
 import { type FC, useEffect, useMemo, useState } from 'react';
 
 import DragDropFileInput from '@/components/DragDropFileInput';
@@ -30,6 +30,7 @@ import {
   type CodeOption,
   deleteFspAttachment,
   type FspAttachmentRow,
+  canViewAttachmentInline,
   getAttachmentCategories,
   getFspAttachments,
   uploadFspAttachment,
@@ -122,7 +123,7 @@ const AttachmentsTab: FC<Props> = ({
   const [rows, setRows] = useState<FspAttachmentRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { view: handleView, viewingId } = useAttachmentViewer(fspId);
+  const { open: handleOpen, viewingId } = useAttachmentViewer(fspId);
   // Default to newest amendment first, with the sort indicator shown on
   // the Amendment column; clicking the header toggles the direction.
   const [sortDir, setSortDir] = useState<SortDir>('DESC');
@@ -376,6 +377,9 @@ const AttachmentsTab: FC<Props> = ({
               <TableBody>
                 {sorted.map((r, i) => {
                   const attachmentId = r.fspAttachmentId;
+                  // PDF / Word open in a new tab; anything else is a
+                  // straight download, named as listed.
+                  const inline = canViewAttachmentInline(r.attachmentName);
                   return (
                     <TableRow key={attachmentId ?? `row-${i}`}>
                       <TableCell>{dash(r.category)}</TableCell>
@@ -390,11 +394,11 @@ const AttachmentsTab: FC<Props> = ({
                             <Button
                               kind="ghost"
                               size="sm"
-                              renderIcon={Launch}
+                              renderIcon={inline ? Launch : Download}
                               disabled={viewingId === attachmentId}
-                              onClick={() => void handleView(attachmentId, r.attachmentName)}
+                              onClick={() => void handleOpen(attachmentId, r.attachmentName)}
                             >
-                              View
+                              {inline ? 'View' : 'Download'}
                             </Button>
                             {canEdit && (
                               <Button

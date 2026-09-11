@@ -735,6 +735,12 @@ public class FspService {
   // Curated code for the app-level "at least one FDU" rule. Also not a proc
   // code — the proc has no equivalent check.
   private static final String CODE_NO_FDU = "FSP.NO.FDU";
+  // Curated code for the app-level "Map attachment but no FDU change" rule.
+  // Not a proc code — it gets ahead of FSP_700_WORKFLOW's approval-time
+  // FSP.CANNOT.APPROVE.NO_FDU_SPATIAL_ATTACHED; see
+  // hasMapAttachmentWithoutFduChange.
+  private static final String CODE_MAP_ATTACHMENT_NO_FDU_CHANGE =
+      "FSP.MAP_ATTACHMENT.NO_FDU_CHANGE";
 
   /**
    * True when the amendment being submitted has at least one FDU record.
@@ -789,17 +795,50 @@ public class FspService {
    * proc's {@code has_fdu_changes} would accept). Throws
    * {@link IllegalArgumentException} (→ 400) with the same curated code the
    * preflight surfaces, so the checklist and the real submit agree.
+   *
+   * <p>Also refuses the undeclared twin — a MAP attachment with no FDU change
+   * on a version that needs approval — which would otherwise submit cleanly
+   * and fail at DDM approval. See {@link #hasMapAttachmentWithoutFduChange}.
    */
   private void assertFduModifiedIfDeclared(String fspId, String amendmentNumber) {
+    long fspIdLong = Long.parseLong(fspId);
+    long amendmentLong = parseLongOrZero(amendmentNumber);
     ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao.UpdateIndicatorState ind =
-        validationDao.getUpdateIndicatorState(
-            Long.parseLong(fspId), parseLongOrZero(amendmentNumber));
+        validationDao.getUpdateIndicatorState(fspIdLong, amendmentLong);
     if ("Y".equals(ind.fduUpdateInd()) && !ind.fduSpatialChanges()) {
       String code = "AMD".equals(ind.amendmentCode())
           ? "FSP.FDU_UPDATE_IND.NOCHANGE" : "FSP.RPL_FDU_UPDATE_IND.NOCHANGE";
       throw new IllegalArgumentException(
           ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(code));
     }
+    if (hasMapAttachmentWithoutFduChange(fspIdLong, amendmentLong, ind)) {
+      throw new IllegalArgumentException(
+          ca.bc.gov.nrs.fsp.api.exception.ProcErrorMessages.messageFor(
+              CODE_MAP_ATTACHMENT_NO_FDU_CHANGE));
+    }
+  }
+
+  /**
+   * True when DDM approval of this version would be refused because a MAP
+   * attachment claims FDU changes the version doesn't carry.
+   *
+   * <p>Mirrors {@code FSP_700_WORKFLOW.validate_approval_rejection}, which
+   * raises {@code FSP.CANNOT.APPROVE.NO_FDU_SPATIAL_ATTACHED} when approval is
+   * required AND (fdu_update_ind = 'Y' OR a MAP attachment is present) AND no
+   * FDU on the amendment is new ({@code has_new_fdu_spatial}). The
+   * fdu_update_ind = 'Y' half is already caught at submit by the
+   * FDU_UPDATE_IND.NOCHANGE rule, so this covers only the attachment half —
+   * the one that let a version with unchanged FDUs and, say, a
+   * stocking-standards map filed under the Map category submit cleanly and
+   * then fail in front of the decision maker.
+   */
+  private boolean hasMapAttachmentWithoutFduChange(
+      long fspId, long amendmentNumber,
+      ca.bc.gov.nrs.fsp.api.dao.v1.FspValidationDao.UpdateIndicatorState ind) {
+    return "Y".equals(ind.approvalRequiredInd())
+        && !"Y".equals(ind.fduUpdateInd())
+        && !ind.fduSpatialChanges()
+        && attachmentQueryDao.hasMapAttachment(fspId, amendmentNumber);
   }
 
   /**
@@ -867,6 +906,10 @@ public class FspService {
     if ("Y".equals(ind.fduUpdateInd()) && !ind.fduSpatialChanges()) {
       addPreflightIssue(issues, isAmendment
           ? "FSP.FDU_UPDATE_IND.NOCHANGE" : "FSP.RPL_FDU_UPDATE_IND.NOCHANGE");
+    }
+    // Approval-time rule surfaced at submit — same check the hard guard runs.
+    if (hasMapAttachmentWithoutFduChange(fspIdLong, amendmentLong, ind)) {
+      addPreflightIssue(issues, CODE_MAP_ATTACHMENT_NO_FDU_CHANGE);
     }
     if ("Y".equals(ind.iaUpdateInd()) && !ind.iaHasChanges()) {
       // Transition FSPs get their own code regardless of amendment vs
