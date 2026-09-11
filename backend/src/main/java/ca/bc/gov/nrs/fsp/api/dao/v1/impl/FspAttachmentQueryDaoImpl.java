@@ -12,10 +12,15 @@ public class FspAttachmentQueryDaoImpl implements FspAttachmentQueryDao {
   // fsp_common_validation checks in its APP/INE branch.
   private static final String TYPE_LEGAL_DOCS = "FSP";
 
-  // Same existence check fsp_common_validation runs (V9.00203
-  // FSP_COMMON_VALIDATION.sql:886-893): an FSP-type attachment linked to
-  // this exact fsp_id + amendment via the xref table.
-  private static final String LEGAL_DOC_COUNT_SQL =
+  // FSP_ATTACHMENT_TYPE_CODE for the FDU map category — matches
+  // AttachmentsService.TYPE_FDU_MAP and FSP_700_WORKFLOW.has_map_attachments.
+  private static final String TYPE_FDU_MAP = "MAP";
+
+  // An attachment of the given type linked to this exact fsp_id + amendment
+  // via the xref table — the existence check fsp_common_validation runs for
+  // FSP-type (V9.00203 FSP_COMMON_VALIDATION.sql:886-893) and
+  // FSP_700_WORKFLOW.has_map_attachments runs for MAP-type.
+  private static final String ATTACHMENT_OF_TYPE_COUNT_SQL =
       "SELECT COUNT(1) "
           + "  FROM the.fsp_attachment_xref fax "
           + "  JOIN the.fsp_attachment fa "
@@ -39,9 +44,18 @@ public class FspAttachmentQueryDaoImpl implements FspAttachmentQueryDao {
 
   @Override
   public boolean hasLegalDocument(long fspId, long amendmentNumber) {
+    return hasAttachmentOfType(fspId, amendmentNumber, TYPE_LEGAL_DOCS);
+  }
+
+  @Override
+  public boolean hasMapAttachment(long fspId, long amendmentNumber) {
+    return hasAttachmentOfType(fspId, amendmentNumber, TYPE_FDU_MAP);
+  }
+
+  private boolean hasAttachmentOfType(long fspId, long amendmentNumber, String typeCode) {
     Integer count = jdbcTemplate.queryForObject(
-        LEGAL_DOC_COUNT_SQL, Integer.class,
-        fspId, amendmentNumber, TYPE_LEGAL_DOCS);
+        ATTACHMENT_OF_TYPE_COUNT_SQL, Integer.class,
+        fspId, amendmentNumber, typeCode);
     return count != null && count > 0;
   }
 

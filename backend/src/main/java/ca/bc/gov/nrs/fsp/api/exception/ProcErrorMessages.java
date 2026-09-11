@@ -158,8 +158,21 @@ public final class ProcErrorMessages {
           "Submission must include at least one stocking standard.")),
       Map.entry("FSP.CANNOT.APPROVE.NO_SPATIAL_ATTACHED", new Info(BAD_REQUEST,
           "FDU spatial data is required.")),
+      // FSP_700_WORKFLOW.validate_approval_rejection (DDM approve): approval
+      // required AND (fdu_update_ind='Y' OR a MAP-category attachment) AND no
+      // FDU on the amendment is new (has_new_fdu_spatial). The attachment half
+      // is the common one — e.g. a stocking-standards map filed under the Map
+      // category on a version whose FDUs didn't change. Decision makers and
+      // reviewers can edit attachments while the plan is Submitted, so the
+      // first remedy is theirs to apply.
       Map.entry("FSP.CANNOT.APPROVE.NO_FDU_SPATIAL_ATTACHED", new Info(BAD_REQUEST,
-          "FDU spatial data is required.")),
+          "This version indicates FDU changes (it has an attachment in the Map "
+              + "category, or is marked as updating the Forest Development "
+              + "Units), but no FDUs were added or changed on it. If the FDUs "
+              + "haven't changed, re-file any Map attachment under a different "
+              + "category on the Attachments tab and record the decision again. "
+              + "If that doesn't clear it, or the FDUs should have changed, "
+              + "request clarification so the submitter can correct the plan.")),
       Map.entry("FSP.CANNOT.APPROVE.NO_IA_SPATIAL_ATTACHED", new Info(BAD_REQUEST,
           "Identified-areas spatial data is required.")),
       Map.entry("FSP.CANNOT.APPROVE.NO_IDENT_AREA_INCLUDED", new Info(BAD_REQUEST,
@@ -193,6 +206,18 @@ public final class ProcErrorMessages {
       Map.entry("FSP.NO.FDU", new Info(BAD_REQUEST,
           "Please add at least one Forest Development Unit on the FDU/Map tab "
               + "before submitting.")),
+      // App-level submit guard (NOT a proc code). At DDM approval,
+      // FSP_700_WORKFLOW treats a MAP-category attachment as a claim that the
+      // FDUs changed and refuses approval when no FDU on the version is new
+      // (FSP.CANNOT.APPROVE.NO_FDU_SPATIAL_ATTACHED). The Draft→Submitted
+      // branch never checks this, so without the guard the plan submits
+      // cleanly and only fails once it reaches the decision maker.
+      Map.entry("FSP.MAP_ATTACHMENT.NO_FDU_CHANGE", new Info(BAD_REQUEST,
+          "This version has an attachment in the Map category, but no Forest "
+              + "Development Units were added or changed on it, so it can't be "
+              + "approved as is. If the FDUs haven't changed, re-file the "
+              + "attachment under a different category on the Attachments tab; "
+              + "otherwise add the FDU changes before submitting.")),
       // Draft→Submitted checks from fsp_common_validation.validate_status_change:
       // every update indicator set to 'Y' must be backed by real changes on
       // this version. These fire on SUBMIT only — the Submit preflight

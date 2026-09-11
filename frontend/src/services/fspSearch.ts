@@ -1598,15 +1598,19 @@ export function getExtensionAttachments(
 }
 
 /**
- * Triggers a browser download for a single FSP attachment. The
- * backend streams the BLOB with Content-Disposition; we resolve the
- * filename from that header (fallback: the {@code attachmentName}
- * passed in by the caller).
+ * Saves a single FSP attachment to disk in place — no new tab. The file is
+ * named {@code fileName} (the name shown in the attachments table), falling
+ * back to the Content-Disposition filename, then a generic name.
+ *
+ * <p>Used for every type except PDF and Word (see
+ * {@link canViewAttachmentInline}): the View path would hand a new tab an
+ * octet-stream blob, which the browser saves under a random blob-UUID name
+ * and leaves the tab blank.
  */
 export async function downloadFspAttachment(
   fspId: string,
   attachmentId: string,
-  fallbackName: string,
+  fileName: string | null,
 ): Promise<void> {
   const res = await apiFetch(
     `/v1/fsp/${encodeURIComponent(fspId)}/attachments/${encodeURIComponent(attachmentId)}/download`,
@@ -1618,7 +1622,8 @@ export async function downloadFspAttachment(
   const blob = await res.blob();
   const disposition = res.headers.get('Content-Disposition') ?? '';
   const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
-  const filename = match ? decodeURIComponent(match[1]) : fallbackName;
+  const filename =
+    fileName?.trim() || (match ? decodeURIComponent(match[1]) : '') || 'attachment';
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -1626,7 +1631,9 @@ export async function downloadFspAttachment(
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  // Revoking synchronously can cancel the save in some browsers (Firefox,
+  // Safari) before they've read the blob — release it once that's done.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 // Map the allowed attachment extensions to a MIME type so the blob can
@@ -1638,6 +1645,17 @@ const ATTACHMENT_MIME_BY_EXT: Record<string, string> = {
   doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 };
+
+/**
+ * True for the attachment types we open in a new tab (PDF, Word). Anything
+ * else — ZIPs, spreadsheets, images, text — is saved straight to disk under
+ * its listed name, since the new-tab path would get an octet-stream blob the
+ * browser saves under a random blob-UUID name.
+ */
+export function canViewAttachmentInline(fileName: string | null): boolean {
+  const ext = (fileName ?? '').trim().split('.').pop()?.toLowerCase() ?? '';
+  return ext in ATTACHMENT_MIME_BY_EXT;
+}
 
 /**
  * Fetches a single attachment's bytes (with Bearer auth via apiFetch) and

@@ -2,10 +2,14 @@ import { useState } from 'react';
 
 import { useNotification } from '@/context/notification/useNotification';
 import { safeErrorMessage } from '@/lib/errorMessage';
-import { fetchFspAttachmentBlob } from '@/services/fspSearch';
+import {
+  canViewAttachmentInline,
+  downloadFspAttachment,
+  fetchFspAttachmentBlob,
+} from '@/services/fspSearch';
 
 /**
- * Opens a single FSP attachment inline in a new browser tab.
+ * Opens a single FSP attachment inline in a new browser tab, or saves it.
  *
  * The blob endpoint is Bearer-authenticated, so we can't just point an
  * `<a target="_blank">` at it — we open a blank tab *synchronously* (before
@@ -13,8 +17,14 @@ import { fetchFspAttachmentBlob } from '@/services/fspSearch';
  * object URL to that tab. Shared by the Attachments tab's "View" action and
  * the Workflow tab's decision-letter links.
  *
- * Returns {@code view(attachmentId, fileName)} plus {@code viewingId}, the id
- * currently loading (so callers can disable the triggering control).
+ * {@code download} saves in place under the given file name instead of
+ * opening a tab. {@code open} picks between them by type — PDF and Word view,
+ * everything else downloads (see {@link canViewAttachmentInline}) — and is
+ * what the attachment links and buttons call.
+ *
+ * Returns {@code open}, {@code view} and {@code download} (each
+ * {@code (attachmentId, fileName)}), plus {@code viewingId}, the id currently
+ * loading (so callers can disable the triggering control).
  */
 export function useAttachmentViewer(fspId: string) {
   const [viewingId, setViewingId] = useState<string | null>(null);
@@ -51,5 +61,27 @@ export function useAttachmentViewer(fspId: string) {
     }
   };
 
-  return { view, viewingId };
+  const download = async (attachmentId: string, fileName: string | null) => {
+    if (viewingId) return;
+    setViewingId(attachmentId);
+    try {
+      await downloadFspAttachment(fspId, attachmentId, fileName);
+    } catch (e) {
+      display({
+        kind: 'error',
+        title: 'Could not download attachment',
+        subtitle: safeErrorMessage(e, 'Unknown error'),
+        timeout: 7000,
+      });
+    } finally {
+      setViewingId(null);
+    }
+  };
+
+  const open = (attachmentId: string, fileName: string | null) =>
+    canViewAttachmentInline(fileName)
+      ? view(attachmentId, fileName)
+      : download(attachmentId, fileName);
+
+  return { open, view, download, viewingId };
 }

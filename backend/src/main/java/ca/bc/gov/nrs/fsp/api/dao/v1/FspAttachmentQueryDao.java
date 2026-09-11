@@ -23,6 +23,18 @@ public interface FspAttachmentQueryDao {
   boolean hasLegalDocument(long fspId, long amendmentNumber);
 
   /**
+   * True when at least one attachment of type {@code 'MAP'} (the FDU map
+   * category) is linked to the given {@code (fspId, amendmentNumber)}.
+   *
+   * <p>Same count {@code FSP_700_WORKFLOW.has_map_attachments} runs. At DDM
+   * approval that proc treats a MAP attachment as a claim that the FDUs
+   * changed, and refuses approval
+   * ({@code FSP.CANNOT.APPROVE.NO_FDU_SPATIAL_ATTACHED}) when no FDU on the
+   * amendment is new — so the submit checks ask the same question up front.
+   */
+  boolean hasMapAttachment(long fspId, long amendmentNumber);
+
+  /**
    * True when the given {@code (fspId, amendmentNumber)} has at least one
    * {@code FOREST_DEVELOPMENT_UNIT} row.
    *

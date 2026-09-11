@@ -111,11 +111,13 @@ public class FspValidationDaoImpl implements FspValidationDao {
               + "  v_fdu_ind    VARCHAR2(1); "
               + "  v_ia_ind     VARCHAR2(1); "
               + "  v_ss_ind     VARCHAR2(1); "
+              + "  v_approval   VARCHAR2(1); "
               + "BEGIN "
               + "  SELECT fsp_amendment_code, NVL(transition_ind,'N'), "
               + "         NVL(fdu_update_ind,'N'), NVL(identified_areas_update_ind,'N'), "
-              + "         NVL(stocking_standard_update_ind,'N') "
-              + "    INTO v_amd_code, v_transition, v_fdu_ind, v_ia_ind, v_ss_ind "
+              + "         NVL(stocking_standard_update_ind,'N'), "
+              + "         NVL(amendment_approval_requird_ind,'N') "
+              + "    INTO v_amd_code, v_transition, v_fdu_ind, v_ia_ind, v_ss_ind, v_approval "
               + "    FROM forest_stewardship_plan "
               + "   WHERE fsp_id = v_id AND fsp_amendment_number = v_amd; "
               + "  ? := v_amd_code; "
@@ -129,6 +131,7 @@ public class FspValidationDaoImpl implements FspValidationDao {
               // Stricter FDU signal: actual new FDU records only, NOT the
               // MAP-attachment shortcut has_fdu_changes also honours.
               + "  ? := CASE WHEN fsp_common_db.has_new_fdu_spatial(v_id, v_amd) THEN 'Y' ELSE 'N' END; "
+              + "  ? := v_approval; "
               + "EXCEPTION WHEN NO_DATA_FOUND THEN NULL; "
               + "END;")) {
         cs.setLong(1, fspId);
@@ -142,6 +145,7 @@ public class FspValidationDaoImpl implements FspValidationDao {
         cs.registerOutParameter(9, java.sql.Types.VARCHAR);   // ia has changes
         cs.registerOutParameter(10, java.sql.Types.VARCHAR);  // ss has changes
         cs.registerOutParameter(11, java.sql.Types.VARCHAR);  // fdu new spatial
+        cs.registerOutParameter(12, java.sql.Types.VARCHAR);  // approval required ind
         cs.execute();
         return new UpdateIndicatorState(
             cs.getString(3),
@@ -152,7 +156,8 @@ public class FspValidationDaoImpl implements FspValidationDao {
             cs.getString(6),
             "Y".equals(cs.getString(9)),
             cs.getString(7),
-            "Y".equals(cs.getString(10)));
+            "Y".equals(cs.getString(10)),
+            cs.getString(12));
       }
     });
   }

@@ -34,6 +34,11 @@ public interface FspValidationDao {
    * lets a "Map of FDUs" document satisfy the FDU-declared rule without any
    * real FDU edit. We enforce the FDU rule on {@code fduSpatialChanges} so an
    * attachment can't stand in for an actual FDU modification.
+   *
+   * <p>{@code approvalRequiredInd} is {@code amendment_approval_requird_ind}
+   * ('Y'/'N'). Not a submit-branch input — it gates the approval-time FDU
+   * check in {@code FSP_700_WORKFLOW.validate_approval_rejection}, which the
+   * Submit checks replicate so that failure surfaces before submit.
    */
   record UpdateIndicatorState(
       String amendmentCode,
@@ -44,7 +49,8 @@ public interface FspValidationDao {
       String iaUpdateInd,
       boolean iaHasChanges,
       String ssUpdateInd,
-      boolean ssHasChanges) {}
+      boolean ssHasChanges,
+      String approvalRequiredInd) {}
 
   /**
    * Returns every error accumulated by validating the given

@@ -8,14 +8,15 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import { ChevronDown, Launch } from '@carbon/icons-react';
+import { ChevronDown, Download, Launch } from '@carbon/icons-react';
 import { Modal } from '@/components/Modal';
 import { Fragment, useEffect, useState, type FC } from 'react';
 
 import StatusTag from '@/components/StatusTag/StatusTag';
 import { useNotification } from '@/context/notification/useNotification';
+import { useAttachmentViewer } from '@/hooks/useAttachmentViewer';
 import {
-  fetchFspAttachmentBlob,
+  canViewAttachmentInline,
   getExtensionAttachments,
   getFspExtensions,
   type ExtensionAttachment,
@@ -87,11 +88,12 @@ const ExtensionDetail: FC<{ fspId: string; extension: FspExtension }> = ({
   fspId,
   extension,
 }) => {
-  const { display } = useNotification();
   const extensionId = extension.extensionId ?? '';
   const [attachments, setAttachments] = useState<ExtensionAttachment[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [viewingId, setViewingId] = useState<string | null>(null);
+  // PDF / Word open in a new tab, anything else downloads under its listed
+  // name — same viewer as the Attachments tab.
+  const { open, viewingId } = useAttachmentViewer(fspId);
 
   useEffect(() => {
     if (!extensionId) {
@@ -114,37 +116,6 @@ const ExtensionDetail: FC<{ fspId: string; extension: FspExtension }> = ({
       cancelled = true;
     };
   }, [fspId, extensionId]);
-
-  // Open an attachment inline in a new tab (auth header means we can't
-  // just point an <a> at the download URL). Mirrors the Attachments tab.
-  const view = async (attachmentId: string | null, name: string | null) => {
-    if (!attachmentId || viewingId) return;
-    const popup = window.open('about:blank', '_blank');
-    if (!popup) {
-      display({
-        kind: 'error',
-        title: 'Pop-up blocked',
-        subtitle: 'Allow pop-ups for this site to view attachments.',
-        timeout: 7000,
-      });
-      return;
-    }
-    setViewingId(attachmentId);
-    try {
-      const blob = await fetchFspAttachmentBlob(fspId, attachmentId, name);
-      popup.location.href = URL.createObjectURL(blob);
-    } catch (e) {
-      popup.close();
-      display({
-        kind: 'error',
-        title: 'Could not open attachment',
-        subtitle: e instanceof Error ? e.message : 'Unknown error',
-        timeout: 7000,
-      });
-    } finally {
-      setViewingId(null);
-    }
-  };
 
   const pending = pendingLabel(extension.statusCode);
 
@@ -179,11 +150,17 @@ const ExtensionDetail: FC<{ fspId: string; extension: FspExtension }> = ({
                 <button
                   type="button"
                   className="ext-summary__attachment-link"
-                  onClick={() => void view(a.attachmentId, a.attachmentName)}
+                  onClick={() => {
+                    if (a.attachmentId) void open(a.attachmentId, a.attachmentName);
+                  }}
                   disabled={viewingId === a.attachmentId}
                 >
                   <span>{dash(a.attachmentName)}</span>
-                  <Launch size={16} />
+                  {canViewAttachmentInline(a.attachmentName) ? (
+                    <Launch size={16} />
+                  ) : (
+                    <Download size={16} />
+                  )}
                 </button>
               </li>
             ))}
