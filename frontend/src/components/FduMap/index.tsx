@@ -156,13 +156,6 @@ const FduMap: FC<Props> = ({
               zIndex={-10000}
             />
           </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="OpenStreets">
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              zIndex={-10000}
-            />
-          </LayersControl.BaseLayer>
 
           {/* BC-gov WMS overlays — the same catalogue nr-silva exposes,
               toggled off by default. */}
