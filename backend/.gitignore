@@ -157,3 +157,4 @@ src/main/resources/cert/jssecacerts
 src/main/resources/application-local.properties
 
 src/main/resources/static
+/.env.example
