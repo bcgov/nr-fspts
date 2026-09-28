@@ -120,3 +120,13 @@ be defined by … Decision Date, Effective Date, Expiry Date."
    `WorkflowDataTab` code warns about this explicitly).
 5. **Everything is Oracle `DATE`** (formatted to `YYYY-MM-DD`); only the
    `*_timestamp` columns and the OTBH dates carry a time component.
+6. **Two "expiry" fields on the Information record.** `fspExpiryDate`
+   (`P_FSP_EXPIRY_DATE`) comes from `fsp_tombstone.get` — the latest
+   *approved* amendment's `plan_end_date` — and is **never read on SAVE**.
+   `fspPlanEndDate` (`P_FSP_PLAN_END_DATE`) is this amendment row's own end
+   date and is the only one SAVE writes. Edits must target `fspPlanEndDate`
+   (`FspService.applyEdits` maps a stray `fspExpiryDate` onto it). On SAVE a
+   non-zero term wins: `fsp_update` sets the end date to the *original*
+   plan's effective date + term, so a specific date needs a 0/0 term.
+   Replacement approval (`fsp_approval`, RPL) keeps the row's stored end
+   date — set the new expiry on the replacement before approving it.

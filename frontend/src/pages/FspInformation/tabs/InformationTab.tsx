@@ -156,8 +156,12 @@ interface EditFormState {
   fspContactName: string;
   fspTelephoneNumber: string;
   fspEmailAddress: string;
-  fspPlanStartDate: string;
-  fspExpiryDate: string;
+  // The expiry column on THIS amendment row — the only one the SAVE proc
+  // writes. NOT fspExpiryDate: that's the tombstone value (the latest
+  // APPROVED amendment's end date), which the proc never reads, so editing
+  // it silently discarded the change. The effective date isn't here at all:
+  // SAVE has no start-date input (the DDM sets it on approval).
+  fspPlanEndDate: string;
   fspPlanTermYears: string;
   fspPlanTermMonths: string;
   frpa197electionInd: boolean;
@@ -168,8 +172,7 @@ const createFormState = (fsp: FspInformation): EditFormState => ({
   fspContactName: fsp.fspContactName ?? '',
   fspTelephoneNumber: fsp.fspTelephoneNumber ?? '',
   fspEmailAddress: fsp.fspEmailAddress ?? '',
-  fspPlanStartDate: fsp.fspPlanStartDate ?? '',
-  fspExpiryDate: fsp.fspExpiryDate ?? '',
+  fspPlanEndDate: fsp.fspPlanEndDate ?? '',
   fspPlanTermYears: fsp.fspPlanTermYears ?? '',
   fspPlanTermMonths: fsp.fspPlanTermMonths ?? '',
   frpa197electionInd: fsp.frpa197electionInd === 'Y',
@@ -185,7 +188,10 @@ const MAX = {
 
 type Errors = Partial<Record<keyof EditFormState, string>>;
 
-const validate = (form: EditFormState): Errors => {
+const totalTermMonths = (years: string, months: string): number =>
+  (Number(years.trim()) || 0) * 12 + (Number(months.trim()) || 0);
+
+const validate = (form: EditFormState, initial: EditFormState): Errors => {
   const errs: Errors = {};
   if (!form.fspPlanName.trim()) {
     errs.fspPlanName = 'Plan name is required.';
@@ -210,41 +216,38 @@ const validate = (form: EditFormState): Errors => {
   } else if (form.fspEmailAddress.length > MAX.fspEmailAddress) {
     errs.fspEmailAddress = `Max ${MAX.fspEmailAddress} characters.`;
   }
-  // Plan duration is expressed as EITHER a term (years/months) OR an
-  // explicit effective+expiry date pair — the proc enforces this as
-  // FSP.NO.PLAN.TERM.AND.EXPIRY ("enter either a term or an end date") and
-  // FSP.BOTH.PLAN.TERM_OR_END_DATE ("not both"). So the dates are only
-  // mandatory when no term is supplied. Requiring them alongside a term
-  // both blocks a legitimate term-based draft (e.g. one created from an XML
-  // submission that carries only a term) from saving AND would trip the
-  // proc's "both provided" rejection on submit. Whichever side is present,
-  // any value entered is still format-checked below.
+  // Plan duration is a term (years/months) OR an explicit expiry date,
+  // mirroring fsp_common_validation.validate_fsp_header:
+  //   - FSP.NO.PLAN.TERM.AND.EXPIRY — neither supplied (a 0/0 term counts
+  //     as no term).
+  //   - FSP.BOTH.PLAN.TERM_OR_END_DATE — a non-zero term AND a date where
+  //     either one changed since the last save. An unchanged pair (the proc
+  //     stored both) is fine.
+  // A non-zero term always wins: fsp_update recomputes the expiry as the
+  // ORIGINAL plan's effective date + term, so a typed date would be ignored.
   const years = form.fspPlanTermYears.trim();
   const months = form.fspPlanTermMonths.trim();
-  const hasTerm = years !== '' || months !== '';
-  if (!hasTerm && !form.fspPlanStartDate.trim()) {
-    errs.fspPlanStartDate = 'Enter a plan term or an effective date.';
+  if (years && (!/^\d+$/.test(years) || Number(years) > 99)) {
+    errs.fspPlanTermYears = 'Whole number 0–99.';
   }
-  if (!hasTerm && !form.fspExpiryDate.trim()) {
-    errs.fspExpiryDate = 'Enter a plan term or an expiry date.';
+  if (months && (!/^\d+$/.test(months) || Number(months) > 11)) {
+    errs.fspPlanTermMonths = 'Whole number 0–11.';
   }
-  // Term years/months are only mandatory when the plan isn't defined by
-  // dates; a value that IS present must still be a valid whole number.
-  const hasDates =
-    form.fspPlanStartDate.trim() !== '' && form.fspExpiryDate.trim() !== '';
-  if (years) {
-    if (!/^\d+$/.test(years) || Number(years) > 99) {
-      errs.fspPlanTermYears = 'Whole number 0–99.';
+  const term = totalTermMonths(years, months);
+  const endDate = form.fspPlanEndDate.trim();
+  if (term === 0 && !endDate) {
+    errs.fspPlanEndDate = 'Enter a plan term or an expiry date.';
+  } else if (term > 0 && endDate) {
+    const termChanged =
+      term !==
+      totalTermMonths(initial.fspPlanTermYears, initial.fspPlanTermMonths);
+    const dateChanged = endDate !== initial.fspPlanEndDate.trim();
+    if (termChanged || dateChanged) {
+      errs.fspPlanEndDate =
+        'Enter a term or an expiry date, not both. To set a specific ' +
+        'expiry date, set the term to 0 years 0 months; to use a term, ' +
+        'clear the expiry date.';
     }
-  } else if (!hasDates) {
-    errs.fspPlanTermYears = 'Term years is required.';
-  }
-  if (months) {
-    if (!/^\d+$/.test(months) || Number(months) > 11) {
-      errs.fspPlanTermMonths = 'Whole number 0–11.';
-    }
-  } else if (!hasDates) {
-    errs.fspPlanTermMonths = 'Term months is required.';
   }
   return errs;
 };
@@ -266,8 +269,7 @@ const toPayload = (form: EditFormState): Partial<FspInformation> => ({
   fspContactName: form.fspContactName.trim(),
   fspTelephoneNumber: form.fspTelephoneNumber.trim(),
   fspEmailAddress: form.fspEmailAddress.trim(),
-  fspPlanStartDate: form.fspPlanStartDate,
-  fspExpiryDate: form.fspExpiryDate,
+  fspPlanEndDate: form.fspPlanEndDate,
   fspPlanTermYears: form.fspPlanTermYears.trim(),
   fspPlanTermMonths: form.fspPlanTermMonths.trim(),
   // transitionInd is intentionally omitted — it's no longer user-editable, so
@@ -338,10 +340,14 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
 
   const setField = <K extends keyof EditFormState>(key: K, value: EditFormState[K]) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
-    if (errors[key]) {
+    // The term-vs-expiry error sits on the date field but is resolved by
+    // editing either side, so a term edit clears it too.
+    const isTerm = key === 'fspPlanTermYears' || key === 'fspPlanTermMonths';
+    if (errors[key] || (isTerm && errors.fspPlanEndDate)) {
       setErrors((prev) => {
         const next = { ...prev };
         delete next[key];
+        if (isTerm) delete next.fspPlanEndDate;
         return next;
       });
     }
@@ -360,7 +366,7 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
   };
 
   const handleSave = async () => {
-    const found = validate(form);
+    const found = validate(form, createFormState(fsp));
     if (Object.keys(found).length > 0) {
       setErrors(found);
       return;
@@ -554,6 +560,20 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
     { label: 'Submission date', value: dash(fsp.fspPlanSubmissionDate) },
     { label: 'Effective date', value: dash(fsp.fspPlanStartDate) },
     { label: 'Expiry date', value: dash(fsp.fspExpiryDate) },
+    // fspExpiryDate is the latest APPROVED amendment's expiry. An amendment
+    // that isn't approved yet (e.g. a draft/submitted replacement) carries
+    // its own proposed expiry, which only takes effect on approval — show
+    // it separately so an edit to it is visible rather than looking lost.
+    ...(!isApprovedStatus &&
+    fsp.fspPlanEndDate?.trim() &&
+    fsp.fspPlanEndDate.trim() !== (fsp.fspExpiryDate ?? '').trim()
+      ? [
+          {
+            label: 'Proposed expiry date',
+            value: dash(fsp.fspPlanEndDate),
+          },
+        ]
+      : []),
     ...(showAmendmentEffective
       ? [
           {
@@ -648,64 +668,46 @@ const InformationTab: FC<Props> = ({ fsp, onSaved, latestExtension }) => {
               <div className="fsp-info__edit-section">
                 <div className="fsp-info__edit-row">
                   <div className="fsp-info__edit-cell fsp-info__edit-cell--date">
+                    {/* Read-only: FSP_300 SAVE has no start-date input (the
+                        DDM sets it on approval), so an editable picker here
+                        silently discarded whatever was entered. */}
+                    <TextInput
+                      id="edit-fspPlanStartDate"
+                      labelText="Effective date"
+                      value={dash(fsp.fspPlanStartDate)}
+                      helperText="Set by the decision maker"
+                      readOnly
+                    />
+                  </div>
+                  <div className="fsp-info__edit-cell fsp-info__edit-cell--date">
                     <DatePicker
                       datePickerType="single"
                       dateFormat="Y-m-d"
-                      value={form.fspPlanStartDate}
+                      value={form.fspPlanEndDate}
                       // `invalid` must live on the DatePicker wrapper: Carbon
                       // clones the wrapper's `invalid` onto the child input,
                       // overriding any `invalid` set on DatePickerInput
                       // directly. `invalidText` stays on the child (the clone
                       // doesn't inject it).
-                      invalid={!!errors.fspPlanStartDate}
+                      invalid={!!errors.fspPlanEndDate}
                       onChange={(dates: Date[]) =>
-                        setField(
-                          'fspPlanStartDate',
-                          dates[0] ? toIsoDate(dates[0]) : '',
-                        )
+                        setField('fspPlanEndDate', dates[0] ? toIsoDate(dates[0]) : '')
                       }
                     >
                       <DatePickerInput
-                        id="edit-fspPlanStartDate"
+                        id="edit-fspPlanEndDate"
                         placeholder="YYYY-MM-DD"
-                        labelText="Effective date"
+                        labelText="Expiry date"
+                        helperText="A term above 0 overrides this date"
                         disabled={saving}
-                        invalidText={errors.fspPlanStartDate}
+                        invalidText={errors.fspPlanEndDate}
                         // Clearing the text doesn't reliably fire the
                         // DatePicker's (flatpickr) onChange, so the form value
                         // would keep the old date and the required-check never
                         // trips. Catch an emptied input straight from the DOM.
                         onChange={(e) => {
                           if (e.target.value.trim() === '') {
-                            setField('fspPlanStartDate', '');
-                          }
-                        }}
-                      />
-                    </DatePicker>
-                  </div>
-                  <div className="fsp-info__edit-cell fsp-info__edit-cell--date">
-                    <DatePicker
-                      datePickerType="single"
-                      dateFormat="Y-m-d"
-                      value={form.fspExpiryDate}
-                      // See the Effective date picker above — `invalid` on the
-                      // wrapper, `invalidText` on the child.
-                      invalid={!!errors.fspExpiryDate}
-                      onChange={(dates: Date[]) =>
-                        setField('fspExpiryDate', dates[0] ? toIsoDate(dates[0]) : '')
-                      }
-                    >
-                      <DatePickerInput
-                        id="edit-fspExpiryDate"
-                        placeholder="YYYY-MM-DD"
-                        labelText="Expiry date"
-                        disabled={saving}
-                        invalidText={errors.fspExpiryDate}
-                        // See the Effective date input — catch an emptied
-                        // field the flatpickr onChange misses.
-                        onChange={(e) => {
-                          if (e.target.value.trim() === '') {
-                            setField('fspExpiryDate', '');
+                            setField('fspPlanEndDate', '');
                           }
                         }}
                       />

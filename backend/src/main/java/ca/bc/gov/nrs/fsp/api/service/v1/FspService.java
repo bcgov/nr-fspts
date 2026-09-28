@@ -323,7 +323,37 @@ public class FspService {
     // is reloaded.
     FspRequest dto = toFspDto(r);
     enrichAgreementHoldersWithFoms(fspId, dto);
+    if (touchesPlanDates(request)) {
+      refreshPlanDates(fspId, dto);
+    }
     return dto;
+  }
+
+  private static boolean touchesPlanDates(FspRequest request) {
+    return request != null
+        && (request.getFspPlanEndDate() != null
+            || request.getFspExpiryDate() != null
+            || request.getFspPlanTermYears() != null
+            || request.getFspPlanTermMonths() != null);
+  }
+
+  /**
+   * SAVE echoes the plan-date INOUTs back as sent, but fsp_update rewrites
+   * them: a non-zero term replaces the end date with original start + term,
+   * and a 0/0 term is stored as NULL. The UI renders the SAVE response
+   * without refetching, so re-read the stored values — otherwise the pane
+   * shows what was typed rather than what was persisted.
+   */
+  private void refreshPlanDates(String fspId, FspRequest dto) {
+    // Raw GET, not getById — only the date columns are needed, so skip the
+    // FOM / amendment-reason enrichment (an upstream HTTP call).
+    Fsp300InformationDao.Result fresh =
+        callInformation(ACTION_GET, fspId, dto.getFspAmendmentNumber(), null);
+    dto.setFspPlanEndDate(fresh.pFspPlanEndDate());
+    dto.setFspExpiryDate(fresh.pFspExpiryDate());
+    dto.setFspPlanTermYears(fresh.pFspPlanTermYears());
+    dto.setFspPlanTermMonths(fresh.pFspPlanTermMonths());
+    dto.setRevisionCount(fresh.pRevisionCount());
   }
 
   /**
@@ -334,15 +364,25 @@ public class FspService {
    * Information tab; status / IDs / amendment metadata / VARRAYs stay
    * with whatever came back from GET.
    */
-  private static void applyEdits(FspRequest target, FspRequest edits) {
+  static void applyEdits(FspRequest target, FspRequest edits) {
     if (edits == null) return;
     if (edits.getFspPlanName() != null) target.setFspPlanName(edits.getFspPlanName());
     if (edits.getFspContactName() != null) target.setFspContactName(edits.getFspContactName());
     if (edits.getFspTelephoneNumber() != null) target.setFspTelephoneNumber(edits.getFspTelephoneNumber());
     if (edits.getFspEmailAddress() != null) target.setFspEmailAddress(edits.getFspEmailAddress());
-    if (edits.getFspPlanStartDate() != null) target.setFspPlanStartDate(edits.getFspPlanStartDate());
-    if (edits.getFspPlanEndDate() != null) target.setFspPlanEndDate(edits.getFspPlanEndDate());
-    if (edits.getFspExpiryDate() != null) target.setFspExpiryDate(edits.getFspExpiryDate());
+    // No start date: SAVE has no plan_start_date input (the DDM sets it on
+    // approval), so an edited value would be silently discarded.
+    //
+    // Expiry: SAVE writes only P_FSP_PLAN_END_DATE (this amendment's row).
+    // P_FSP_EXPIRY_DATE is the tombstone's latest-APPROVED expiry and is
+    // never read on SAVE — a caller that edits it would see "saved" with no
+    // change. Treat it as the plan end date when no explicit end date was
+    // sent. The merged target's fspExpiryDate stays the GET value.
+    if (edits.getFspPlanEndDate() != null) {
+      target.setFspPlanEndDate(edits.getFspPlanEndDate());
+    } else if (edits.getFspExpiryDate() != null) {
+      target.setFspPlanEndDate(edits.getFspExpiryDate());
+    }
     if (edits.getFspPlanTermYears() != null) target.setFspPlanTermYears(edits.getFspPlanTermYears());
     if (edits.getFspPlanTermMonths() != null) target.setFspPlanTermMonths(edits.getFspPlanTermMonths());
     if (edits.getAmendmentName() != null) target.setAmendmentName(edits.getAmendmentName());

@@ -417,3 +417,8 @@ specs
 
 # Prisma 7 generated client
 backend/generated/
+/frontend/.env.example
+/frontend/playwright-report/data/11fdbf3f699a8bd127875585e1f1c7a7b166a50e.md
+/frontend/playwright-report/data/ebaf15d2cb7642ecda6a1c6deaa5f5996ff9f847.png
+/frontend/test-results/fsp-lifecycle-FSP-lifecycl-03807--the-FSP-via-a-DDM-decision-chromium/error-context.md
+/frontend/test-results/fsp-lifecycle-FSP-lifecycl-03807--the-FSP-via-a-DDM-decision-chromium/test-failed-1.png
