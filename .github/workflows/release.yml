@@ -1,0 +1,114 @@
+name: Release (PROD)
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  promote-release:
+    name: Promote Release Tag
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: read
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        package: [backend, frontend]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve image digest
+        id: resolve
+        uses: bcgov/actions/image-tracker@4026bfd276b8a5839029106099b13edfb594b2c3 # v0.8.0
+        with:
+          package: ${{ matrix.package }}
+          revision: ${{ github.sha }}
+          max_depth: 100
+
+      - name: Tag Image as Release
+        uses: shrink/actions-docker-registry-tag@e6aaef25c595b6e0edd18bf4c7dbfea3abd43299 # v5
+        with:
+          registry: ghcr.io
+          repository: ${{ github.repository }}/${{ matrix.package }}
+          target: ${{ steps.resolve.outputs.digest }}
+          tags: ${{ github.event.release.tag_name }}
+
+  deploy:
+    name: Deploy (PROD)
+    needs: [promote-release]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-deploy.yml
+    secrets:
+      oc_namespace: ${{ secrets.oc_namespace }}
+      oc_token: ${{ secrets.oc_token }}
+      database_user: ${{ secrets.database_user }}
+      database_password: ${{ secrets.database_password }}
+      database_host: ${{ secrets.database_host }}
+      database_service_name: ${{ secrets.database_service_name }}
+      keystore_secret: ${{ secrets.keystore_secret }}
+      keycloak_sa_client_id: ${{ secrets.KEYCLOAK_SA_CLIENT_ID }}
+      keycloak_sa_client_secret: ${{ secrets.KEYCLOAK_SA_CLIENT_SECRET }}
+      keycloak_issuer_uri: ${{ secrets.KEYCLOAK_ISSUER_URI }}
+      user_lookup_base_url: ${{ secrets.USER_LOOKUP_BASE_URL }}
+      clamav_host: ${{ secrets.CLAMAV_HOST }}
+      fom_api_url: ${{ secrets.FOM_API_URL }}
+      vanity_tls_certificate: ${{ secrets.VANITY_TLS_CERTIFICATE }}
+      vanity_tls_key: ${{ secrets.VANITY_TLS_KEY }}
+      vanity_tls_ca_certificate: ${{ secrets.VANITY_TLS_CA_CERTIFICATE }}
+    with:
+      environment: prod
+      target: prod
+      tag: ${{ github.event.release.tag_name }}
+      backend_replicas: "3"
+      frontend_replicas: "3"
+
+  # Sync Sysdig email alerts for PROD. No-ops cleanly if SYSDIG_API_TOKEN is
+  # unset — adoption is gradual. Alert templates live in monitoring/alerts/.
+  monitor-prod:
+    name: Sysdig Monitor (PROD)
+    needs: [deploy]
+    runs-on: ubuntu-24.04
+    environment: prod
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      # v0.5.0 is the first release carrying sysdig-monitor, and it
+      # keeps the __APP__ template substitution that monitoring/alerts/*.json
+      # depend on — don't downgrade this pin.
+      - uses: bcgov/actions/sysdig-monitor@4ad61a784f1c17765b03d8d6de9737c1d3f4c0f2 # v0.5.0
+        with:
+          sysdig_api_token: ${{ secrets.SYSDIG_API_TOKEN }}
+          oc_namespace: ${{ secrets.oc_namespace }}
+          app: nr-fspts
+
+  # After PROD is up, alias the release image as :prod in GHCR.
+  promote-prod:
+    name: Promote Prod Tag
+    needs: [deploy]
+    permissions:
+      packages: write
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        package: [backend, frontend]
+    timeout-minutes: 5
+    steps:
+      - uses: shrink/actions-docker-registry-tag@e6aaef25c595b6e0edd18bf4c7dbfea3abd43299 # v5
+        with:
+          registry: ghcr.io
+          repository: ${{ github.repository }}/${{ matrix.package }}
+          target: ${{ github.event.release.tag_name }}
+          tags: prod

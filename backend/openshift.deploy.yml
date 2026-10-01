@@ -7,7 +7,8 @@
 #              Suffixes every resource name so PR/test/prod resources coexist
 #              in the same namespace.
 #   IMAGE_TAG  GHCR tag. Per-PR builds use the PR number; merge.yml deploys
-#              the same tag to TEST and PROD, then aliases as ':prod'.
+#              that tag to TEST. release.yml deploys the release tag to PROD,
+#              then aliases it as ':prod'.
 #
 # The image reference uses the BCGov convention:
 #   ghcr.io/<owner>/<repo>/backend:<tag>
