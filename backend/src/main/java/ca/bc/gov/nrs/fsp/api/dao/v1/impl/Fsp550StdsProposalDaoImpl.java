@@ -48,10 +48,17 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
           cs.setString(13, displayFspOrgClients);     // p_display_fsp_org_clients IN
         },
         cs -> {
-          // Header cursor is single-row; map by position 1..N matching
-          // the proc body's SELECT list. We surface a subset — extra
-          // columns (layer flags, layer ids, sub-class fields, audit
-          // user/revision count) are intentionally skipped here.
+          // Header cursor: map by position 1..N matching the proc body's
+          // SELECT list. We surface a subset — extra columns (layer flags,
+          // layer ids, sub-class fields, audit user/revision count) are
+          // intentionally skipped here.
+          //
+          // Read ONE row only. The proc's FROM lists fsp_status_history with
+          // no join predicate, so the cursor is a cartesian product: the same
+          // regime row repeated once per FSP_STATUS_HISTORY row (~12k and
+          // growing). Draining it materialized ~375MB of identical Headers
+          // (long objective/additional-standards text on every row) and
+          // OOM-killed prod pods. Every row is identical, so row 1 is exact.
           List<Header> headers = readCursor(cs, 5, rs -> new Header(
               rs.getString(1),   // standards_regime_id
               rs.getString(2),   // fsp_id_list
@@ -92,7 +99,7 @@ public class Fsp550StdsProposalDaoImpl extends AbstractStoredProcedureDao
               rs.getString(31)   // layer_4_id
               // skip stocking_layer_code (32), standards_regime_layer_id (33),
               // update_userid (34) — not surfaced yet
-          ));
+          ), 1);
           List<OrgUnitRow> districts = readCursor(cs, 6, rs -> new OrgUnitRow(
               rs.getString(2),   // org_unit_no
               rs.getString(3),   // org_unit_code

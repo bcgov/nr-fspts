@@ -265,7 +265,9 @@ public abstract class AbstractStoredProcedureDao {
     Object obj = cs.getObject(index);
     if (!(obj instanceof ResultSet rs)) return out;
     try (ResultSet auto = rs) {
-      auto.setFetchSize(CURSOR_FETCH_SIZE);
+      // Don't prefetch past maxRows: a bounded read of a fan-out cursor
+      // would otherwise still pull a full 500-row batch over the wire.
+      auto.setFetchSize(maxRows > 0 ? Math.min(maxRows, CURSOR_FETCH_SIZE) : CURSOR_FETCH_SIZE);
       while (auto.next()) {
         out.add(reader.read(auto));
         if (maxRows > 0 && out.size() >= maxRows) break;
