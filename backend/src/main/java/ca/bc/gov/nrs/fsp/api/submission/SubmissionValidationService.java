@@ -17,6 +17,7 @@ import ca.bc.gov.nrs.fsp.api.submission.validator.GeometryValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.LicenceContextValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.PlanNameValidator;
 import ca.bc.gov.nrs.fsp.api.submission.validator.PlanTermValidator;
+import ca.bc.gov.nrs.fsp.api.submission.validator.StandardLayerValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -48,6 +49,7 @@ public class SubmissionValidationService {
   private final AgreementHolderValidator agreementHolderValidator;
   private final DistrictCodeValidator districtCodeValidator;
   private final FduNameValidator fduNameValidator;
+  private final StandardLayerValidator standardLayerValidator;
   private final AmendmentApprovalRequiredValidator amendmentApprovalRequiredValidator;
   private final SubmissionPreviewMapper previewMapper;
   private final VirusScanner virusScanner;
@@ -137,6 +139,7 @@ public class SubmissionValidationService {
       errors.addAll(agreementHolderValidator.validate(outcome.submission()));
       errors.addAll(districtCodeValidator.validate(outcome.submission()));
       errors.addAll(fduNameValidator.validate(outcome.submission()));
+      errors.addAll(standardLayerValidator.validate(outcome.submission()));
       // Preview is built even when geometry/schema errors are present —
       // the user still benefits from seeing what was parsed alongside
       // the errors that need fixing.
