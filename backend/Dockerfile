@@ -55,3 +55,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
 # the OS has no tzdata package. Do not add -Duser.timezone: it would override
 # TZ and make the deployment parameter silently ineffective.
 ENTRYPOINT ["java","-Duser.name=FSP-API","-XX:InitialRAMPercentage=30","-XX:MaxRAMPercentage=60","-XX:TieredStopAtLevel=1","-XX:+UseParallelGC","-XX:MinHeapFreeRatio=20","-XX:MaxHeapFreeRatio=40","-XX:GCTimeRatio=4","-XX:AdaptiveSizePolicyWeight=90","-XX:MaxMetaspaceSize=200m","-XX:ParallelGCThreads=2","-Djava.util.concurrent.ForkJoinPool.common.parallelism=8","-XX:CICompilerCount=2","-XX:+HeapDumpOnOutOfMemoryError","-XX:HeapDumpPath=/temp","-XX:+ExitOnOutOfMemoryError","-Djava.security.egd=file:/dev/./urandom","-cp","app:app/lib/*","ca.bc.gov.nrs.fsp.api.FspApiResourceApplication"]
+

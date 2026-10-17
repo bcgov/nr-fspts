@@ -53,3 +53,4 @@ HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O /dev/null http://127.0.0.
 USER 1001
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+
