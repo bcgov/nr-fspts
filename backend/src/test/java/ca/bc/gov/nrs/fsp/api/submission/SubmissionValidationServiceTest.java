@@ -65,6 +65,7 @@ class SubmissionValidationServiceTest {
         noOpValidator(DistrictCodeValidator.class),
         noOpValidator(FduNameValidator.class),
         new ca.bc.gov.nrs.fsp.api.submission.validator.StandardLayerValidator(),
+        noOpValidator(ca.bc.gov.nrs.fsp.api.submission.validator.SpeciesCodeValidator.class),
         noOpValidator(AmendmentApprovalRequiredValidator.class),
         new SubmissionPreviewMapper(
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
@@ -188,6 +189,7 @@ class SubmissionValidationServiceTest {
         noOpValidator(DistrictCodeValidator.class),
         noOpValidator(FduNameValidator.class),
         new ca.bc.gov.nrs.fsp.api.submission.validator.StandardLayerValidator(),
+        noOpValidator(ca.bc.gov.nrs.fsp.api.submission.validator.SpeciesCodeValidator.class),
         noOpValidator(AmendmentApprovalRequiredValidator.class),
         new SubmissionPreviewMapper(
             org.mockito.Mockito.mock(ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao.class),
