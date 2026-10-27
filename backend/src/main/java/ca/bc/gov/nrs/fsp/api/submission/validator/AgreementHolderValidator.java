@@ -6,6 +6,7 @@ import ca.bc.gov.nrs.fsp.api.submission.parser.generated.ActionCodeType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.FSPSubmissionType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.ForestStewardshipPlanType;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.PlanHolderAssociationType;
+import ca.bc.gov.nrs.fsp.api.util.RequestUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -35,6 +36,21 @@ import java.util.Set;
  *       which point the FSP_300 header has already been written.
  *       Catching it here lets the SPA show the issue in its
  *       validation pane at upload time.</li>
+ *   <li>{@code SUBMITTER_NOT_AGREEMENT_HOLDER} — a non-admin user's
+ *       active client number must be in {@code planHolderList}, or
+ *       {@code FSP_300_INFORMATION} raises
+ *       {@code FSP.INVALID.AGREEMENT.HOLDER} on SAVE. Mirrors the
+ *       client number {@code FspService} sends: empty for admins (the
+ *       proc skips the check), the active-org client otherwise. The
+ *       submission's list always replaces the stored one, so an omitted
+ *       list fails this check too.</li>
+ *   <li>{@code AGREEMENT_HOLDER_HAS_FDUS} — the submission's list replaces
+ *       the holders on the amendment being saved (the max APP/INE
+ *       amendment that {@code fsp_create_amendment} copies for A/R, or the
+ *       referenced amendment for U). Dropping a holder that still has FDU
+ *       licences on it makes {@code fsp_agreement_holder_delete} raise
+ *       {@code FSP.INVALID.AGREEMENT.HOLDER.STATUS} on SAVE — the copied
+ *       FDUs are only replaced after the header is saved.</li>
  * </ul>
  *
  * <p>AMD/RPL submissions can omit the list (the proc carries holders
@@ -71,6 +87,19 @@ public class AgreementHolderValidator {
               + " clientCode in planHolderList."));
       return errors;
     }
+
+    String userClient = RequestUtil.isCurrentUserAdmin() ? "" : RequestUtil.getCurrentClientNumber();
+    if (userClient != null && !userClient.isBlank()
+        && (empty || clientCodes.stream()
+            .noneMatch(code -> code != null && code.trim().equals(userClient)))) {
+      errors.add(SubmissionValidationError.of(
+          "forestStewardshipPlan/planHolderList",
+          "SUBMITTER_NOT_AGREEMENT_HOLDER",
+          "Your client number (" + userClient + ") is not in planHolderList,"
+              + " so you can't submit this FSP. Add it to planHolderList, or"
+              + " an agreement holder for this FSP needs to submit it."));
+    }
+    errors.addAll(droppedHoldersWithFdus(plan, empty ? List.of() : clientCodes));
     if (empty) return errors;
 
     Set<String> seen = new HashSet<>();
@@ -105,6 +134,37 @@ public class AgreementHolderValidator {
                 + " number."));
       }
     }
+    return errors;
+  }
+
+  private List<SubmissionValidationError> droppedHoldersWithFdus(
+      ForestStewardshipPlanType plan, List<String> clientCodes) {
+    List<SubmissionValidationError> errors = new ArrayList<>();
+    Long fspId = plan.getFspID();
+    if (fspId == null) return errors;
+    Long amendment = switch (plan.getActionCode() == null ? ActionCodeType.I : plan.getActionCode()) {
+      case A, R -> fduWriteDao.findMaxApprovedAmendmentNumber(fspId);
+      case U -> plan.getAmendmentID();
+      default -> null;
+    };
+    // No source amendment: ActionCodeContextValidator reports that case.
+    if (amendment == null) return errors;
+
+    Set<String> kept = new HashSet<>();
+    for (String code : clientCodes) {
+      if (code != null && !code.isBlank()) kept.add(code.trim());
+    }
+    fduWriteDao.findAgreementHolderFduLicenceCounts(fspId, amendment).forEach((client, links) -> {
+      if (links > 0 && !kept.contains(client)) {
+        errors.add(SubmissionValidationError.of(
+            "forestStewardshipPlan/planHolderList",
+            "AGREEMENT_HOLDER_HAS_FDUS",
+            "Agreement holder " + client + " is on FSP " + fspId
+                + " but missing from planHolderList. It can't be removed"
+                + " because " + links + " FDU licence link(s) on this FSP"
+                + " belong to it - add it to planHolderList."));
+      }
+    });
     return errors;
   }
 }

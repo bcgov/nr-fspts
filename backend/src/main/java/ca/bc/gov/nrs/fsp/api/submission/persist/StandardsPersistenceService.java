@@ -4,6 +4,7 @@ import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550StdsProposalDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubLayersDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp550SubSpeciesDao;
 import ca.bc.gov.nrs.fsp.api.submission.parser.generated.*;
+import ca.bc.gov.nrs.fsp.api.submission.validator.SpeciesCodeValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -284,7 +285,8 @@ public class StandardsPersistenceService {
         Fsp550SubSpeciesDao.Result result = subSpeciesDao.mainline(
             ACTION_SAVE,
             layerId,
-            species.getSpeciesCode(),
+            // SILV_TREE_SPECIES_CODE is upper-case; submissions often aren't.
+            SpeciesCodeValidator.normalize(species.getSpeciesCode()),
             null, // silvTreeSpeciesCodeOld — only set on UPDATE-rename
             decimalToString(species.getMinHeight()),
             Boolean.TRUE.equals(species.isPreferredSpeciesInd()) ? "Y" : "N",

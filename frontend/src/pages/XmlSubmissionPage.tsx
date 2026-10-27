@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useNotification } from '@/context/notification/useNotification';
@@ -773,13 +773,33 @@ function ValidationIssuesTable({ errors }: { errors: SubmissionValidationError[]
           {errors.map((e, i) => (
             <tr key={i} data-testid="validation-issue-row">
               <td className="col-issue">{labelFor(e.code)}</td>
-              <td className="col-loc">{e.path ? e.path : '—'}</td>
+              <td className="col-loc">{e.path ? <WrappablePath path={e.path} /> : '—'}</td>
               <td>{cleanDetail(e.message)}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+// Offers a line break after each '/' so long XML paths wrap at segment
+// boundaries instead of mid-name; the full path is still shown.
+function WrappablePath({ path }: { path: string }) {
+  const segments = path.split('/');
+  return (
+    <>
+      {segments.map((seg, i) => (
+        <Fragment key={i}>
+          {seg}
+          {i < segments.length - 1 && (
+            <>
+              /<wbr />
+            </>
+          )}
+        </Fragment>
+      ))}
+    </>
   );
 }
 

@@ -293,4 +293,26 @@ public class FduWriteDaoImpl implements FduWriteDao {
             + "WHERE FSP_ID = ? AND FSP_STATUS_CODE IN ('APP','INE')",
         Long.class, fspId);
   }
+
+  @Override
+  public java.util.Map<String, Integer> findAgreementHolderFduLicenceCounts(
+      long fspId, long amendmentNumber) {
+    // Same join fsp_agreement_holder_delete counts before refusing a delete.
+    java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+    jdbc.query(
+        "SELECT FAH.CLIENT_NUMBER, "
+            + "       (SELECT COUNT(*) FROM FDU_LICENCE_XREF FLX, FOREST_FILE_CLIENT FFC "
+            + "         WHERE FLX.FSP_ID = FAH.FSP_ID "
+            + "           AND FLX.FSP_AMENDMENT_NUMBER = FAH.FSP_AMENDMENT_NUMBER "
+            + "           AND FLX.FOREST_FILE_ID = FFC.FOREST_FILE_ID "
+            + "           AND FFC.CLIENT_NUMBER = FAH.CLIENT_NUMBER "
+            + "           AND FFC.FOREST_FILE_CLIENT_TYPE_CODE = 'A') "
+            + "  FROM FSP_AGREEMENT_HOLDER FAH "
+            + " WHERE FAH.FSP_ID = ? AND FAH.FSP_AMENDMENT_NUMBER = ?",
+        rs -> {
+          counts.put(rs.getString(1), rs.getInt(2));
+        },
+        fspId, amendmentNumber);
+    return counts;
+  }
 }

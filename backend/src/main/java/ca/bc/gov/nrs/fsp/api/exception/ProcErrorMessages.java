@@ -90,6 +90,14 @@ public final class ProcErrorMessages {
           "Your client number is not on this FSP's agreement holder list, so "
               + "you can't modify it. An agreement holder for this FSP needs "
               + "to make the change.")),
+      // fsp_agreement_holder_delete: the holder being dropped still has FDU
+      // licences on this FSP. Must stay distinct from INVALID.AGREEMENT.HOLDER
+      // (a substring of it), which otherwise wins the match and blames the
+      // user's client number.
+      Map.entry("FSP.INVALID.AGREEMENT.HOLDER.STATUS", new Info(BAD_REQUEST,
+          "An agreement holder being removed from this FSP still has FDUs "
+              + "tied to its licences, so it can't be removed. Keep that "
+              + "agreement holder on the FSP.")),
       Map.entry("FSP.NO.AGREEMENT.HOLDER", new Info(BAD_REQUEST,
           "FSP must have at least one agreement holder.")),
       Map.entry("FSP.BAD.ORG.UNIT", new Info(BAD_REQUEST,

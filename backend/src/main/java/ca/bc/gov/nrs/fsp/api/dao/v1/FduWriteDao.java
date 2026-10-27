@@ -94,6 +94,17 @@ public interface FduWriteDao {
   Long findMaxApprovedAmendmentNumber(long fspId);
 
   /**
+   * Agreement holders on {@code (fspId, amendmentNumber)}, each mapped to
+   * the number of FDU licence links on that amendment whose licence it
+   * holds ({@code FOREST_FILE_CLIENT} type {@code A}). A holder with a
+   * non-zero count can't be removed: {@code
+   * FSP_COMMON_DB.fsp_agreement_holder_delete} raises
+   * {@code FSP.INVALID.AGREEMENT.HOLDER.STATUS}.
+   */
+  java.util.Map<String, Integer> findAgreementHolderFduLicenceCounts(
+      long fspId, long amendmentNumber);
+
+  /**
    * Deletes every FDU header + licence-xref row for the given
    * {@code (fspId, amendmentNumber)} tuple — used by the XML
    * submission path to wipe the skeleton rows

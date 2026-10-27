@@ -432,6 +432,12 @@
     width: 240px;
     white-space: nowrap;
   }
+  // Long XML paths wrap at the <wbr> after each '/'; overflow-wrap only
+  // kicks in for a single segment wider than the column.
+  .vtable tbody td.col-loc {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 
   // ── Review sections ──
   .review-section {
