@@ -150,8 +150,8 @@ These are one-shot actions gated by the plan's current status.
 | **Reject** | SUB | ✅ | ✅ | — | — | — | — |
 | Reject an approved / in-effect plan | APP / INE | ✅ | — | — | — | — | — |
 | Request clarification (send back to Draft) | SUB | ✅ | ✅ | — | — | — | — |
-| Reverse approval (back to Submitted) | APP | ✅ | — | — | — | — | — |
-| Revert to Draft | INE | ✅ | — | — | — | — | — |
+| Revert approval (back to Submitted) — AMD amendment only, newest version, no extension on it | APP | ✅ | — | — | — | — | — |
+| Revert approval (back to Draft) — same conditions | INE | ✅ | — | — | — | — | — |
 | Extension decision (approve / reject) | extension open | ✅ | ✅ | — | — | — | — |
 | Extension decision once approved / rejected | — | ✅ | — | — | — | — | — |
 

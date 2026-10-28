@@ -87,10 +87,10 @@ public class EmailEventDispatcher {
 
   private void dispatch(WorkflowEmailEvent event) {
     var fsp = event.fsp();
-    String to = fsp.emailAddress();
+    String to = event.recipient();
     if (to == null || to.isBlank()) {
       log.warn(
-          "Skipping {} email for FSP {} amendment {} — no contact email on file",
+          "Skipping {} email for FSP {} amendment {} — no recipient address",
           event.getClass().getSimpleName(),
           fsp.fspId(),
           fsp.amendmentNumber());
@@ -104,6 +104,13 @@ public class EmailEventDispatcher {
     if (event instanceof WorkflowEmailEvent.ExtensionDecision ext) {
       ctx.put("extensionSubmittedBy", nullToEmpty(ext.extensionSubmittedBy()));
       ctx.put("extensionSubmissionDate", nullToEmpty(ext.extensionSubmissionDate()));
+    } else if (event instanceof WorkflowEmailEvent.AmendmentReverted rev) {
+      ctx.put("previousStatusDesc", nullToEmpty(rev.previousStatusDesc()));
+      ctx.put("reason", nullToEmpty(rev.reason()));
+    } else if (event instanceof WorkflowEmailEvent.RevertedStandardsNotice ss) {
+      ctx.put("previousStatusDesc", nullToEmpty(ss.previousStatusDesc()));
+      ctx.put("reason", nullToEmpty(ss.reason()));
+      ctx.put("standards", nullToEmpty(ss.standards()));
     }
 
     String body = renderer.render(event.templateName(), ctx);

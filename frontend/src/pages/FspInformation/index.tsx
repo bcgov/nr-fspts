@@ -1,4 +1,4 @@
-import {Button, Column, Grid, Link, Loading, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs,} from '@carbon/react';
+import {Button, Column, Grid, Link, Loading, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs, TextArea,} from '@carbon/react';
 import {
   ArrowLeft,
   CalendarAdd,
@@ -11,6 +11,7 @@ import {
   SendAlt,
   TableOfContents,
   TrashCan,
+  Undo,
 } from '@carbon/icons-react';
 import { StandardsSearchIcon } from '@/components/Layout/navIcons';
 import { StatusTag } from '@/components/StatusTag/StatusTag';
@@ -33,7 +34,7 @@ import {
   canSeeWorkflowTab,
   defaultRouteForUser,
 } from '@/routes/access';
-import {type CodeOption, type FspExtension, type FspInformation, deleteFsp, getFspAmendmentNumbers, getFspById, getFspExtensions,} from '@/services/fspSearch';
+import {type CodeOption, type FspExtension, type FspInformation, deleteFsp, getFspAmendmentNumbers, getFspById, getFspExtensions, revertAmendment,} from '@/services/fspSearch';
 
 import { useProvideEditLock } from './editLock';
 import AttachmentsTab from './tabs/AttachmentsTab';
@@ -356,11 +357,24 @@ const FspInformationPage: FC = () => {
   const canReplace =
     canModify && isApprovedOrInEffect && !hasOpenExtension && !hasUnapprovedAmend
     && isLatestVersion;
+  // Administrator-only revert of the current amendment's decision. Only an
+  // AMD amendment (never the original or a replacement) that is the newest
+  // version, Approved or In Effect, with nothing in flight on top of it.
+  // The status decides the target: Approved → Submitted, In Effect → Draft.
+  // The backend re-checks all of this, plus "no extension attached to this
+  // amendment", which the page can't see.
+  const canRevertAmendment =
+    isAdmin && isAmendment && fsp?.fspAmendmentCode === 'AMD'
+    && isApprovedOrInEffect && isLatestVersion
+    && !hasUnapprovedAmend && !hasOpenExtension;
+  const revertTargetLabel = fsp?.fspStatusCode === 'INE' ? 'Draft' : 'Submitted';
   // Workflow tab is hidden for Submitter-only and View-Only roles —
   // nothing on it (DDM decision / OTBH / extension review) applies to
   // them. History (read-only audit) stays visible regardless.
   const showWorkflowTab = canSeeWorkflowTab(user);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmRevertOpen, setConfirmRevertOpen] = useState(false);
+  const [revertReason, setRevertReason] = useState('');
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
   const [confirmAmendOpen, setConfirmAmendOpen] = useState(false);
   const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false);
@@ -430,6 +444,30 @@ const FspInformationPage: FC = () => {
       }
     } else {
       navigate(defaultRouteForUser(user));
+    }
+  };
+
+  // ConfirmationModal owns busy/error; a thrown error keeps it open with
+  // the reason intact so the admin can retry.
+  const handleConfirmRevert = async () => {
+    if (!fsp?.fspId || !fsp.fspAmendmentNumber) return;
+    const result = await revertAmendment(
+      fsp.fspId,
+      fsp.fspAmendmentNumber,
+      revertReason.trim(),
+    );
+    display({
+      kind: 'success',
+      title: `Amendment ${result.amendmentNumber} returned to ${
+        result.newStatusCode === 'DFT' ? 'Draft' : 'Submitted'
+      }`,
+      timeout: 6000,
+    });
+    setRevertReason('');
+    try {
+      refreshAfterMutation(await getFspById(fsp.fspId, fsp.fspAmendmentNumber));
+    } catch {
+      reloadFsp();
     }
   };
 
@@ -514,7 +552,8 @@ const FspInformationPage: FC = () => {
           <div className="fsp-info__header-title">
             <h1>FSP {fsp?.fspId ?? fspId}</h1>
             {statusDesc && <StatusTag status={statusDesc} />}
-            {(canExtend || canAmend || canReplace || canSubmit || canDelete) && (
+            {(canExtend || canAmend || canReplace || canSubmit || canDelete
+              || canRevertAmendment) && (
               <div className="fsp-info__header-actions">
                 {canAmend && fsp?.fspId && (
                   <Button
@@ -558,6 +597,17 @@ const FspInformationPage: FC = () => {
                     onClick={() => setConfirmSubmitOpen(true)}
                   >
                     Submit FSP
+                  </Button>
+                )}
+                {canRevertAmendment && (
+                  <Button
+                    kind="danger--tertiary"
+                    size="sm"
+                    renderIcon={Undo}
+                    disabled={anyEditing}
+                    onClick={() => setConfirmRevertOpen(true)}
+                  >
+                    Revert approval
                   </Button>
                 )}
                 {canDelete && (
@@ -839,6 +889,41 @@ const FspInformationPage: FC = () => {
           Summary modal's "FSP not found" text — onto the not-found page. */}
       {fsp?.fspId && (
         <>
+      <ConfirmationModal
+        open={confirmRevertOpen}
+        heading="Revert this amendment's approval?"
+        confirmLabel={`Return to ${revertTargetLabel}`}
+        danger
+        errorTitle="Failed to revert amendment"
+        confirmDisabled={revertReason.trim().length === 0}
+        onConfirm={handleConfirmRevert}
+        onClose={() => setConfirmRevertOpen(false)}
+      >
+        <p>
+          Amendment {parsedAmendmentNumber} on FSP {fsp?.fspId} ({planName}) is{' '}
+          {fsp?.fspStatusCode === 'INE' ? 'In Effect' : 'Approved'}. Reverting it
+          returns it to <strong>{revertTargetLabel}</strong>
+          {fsp?.fspStatusCode === 'INE'
+            ? ', where the submitter can edit, resubmit or delete it.'
+            : ', where a decision maker needs to decide on it again.'}{' '}
+          The previous approved version becomes the current one.
+        </p>
+        <p>
+          The status history is kept and the approval dates are cleared. Its
+          stocking standards stay Approved. The FSP contact is emailed.
+        </p>
+        <TextArea
+          id="revert-amendment-reason"
+          labelText="Reason (required)"
+          helperText="Saved to the status history and included in the notification email."
+          enableCounter
+          maxCount={2000}
+          rows={4}
+          value={revertReason}
+          onChange={(e) => setRevertReason(e.target.value)}
+        />
+      </ConfirmationModal>
+
       <ConfirmationModal
         open={confirmDeleteOpen}
         heading={isAmendment ? 'Delete this amendment?' : 'Delete this draft FSP?'}

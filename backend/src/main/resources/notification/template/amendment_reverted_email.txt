@@ -1,0 +1,17 @@
+This is an automated message from FSP Tracking System.
+Please do not reply to this message.
+
+This message was sent to: {{emailAddress}}
+
+This message is to inform you that the decision on amendment {{amendmentNumber}} of Forest Stewardship Plan named {{planName}} has been reversed by an administrator. The amendment was {{previousStatusDesc}} and is now {{statusDesc}}.
+
+{{contactName}} - user submitted
+{{fspId}} - FSP ID
+{{amendmentNumber}} - amendment number
+{{orgUnits}} - district of FSP
+
+{{licensees}}
+
+Reason given by the administrator:
+
+{{reason}}

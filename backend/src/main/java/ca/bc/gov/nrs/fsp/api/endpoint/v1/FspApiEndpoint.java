@@ -117,6 +117,17 @@ public interface FspApiEndpoint {
             @PathVariable String fspId,
             @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
+    @PostMapping(URL.AMENDMENT_REVERT)
+    @PreAuthorize(FspAuthorities.ADMINISTRATOR)
+    @Operation(summary =
+            "Administrator revert of the current approved / in-effect amendment. "
+                    + "APP goes back to Submitted, INE back to Draft; history is kept, "
+                    + "approval dates are cleared and approved standards stay Approved.")
+    ResponseEntity<ca.bc.gov.nrs.fsp.api.struct.v1.AmendmentRevertResponse> revertAmendment(
+            @PathVariable String fspId,
+            @PathVariable String amendmentNumber,
+            @RequestBody ca.bc.gov.nrs.fsp.api.struct.v1.AmendmentRevertRequest request);
+
     @GetMapping(URL.SUBMIT_PREFLIGHT)
     @Operation(summary =
             "Submit preflight — runs fsp_common_validation.validate_fsp without "
