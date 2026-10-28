@@ -19,6 +19,8 @@ interface ConfirmationModalProps {
   danger?: boolean;
   /** Toast error title shown when onConfirm throws. */
   errorTitle?: string;
+  /** Disables the confirm button, e.g. until a required field is filled. */
+  confirmDisabled?: boolean;
   /**
    * Async confirm handler. Modal awaits the promise and only closes on
    * success — throw to keep the modal open for retry. Same contract as
@@ -41,6 +43,7 @@ const ConfirmationModal: FC<ConfirmationModalProps> = ({
   cancelLabel = 'Cancel',
   danger = false,
   errorTitle = 'Action failed',
+  confirmDisabled = false,
   onConfirm,
 }) => {
   const { display } = useNotification();
@@ -85,7 +88,7 @@ const ConfirmationModal: FC<ConfirmationModalProps> = ({
         </Button>
         <Button
           kind={danger ? 'danger' : 'primary'}
-          disabled={busy}
+          disabled={busy || confirmDisabled}
           renderIcon={busy ? BusyIcon : undefined}
           onClick={() => void submit()}
         >

@@ -58,10 +58,10 @@ Anything not listed here returns `FSP.INVALID.STATUS.UPDATE`.
 | `SUB` | `REJ` | DDM **Reject** — `SAVE_DDM_REJ(completed='Y')` | Decision Maker, Administrator |
 | `SUB` | `OHS` | **OTBH Offered** — `SAVE_OTBH_OFFERED(completed='Y')` | Decision Maker, Administrator |
 | `OHS` | `SUB` | **OTBH Heard** — `SAVE_OTBH_HEARD(completed='Y')` | Decision Maker, Administrator |
-| `APP` | `SUB` | **Reverse Approval** — `SAVE_DDM_APP(completed='N')` | Administrator (per `canUpdateApproved` + the new SUB/APP gate on `enableDdmEdit`) |
+| `APP` | `SUB` | **Revert approval** — `POST /{fspId}/amendments/{n}/revert` (`AmendmentRevertService`; the `SAVE_DDM_*(completed='N')` path stays blocked). AMD amendments only, newest version, no extension attached | Administrator |
 | `APP` | `REJ` | Reject an approved FSP | Administrator |
 | `APP` | `OHS` | OTBH Offered post-approval | Decision Maker, Administrator |
-| `INE` | `DFT` | Revert an in-effect FSP back to draft | Administrator |
+| `INE` | `DFT` | **Revert approval** — same endpoint and conditions as APP → SUB | Administrator |
 | `INE` | `REJ` | Reject an in-effect FSP | Administrator |
 | `REJ` | `SUB` | Resubmit a rejected FSP | Submitter, Administrator |
 | `REJ` | `DEL` | Delete a rejected FSP | Submitter, Administrator |
@@ -174,5 +174,5 @@ stateDiagram-v2
 | Edit OTBH Offered | `SUB` (or `INE` via Admin override) | Decision Maker, Administrator |
 | Edit OTBH Heard | `OHS` | Decision Maker, Administrator |
 | Edit DDM Decision | `SUB` or `APP` | Decision Maker, Administrator |
-| Reverse DDM Decision | `APP` (and reverses to SUB) | Administrator |
+| Revert approval (header button) | AMD amendment in `APP` (→ SUB) or `INE` (→ DFT), newest version, no extension on it | Administrator |
 | Edit Extension Decision | While extension is open (not `APP`/`REJ`) | Decision Maker, Administrator; once APP/REJ → Admin only |

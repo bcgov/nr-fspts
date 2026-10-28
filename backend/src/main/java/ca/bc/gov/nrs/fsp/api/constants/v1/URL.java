@@ -149,6 +149,9 @@ public final class URL {
   // AMEND but the proc stamps fsp_amendment_code='RPL' and forces
   // approval-required.
   public static final String REPLACE = "/{fspId}/replace";
+  // POST — Administrator reverts the current approved / in-effect AMD
+  // amendment: APP → SUB, INE → DFT (AmendmentRevertService).
+  public static final String AMENDMENT_REVERT = "/{fspId}/amendments/{amendmentNumber}/revert";
   // GET — Submit preflight. Runs fsp_common_validation.validate_fsp
   // and returns the accumulated FSP.* error codes + curated messages
   // so the SPA can render a checklist before the user hits Submit.

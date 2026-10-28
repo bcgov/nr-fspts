@@ -33,6 +33,7 @@ public class FspApiController implements FspApiEndpoint {
     private final FduGeometryGeoJsonService fduGeometryGeoJsonService;
     private final DistrictNotificationService districtNotificationService;
     private final UserDirectoryService userDirectoryService;
+    private final AmendmentRevertService amendmentRevertService;
 
     public FspApiController(FspService fspService,
                             StandardsSearchService standardsSearchService,
@@ -45,7 +46,8 @@ public class FspApiController implements FspApiEndpoint {
                             CodeListsService codeListsService, FspExtentService fspExtentService,
                             FduGeometryGeoJsonService fduGeometryGeoJsonService,
                             DistrictNotificationService districtNotificationService,
-                            UserDirectoryService userDirectoryService) {
+                            UserDirectoryService userDirectoryService,
+                            AmendmentRevertService amendmentRevertService) {
         this.fspService = fspService;
         this.standardsSearchService = standardsSearchService;
         this.workflowService = workflowService;
@@ -61,6 +63,7 @@ public class FspApiController implements FspApiEndpoint {
         this.fduGeometryGeoJsonService = fduGeometryGeoJsonService;
         this.districtNotificationService = districtNotificationService;
         this.userDirectoryService = userDirectoryService;
+        this.amendmentRevertService = amendmentRevertService;
     }
 
     // --- Code Lists (dropdown options) ---
@@ -138,6 +141,14 @@ public class FspApiController implements FspApiEndpoint {
     @Override
     public ResponseEntity<FspRequest> amendFsp(String fspId, FspRequest request) {
         return ResponseEntity.ok(fspService.amend(fspId, request == null ? new FspRequest() : request));
+    }
+
+    @Override
+    public ResponseEntity<ca.bc.gov.nrs.fsp.api.struct.v1.AmendmentRevertResponse> revertAmendment(
+            String fspId, String amendmentNumber,
+            ca.bc.gov.nrs.fsp.api.struct.v1.AmendmentRevertRequest request) {
+        return ResponseEntity.ok(amendmentRevertService.revert(
+                fspId, amendmentNumber, request == null ? null : request.getReason()));
     }
 
     @Override

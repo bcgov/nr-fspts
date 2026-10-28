@@ -384,6 +384,40 @@ export async function deleteFsp(
 }
 
 /**
+ * POST /v1/fsp/{fspId}/amendments/{amendmentNumber}/revert — Administrator
+ * revert of the current approved / in-effect amendment. The backend picks
+ * the target from the current status: Approved → Submitted, In Effect →
+ * Draft. History is kept; the reason lands on the status-history row.
+ */
+export interface AmendmentRevertResult {
+  fspId: string;
+  amendmentNumber: string;
+  previousStatusCode: string;
+  newStatusCode: string;
+  standardsKeptApproved: number;
+}
+
+export async function revertAmendment(
+  fspId: string,
+  amendmentNumber: string,
+  reason: string,
+): Promise<AmendmentRevertResult> {
+  const res = await apiFetch(
+    `/v1/fsp/${encodeURIComponent(fspId)}/amendments/${encodeURIComponent(amendmentNumber)}/revert`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `Amendment revert failed (${res.status})`);
+  }
+  return (await res.json()) as AmendmentRevertResult;
+}
+
+/**
  * GET /v1/fsp/{fspId}/submit/preflight — runs validate_fsp without
  * changing status and returns the list of FSP.* validation issues so
  * the SPA can render a checklist before the user clicks Submit.

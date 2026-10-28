@@ -21,6 +21,11 @@ public sealed interface WorkflowEmailEvent {
   /** Classpath template (without extension) the dispatcher should render. */
   String templateName();
 
+  /** Recipient address. Defaults to the FSP contact email on the snapshot. */
+  default String recipient() {
+    return fsp().emailAddress();
+  }
+
   /**
    * Read-only snapshot of the data every email template can pull from.
    * Captured inside the workflow transaction so the JWT is still on
@@ -81,5 +86,28 @@ public sealed interface WorkflowEmailEvent {
   record RequestClarification(FspSnapshot fsp) implements WorkflowEmailEvent {
     @Override public String subject() { return "FSP Clarification Request"; }
     @Override public String templateName() { return "request_clarification_email"; }
+  }
+
+  /**
+   * Administrator reverted an approved / in-effect amendment
+   * (AmendmentRevertService) — APP → Submitted, INE → Draft.
+   */
+  record AmendmentReverted(FspSnapshot fsp, String previousStatusDesc, String reason)
+      implements WorkflowEmailEvent {
+    @Override public String subject() { return "FSP Amendment Decision Reversed"; }
+    @Override public String templateName() { return "amendment_reverted_email"; }
+  }
+
+  /**
+   * Companion to {@link AmendmentReverted}: the reverted amendment's
+   * non-default stocking standards stay Approved, so their SSIDs go to a
+   * fixed inbox ({@code fsp.mail.revert-standards-inbox}) for follow-up.
+   */
+  record RevertedStandardsNotice(
+      FspSnapshot fsp, String previousStatusDesc, String reason, String standards, String inbox)
+      implements WorkflowEmailEvent {
+    @Override public String subject() { return "FSP Amendment Reverted - Stocking Standards"; }
+    @Override public String templateName() { return "reverted_standards_email"; }
+    @Override public String recipient() { return inbox; }
   }
 }
