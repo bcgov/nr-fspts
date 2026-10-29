@@ -3,7 +3,7 @@ Please do not reply to this message.
 
 Amendment {{amendmentNumber}} of FSP {{fspId}} ({{planName}}) was reverted by an administrator from {{previousStatusDesc}} to {{statusDesc}}.
 
-The following stocking standards were approved with this amendment and remain Approved:
+Stocking standards that took effect with this amendment and are no longer valid are as follows:
 
 {{standards}}
 

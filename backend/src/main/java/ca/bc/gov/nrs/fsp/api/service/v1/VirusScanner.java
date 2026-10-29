@@ -87,7 +87,10 @@ public class VirusScanner {
     // INFO for the clean happy path (the audit trail), WARN for anything that
     // rejects or couldn't be verified (also visible at INFO).
     int size = data == null ? 0 : data.length;
-    String name = filename == null || filename.isBlank() ? "(unnamed)" : filename;
+    // Client-supplied: strip control chars (CR/LF) so it can't forge log lines.
+    String name = filename == null || filename.isBlank()
+        ? "(unnamed)"
+        : filename.replaceAll("\\p{Cntrl}", "_");
     ScanResult result = client.scan(data);
     switch (result.status()) {
       case CLEAN:

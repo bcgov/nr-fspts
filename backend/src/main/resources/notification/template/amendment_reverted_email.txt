@@ -3,7 +3,7 @@ Please do not reply to this message.
 
 This message was sent to: {{emailAddress}}
 
-This message is to inform you that the decision on amendment {{amendmentNumber}} of Forest Stewardship Plan named {{planName}} has been reversed by an administrator. The amendment was {{previousStatusDesc}} and is now {{statusDesc}}.
+This message is to inform you that amendment {{amendmentNumber}} of Forest Stewardship Plan {{fspId}} has been reversed by an administrator. The amendment was {{previousStatusDesc}} and is now {{statusDesc}}.
 
 {{contactName}} - user submitted
 {{fspId}} - FSP ID
