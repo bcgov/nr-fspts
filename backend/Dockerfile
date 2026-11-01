@@ -1,4 +1,4 @@
-FROM maven:3.9.9-amazoncorretto-21-alpine AS build
+FROM maven:3.9.16-amazoncorretto-21-alpine AS build
 WORKDIR /workspace/app
 
 COPY pom.xml .
