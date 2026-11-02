@@ -292,6 +292,37 @@ public class FspAccessGuard {
   }
 
   /**
+   * Non-throwing form of {@link #assertAttachmentEditable(String, String)} for
+   * the latest version, used to decide which rows offer Delete. Any denial,
+   * including a failed lookup, reads as "not editable".
+   */
+  public boolean canEditAttachments(String fspId) {
+    try {
+      assertAttachmentEditable(fspId, null);
+      return true;
+    } catch (StoredProcedureException e) {
+      return false;
+    }
+  }
+
+  /** Only an Administrator may delete an attachment from a prior version. */
+  public boolean canDeleteFromPriorVersions() {
+    return FsptsRoles.ADMINISTRATOR.equals(RequestUtil.getEffectiveRole());
+  }
+
+  /**
+   * Assert the caller may delete an attachment from {@code amendmentNumber},
+   * a version other than the latest. Administrator only, plus the usual
+   * ownership fence on that version.
+   */
+  public void assertPriorVersionAttachmentDeletable(String fspId, String amendmentNumber) {
+    if (!canDeleteFromPriorVersions()) {
+      throw deny(fspId, "prior-version attachment delete requires Administrator");
+    }
+    assertWritable(fspId, amendmentNumber);
+  }
+
+  /**
    * Assert a stocking standard (standards regime) is NOT approved. An approved
    * standard linked to an FSP is read-only — the user must Copy it (which
    * yields an editable draft) to change it — independent of the parent FSP's

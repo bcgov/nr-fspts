@@ -28,4 +28,9 @@ public class AttachmentResponse {
   // get_fsp_attachments_by_type — we stamp the human label onto each
   // row so a single flat list still preserves the category.
   private String category;
+  // The version a delete by the current user would remove this attachment
+  // from; null when they can't delete it. Not always fspAmendmentNumber: the
+  // GET cursors report the earliest linked version, so a file also linked to
+  // the latest version is removed from the latest first.
+  private String deleteAmendmentNumber;
 }

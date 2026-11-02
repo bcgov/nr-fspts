@@ -1,6 +1,7 @@
 package ca.bc.gov.nrs.fsp.api.service.v1;
 
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp400AttachmentsDao;
+import ca.bc.gov.nrs.fsp.api.dao.v1.FspAttachmentQueryDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao;
 import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
 import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentBlob;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Wraps the FSP_400_ATTACHMENTS package. The legacy GET proc returns 9 distinct
@@ -49,6 +51,7 @@ public class AttachmentsService {
   private static final String TYPE_DDM_DECISION     = "DDMD";
 
   private final Fsp400AttachmentsDao attachmentsDao;
+  private final FspAttachmentQueryDao attachmentQueryDao;
   private final FspCodeListsDao codeListsDao;
   private final JdbcTemplate jdbcTemplate;
   private final FspAccessGuard accessGuard;
@@ -56,11 +59,13 @@ public class AttachmentsService {
 
   public AttachmentsService(
       Fsp400AttachmentsDao attachmentsDao,
+      FspAttachmentQueryDao attachmentQueryDao,
       FspCodeListsDao codeListsDao,
       JdbcTemplate jdbcTemplate,
       FspAccessGuard accessGuard,
       VirusScanner virusScanner) {
     this.attachmentsDao = attachmentsDao;
+    this.attachmentQueryDao = attachmentQueryDao;
     this.codeListsDao = codeListsDao;
     this.jdbcTemplate = jdbcTemplate;
     this.accessGuard = accessGuard;
@@ -103,7 +108,31 @@ public class AttachmentsService {
     appendAll(all, get.declaredAreas(),   categoryLabel(descriptions, TYPE_DECLARED_AREAS));
     appendAll(all, get.supportingDocs(),  categoryLabel(descriptions, TYPE_SUPPORTING_DOCS));
     appendAll(all, get.ddmDecision(),     categoryLabel(descriptions, TYPE_DDM_DECISION));
+    setDeleteTargets(fspId, all);
     return all;
+  }
+
+  /**
+   * Stamps each row with the version a delete by this user would act on, using
+   * the same rules {@link #delete} enforces: the latest version when the file
+   * is linked to it and the user may edit it there; otherwise the row's own
+   * version, for an Administrator only.
+   */
+  private void setDeleteTargets(String fspId, List<AttachmentResponse> rows) {
+    if (rows.isEmpty() || !accessGuard.canEditAttachments(fspId)) {
+      return;
+    }
+    String latest = findLatestAmendmentNumber(fspId);
+    Set<Long> linkedToLatest = attachmentQueryDao.findLinkedAttachmentIds(
+        Long.parseLong(fspId), Long.parseLong(latest));
+    boolean priorVersionsAllowed = accessGuard.canDeleteFromPriorVersions();
+    for (AttachmentResponse row : rows) {
+      if (linkedToLatest.contains(Long.valueOf(row.getFspAttachmentId()))) {
+        row.setDeleteAmendmentNumber(latest);
+      } else if (priorVersionsAllowed) {
+        row.setDeleteAmendmentNumber(row.getFspAmendmentNumber());
+      }
+    }
   }
 
   /**
@@ -181,11 +210,42 @@ public class AttachmentsService {
         .build();
   }
 
+  /**
+   * Removes an attachment's link to one version, and the file itself once no
+   * version links to it.
+   *
+   * @param amendmentNumber the version to remove it from; blank means latest.
+   *     Any other version is Administrator only.
+   * @throws IllegalArgumentException if the file isn't linked to that version.
+   *     The proc reports success when it removes nothing, which used to show
+   *     users "deleted" while the attachment stayed in place.
+   */
   @Transactional
-  public void delete(String fspId, Long attachmentId) {
-    accessGuard.assertAttachmentEditable(fspId, null);
-    attachmentsDao.removeAttachment(
-        Long.valueOf(fspId), findLatestAmendmentNumber(fspId), attachmentId);
+  public void delete(String fspId, Long attachmentId, String amendmentNumber) {
+    long latest = Long.parseLong(findLatestAmendmentNumber(fspId));
+    long target = amendmentNumber == null || amendmentNumber.isBlank()
+        ? latest
+        : parseAmendmentNumber(amendmentNumber);
+    if (target == latest) {
+      accessGuard.assertAttachmentEditable(fspId, null);
+    } else {
+      accessGuard.assertPriorVersionAttachmentDeletable(fspId, String.valueOf(target));
+    }
+    long fsp = Long.parseLong(fspId);
+    if (!attachmentQueryDao.findLinkedAttachmentIds(fsp, target).contains(attachmentId)) {
+      throw new IllegalArgumentException(
+          "This attachment isn't on that version of the FSP, so it wasn't deleted. "
+              + "Refresh the page and try again.");
+    }
+    attachmentsDao.removeAttachment(fsp, String.valueOf(target), attachmentId);
+  }
+
+  private static long parseAmendmentNumber(String amendmentNumber) {
+    try {
+      return Long.parseLong(amendmentNumber.trim());
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException("The FSP version must be a number.", e);
+    }
   }
 
   /**
