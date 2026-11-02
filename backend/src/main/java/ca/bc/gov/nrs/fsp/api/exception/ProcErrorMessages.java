@@ -65,6 +65,9 @@ public final class ProcErrorMessages {
     return CODES;
   }
 
+  // Keep every message to 240 characters or fewer: the frontend's
+  // isTechnicalError (errorMessage.ts) replaces anything longer with a generic
+  // fallback. ProcErrorMessagesTest enforces the limit.
   private static final Map<String, Info> CODES = Map.ofEntries(
       // Raised by fsp_tombstone whenever user_may_access returns 'N' OR a
       // tombstone GET hits NO_DATA_FOUND because the role/client combo
@@ -180,13 +183,10 @@ public final class ProcErrorMessages {
       // reviewers can edit attachments while the plan is Submitted, so the
       // first remedy is theirs to apply.
       Map.entry("FSP.CANNOT.APPROVE.NO_FDU_SPATIAL_ATTACHED", new Info(BAD_REQUEST,
-          "This version indicates FDU changes (it has an attachment in the Map "
-              + "category, or is marked as updating the Forest Development "
-              + "Units), but no FDUs were added or changed on it. If the FDUs "
-              + "haven't changed, re-file any Map attachment under a different "
-              + "category on the Attachments tab and record the decision again. "
-              + "If that doesn't clear it, or the FDUs should have changed, "
-              + "request clarification so the submitter can correct the plan.")),
+          "No FDUs were added or changed on this version, but it indicates FDU "
+              + "changes. Re-file any Map attachment under another category on "
+              + "the Attachments tab and try again, or request clarification so "
+              + "the submitter can correct the plan.")),
       Map.entry("FSP.CANNOT.APPROVE.NO_IA_SPATIAL_ATTACHED", new Info(BAD_REQUEST,
           "Identified-areas spatial data is required.")),
       Map.entry("FSP.CANNOT.APPROVE.NO_IDENT_AREA_INCLUDED", new Info(BAD_REQUEST,
@@ -227,11 +227,10 @@ public final class ProcErrorMessages {
       // branch never checks this, so without the guard the plan submits
       // cleanly and only fails once it reaches the decision maker.
       Map.entry("FSP.MAP_ATTACHMENT.NO_FDU_CHANGE", new Info(BAD_REQUEST,
-          "This version has an attachment in the Map category, but no Forest "
-              + "Development Units were added or changed on it, so it can't be "
-              + "approved as is. If the FDUs haven't changed, re-file the "
-              + "attachment under a different category on the Attachments tab; "
-              + "otherwise add the FDU changes before submitting.")),
+          "This version has an attachment in the Map category, but no FDUs were "
+              + "added or changed on it. If the FDUs haven't changed, re-file it "
+              + "under another category on the Attachments tab; otherwise add the "
+              + "FDU changes before submitting.")),
       // Draft→Submitted checks from fsp_common_validation.validate_status_change:
       // every update indicator set to 'Y' must be backed by real changes on
       // this version. These fire on SUBMIT only — the Submit preflight
