@@ -187,16 +187,17 @@ const AttachmentsTab: FC<Props> = ({
   const confirmDelete = async () => {
     const row = pendingDelete;
     const attachmentId = row?.fspAttachmentId;
-    if (!attachmentId) return;
+    const targetVersion = row?.deleteAmendmentNumber;
+    if (!attachmentId || !targetVersion) return;
     setDeleting(true);
     try {
-      await deleteFspAttachment(fspId, attachmentId);
+      await deleteFspAttachment(fspId, attachmentId, targetVersion);
       setPendingDelete(null);
       refreshList();
       display({
         kind: 'success',
         title: 'Attachment deleted.',
-        subtitle: `${row.attachmentName ?? 'Attachment'} deleted from ${versionLabel(row.fspAmendmentNumber)}`,
+        subtitle: `${row.attachmentName ?? 'Attachment'} deleted from ${versionLabel(targetVersion)}`,
         timeout: 6000,
       });
     } catch (e) {
@@ -400,7 +401,7 @@ const AttachmentsTab: FC<Props> = ({
                             >
                               {inline ? 'View' : 'Download'}
                             </Button>
-                            {canEdit && (
+                            {r.deleteAmendmentNumber && (
                               <Button
                                 kind="danger--ghost"
                                 size="sm"
@@ -528,8 +529,8 @@ const AttachmentsTab: FC<Props> = ({
       >
         <p>
           Permanently delete{' '}
-          <strong>{pendingDelete?.attachmentName ?? 'this attachment'}</strong>? This
-          cannot be undone.
+          <strong>{pendingDelete?.attachmentName ?? 'this attachment'}</strong> from{' '}
+          {versionLabel(pendingDelete?.deleteAmendmentNumber)}? This cannot be undone.
         </p>
         <div className="fsp-species-modal__actions">
           <Button

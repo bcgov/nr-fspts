@@ -1535,6 +1535,8 @@ export interface FspAttachmentRow {
   attachmentSize: string | null;
   consolidatedInd: string | null;
   category: string | null;
+  /** Version a delete by this user acts on; null when they can't delete it. */
+  deleteAmendmentNumber: string | null;
 }
 
 export function getFspAttachments(fspId: string): Promise<FspAttachmentRow[]> {
@@ -1717,13 +1719,15 @@ export async function fetchFspAttachmentBlob(
   return mime ? raw.slice(0, raw.size, mime) : raw;
 }
 
-/** Permanently deletes a single FSP attachment (backend returns 204). */
+/** Deletes an FSP attachment from one version (backend returns 204). */
 export async function deleteFspAttachment(
   fspId: string,
   attachmentId: string,
+  amendmentNumber: string,
 ): Promise<void> {
   const res = await apiFetch(
-    `/v1/fsp/${encodeURIComponent(fspId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    `/v1/fsp/${encodeURIComponent(fspId)}/attachments/${encodeURIComponent(attachmentId)}`
+      + `?amendmentNumber=${encodeURIComponent(amendmentNumber)}`,
     { method: 'DELETE' },
   );
   if (!res.ok) {

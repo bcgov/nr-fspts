@@ -1,5 +1,7 @@
 package ca.bc.gov.nrs.fsp.api.dao.v1;
 
+import java.util.Set;
+
 /**
  * Lightweight, read-only attachment existence checks used by the
  * app-level submit validation. Distinct from {@link Fsp400AttachmentsDao}
@@ -50,4 +52,11 @@ public interface FspAttachmentQueryDao {
    * does the plan have any FDU at all.
    */
   boolean hasFdu(long fspId, long amendmentNumber);
+
+  /**
+   * Ids of the attachments linked to this exact {@code (fspId, amendmentNumber)}.
+   * {@code FSP_400_ATTACHMENTS.REMOVE_ATTACHMENT} only deletes such a link and
+   * reports success when there is none, so a delete has to check this itself.
+   */
+  Set<Long> findLinkedAttachmentIds(long fspId, long amendmentNumber);
 }

@@ -294,7 +294,9 @@ public interface FspApiEndpoint {
     @PreAuthorize(FspAuthorities.ATTACHMENT_EDIT)
     @Operation(summary = "Delete an attachment via FSP_400_ATTACHMENTS.REMOVE_ATTACHMENT")
     ResponseEntity<Void> deleteAttachment(
-            @PathVariable String fspId, @PathVariable Long attachmentId);
+            @PathVariable String fspId,
+            @PathVariable Long attachmentId,
+            @RequestParam(name = "amendmentNumber", required = false) String amendmentNumber);
 
     // --- Inbox ---
 

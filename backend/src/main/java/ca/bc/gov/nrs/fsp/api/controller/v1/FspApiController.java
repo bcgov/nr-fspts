@@ -265,8 +265,9 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
-    public ResponseEntity<Void> deleteAttachment(String fspId, Long attachmentId) {
-        attachmentsService.delete(fspId, attachmentId);
+    public ResponseEntity<Void> deleteAttachment(
+            String fspId, Long attachmentId, String amendmentNumber) {
+        attachmentsService.delete(fspId, attachmentId, amendmentNumber);
         return ResponseEntity.noContent().build();
     }
 

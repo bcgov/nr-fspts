@@ -4,6 +4,9 @@ import ca.bc.gov.nrs.fsp.api.dao.v1.FspAttachmentQueryDao;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Repository
 public class FspAttachmentQueryDaoImpl implements FspAttachmentQueryDao {
 
@@ -64,5 +67,13 @@ public class FspAttachmentQueryDaoImpl implements FspAttachmentQueryDao {
     Integer count = jdbcTemplate.queryForObject(
         FDU_COUNT_SQL, Integer.class, fspId, amendmentNumber);
     return count != null && count > 0;
+  }
+
+  @Override
+  public Set<Long> findLinkedAttachmentIds(long fspId, long amendmentNumber) {
+    return new HashSet<>(jdbcTemplate.queryForList(
+        "SELECT fsp_attachment_id FROM the.fsp_attachment_xref "
+            + " WHERE fsp_id = ? AND fsp_amendment_number = ?",
+        Long.class, fspId, amendmentNumber));
   }
 }
