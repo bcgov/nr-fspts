@@ -63,6 +63,7 @@ jobs:
       user_lookup_base_url: ${{ secrets.USER_LOOKUP_BASE_URL }}
       clamav_host: ${{ secrets.CLAMAV_HOST }}
       fom_api_url: ${{ secrets.FOM_API_URL }}
+      fsp_revert_standards_inbox: ${{ secrets.FSP_REVERT_STANDARDS_INBOX }}
       vanity_tls_certificate: ${{ secrets.VANITY_TLS_CERTIFICATE }}
       vanity_tls_key: ${{ secrets.VANITY_TLS_KEY }}
       vanity_tls_ca_certificate: ${{ secrets.VANITY_TLS_CA_CERTIFICATE }}

@@ -112,6 +112,12 @@ parameters:
   - name: EMAIL_SEND_ENABLED
     required: false
     value: "true"
+  # Inbox that receives the SSID list when an Administrator reverts an
+  # amendment's approval. Sourced from a GitHub secret. Empty = that notice is
+  # skipped (logged); the FSP contact's reversal email still goes out.
+  - name: FSP_REVERT_STANDARDS_INBOX
+    required: false
+    value: ""
   - name: DATABASE_HOST
     required: true
   - name: DATABASE_SERVICE_NAME
@@ -233,6 +239,8 @@ objects:
                   value: ${CLAMAV_FAIL_OPEN}
                 - name: EMAIL_SEND_ENABLED
                   value: ${EMAIL_SEND_ENABLED}
+                - name: FSP_REVERT_STANDARDS_INBOX
+                  value: ${FSP_REVERT_STANDARDS_INBOX}
                 - name: DATABASE_HOST
                   value: ${DATABASE_HOST}
                 - name: DATABASE_SERVICE_NAME

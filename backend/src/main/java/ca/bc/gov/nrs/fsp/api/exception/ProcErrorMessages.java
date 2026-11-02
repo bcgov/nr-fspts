@@ -134,6 +134,12 @@ public final class ProcErrorMessages {
       Map.entry("FSP.INVALID.EXT.END.DATE.SHORT", new Info(BAD_REQUEST,
           "Plan end date can't be more than 5 years after the effective "
               + "date.")),
+      // New extension request by expiry date: FSP_COMMON_VALIDATION
+      // .validate_fsp_extension measures from the latest approved amendment's
+      // end date, unlike the .SHORT code above, which uses the effective date.
+      Map.entry("FSP.INVALID.EXT.END.DATE", new Info(BAD_REQUEST,
+          "New expiry date can't be more than 5 years after the current "
+              + "expiry date.")),
       // FSP_700_WORKFLOW.MAINLINE (SAVE_DDM_* / SAVE_EXT_*) rejects a
       // Submission or Decision date that isn't before the DB's current
       // (BC-local) date — i.e. a future-dated decision. The proc appends the
