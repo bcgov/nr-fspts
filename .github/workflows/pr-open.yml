@@ -85,6 +85,7 @@ jobs:
       user_lookup_base_url: ${{ secrets.USER_LOOKUP_BASE_URL }}
       clamav_host: ${{ secrets.CLAMAV_HOST }}
       fom_api_url: ${{ secrets.FOM_API_URL }}
+      fsp_revert_standards_inbox: ${{ secrets.FSP_REVERT_STANDARDS_INBOX }}
     with:
       environment: dev
       target: ${{ github.event.number }}

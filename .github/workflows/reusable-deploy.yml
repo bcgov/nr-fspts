@@ -102,6 +102,12 @@ on:
           Fills the FSP-300 "Associated FOMs" column. Omit to disable the
           lookup (column stays blank).
         required: false
+      fsp_revert_standards_inbox:
+        description: |
+          Inbox that receives the SSID list when an Administrator reverts an
+          amendment's approval. Omit to skip that notice (the FSP contact's
+          reversal email still goes out).
+        required: false
       vanity_tls_certificate:
         description: |
           PEM leaf/server certificate for the PROD vanity Route hostname
@@ -190,6 +196,9 @@ jobs:
           # `parameters`) for a single bash expansion, same as the URLs above.
           # Empty disables the Associated-FOMs enrichment (column stays blank).
           FOM_API_URL: ${{ secrets.fom_api_url }}
+          # Revert standards inbox — a secret; routed through env for a single
+          # bash expansion. Empty skips the SSID notice.
+          FSP_REVERT_STANDARDS_INBOX: ${{ secrets.fsp_revert_standards_inbox }}
         with:
           file: backend/openshift.deploy.yml
           oc_namespace: ${{ secrets.oc_namespace }}
@@ -221,6 +230,7 @@ jobs:
             -p CLAMAV_PORT="${{ vars.CLAMAV_PORT || '3310' }}"
             -p CLAMAV_FAIL_OPEN="${{ vars.CLAMAV_FAIL_OPEN || 'false' }}"
             -p EMAIL_SEND_ENABLED="${{ vars.EMAIL_SEND_ENABLED || 'true' }}"
+            -p FSP_REVERT_STANDARDS_INBOX="$FSP_REVERT_STANDARDS_INBOX"
             -p DATABASE_HOST="${{ secrets.database_host }}"
             -p DATABASE_SERVICE_NAME="${{ secrets.database_service_name }}"
             -p DATABASE_USER="${{ secrets.database_user }}"

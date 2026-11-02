@@ -58,6 +58,29 @@ const toIsoDate = (d: Date): string => {
   return `${y}-${m}-${day}`;
 };
 
+/**
+ * Latest expiry date an extension request can ask for, as YYYY-MM-DD, or null
+ * if the current expiry isn't known (the server still enforces the rule).
+ * Mirrors FSP_COMMON_VALIDATION.validate_fsp_extension, including how Oracle's
+ * ADD_MONTHS treats month ends: a month-end date stays on the month's last day.
+ */
+const latestExtensionExpiry = (
+  currentExpiry: string | null | undefined,
+): string | null => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(currentExpiry?.trim() ?? '');
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const lastDayOfMonth = (y: number) => new Date(y, month, 0).getDate();
+  const targetYear = year + MAX_TERM_MONTHS / 12;
+  const targetDay =
+    day === lastDayOfMonth(year)
+      ? lastDayOfMonth(targetYear)
+      : Math.min(day, lastDayOfMonth(targetYear));
+  return toIsoDate(new Date(targetYear, month - 1, targetDay));
+};
+
 // "2025-12-08 …" → "Dec 8, 2025". Falls back to the raw value if it
 // doesn't lead with an ISO date.
 const formatDate = (value: string | null | undefined): string => {
@@ -164,6 +187,13 @@ const ExtensionRequestModal: FC<Props> = ({ open, fsp, onClose, onCreated }) => 
       }
     } else if (!expiryDate) {
       next.expiry = 'Choose a new expiry date.';
+    } else {
+      const latest = latestExtensionExpiry(
+        fsp?.fspExpiryDate ?? fsp?.fspPlanEndDate,
+      );
+      if (latest && expiryDate > latest) {
+        next.expiry = `New expiry date can't be after ${formatDate(latest)} (5 years after the current expiry date).`;
+      }
     }
     if (comment.length > COMMENT_MAX) {
       next.comment = `Max ${COMMENT_MAX} characters.`;

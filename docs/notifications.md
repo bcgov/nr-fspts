@@ -139,3 +139,22 @@ handing anything to SMTP. Both services also log the active state once at startu
 - **Default is ON:** unset anywhere in the chain resolves to `true`, so a
   deployment sends email unless the variable is explicitly set `false` on that
   environment. Set it `false` where email should stay suppressed.
+
+### Revert standards inbox — `FSP_REVERT_STANDARDS_INBOX`
+
+When an Administrator reverts an amendment's approval, the approved
+stocking-standard SSIDs on it are emailed to this inbox
+(`reverted_standards_email`). The FSP contact's reversal email
+(`amendment_reverted_email`) is sent regardless.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `FSP_REVERT_STANDARDS_INBOX` | *(empty)* | Recipient of the SSID notice. Empty = notice skipped, with a WARN log. |
+
+- **Wiring:** `FSP_REVERT_STANDARDS_INBOX` (OpenShift template param, default `""`)
+  → container env → `application.properties` `fsp.mail.revert-standards-inbox=${FSP_REVERT_STANDARDS_INBOX:}`
+  → `@Value` in `AmendmentRevertService`.
+- **Secret** — set as a GitHub Environment **secret** (`FSP_REVERT_STANDARDS_INBOX`).
+  `merge.yml` / `pr-open.yml` / `release.yml` pass it to `reusable-deploy.yml` as
+  `fsp_revert_standards_inbox`, which routes it through step env and
+  `-p FSP_REVERT_STANDARDS_INBOX="$FSP_REVERT_STANDARDS_INBOX"` (single bash expansion).
