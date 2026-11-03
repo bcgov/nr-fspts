@@ -30,12 +30,12 @@ on:
         required: true
       e2e_idir_password:
         description: IDIR service account password for Playwright auth
+        required: true
       e2e_idir_totp_secret:
         description: |
           Base32 authenticator-app secret for the IDIR account's Entra MFA.
           Optional; without it the account must be MFA-exempt.
         required: false
-        required: true
 
 env:
   DOMAIN: apps.silver.devops.gov.bc.ca
