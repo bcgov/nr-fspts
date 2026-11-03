@@ -117,7 +117,7 @@ spec:
 (`${NAME}-backend-${ZONE}-egress`) that permits **all** egress from the backend
 pods. It ships with every backend deploy — no flag, no separate step. It's
 permit-all rather than a narrow `DNS + clamd` allow-list because NetworkPolicy
-egress is all-or-nothing per pod: the backend also needs Oracle, Cognito,
+egress is all-or-nothing per pod: the backend also needs Oracle, Keycloak,
 user-lookup, and SMTP, so a narrow policy would silently break those wherever
 the namespace baseline doesn't already default-deny egress. Permit-all can't
 reduce access below the current open baseline and guarantees the app side never

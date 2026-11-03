@@ -10,7 +10,7 @@ stored-procedure pattern that defines it.
 - Web (Undertow), JDBC (`ojdbc11`), Validation, AOP, Cache, Mail, Actuator
 - Outbound REST (`RestClient`): nr-user-lookup-api (IDIR/BCeID directory),
   nr-fom (Associated FOMs)
-- OAuth2 **resource server** (Cognito JWTs) + method security (`@PreAuthorize`)
+- OAuth2 **resource server** (BC Gov SSO / Keycloak JWTs) + method security (`@PreAuthorize`)
 - Stored-procedure DAOs (no ORM); OpenAPI via springdoc
 
 ## Prerequisites
@@ -20,7 +20,7 @@ You need:
 
 1. **BC Gov VPN** connected (Oracle reachability).
 2. `src/main/resources/application-local.properties` — gitignored; holds the DB
-   password, Cognito, and IDIR config the `local` profile reads. (See its
+   password, Keycloak, and IDIR config the `local` profile reads. (See its
    header comment for the truststore-extraction procedure.)
 3. `src/main/resources/cert/jssecacerts` — the Oracle truststore.
 

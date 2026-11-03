@@ -8,7 +8,7 @@ import { useTheme } from '@/context/theme/useTheme';
 import './LandingPage.scss';
 
 /**
- * Shown after a successful Cognito login when the user's token carries
+ * Shown after a successful sign-in when the user's token carries
  * no recognised FSPTS_* role. AuthProvider intentionally keeps
  * isLoggedIn=true in that case so the routing layer can land here
  * instead of bouncing the user back through the IdP. The only action

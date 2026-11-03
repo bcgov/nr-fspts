@@ -4,8 +4,9 @@
 #   - Drop integration-tests (no common/tests/integration in this repo).
 #   - Drop load-tests   (no k6 scripts; would hammer shared Oracle DEV).
 #   - Keep e2e-tests using our existing Playwright suite. Auth is wired up
-#     programmatically via E2E_IDIR_USER / E2E_IDIR_PASSWORD secrets so the
-#     suite can run unattended in CI.
+#     programmatically via E2E_IDIR_USER / E2E_IDIR_PASSWORD secrets, plus
+#     E2E_IDIR_TOTP_SECRET for the MFA step, so the suite can run unattended
+#     in CI.
 name: Reusable Tests
 
 on:
@@ -29,6 +30,11 @@ on:
         required: true
       e2e_idir_password:
         description: IDIR service account password for Playwright auth
+      e2e_idir_totp_secret:
+        description: |
+          Base32 authenticator-app secret for the IDIR account's Entra MFA.
+          Optional; without it the account must be MFA-exempt.
+        required: false
         required: true
 
 env:
@@ -73,6 +79,7 @@ jobs:
           E2E_BASE_URL: https://${{ env.PREFIX }}.${{ env.DOMAIN }}
           E2E_IDIR_USER: ${{ secrets.e2e_idir_user }}
           E2E_IDIR_PASSWORD: ${{ secrets.e2e_idir_password }}
+          E2E_IDIR_TOTP_SECRET: ${{ secrets.e2e_idir_totp_secret }}
           CI: "true"
         run: |
           npx playwright test --project="${{ matrix.project }}" --reporter=html,list

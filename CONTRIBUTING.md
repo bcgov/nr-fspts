@@ -15,7 +15,7 @@ Read the [root README](./README.md) first, then the module READMEs:
   gitignored `application-local.properties`, and an Oracle truststore. There is no
   local database; the API talks to the shared Oracle.
 - **Frontend** — [frontend/README.md](./frontend/README.md). Needs a
-  `frontend/.env` with Cognito config.
+  `frontend/.env` with Keycloak config.
 - Or run both with `docker compose up` from the repo root.
 
 Before changing anything non-trivial, skim the docs for the area you're touching:

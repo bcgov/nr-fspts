@@ -45,7 +45,7 @@ public record WorkflowState(
     String extensionIds,
     /**
      * Effective FSPTS roles for the calling user, projected from the
-     * JWT's cognito:groups. The Workflow tab uses these to gate the
+     * token's FAM roles. The Workflow tab uses these to gate the
      * per-section Edit buttons without re-implementing role-suffix
      * matching client-side.
      */

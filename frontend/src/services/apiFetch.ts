@@ -1,39 +1,21 @@
-import { fetchAuthSession } from 'aws-amplify/auth';
-
 import { env } from '@/env';
 
 import { ensureSessionFresh } from '@/context/auth/refreshSession';
 import { getActiveOrgClientNumber } from '@/context/org/useOrg';
 import { safeErrorMessage } from '@/lib/errorMessage';
+import { getFreshAccessToken } from '@/services/keycloak';
 
 /**
  * Header sent on every authenticated request when a BCeID submitter
  * has picked an active org. Backend RequestUtil reads this and
- * validates it against the JWT's groups before scoping queries.
+ * validates it against the token's FSPTS roles before scoping queries.
  */
 const ACTIVE_ORG_HEADER = 'X-FSPTS-Active-Org-Client-Number';
 
 const API_BASE_URL = env.VITE_API_BASE_URL ?? '';
 
 /**
- * Reads the current Cognito access token via Amplify's auth session.
- * Mirrors nr-rept's services/http/headers.ts pattern: parse the token from
- * Amplify's session rather than reading storage keys directly. Amplify keeps
- * tokens in localStorage (its default store — see main.tsx), and going through
- * fetchAuthSession also transparently refreshes a near-expired token, so this
- * both survives storage changes and keeps the bearer fresh.
- */
-const getAccessToken = async (): Promise<string | undefined> => {
-  try {
-    const { tokens } = (await fetchAuthSession()) ?? {};
-    return tokens?.accessToken?.toString();
-  } catch {
-    return undefined;
-  }
-};
-
-/**
- * Fetch wrapper that refreshes the Cognito session if its access token
+ * Fetch wrapper that renews the Keycloak session if its access token
  * is near expiry, attaches the current access token as a Bearer header,
  * and prefixes paths with the configured API base URL.
  *
@@ -45,7 +27,7 @@ const getAccessToken = async (): Promise<string | undefined> => {
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   await ensureSessionFresh();
 
-  const token = await getAccessToken();
+  const token = await getFreshAccessToken();
   const headers = new Headers(init.headers);
   if (token) headers.set('Authorization', `Bearer ${token}`);
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');

@@ -17,16 +17,16 @@ understanding this codebase — see [docs/database.md](docs/database.md).
 ```
 ┌─────────────────┐   HTTPS / JWT    ┌──────────────────┐   stored procs   ┌───────────────┐
 │  React SPA      │ ───────────────▶ │  Spring Boot API │ ───────────────▶ │ Oracle (THE)  │
-│  Vite · Carbon  │  Cognito access  │  resource server │   JDBC / cursors │ legacy PL/SQL │
+│  Vite · Carbon  │  Keycloak access │  resource server │   JDBC / cursors │ legacy PL/SQL │
 │  (frontend/)    │  token (IDIR/    │  (backend/)      │                  │  = nr-mof-db  │
 └─────────────────┘   BCeID)         └──────────────────┘                  └───────────────┘
 ```
 
 - **Frontend** — React 19 + TypeScript + Vite, BC Gov Carbon Design System,
-  AWS Amplify for Cognito (IDIR / BCeID Business) auth. See
+  oidc-client-ts against BC Gov SSO (Keycloak; IDIR / BCeID Business). See
   [frontend/README.md](frontend/README.md).
 - **Backend** — Java 21 + Spring Boot 3.5, OAuth2 resource server (validates
-  Cognito JWTs), thin services over stored-procedure DAOs. See
+  Keycloak JWTs), thin services over stored-procedure DAOs. See
   [backend/README.md](backend/README.md).
 - **Database** — the shared BC Gov Oracle (`THE` schema). The PL/SQL lives in
   a separate repo, **`nr-mof-db`**; this app only calls it.

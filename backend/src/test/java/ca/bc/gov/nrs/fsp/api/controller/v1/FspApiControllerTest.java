@@ -251,7 +251,7 @@ class FspApiControllerTest {
   // Mock services return null/void, so an allowed write lands 2xx; a
   // denied one is short-circuited by @PreAuthorize at 403 before the
   // controller body runs. Authorities mirror what
-  // CognitoGroupsAuthoritiesConverter emits: ROLE_FSPTS_<role>.
+  // FsptsAuthoritiesConverter emits: ROLE_FSPTS_<role>.
 
   /** A jwt() post-processor carrying exactly one FSPTS role authority. */
   private static RequestPostProcessor asRole(String role) {

@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
  * because client search is a generic resource — any FSP screen that
  * needs an agreement-holder / contact / submitter picker hits this.
  *
- * Auth is the same Cognito JWT validation the FSP endpoints use; see
+ * Auth is the same Keycloak JWT validation the FSP endpoints use; see
  * FspSecurityConfig (path-agnostic resource-server config).
  */
 @RequestMapping("/api/v1/clients")

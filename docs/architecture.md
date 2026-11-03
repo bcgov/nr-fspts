@@ -33,7 +33,7 @@ flowchart LR
         api["Spring Boot API<br/>OAuth2 resource server"]
     end
 
-    cognito["Cognito<br/>(IDIR / BCeID federation)"]
+    sso["BC Gov SSO (Keycloak)<br/>standard realm<br/>(IDIR - MFA / BCeID Business)"]
     oracle[("Oracle THE<br/>legacy data + PL/SQL<br/>= nr-mof-db")]
     userlookup["nr-user-lookup-api<br/>IDIR / BCeID lookup"]
     smtp["SMTP"]
@@ -41,8 +41,8 @@ flowchart LR
 
     idir & bceid --> spa
     spa -- "JSON + Bearer JWT" --> api
-    spa -. "login" .-> cognito
-    api -- "validate JWT" --> cognito
+    spa -. "login" .-> sso
+    api -- "validate JWT" --> sso
     api -- "stored procs (JDBC)" --> oracle
     api -- "user lookup" --> userlookup
     api -- "email" --> smtp
@@ -56,7 +56,7 @@ Submissions used to arrive over a sixth dependency — the external **ESF** queu
 
 ```
                          frontend/  (React SPA)
-                              │  fetch + Cognito Bearer token
+                              │  fetch + Keycloak Bearer token
                               ▼
   endpoint/      interfaces — REST mappings + OpenAPI annotations + @PreAuthorize
        └─ controller/   @RestController impls of those interfaces
@@ -79,7 +79,7 @@ Supporting packages (`backend/src/main/java/ca/bc/gov/nrs/fsp/api/`):
 | `service` | Orchestration; one service per domain (FSP, Workflow, Standards, Attachments, …) |
 | `dao` | Stored-procedure wrappers (`*Dao` interface + `*DaoImpl`); `AbstractStoredProcedureDao` holds shared call plumbing |
 | `struct` | Request/response DTOs |
-| `security` | Cognito JWT validation, role authorities, the capability matrix (`FspAuthorities`), the ownership fence (`FspAccessGuard`) |
+| `security` | Keycloak JWT validation (`azp` check), FAM role parsing (`FamRoles`), role authorities, the capability matrix (`FspAuthorities`), the ownership fence (`FspAccessGuard`) |
 | `submission` | XML / GeoJSON parsing, validation, preview, and persistence — the in-house replacement for the external **ESF** intake ([submissions.md](submissions.md#background-bringing-esf-in-house)) |
 | `notification` | Two email flows — transactional workflow events and the scheduled district-designate digest ([notifications.md](notifications.md)) |
 | `exception` | Exception → HTTP mapping; `ProcErrorMessages` curates `FSP.*` proc codes |
@@ -88,13 +88,16 @@ Supporting packages (`backend/src/main/java/ca/bc/gov/nrs/fsp/api/`):
 
 ## Request flow (a write, end to end)
 
-1. **SPA** calls the API with `Authorization: Bearer <Cognito access token>`.
-   `services/apiFetch.ts` attaches the token from the Amplify session.
-2. **JWT validation** (`FspSecurityConfig`): signature + issuer + expiry, plus
-   two custom validators — the token must be an *access* token, and it must
-   carry at least one FSPTS role (`cognito:groups`).
-3. **Authorities**: `cognito:groups` → `ROLE_FSPTS_*` (canonical + any
-   org-suffixed variant).
+1. **SPA** calls the API with `Authorization: Bearer <Keycloak access token>`.
+   `services/apiFetch.ts` renews the token if it's within a minute of expiry
+   and attaches it.
+2. **JWT validation** (`FspSecurityConfig`): signature (cached JWKS from
+   `<issuer>/protocol/openid-connect/certs`) + issuer + expiry, plus two custom
+   validators — the token's `azp` must be FSP's CSS client id (the realm is
+   shared, so issuer alone isn't enough), and it must carry at least one FSPTS
+   role (`client_roles`).
+3. **Authorities**: FAM roles → the single effective `ROLE_FSPTS_*` (scope
+   suffixes such as `_FOREST_CLIENT-00012345` are parsed off first).
 4. **Method security**: the endpoint method's `@PreAuthorize` checks a
    capability from `FspAuthorities` (e.g. content edit, workflow decision).
 5. **Service**: resolves the audit user / legacy roles / active-org client
@@ -119,7 +122,7 @@ sequenceDiagram
     participant Proc as Oracle proc
 
     SPA->>Sec: request + Bearer JWT
-    Sec->>Sec: validate token + map cognito:groups → ROLE_FSPTS_*
+    Sec->>Sec: validate token + map client_roles → ROLE_FSPTS_*
     Sec->>Ctl: authenticated request
     Ctl->>Ctl: @PreAuthorize capability check
     Note over Ctl: 403 if the role lacks the capability
@@ -140,11 +143,19 @@ See [roles-and-security.md](roles-and-security.md) for steps 2–5 and
 
 ## Authentication
 
-- Identity is **Cognito**, federating **IDIR** (ministry staff) and **BCeID
-  Business** (licensees). The SPA uses AWS Amplify; the API is a stateless
-  OAuth2 **resource server** (no sessions).
-- Roles are Cognito groups (`FSPTS_ADMINISTRATOR`, `FSPTS_SUBMITTER`, …),
-  optionally org-suffixed (`FSPTS_ADMINISTRATOR_DPG`).
+- Identity is **BC Gov SSO (Keycloak), standard realm**, through FSP's own CSS
+  integration: **IDIR - MFA** (ministry staff, `kc_idp_hint=azureidir`) and
+  **BCeID Business** (licensees, `kc_idp_hint=bceidbusiness`). The SPA uses
+  `oidc-client-ts` (Authorization Code + PKCE, tokens in `sessionStorage`); the
+  API is a stateless OAuth2 **resource server** (no sessions). Same setup as
+  nr-rept.
+- Roles are granted in FAM and arrive on the access token's `client_roles`
+  (`FSPTS_ADMINISTRATOR`, …). A client-tied grant carries its forest client in
+  the name: `FSPTS_SUBMITTER_FOREST_CLIENT-00012345`. See
+  [roles-and-security.md](roles-and-security.md).
+- Audit user ids are built from `idir_username` / `bceid_username`, with the
+  provider normalised to `IDIR\` / `BCEID\` (`azureidir` would otherwise start
+  writing `AZUREIDIR\…`) — `util/JwtPrincipalUtil`.
 - BCeID submitters act on behalf of a forest-client org; the **active-org**
   header carries the client number that scopes their access. See the ownership
   fence in [roles-and-security.md](roles-and-security.md).
@@ -167,7 +178,7 @@ The API depends on six BC Gov services:
 | System | Used for | Doc |
 |--------|----------|-----|
 | **Oracle `THE`** | All FSP data + business logic (legacy PL/SQL) | [database.md](database.md) |
-| **Cognito** | Authentication (IDIR / BCeID Business JWTs) | [roles-and-security.md](roles-and-security.md) |
+| **BC Gov SSO (Keycloak)** | Authentication (IDIR - MFA / BCeID Business JWTs) | [roles-and-security.md](roles-and-security.md) |
 | **nr-user-lookup-api** | IDIR/BCeID identity lookup (user picker + digest email resolution) | [user-lookup-integration.md](user-lookup-integration.md) |
 | **SMTP** | Outgoing email (workflow events + designate digest) | [notifications.md](notifications.md) |
 | **ClamAV** | Virus-scanning every uploaded file (clamd over raw TCP) | [virus-scanning.md](virus-scanning.md) |
@@ -260,47 +271,39 @@ new tab — there is no external map viewer and **no map-viewer env var**. (The 
 `noopener`, so the active BCeID org is threaded through the URL (`&activeOrg=…`)
 and adopted by `OrgProvider` to avoid re-prompting multi-org users.
 
-### Federated logout (session sign-out chain)
+### Sign-in, sign-out and session timeout
 
-Logout has to end **all three** sessions or it isn't a real logout: the app
-(Cognito), Keycloak (loginproxy), and Siteminder (IDIR/BCeID). Cognito's hosted
-`/logout` does **not** propagate to an upstream OIDC IdP, so the app drives the
-chain itself, with Cognito firing **last**:
+Configuration is two values per environment, each stored **once** in GitHub and
+fed to both containers:
 
-```
-app → Siteminder logoff.cgi → Keycloak end-session → Cognito /logout → app
-```
+| GitHub config | Kind | Backend env | Frontend env | Value |
+|---------------|------|-------------|--------------|-------|
+| `KEYCLOAK_ISSUER_URI` | **variable** | `KEYCLOAK_ISSUER_URI` | `VITE_KEYCLOAK_URL` | Standard realm issuer — `https://{dev.,test.,}loginproxy.gov.bc.ca/auth/realms/standard` |
+| `KEYCLOAK_CLIENT_ID` | **variable** | `KEYCLOAK_CLIENT_ID` | `VITE_KEYCLOAK_CLIENT_ID` | FSP's CSS integration client id (checked by the API as `azp`) |
+| `KEYCLOAK_SA_ISSUER_URI` | **variable** | — (token URL for user lookup) | — | Realm holding the nr-user-lookup-api service account (normally `…/realms/forests`). **Not** the standard realm. |
 
-Putting Cognito last means Keycloak's `post_logout_redirect_uri` is the
-**Cognito** `/logout` URL (one stable, app-agnostic value) rather than the app
-URL — so the app URL only ever has to be registered as a **Cognito sign-out
-URL** (ours to control), never on the shared FAM Keycloak client. The chain is
-assembled and per-layer URL-encoded at runtime in
-`src/context/auth/logoutChain.ts`; the auth-context `logout()` clears the local
-tokens and navigates it. If any of the three pieces below is unset the code
-falls back to the plain Amplify hosted-UI sign-out (Cognito-first), which
-returns to the app origin — `config.ts` derives that sign-out URL from
-`window.location.origin`, so no dedicated env var is needed.
+The two halves must agree: if the SPA signs in against one realm or client and
+the API validates against another, sign-in succeeds and then every API call
+returns 401.
 
-| GitHub Environment config | Kind | Purpose |
-|---------------------------|------|---------|
-| `VITE_LOGOUT_SITEMINDER_URL` | **variable** (`vars.…`) | Siteminder `logoff.cgi` base. TEST `https://logontest7.gov.bc.ca/clp-cgi/logoff.cgi`, PROD `https://logon7.gov.bc.ca/clp-cgi/logoff.cgi`. |
-| `VITE_LOGOUT_KEYCLOAK_URL` | **variable** (`vars.…`) | Keycloak end-session URL, `standard` realm. TEST `https://test.loginproxy.gov.bc.ca/auth/realms/standard/protocol/openid-connect/logout`, PROD `https://loginproxy.gov.bc.ca/auth/realms/standard/protocol/openid-connect/logout`. |
-| `VITE_LOGOUT_KEYCLOAK_CLIENT_ID` | **variable** (`vars.…`) | Cognito's client id **in Keycloak** (FAM-provided, per env). TEST `fsa-cognito-idir-dev-4088`; PROD is a different client — get it from FAM. |
+**Sign-in.** The Landing page's IDIR / BCeID buttons call `signinRedirect` with
+the matching `kc_idp_hint`. Keycloak returns to `<origin>/authCallback`
+(`pages/AuthCallback.tsx`), which exchanges the code and reloads to `/`. The
+callback and the post-logout URI (`<origin>`) must be registered on the CSS
+integration for every hostname, including each PR-preview slot.
 
-All three are **variables, not secrets** — public URLs and an OIDC client id,
-nothing sensitive. They thread through the usual four places: `vars.*` →
-`.github/workflows/reusable-deploy.yml` (`-p …`) → `frontend/openshift.deploy.yml`
-(param + container `env`) → `frontend/docker-entrypoint.sh` (`/srv/config.js`) →
-`src/env.ts`. Local dev sets them in `frontend/.env.local`.
+**Sign-out** (`services/keycloak.ts` → `signOutEverywhere`) chains through
+Siteminder's `logoff.cgi` and then Keycloak's end-session endpoint, back to the
+app. BCeID goes through Siteminder, which otherwise keeps its own session, so the
+next sign-in would skip the password prompt. The SSO team documents this chain
+for Siteminder-backed providers. nr-rept (IDIR - MFA only) doesn't need it. The
+Siteminder host is picked from the realm URL (`logon7` for production,
+`logontest7` otherwise), so there's no variable for it.
 
-One-time FAM/Cognito registration this depends on (no code, but the chain won't
-complete without it):
-
-- **Cognito app client → Allowed sign-out URLs:** the app origin per env
-  (`http://localhost:3000`, the TEST/PROD app URLs). This is Cognito's
-  `logout_uri` at the end of the chain.
-- **Keycloak client → Valid post logout redirect URIs:** the **Cognito**
-  `/logout` URL (not the app). Often already satisfied if the client uses `+`
-  (inherit) or a `https://<cognito-domain>/*` wildcard — check before adding an
-  entry.
+**Session timeout** (`components/SessionTimeout`, same settings as nr-rept):
+access tokens live 5 minutes and refresh tokens 30. The app renews the access
+token when it has under a minute left, on API calls and on user activity (at
+most once a minute). After 20 minutes without activity it warns, and at 25 it
+signs out. That is 5 minutes inside the refresh token's 30, so "Stay logged in"
+always has a live refresh token to rotate. Nothing renews in the background, so
+an idle tab times out.

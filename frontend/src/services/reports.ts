@@ -1,7 +1,6 @@
-import { fetchAuthSession } from 'aws-amplify/auth';
-
 import { env } from '@/env';
 import { ensureSessionFresh } from '@/context/auth/refreshSession';
+import { getFreshAccessToken } from '@/services/keycloak';
 
 /**
  * Report service — POSTs a JSON request to the backend and returns
@@ -10,9 +9,10 @@ import { ensureSessionFresh } from '@/context/auth/refreshSession';
  *
  * Mirrors nr-rept's services/reports/api.ts pattern: same response
  * shape, same Content-Disposition parsing, same Bearer-token-via-FAM
- * auth. Where REPT uses its buildAuthorizedHeaders helper, we go
- * straight through Amplify since FSP's apiFetch already does the
- * session-fresh check + token attach for normal requests; the report
+ * auth. Where REPT uses its buildAuthorizedHeaders helper, we read the
+ * token from the Keycloak UserManager directly since FSP's apiFetch
+ * already does the session-fresh check + token attach for normal
+ * requests; the report
  * endpoint returns binary so we can't reuse apiFetch (which
  * pre-supposes a JSON response).
  */
@@ -86,15 +86,6 @@ const extractFilename = (
   return fallbackFilename(reportId, format);
 };
 
-const getAccessToken = async (): Promise<string | undefined> => {
-  try {
-    const { tokens } = (await fetchAuthSession()) ?? {};
-    return tokens?.accessToken?.toString();
-  } catch {
-    return undefined;
-  }
-};
-
 /**
  * POST /api/v1/fsp/reports/{reportId} — server renders the PDF and
  * returns it as a binary stream. Throws on non-2xx; the caller
@@ -105,7 +96,7 @@ export const requestReport = async (
   payload: FspReportRequestPayload,
 ): Promise<FspReportResponse> => {
   await ensureSessionFresh();
-  const token = await getAccessToken();
+  const token = await getFreshAccessToken();
 
   const headers: Record<string, string> = { ...JSON_HEADERS };
   if (token) headers.Authorization = `Bearer ${token}`;

@@ -3,9 +3,9 @@
 FSPTS resolves IDIR (and, in contract, Business BCeID) user details — display
 name, email — from **nr-user-lookup-api**, the shared BC Gov identity-lookup
 service. This **replaces the FAM identity-lookup integration** FSP used
-previously: the app no longer calls FAM for user/identity lookups. (FAM/Cognito
-is still the *authentication* provider — see
-[roles-and-security.md](roles-and-security.md) — just not the directory.)
+previously: the app no longer calls FAM for user/identity lookups. (Sign-in is
+BC Gov SSO / Keycloak's standard realm, with roles granted through FAM — see
+[roles-and-security.md](roles-and-security.md) — but neither is the directory.)
 
 All calls go through one client, `client/UserLookupClient`, against base path
 `/api/v1/user-lookup`:
@@ -27,7 +27,7 @@ the background digest. That distinction is gone.
 
 **Every** nr-user-lookup-api call now authenticates with FSP's own Keycloak
 **`grant_type=client_credentials`** bearer token (`ClientCredentialsTokenSource`,
-which caches the access token until ~60s before expiry). The caller's Cognito JWT
+which caches the access token until ~60s before expiry). The caller's own token
 is **not** forwarded — nr-user-lookup-api validates the service account's default
 client scopes, not an end-user token. So the in-request picker and the scheduled
 digest share the same client and the same identity.

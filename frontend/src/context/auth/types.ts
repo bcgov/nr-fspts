@@ -1,12 +1,9 @@
-import type { JWT as AmplifyJWT } from '@aws-amplify/core';
-
-export type JWT = AmplifyJWT;
-
 /**
- * Recognized Cognito groups that map to FSP application roles. Mirrors the
- * backend's ca.bc.gov.nrs.fsp.api.security.FsptsRoles enum — keep these two
- * lists in sync. Org-suffixed Cognito groups (e.g. FSPTS_ADMINISTRATOR_DPG)
- * canonicalise to their root role; see authUtils.canonicalRoleFor.
+ * Recognized FAM roles that map to FSP application roles. Mirrors the
+ * backend's ca.bc.gov.nrs.fsp.api.security.FsptsRoles — keep these two lists
+ * in sync. Scoped grants (e.g. FSPTS_SUBMITTER_FOREST_CLIENT-00012345) and
+ * organization-named roles (e.g. FSPTS_ADMINISTRATOR_DPG) canonicalise to
+ * their root role; see authUtils.canonicalRoleFor.
  */
 export const AVAILABLE_ROLES = [
   'FSPTS_ADMINISTRATOR',
@@ -31,7 +28,7 @@ export type IdpProviderType = (typeof validIdpProviders)[number];
 
 /**
  * Provider identifier passed to AuthProvider.login() — translated into the
- * Cognito custom identity_provider name (e.g. 'idir' → 'DEV-IDIR' in dev).
+ * realm's `kc_idp_hint` (see services/keycloak.ts KC_IDP_HINTS).
  */
 export type LoginProvider = 'idir' | 'bceid';
 

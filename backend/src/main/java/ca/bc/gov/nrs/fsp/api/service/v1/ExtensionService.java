@@ -22,7 +22,7 @@ import java.util.List;
  * Read wrapper for FSP_303_EXTENSION_SUMMARY.GET_LIST. Audit-user
  * context (client, role, userid) is pulled from the current JWT via
  * {@link RequestUtil} so this service shares the exact same
- * FAM-cognito → legacy-proc translation as FspService.
+ * FAM role → legacy-proc translation as FspService.
  */
 @Service
 @RequiredArgsConstructor

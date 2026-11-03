@@ -68,7 +68,7 @@ class AmendmentRevertServiceTest {
   private static void authenticateAs(String... groups) {
     Jwt jwt = Jwt.withTokenValue("token")
         .header("alg", "none")
-        .claim("cognito:groups", List.of(groups))
+        .claim("client_roles", List.of(groups))
         .build();
     SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
   }

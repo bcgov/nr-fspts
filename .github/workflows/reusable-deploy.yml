@@ -82,11 +82,6 @@ on:
       keycloak_sa_client_secret:
         description: Keycloak admin service-account client secret
         required: false
-      keycloak_issuer_uri:
-        description: |
-          Keycloak realm issuer URI (…/realms/<realm>). Drives the service-account
-          script and the backend's user-lookup token URL. Omit to skip both.
-        required: false
       user_lookup_base_url:
         description: nr-user-lookup-api base URL for this environment.
         required: false
@@ -165,16 +160,23 @@ jobs:
       - uses: actions/checkout@v6
 
       # Idempotently create the FSP backend's user-lookup service-account client
-      # in this environment's realm and assign the nr-user-lookup-api scopes.
-      # Skipped when the admin service-account credentials aren't configured
-      # (e.g. PR previews), so those deploys are unaffected. The resulting
-      # client id/secret are exposed as step outputs (masked) for a later step
-      # to feed into the backend once the lookup integration is wired up.
+      # and assign the nr-user-lookup-api scopes. Skipped when the admin
+      # service-account credentials aren't configured (e.g. PR previews), so
+      # those deploys are unaffected. The resulting client id/secret are exposed
+      # as masked step outputs for the deploy step below.
+      #
+      # NOTE THE REALM. This runs against KEYCLOAK_SA_ISSUER_URI (the realm
+      # where nr-user-lookup-api's service accounts live, normally *forests*) —
+      # NOT KEYCLOAK_ISSUER_URI, which is the standard realm the API and SPA
+      # authenticate users against. The script derives the realm from whatever
+      # issuer it is given, so pointing it at the wrong one silently creates the
+      # client in the wrong realm and every lookup then fails to authenticate.
+      # Same split as nr-rept.
       - name: Ensure Keycloak service account
         id: keycloak_sa
         if: ${{ env.KC_SA_CLIENT_ID != '' }}
         env:
-          KEYCLOAK_ISSUER_URI: ${{ secrets.keycloak_issuer_uri }}
+          KEYCLOAK_ISSUER_URI: ${{ vars.KEYCLOAK_SA_ISSUER_URI }}
           KC_SA_CLIENT_SECRET: ${{ secrets.keycloak_sa_client_secret }}
         run: ./.github/scripts/ensure-keycloak-service-account.sh
 
@@ -187,11 +189,15 @@ jobs:
         # step is skipped (PR previews); the backend degrades gracefully.
         env:
           USER_LOOKUP_CLIENT_SECRET: ${{ steps.keycloak_sa.outputs.client_secret }}
-          # base-url + issuer are secrets now; route through env (not inline in
-          # `parameters`) so bash does a single expansion. Token URL is derived
-          # from the issuer; empty when the issuer isn't set (PR previews).
+          # USER_LOOKUP_BASE_URL is a secret; route through env (not inline in
+          # `parameters`) so bash does a single expansion.
+          #
+          # The token URL is derived from KEYCLOAK_SA_ISSUER_URI, not
+          # KEYCLOAK_ISSUER_URI: the backend presents these credentials to the
+          # service-account client created above. Empty when the variable
+          # isn't set.
           USER_LOOKUP_BASE_URL: ${{ secrets.user_lookup_base_url }}
-          USER_LOOKUP_TOKEN_URL: ${{ secrets.keycloak_issuer_uri != '' && format('{0}/protocol/openid-connect/token', secrets.keycloak_issuer_uri) || '' }}
+          USER_LOOKUP_TOKEN_URL: ${{ vars.KEYCLOAK_SA_ISSUER_URI != '' && format('{0}/protocol/openid-connect/token', vars.KEYCLOAK_SA_ISSUER_URI) || '' }}
           # nr-fom API base URL — a secret; route through env (not inline in
           # `parameters`) for a single bash expansion, same as the URLs above.
           # Empty disables the Associated-FOMs enrichment (column stays blank).
@@ -218,8 +224,8 @@ jobs:
             -p IMAGE_TAG="${{ inputs.tag }}"
             -p MIN_REPLICAS="${{ inputs.backend_replicas }}"
             -p MAX_REPLICAS="${{ inputs.backend_replicas }}"
-            -p AWS_COGNITO_ISSUER_URI="${{ vars.AWS_COGNITO_ISSUER_URI }}"
-            -p COGNITO_USERINFO_URI="${{ vars.COGNITO_USERINFO_URI }}"
+            -p KEYCLOAK_ISSUER_URI="${{ vars.KEYCLOAK_ISSUER_URI }}"
+            -p KEYCLOAK_CLIENT_ID="${{ vars.KEYCLOAK_CLIENT_ID }}"
             -p USER_LOOKUP_BASE_URL="$USER_LOOKUP_BASE_URL"
             -p USER_LOOKUP_TOKEN_URL="$USER_LOOKUP_TOKEN_URL"
             -p USER_LOOKUP_CLIENT_ID="${{ steps.keycloak_sa.outputs.client_id }}"
@@ -274,19 +280,28 @@ jobs:
           # commit that uses NON-sensitive placeholder values.
           debug: false
           overwrite: true
+          # The two Keycloak values below come from the SAME variables the backend
+          # reads, not from VITE_-prefixed twins. The SPA must authenticate against
+          # the realm the API validates, and its token must carry the client id the
+          # API checks as `azp` — there is no configuration in which these
+          # legitimately differ. Drift shows up only after a successful sign-in,
+          # when every request 401s and it reads like a roles problem.
+          #
+          # The PARAMETER names keep the VITE_ prefix because it is load-bearing:
+          # docker-entrypoint.sh only copies VITE_* into /srv/config.js, and Vite
+          # only exposes VITE_* to the bundle.
+          #
+          # VITE_APP_NAME (a product name, identical everywhere) lives in the
+          # template default. VITE_ZONE is gone: it only picked the Cognito IdP
+          # per environment, and Keycloak's hint is a constant.
           parameters:
             -p ZONE="${{ inputs.target }}"
             -p NAME="nr-fspts"
             -p IMAGE_TAG="${{ inputs.tag }}"
             -p REPLICAS="${{ inputs.frontend_replicas }}"
-            -p VITE_USER_POOLS_ID="${{ vars.VITE_USER_POOLS_ID }}"
-            -p VITE_USER_POOLS_WEB_CLIENT_ID="${{ vars.VITE_USER_POOLS_WEB_CLIENT_ID }}"
-            -p VITE_LOGOUT_SITEMINDER_URL="${{ vars.VITE_LOGOUT_SITEMINDER_URL }}"
-            -p VITE_LOGOUT_KEYCLOAK_URL="${{ vars.VITE_LOGOUT_KEYCLOAK_URL }}"
-            -p VITE_LOGOUT_KEYCLOAK_CLIENT_ID="${{ vars.VITE_LOGOUT_KEYCLOAK_CLIENT_ID }}"
+            -p VITE_KEYCLOAK_URL="${{ vars.KEYCLOAK_ISSUER_URI }}"
+            -p VITE_KEYCLOAK_CLIENT_ID="${{ vars.KEYCLOAK_CLIENT_ID }}"
             -p VITE_API_BASE_URL="${{ vars.VITE_API_BASE_URL || '/api' }}"
-            -p VITE_APP_NAME="${{ vars.VITE_APP_NAME }}"
-            -p VITE_ZONE="${{ vars.VITE_ZONE }}"
             -p VITE_FOM_PUBLIC_URL="${{ vars.VITE_FOM_PUBLIC_URL || 'https://fom.nrs.gov.bc.ca' }}"
           triggers: ${{ inputs.triggers }}
 

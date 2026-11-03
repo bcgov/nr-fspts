@@ -1,5 +1,6 @@
 package ca.bc.gov.nrs.fsp.api.util;
 
+import ca.bc.gov.nrs.fsp.api.security.FamRoles;
 import ca.bc.gov.nrs.fsp.api.security.FsptsRoles;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -16,38 +17,26 @@ public class RequestUtil {
 
 
   // Legacy audit columns (e.g. FSP_NOTIFICATION_DESIGNATE.ENTRY_USERID)
-  // are VARCHAR2(30); BCGov FAM Cognito subjects are 46+ chars, so anything
-  // we hand to those columns must be capped.
+  // are VARCHAR2(30), so anything we hand to those columns must be capped.
   private static final int LEGACY_AUDIT_USERID_MAX = 30;
 
   /**
-   * Add to existing RequestUtil class.
-   * Gets the current authenticated user's username from the Cognito JWT.
-   * Cognito puts the username in "username" or "cognito:username" — adjust if needed.
+   * The caller's short username ({@code idir_username} / {@code bceid_username}),
+   * or the upper-cased GUID when neither is mapped, or the token subject as a
+   * last resort. See {@link JwtPrincipalUtil#username}.
    */
   public static String getCurrentUserName() {
     Jwt jwt = getCurrentJwt();
-    String username = jwt.getClaimAsString("username");
-    if (username == null) {
-      username = jwt.getClaimAsString("cognito:username");
-    }
-    return username != null ? username : jwt.getSubject();
+    String username = JwtPrincipalUtil.username(jwt.getClaims());
+    return username.isEmpty() ? jwt.getSubject() : username;
   }
 
   /**
-   * Resolves the short IDIR ("MAVILLEN"-style) for legacy audit columns.
-   * Prefers the {@code custom:idp_username} claim BCGov FAM sets on
-   * federated IDIR identities; falls back to {@link #getCurrentUserName()}
-   * (truncated) for non-IDIR identities or unit-test contexts without a
-   * full claim set.
+   * The bare short username ("MAVILLEN"-style) for legacy audit columns and
+   * the procs that join it to the USERS table, truncated to fit them.
    */
   public static String getCurrentIdir() {
     try {
-      Jwt jwt = getCurrentJwt();
-      String idir = jwt.getClaimAsString("custom:idp_username");
-      if (idir != null && !idir.isBlank()) {
-        return truncate(idir.trim());
-      }
       return truncate(getCurrentUserName());
     } catch (RuntimeException ex) {
       return "";
@@ -55,67 +44,19 @@ public class RequestUtil {
   }
 
   /**
-   * Like {@link #getCurrentIdir()} but prefixed with the AD-style
-   * directory name — {@code IDIR\MAVILLEN}, {@code BCEID\some.user},
-   * etc. — matching what the legacy submission writer stamped into the
-   * ENTRY_USERID / UPDATE_USERID audit columns.
-   *
-   * <p>Provider is read from the {@code custom:idp_name} claim (BCGov
-   * FAM sets {@code IDIR} or {@code BCEIDBUSINESS}). Anything starting
-   * with "BCEID" maps to the {@code BCEID\} prefix; "IDIR" maps to
-   * {@code IDIR\}; unknown providers get no prefix (we'd rather be
-   * un-prefixed than lie about the directory).
-   *
-   * <p>Final value is truncated to {@link #LEGACY_AUDIT_USERID_MAX} so
-   * the prefixed string still fits the VARCHAR2(30) audit columns.
+   * Like {@link #getCurrentIdir()} but prefixed with the directory —
+   * {@code IDIR\MAVILLEN}, {@code BCEID\some.user} — matching what the
+   * legacy submission writer stamped into the ENTRY_USERID / UPDATE_USERID
+   * audit columns. The provider alias is normalised (IDIR - MFA reports
+   * {@code azureidir}); see {@link JwtPrincipalUtil#auditUserId}. Truncated to
+   * {@link #LEGACY_AUDIT_USERID_MAX} for the VARCHAR2(30) columns.
    */
   public static String getCurrentAuditUserId() {
     try {
-      Jwt jwt = getCurrentJwt();
-      String username = jwt.getClaimAsString("custom:idp_username");
-      if (username == null || username.isBlank()) {
-        username = getCurrentUserName();
-      }
-      if (username == null || username.isBlank()) return "";
-      String prefix = resolveDirectoryPrefix(jwt);
-      return truncate(prefix + username.trim());
+      return truncate(JwtPrincipalUtil.auditUserId(getCurrentJwt().getClaims()));
     } catch (RuntimeException ex) {
       return "";
     }
-  }
-
-  /**
-   * Picks the {@code IDIR\} / {@code BCEID\} prefix in order of
-   * trustworthiness. Returns empty string if no signal is available
-   * (better to leave the audit value un-prefixed than guess wrong).
-   *
-   * <ol>
-   *   <li>{@code custom:idp_name} claim if BCGov FAM put it on the
-   *       access token ({@code IDIR} or {@code BCEIDBUSINESS}).</li>
-   *   <li>The {@code cognito:username} pattern Cognito generates for
-   *       federated identities — {@code idir_<guid>} or
-   *       {@code <guid>@idir} → IDIR; {@code bceid…} variants → BCEID.</li>
-   * </ol>
-   */
-  private static String resolveDirectoryPrefix(Jwt jwt) {
-    String idpName = jwt.getClaimAsString("custom:idp_name");
-    if (idpName != null && !idpName.isBlank()) {
-      String upper = idpName.trim().toUpperCase();
-      if ("IDIR".equals(upper)) return "IDIR\\";
-      if (upper.startsWith("BCEID")) return "BCEID\\";
-    }
-    String cognitoUsername = jwt.getClaimAsString("cognito:username");
-    if (cognitoUsername == null) cognitoUsername = jwt.getClaimAsString("username");
-    if (cognitoUsername != null) {
-      String lower = cognitoUsername.toLowerCase();
-      if (lower.startsWith("idir_") || lower.endsWith("@idir") || lower.contains("\\idir\\")) {
-        return "IDIR\\";
-      }
-      if (lower.startsWith("bceid") || lower.contains("bceidbusiness")) {
-        return "BCEID\\";
-      }
-    }
-    return "";
   }
 
   private static String truncate(String value) {
@@ -133,20 +74,16 @@ public class RequestUtil {
   //
   // The FSP_* legacy procs gate on a P_USER_ROLE string in the format
   // SilUser.setUser_roles() produced: comma-separated, trailing comma,
-  // e.g. "FSP_ADMINISTRATOR,FSP_DECISION_MAKER,". BCGov FAM serves the
-  // role names with an FSPTS_ prefix and an optional suffix (org code
-  // like "_DCC" or a forest-client number like "_00012797"). The
-  // helpers below collapse the FAM names into the legacy format and
-  // pluck the client number out of the suffix when present.
+  // e.g. "FSP_ADMINISTRATOR,FSP_DECISION_MAKER,". FAM serves the role
+  // names with an FSPTS_ prefix, and a client-tied grant carries its
+  // forest client as a FAM scope suffix
+  // (FSPTS_SUBMITTER_FOREST_CLIENT-00012797). The helpers below collapse
+  // the FAM names into the legacy format and read the client number out
+  // of that scope (see FamRoles / FsptsRoles).
   //
   // These are intentionally cross-cutting and live here (not in any
   // one service) so every DAO wrapper that needs the audit-user
   // context gets the exact same mapping.
-
-  private static final String[] CANONICAL_FSPTS_ROLES = {
-      "FSPTS_ADMINISTRATOR", "FSPTS_DECISION_MAKER", "FSPTS_REVIEWER",
-      "FSPTS_VIEW_ALL", "FSPTS_SUBMITTER", "FSPTS_VIEW_ONLY",
-  };
 
   /**
    * The single effective FSPTS role for the current request (canonical
@@ -172,8 +109,8 @@ public class RequestUtil {
    */
   public static String getEffectiveRole() {
     try {
-      var groups = getCurrentJwt().getClaimAsStringList("cognito:groups");
-      if (groups == null || groups.isEmpty()) return null;
+      var groups = FamRoles.fromJwt(getCurrentJwt());
+      if (groups.isEmpty()) return null;
 
       var canonical = new java.util.LinkedHashSet<String>();
       for (String group : groups) {
@@ -188,13 +125,13 @@ public class RequestUtil {
       if (!internal.isEmpty()) return FsptsRoles.highest(internal);
 
       // Client-tied: scope to the active client. A grant for the active client
-      // looks like CANONICAL_<8-digit client>, e.g. FSPTS_SUBMITTER_00012345.
+      // carries it as a FAM scope, e.g. FSPTS_SUBMITTER_FOREST_CLIENT-00012345.
       String activeClient = getCurrentClientNumber();
       if (activeClient != null && !activeClient.isEmpty()) {
         var rolesForClient = new java.util.LinkedHashSet<String>();
         for (String group : groups) {
           String c = FsptsRoles.canonicalRoleFor(group);
-          if (c != null && group.equals(c + "_" + activeClient)) {
+          if (c != null && activeClient.equals(FsptsRoles.clientNumberFor(group))) {
             rolesForClient.add(c);
           }
         }
@@ -225,7 +162,7 @@ public class RequestUtil {
   /**
    * Header sent by the SPA when a BCeID submitter has picked an active
    * org from the multi-client picker. Validated against the user's own
-   * JWT groups before being used — a forged value that isn't a real
+   * token roles before being used — a forged value that isn't a real
    * scope for the user is dropped silently and we fall back to the
    * legacy "first match wins" behaviour.
    */
@@ -238,9 +175,9 @@ public class RequestUtil {
    * <p>Resolution order:
    * <ol>
    *   <li>{@code X-FSPTS-Active-Org-Client-Number} header (set by the
-   *       SPA after the BCeID multi-org picker) — IF it appears as a
-   *       numeric suffix on one of the JWT's groups, return it.</li>
-   *   <li>Otherwise the first numeric suffix in the user's groups —
+   *       SPA after the BCeID multi-org picker) — IF one of the token's
+   *       FSPTS roles is scoped to that forest client, return it.</li>
+   *   <li>Otherwise the first forest client in the user's roles —
    *       mirrors legacy single-client behaviour for IDIR users and
    *       single-org BCeID users.</li>
    *   <li>Empty string if no client suffix exists at all.</li>
@@ -248,9 +185,9 @@ public class RequestUtil {
    */
   public static String getCurrentClientNumber() {
     try {
-      var groups = getCurrentJwt().getClaimAsStringList("cognito:groups");
-      if (groups == null || groups.isEmpty()) return "";
-      var ownClientNumbers = collectClientNumberSuffixes(groups);
+      var groups = FamRoles.fromJwt(getCurrentJwt());
+      if (groups.isEmpty()) return "";
+      var ownClientNumbers = collectClientNumbers(groups);
       if (ownClientNumbers.isEmpty()) return "";
       String requested = readActiveOrgHeader();
       if (requested != null && ownClientNumbers.contains(requested)) {
@@ -262,18 +199,13 @@ public class RequestUtil {
     }
   }
 
-  private static java.util.LinkedHashSet<String> collectClientNumberSuffixes(
+  private static java.util.LinkedHashSet<String> collectClientNumbers(
       java.util.List<String> groups) {
     var result = new java.util.LinkedHashSet<String>();
     for (String group : groups) {
-      for (String role : CANONICAL_FSPTS_ROLES) {
-        String prefix = role + "_";
-        if (group.startsWith(prefix)) {
-          String suffix = group.substring(prefix.length());
-          if (suffix.matches("\\d{8}")) {
-            result.add(suffix);
-          }
-        }
+      String client = FsptsRoles.clientNumberFor(group);
+      if (client != null) {
+        result.add(client);
       }
     }
     return result;

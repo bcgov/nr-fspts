@@ -5,10 +5,14 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Canonical FSPTS role names. Cognito groups may carry an organization suffix
- * (e.g. {@code FSPTS_ADMINISTRATOR_DPG}); a group is considered to have a role
- * if it equals the canonical name or starts with the canonical name followed
- * by an underscore.
+ * Canonical FSPTS role names.
+ *
+ * <p>A token role maps to a canonical role by its <em>base</em> name, after the
+ * FAM scope suffixes are removed ({@link FamRoles#parse}): so
+ * {@code FSPTS_SUBMITTER_FOREST_CLIENT-00012345} is a Submitter for client
+ * {@code 00012345}. A base that equals the canonical name or starts with it
+ * plus an underscore also matches, which covers organization-named roles
+ * carried over verbatim from the old FAM (e.g. {@code FSPTS_ADMINISTRATOR_DPG}).
  *
  * <p><b>No role stacking.</b> A user resolves to a single <em>effective</em>
  * role — capabilities are never the union of several roles. The four internal
@@ -67,17 +71,30 @@ public final class FsptsRoles {
   private FsptsRoles() {}
 
   /**
-   * Returns the canonical FSPTS role that matches the given Cognito group, or
-   * {@code null} if the group does not map to any known role. A group matches
-   * a role when it equals the role name or starts with {@code role + "_"}.
+   * Returns the canonical FSPTS role that the given token role grants, or
+   * {@code null} if it doesn't map to any known role. The FAM scope suffixes
+   * are removed first; the remaining base matches a role when it equals the
+   * role name or starts with {@code role + "_"}.
    */
-  public static String canonicalRoleFor(String group) {
-    if (group == null) return null;
+  public static String canonicalRoleFor(String tokenRole) {
+    String base = FamRoles.parse(tokenRole).baseRole();
+    if (base == null) return null;
     for (String role : ALL) {
-      if (group.equals(role) || group.startsWith(role + "_")) {
+      if (base.equals(role) || base.startsWith(role + "_")) {
         return role;
       }
     }
     return null;
+  }
+
+  /**
+   * The 8-digit forest-client number a token role is scoped to
+   * ({@code FSPTS_SUBMITTER_FOREST_CLIENT-00012345} → {@code 00012345}), or
+   * {@code null} when it isn't an FSPTS role or carries no client scope.
+   */
+  public static String clientNumberFor(String tokenRole) {
+    if (canonicalRoleFor(tokenRole) == null) return null;
+    String client = FamRoles.parse(tokenRole).scopeValue(FamRoles.SCOPE_FOREST_CLIENT);
+    return client != null && client.matches("\\d{8}") ? client : null;
   }
 }

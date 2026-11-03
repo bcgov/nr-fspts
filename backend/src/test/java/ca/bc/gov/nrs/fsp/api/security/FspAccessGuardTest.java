@@ -34,7 +34,7 @@ class FspAccessGuardTest {
   void authAsSubmitter() {
     Jwt jwt = Jwt.withTokenValue("token")
         .header("alg", "none")
-        .claim("cognito:groups", List.of("FSPTS_SUBMITTER"))
+        .claim("client_roles", List.of("FSPTS_SUBMITTER"))
         .build();
     SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
   }
@@ -83,7 +83,7 @@ class FspAccessGuardTest {
   private void authAs(String group) {
     Jwt jwt = Jwt.withTokenValue("token")
         .header("alg", "none")
-        .claim("cognito:groups", List.of(group))
+        .claim("client_roles", List.of(group))
         .build();
     SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
   }

@@ -7,9 +7,9 @@ export type AuthContextType = {
   isLoggedIn: boolean;
   isLoading: boolean;
   /**
-   * Trigger an OAuth2 redirect to Cognito's hosted UI, scoped to the
-   * chosen identity provider (IDIR for ministry staff, BCeID Business
-   * for industry users).
+   * Redirect to BC Gov SSO (Keycloak), hinted straight to the chosen
+   * identity provider (IDIR for ministry staff, BCeID Business for
+   * industry users).
    */
   login: (provider: LoginProvider) => void;
   logout: () => void;
@@ -26,6 +26,12 @@ export type AuthContextType = {
    * "Stay logged in". Rejects if the refresh token itself has expired.
    */
   forceRefreshSession: () => Promise<void>;
+  /**
+   * Completes the authorization-code exchange after Keycloak redirects back.
+   * Called only by the /authCallback route; rejects if the callback URL carries
+   * no usable code or its state has already been consumed.
+   */
+  completeLogin: () => Promise<void>;
 };
 
 export type AuthProviderProps = {
