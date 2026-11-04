@@ -27,7 +27,7 @@ KSV104
 #   - The attack vector (large multipart body in a GET) is blocked upstream:
 #       * Caddy/Coraza in front of the backend caps request body size.
 #       * OpenShift Route default request body cap (1 MiB) applies.
-#       * The whole /api surface is gated by Cognito JWT validation, so
+#       * The whole /api surface is gated by Keycloak JWT validation, so
 #         only authenticated IDIR users can reach the upstream at all.
 #   - Memory pressure from a single oversized request is bounded by the
 #     pod's `memory` limit (800Mi); an attacker can at worst force a pod

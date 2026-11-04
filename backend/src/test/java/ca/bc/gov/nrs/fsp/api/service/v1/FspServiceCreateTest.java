@@ -299,14 +299,14 @@ class FspServiceCreateTest {
   }
 
   /**
-   * The active-org client number is carried as the group-name suffix
-   * ({@code FSPTS_SUBMITTER_00012797}), not as a separate claim — see
-   * {@code RequestUtil.collectClientNumberSuffixes}.
+   * The active-org client number is carried as the role's FAM scope suffix
+   * ({@code FSPTS_SUBMITTER_FOREST_CLIENT-00012797}), not as a separate
+   * claim — see {@code RequestUtil.collectClientNumbers}.
    */
   private static void authAsSubmitter(String clientNumber) {
     Jwt jwt = Jwt.withTokenValue("token")
         .header("alg", "none")
-        .claim("cognito:groups", List.of("FSPTS_SUBMITTER_" + clientNumber))
+        .claim("client_roles", List.of("FSPTS_SUBMITTER_FOREST_CLIENT-" + clientNumber))
         .build();
     SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
   }
@@ -314,7 +314,7 @@ class FspServiceCreateTest {
   private static void authAsAdministrator() {
     Jwt jwt = Jwt.withTokenValue("token")
         .header("alg", "none")
-        .claim("cognito:groups", List.of("FSPTS_ADMINISTRATOR"))
+        .claim("client_roles", List.of("FSPTS_ADMINISTRATOR"))
         .build();
     SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
   }

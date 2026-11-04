@@ -1,82 +1,130 @@
-import { env } from '@/env';
-
 import {
   AVAILABLE_ROLES,
-  validIdpProviders,
   type FamLoginUser,
   type IdpProviderType,
-  type JWT,
   type ROLE_TYPE,
   type USER_PRIVILEGE_TYPE,
 } from './types';
 
-// ── Amplify localStorage token access ────────────────────────────────
-// Amplify persists Cognito tokens in localStorage (its default store — the
-// CookieStorage override was a no-op, see main.tsx). These helpers read the
-// current token straight from that store WITHOUT calling fetchAuthSession —
-// important because fetchAuthSession refreshes an expired token as a side
-// effect (TokenOrchestrator.getTokens), which would silently slide the
-// session-timeout deadline every time we polled it.
-
-/** Base of the Amplify token keys for the configured app client. */
-const tokenKeyBase = (): string =>
-  `CognitoIdentityServiceProvider.${env.VITE_USER_POOLS_WEB_CLIENT_ID}`;
-
-const readLocalStorage = (key: string): string | undefined => {
-  try {
-    return window.localStorage.getItem(key) ?? undefined;
-  } catch {
-    return undefined; // storage disabled (e.g. hardened private mode)
-  }
+/**
+ * The claims FSP reads off a BC Gov SSO access token.
+ *
+ * Names follow the SSO identity-mappers reference for the *IDIR - MFA* and
+ * *BCeID Business* integrations:
+ * https://bcgov.github.io/sso-docs/advanced/identity-mappers
+ *
+ * All of these ride the access token (a CSS console setting per environment).
+ */
+export type KeycloakProfile = {
+  /** `<guid>@azureidir` / `<guid>@bceidbusiness`. Stable per user per provider. */
+  preferred_username?: string;
+  idir_username?: string;
+  idir_user_guid?: string;
+  bceid_username?: string;
+  bceid_user_guid?: string;
+  bceid_business_name?: string;
+  /** `azureidir` for IDIR - MFA, `bceidbusiness` for BCeID Business. */
+  identity_provider?: string;
+  display_name?: string;
+  given_name?: string;
+  family_name?: string;
+  email?: string;
+  name?: string;
+  /** Roles CSS attaches for the client the token was issued to. */
+  client_roles?: string[];
+  resource_access?: Record<string, { roles?: string[] }>;
+  azp?: string;
+  [claim: string]: unknown;
 };
 
 /**
- * The Cognito **access token** from Amplify's localStorage, or undefined.
- * This is the token sent to the backend API as a Bearer token. Note the API
- * layer reads its token via fetchAuthSession (storage-agnostic); this direct
- * reader backs only the auth-context convenience getters.
+ * FAM's own bookkeeping roles, which reach the token like any other role —
+ * e.g. `FAM:EXPIRES:2026-09-30:FSPTS_SUBMITTER_FOREST_CLIENT-00012345`. They
+ * must never be read as privileges.
  */
-export const getStoredAccessToken = (): string | undefined => {
-  const base = tokenKeyBase();
-  const user = readLocalStorage(`${base}.LastAuthUser`);
-  if (!user) return undefined;
-  return readLocalStorage(`${base}.${user}.accessToken`);
+const FAM_SIDECAR_PREFIX = 'FAM:';
+
+/**
+ * Normalises the realm's provider alias to the name FSP uses.
+ *
+ * IDIR - MFA reports `azureidir`; the legacy alias is `idir`. BCeID Business
+ * reports `bceidbusiness`. Falls back to the `preferred_username` suffix, which
+ * is always present. Anything else is left undefined rather than guessed at.
+ */
+export const parseIdpProvider = (profile: KeycloakProfile): IdpProviderType | undefined => {
+  const raw = (
+    profile.identity_provider ??
+    profile.preferred_username?.split('@')[1] ??
+    ''
+  ).toLowerCase();
+  if (raw === 'azureidir' || raw === 'idir') return 'IDIR';
+  if (raw === 'bceidbusiness' || raw === 'bceidboth') return 'BCEIDBUSINESS';
+  return undefined;
 };
 
 /**
- * Drops every Amplify token/session key for the configured app client from
- * localStorage. Used by the federated-logout path, which drives the sign-out
- * redirect chain itself (Siteminder → KC → Cognito → app) instead of Amplify's
- * signOut(): clearing the tokens here means that when the browser lands back
- * on the app at the end of the chain, AuthProvider bootstraps with no session
- * and renders the logged-out landing. The chain's final Cognito /logout hop
- * clears the Cognito session cookie server-side.
+ * The caller's roles for the client the token was issued to, minus FAM's
+ * `FAM:` sidecars.
+ *
+ * Under CSS these arrive as `client_roles`. Falls back to
+ * `resource_access.<azp>.roles`, which is where stock Keycloak puts them —
+ * which one appears depends on the realm's mappers, so both are read.
  */
-export const clearStoredTokens = (): void => {
-  try {
-    const prefix = tokenKeyBase();
-    const keys: string[] = [];
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (key && key.startsWith(prefix)) keys.push(key);
-    }
-    keys.forEach((k) => window.localStorage.removeItem(k));
-  } catch {
-    /* storage disabled — nothing to clear */
+export const extractRoles = (profile: KeycloakProfile | undefined): string[] => {
+  if (!profile) return [];
+  let roles: string[] = [];
+  if (Array.isArray(profile.client_roles) && profile.client_roles.length > 0) {
+    roles = profile.client_roles;
+  } else if (profile.azp) {
+    const fromResourceAccess = profile.resource_access?.[profile.azp]?.roles;
+    roles = Array.isArray(fromResourceAccess) ? fromResourceAccess : [];
   }
+  return roles.filter((role) => typeof role === 'string' && !role.startsWith(FAM_SIDECAR_PREFIX));
 };
 
+/** Scope types FAM appends to a role name, longest first. */
+const SCOPE_TYPES = ['FOREST_CLIENT', 'DISTRICT', 'REGION'] as const;
+
+/**
+ * Splits a FAM role name into its base role and scopes — FAM's own grammar
+ * (`CssRoleNaming.parse` in nr-fam), mirrored by the backend's FamRoles.parse:
+ *
+ *   FSPTS_SUBMITTER_FOREST_CLIENT-00012345 → FSPTS_SUBMITTER, {FOREST_CLIENT: 00012345}
+ *   FSPTS_VIEW_ALL_REGION-KOOTENAY_BOUNDARY → FSPTS_VIEW_ALL, {REGION: KOOTENAY_BOUNDARY}
+ *
+ * Peels suffixes from the right: the value is everything after the last `-`,
+ * and what precedes it must end in a known `_<SCOPE_TYPE>`. Never splits on
+ * underscores — `FOREST_CLIENT` and region values contain them.
+ */
+export function parseFamRole(roleName: string): { base: string; scopes: Record<string, string> } {
+  const scopes: Record<string, string> = {};
+  let remaining = roleName;
+  for (;;) {
+    const hyphen = remaining.lastIndexOf('-');
+    if (hyphen < 0) break;
+    const head = remaining.slice(0, hyphen);
+    const value = remaining.slice(hyphen + 1);
+    const type = SCOPE_TYPES.find(
+      (t) => head.endsWith(`_${t}`) && head.length > t.length + 1,
+    );
+    if (!type) break;
+    scopes[type] = value;
+    remaining = head.slice(0, head.length - type.length - 1);
+  }
+  return { base: remaining, scopes };
+}
 
 // ── Token parsing ────────────────────────────────────────────────────
 
 /**
- * Maps a possibly org-suffixed Cognito group (e.g. FSPTS_ADMINISTRATOR_DPG)
- * to its canonical role (FSPTS_ADMINISTRATOR). Mirrors the backend's
- * FsptsRoles.canonicalRoleFor.
+ * Maps a FAM role (e.g. FSPTS_SUBMITTER_FOREST_CLIENT-00012345, or an
+ * organization-named FSPTS_ADMINISTRATOR_DPG) to its canonical role. Mirrors
+ * the backend's FsptsRoles.canonicalRoleFor.
  */
-function canonicalRoleFor(group: string): ROLE_TYPE | undefined {
+function canonicalRoleFor(roleName: string): ROLE_TYPE | undefined {
+  const { base } = parseFamRole(roleName);
   for (const role of AVAILABLE_ROLES) {
-    if (group === role || group.startsWith(`${role}_`)) return role;
+    if (base === role || base.startsWith(`${role}_`)) return role;
   }
   return undefined;
 }
@@ -108,30 +156,23 @@ export function highestRole(roles: ROLE_TYPE[]): ROLE_TYPE | undefined {
 }
 
 /**
- * Parses a Cognito ID token JWT into FSP's FamLoginUser shape. Extracts
- * display name, IDP provider, and rolls up Cognito groups into the
- * AVAILABLE_ROLES set.
+ * Parses an oidc-client-ts profile (the access-token claims) into FSP's
+ * FamLoginUser shape: display name, provider, and the FSPTS roles rolled up
+ * into AVAILABLE_ROLES.
  *
- * NOTE: Must be called with the **ID token**, not the access token —
- * only the ID token carries the `custom:idp_*` profile claims.
+ * `given_name` / `family_name` are real claims on this realm, so the name is
+ * read directly rather than split out of the display name as it was for
+ * Cognito's `custom:idp_display_name`.
  */
-export const parseToken = (idToken: JWT | undefined): FamLoginUser | undefined => {
-  if (!idToken) return undefined;
-  const decodedIdToken = idToken?.payload;
-  const displayName = (decodedIdToken?.['custom:idp_display_name'] as string) || '';
-  const idpProvider = validIdpProviders.includes(
-    (decodedIdToken?.['custom:idp_name'] as string)?.toUpperCase() as IdpProviderType,
-  )
-    ? ((decodedIdToken?.['custom:idp_name'] as string).toUpperCase() as IdpProviderType)
-    : undefined;
-  const hasComma = displayName.includes(',');
-  let [lastName, firstName] = hasComma ? displayName.split(', ') : displayName.split(' ');
-  if (!hasComma) [lastName, firstName] = [firstName, lastName];
-  const sanitizedFirstName = hasComma ? firstName?.split(' ')[0]?.trim() : firstName || '';
-  const userName = (decodedIdToken?.['custom:idp_username'] as string) || '';
-  const email = (decodedIdToken?.['email'] as string) || '';
-  const cognitoGroups = extractGroups(decodedIdToken);
-  const privileges = parsePrivileges(cognitoGroups);
+export const parseToken = (profile: KeycloakProfile | undefined): FamLoginUser | undefined => {
+  if (!profile) return undefined;
+  const idpProvider = parseIdpProvider(profile);
+  const userName = profile.idir_username ?? profile.bceid_username ?? '';
+  const firstName = profile.given_name ?? '';
+  const lastName = profile.family_name ?? '';
+  const displayName =
+    profile.display_name ?? profile.name ?? [firstName, lastName].filter(Boolean).join(' ');
+  const privileges = parsePrivileges(extractRoles(profile));
   // No role stacking: collapse to the single highest effective role. The full
   // `privileges` map is kept (it's how client numbers are enumerated), but the
   // user's *capability* role list is exactly one entry.
@@ -140,40 +181,35 @@ export const parseToken = (idToken: JWT | undefined): FamLoginUser | undefined =
   return {
     userName,
     displayName,
-    email,
+    email: profile.email ?? '',
     idpProvider,
     privileges,
     roles: effectiveRole ? [effectiveRole] : [],
-    firstName: sanitizedFirstName,
+    firstName,
     lastName,
     providerUsername: idpProvider ? `${idpProvider}\\${userName}` : undefined,
   };
 };
 
 /**
- * Parses Cognito group strings into a user privilege object. Recognises
- * groups that match any AVAILABLE_ROLES root (with or without an org or
- * client-number suffix). For BCeID submitters the 8-digit client-number
- * suffix carries the scope — collected into the role's value array so
- * the multi-org picker can list them. Org-code suffixes (e.g. `_DCC`)
- * are still flattened to global since the backend handles org-unit
- * filtering for IDIR roles.
+ * Parses FAM role names into a user privilege object. Recognises roles whose
+ * base matches any AVAILABLE_ROLES root. For client-tied roles the
+ * FOREST_CLIENT scope (an 8-digit client number) is collected into the
+ * role's value array so the multi-org picker can list them. Other scopes
+ * (district, region) flatten to global, since the backend handles org-unit
+ * filtering for IDIR roles. FAM: sidecars must already be filtered out
+ * (extractRoles does that).
  */
 export function parsePrivileges(input: string[]): USER_PRIVILEGE_TYPE {
   const result: USER_PRIVILEGE_TYPE = {};
   for (const item of input) {
+    if (item.startsWith(FAM_SIDECAR_PREFIX)) continue;
     const canonical = canonicalRoleFor(item);
     if (!canonical) continue;
-    const suffix = item.startsWith(`${canonical}_`)
-      ? item.slice(canonical.length + 1)
-      : '';
-    // Only 8-digit numeric suffixes are client-number scopes worth
-    // surfacing to the picker. Everything else (incl. blank for
-    // root-only roles, org codes like DCC, etc.) flattens to global.
-    const isClientNumber = /^\d{8}$/.test(suffix);
-    if (isClientNumber) {
+    const client = parseFamRole(item).scopes.FOREST_CLIENT;
+    if (client && /^\d{8}$/.test(client)) {
       const existing = result[canonical] ?? [];
-      if (!existing.includes(suffix)) existing.push(suffix);
+      if (!existing.includes(client)) existing.push(client);
       result[canonical] = existing;
     } else if (!(canonical in result)) {
       result[canonical] = null;
@@ -222,15 +258,4 @@ export function listClientOrgs(privileges: USER_PRIVILEGE_TYPE): ClientOrg[] {
   return [...byClient.entries()]
     .map(([clientNumber, role]) => ({ clientNumber, role }))
     .sort((a, b) => a.clientNumber.localeCompare(b.clientNumber));
-}
-
-/**
- * Extracts Cognito groups from a decoded JWT payload.
- */
-export function extractGroups(decodedIdToken: object | undefined): string[] {
-  if (!decodedIdToken) return [];
-  if ('cognito:groups' in decodedIdToken) {
-    return decodedIdToken['cognito:groups'] as string[];
-  }
-  return [];
 }

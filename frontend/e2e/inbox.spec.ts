@@ -6,7 +6,7 @@ import { expect, test, type Page, type Route } from './fixtures';
  * Mirrors search.spec.ts: mocks the backend endpoints the page touches
  * (/code-lists/org-units, /fsp/inbox, /clients/search) and walks the
  * happy paths via accessible locators. Auth state is supplied by the
- * Cognito cookie storageState produced by e2e/auth.setup.ts (run
+ * saved Keycloak session from e2e/auth.setup.ts (run
  * `npm run e2e:login` first locally; CI runs it programmatically via
  * E2E_IDIR_USER / E2E_IDIR_PASSWORD secrets).
  */

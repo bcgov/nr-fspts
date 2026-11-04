@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
  * by the FSP250 standards "Add BGC Zone" dialog, and ready for reuse
  * by any future screen that needs the same BEC picker.
  *
- * <p>Auth matches the FSP endpoints (Cognito JWT validation via
+ * <p>Auth matches the FSP endpoints (Keycloak JWT validation via
  * FspSecurityConfig path-agnostic resource-server config).
  */
 @RequestMapping("/api/v1/bgc-zones")

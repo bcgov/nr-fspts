@@ -58,11 +58,11 @@ class WorkflowServiceDdmGuardTest {
     SecurityContextHolder.clearContext();
   }
 
-  /** Put a JWT carrying the given cognito:groups into the security context. */
+  /** Put a JWT carrying the given client_roles into the security context. */
   private static void authenticateAs(String... groups) {
     Jwt jwt = Jwt.withTokenValue("token")
         .header("alg", "none")
-        .claim("cognito:groups", List.of(groups))
+        .claim("client_roles", List.of(groups))
         .build();
     SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
   }

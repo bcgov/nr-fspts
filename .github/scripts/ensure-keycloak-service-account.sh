@@ -72,6 +72,8 @@ if [ -z "${token}" ]; then
   exit 1
 fi
 
+# Realm-admin (manage-clients) token: mask it like the client secret below.
+echo "::add-mask::${token}"
 auth=(-H "Authorization: Bearer ${token}")
 
 # --- ensure the client exists ----------------------------------------------

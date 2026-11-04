@@ -17,7 +17,7 @@ import java.util.function.Function;
 /**
  * Wraps fsp_200_inbox.MAINLINE. The legacy FSP200 form scoped to the
  * user's home org_unit via User.getUser_org_unit (a webADE-era session
- * attribute). We don't get that automatically from Cognito — the JWT
+ * attribute). We don't get that automatically from the access token — it
  * doesn't carry a custom:org_unit_no claim — so the user picks their
  * district from the front-end dropdown and we forward whatever they
  * chose. Blank orgUnitNo goes to the proc as-is.

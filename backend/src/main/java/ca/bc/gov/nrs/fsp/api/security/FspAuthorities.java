@@ -9,7 +9,7 @@ package ca.bc.gov.nrs.fsp.api.security;
  * {@link FsptsRoles}).
  *
  * <p>Authorities are exposed as {@code ROLE_FSPTS_*} (canonical + any
- * org-suffixed variant) by {@link CognitoGroupsAuthoritiesConverter}, so the
+ * scoped variant) by {@link FsptsAuthoritiesConverter}, so the
  * {@code hasRole}/{@code hasAnyRole} expressions below use the bare
  * {@code FSPTS_*} names and match every organization-suffixed group.
  *

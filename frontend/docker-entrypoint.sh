@@ -24,21 +24,17 @@ cat > "$CONFIG_FILE" <<EOF
 // Loaded by index.html ahead of the app bundle; src/env.ts merges these
 // values over import.meta.env.
 window.config = {
-  // Cognito (FAM via AWS Amplify) — read by src/config/fam/config.ts
-  VITE_USER_POOLS_ID: "$(escape "${VITE_USER_POOLS_ID:-}")",
-  VITE_USER_POOLS_WEB_CLIENT_ID: "$(escape "${VITE_USER_POOLS_WEB_CLIENT_ID:-}")",
-  // Federated logout chain (Siteminder → Keycloak → Cognito → app, Cognito
-  // last) — read by src/context/auth/logoutChain.ts. All three unset ⇒ logout
-  // falls back to the plain Amplify sign-out (back to the app origin).
-  VITE_LOGOUT_SITEMINDER_URL: "$(escape "${VITE_LOGOUT_SITEMINDER_URL:-}")",
-  VITE_LOGOUT_KEYCLOAK_URL: "$(escape "${VITE_LOGOUT_KEYCLOAK_URL:-}")",
-  VITE_LOGOUT_KEYCLOAK_CLIENT_ID: "$(escape "${VITE_LOGOUT_KEYCLOAK_CLIENT_ID:-}")",
+  // BC Gov SSO (Keycloak) — read by src/services/keycloak.ts. VITE_KEYCLOAK_URL
+  // is the realm issuer URI; oidc-client-ts discovers every endpoint from it.
+  // VITE_KEYCLOAK_CLIENT_ID must match the client id the backend checks as the
+  // token's azp claim. (No backticks in this heredoc: the shell runs them.)
+  VITE_KEYCLOAK_URL: "$(escape "${VITE_KEYCLOAK_URL:-}")",
+  VITE_KEYCLOAK_CLIENT_ID: "$(escape "${VITE_KEYCLOAK_CLIENT_ID:-}")",
   VITE_BASE_PATH: "$(escape "${VITE_BASE_PATH:-/}")",
   // Backend API base — read by src/services/apiFetch.ts
   VITE_API_BASE_URL: "$(escape "${VITE_API_BASE_URL:-/api}")",
   // Display / theming
   VITE_APP_NAME: "$(escape "${VITE_APP_NAME:-Forest Stewardship Plan Tracking System}")",
-  VITE_ZONE: "$(escape "${VITE_ZONE:-dev}")",
   // Public FOM site base — the "Associated FOMs" links open
   // <base>/public/projects?id=<id>#details. Empty falls back to prod in code.
   VITE_FOM_PUBLIC_URL: "$(escape "${VITE_FOM_PUBLIC_URL:-}")"

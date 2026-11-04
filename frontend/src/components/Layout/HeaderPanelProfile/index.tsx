@@ -9,7 +9,7 @@ import { useTheme } from '@/context/theme/useTheme';
 import { searchClients } from '@/services/clientSearch';
 import './HeaderPanelProfile.css';
 
-// Cognito's idpProvider claim arrives in shouty all-caps. Turn the
+// idpProvider is normalised to all-caps (authUtils.parseIdpProvider). Turn the
 // values we care about into the labels the user actually expects to
 // see in their profile. Anything we don't recognise falls back to the
 // raw claim so we don't accidentally lie about the IDP.

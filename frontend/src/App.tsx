@@ -8,6 +8,7 @@ import {useOrg} from './context/org/useOrg';
 import {defaultRouteForUser, isPathAllowedForUser} from './routes/access';
 
 // Pages
+import AuthCallback from './pages/AuthCallback';
 import LandingPage from './pages/LandingPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import ForbiddenPage from './pages/ForbiddenPage';
@@ -50,25 +51,36 @@ const RoleGuarded: FC<{ children: ReactNode }> = ({ children }) => {
 
 const guarded = (node: ReactNode) => <RoleGuarded>{node}</RoleGuarded>;
 
+/** True on the route Keycloak redirects back to after sign-in. */
+const isAuthCallback = (): boolean =>
+  window.location.pathname.replace(/\/$/, '').endsWith('/authCallback');
+
 // ── App ────────────────────────────────────────────────────
 export default function App() {
   const { isLoggedIn, isLoading, user } = useAuth();
   const { needsOrgSelection } = useOrg();
 
+  // Keycloak's sign-in redirect lands here carrying ?code=&state=. Handled
+  // ahead of every branch below: the session doesn't exist until this page
+  // completes the exchange, so the signed-out branch's Landing catch-all
+  // would otherwise swallow the code. It then navigates to `/`, where the
+  // signed-in branch picks the user's landing page.
+  if (isAuthCallback()) {
+    return <AuthCallback />;
+  }
+
   // Show a minimal placeholder during the initial auth bootstrap so a
   // page reload mid-session doesn't briefly render the LandingPage
-  // before AuthProvider's useEffect has finished reading the cookie
-  // session. After Amplify exchanges any ?code=&state= and AuthProvider
-  // hydrates the user, the routing branch below picks up.
+  // before AuthProvider has finished restoring the stored session.
   if (isLoading) {
     return <div aria-busy="true" />;
   }
 
   // Authenticated-but-unauthorized: token decoded fine but carries no
   // recognised FSPTS_* role. AuthProvider keeps these users in state on
-  // purpose (see its `refreshUserState` comment) so we can render a
-  // friendly "no access" landing instead of looping them back through
-  // Cognito. Every URL collapses to /unauthorized in this branch.
+  // purpose (see its bootstrap comment) so we can render a friendly
+  // "no access" landing instead of looping them back through Keycloak.
+  // Every URL collapses to /unauthorized in this branch.
   const hasFsptsRole = isLoggedIn && (user?.roles?.length ?? 0) > 0;
 
   return (
@@ -92,12 +104,10 @@ export default function App() {
         </Routes>
       ) : isLoggedIn ? (
         <Routes>
-          {/* Login flow lands here after Amplify exchanges ?code=&state=;
-              the LandingPage's IDIR/BCeID buttons go through Cognito and
-              return here. Default route is role-aware — BCeID submitters
-              don't have access to /search and would just bounce off the
-              guard if we hard-coded /search here. */}
-          <Route path="/auth/callback"          element={<Navigate to={defaultRouteForUser(user)} replace />} />
+          {/* AuthCallback lands here after the code exchange. Default route
+              is role-aware — BCeID submitters don't have access to /search
+              and would just bounce off the guard if we hard-coded /search
+              here. */}
           <Route path="/"                       element={<Navigate to={defaultRouteForUser(user)} replace />} />
           {/* The picker is reachable post-selection too in case the user
               wants to switch orgs without signing out. Rendered without
@@ -159,11 +169,8 @@ export default function App() {
       ) : (
         <Routes>
           {/* While unauthenticated, every URL falls through to the
-              Landing page. Amplify handles ?code=&state= at boot time
-              (see main.tsx) so /auth/callback doesn't need a dedicated
-              component — the URL is just a momentary landing pad
-              before the AuthProvider hydrates and the authenticated
-              branch kicks in. */}
+              Landing page. (/authCallback is handled above, before
+              routing.) */}
           <Route path="*" element={<LandingPage />} />
         </Routes>
       )}

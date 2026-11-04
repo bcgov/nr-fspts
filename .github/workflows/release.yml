@@ -59,7 +59,6 @@ jobs:
       keystore_secret: ${{ secrets.keystore_secret }}
       keycloak_sa_client_id: ${{ secrets.KEYCLOAK_SA_CLIENT_ID }}
       keycloak_sa_client_secret: ${{ secrets.KEYCLOAK_SA_CLIENT_SECRET }}
-      keycloak_issuer_uri: ${{ secrets.KEYCLOAK_ISSUER_URI }}
       user_lookup_base_url: ${{ secrets.USER_LOOKUP_BASE_URL }}
       clamav_host: ${{ secrets.CLAMAV_HOST }}
       fom_api_url: ${{ secrets.FOM_API_URL }}

@@ -4,8 +4,8 @@ import { expect, test, type Page, type Route } from './fixtures';
  * SearchPage end-to-end coverage.
  *
  * Mocks the backend endpoints the page touches (/code-lists/*,
- * /fsp/search, /clients/search). Auth state is supplied by the Cognito
- * cookie storageState produced by e2e/auth.setup.ts (run
+ * /fsp/search, /clients/search). Auth state is supplied by the saved
+ * Keycloak session from e2e/auth.setup.ts (run
  * `npm run e2e:login` first locally; CI runs it programmatically via
  * E2E_IDIR_USER / E2E_IDIR_PASSWORD secrets). Routes are intercepted
  * BEFORE they reach the network so no real backend is needed.

@@ -5,10 +5,10 @@ The Forest Stewardship Plan Tracking System single-page app.
 - **React 19** + **TypeScript**, built with **Vite 6**
 - **BC Gov Carbon Design System** (`@carbon/react`) — the BCGov theme is
   inlined under `src/styles/bcgov/`
-- **AWS Amplify** for Cognito auth (IDIR / BCeID Business)
+- **oidc-client-ts** for BC Gov SSO (Keycloak) auth (IDIR / BCeID Business)
 - `react-router-dom` for routing
 
-It talks to the [backend API](../backend/README.md) with a Cognito access token;
+It talks to the [backend API](../backend/README.md) with a Keycloak access token;
 see [../docs/architecture.md](../docs/architecture.md) for the big picture.
 
 ## Local development
@@ -18,8 +18,8 @@ npm install
 npm run dev          # Vite dev server → http://localhost:3000
 ```
 
-Requires `frontend/.env` (copy `.env.example` and fill in the Cognito client
-IDs and API base). Vite proxies `/api/*` to the backend at `:8080`
+Requires `frontend/.env` (copy `.env.example` and fill in the Keycloak client
+id and API base). Vite proxies `/api/*` to the backend at `:8080`
 (see `vite.config.ts`). Or run the whole stack from the repo root with
 `docker compose up`.
 
@@ -67,14 +67,24 @@ Whatever the UI hides, the backend independently enforces — see
 
 ## Auth
 
-`context/auth` wraps Amplify. `services/apiFetch.ts` reads the current Cognito
-access token from the Amplify session and attaches it as a `Bearer` header on
-every API call, and normalizes error bodies (RFC 7807 `ProblemDetail` →
+`services/keycloak.ts` holds the oidc-client-ts `UserManager` (Authorization
+Code + PKCE, tokens in `sessionStorage`, `kc_idp_hint` of `azureidir` or
+`bceidbusiness`). Keycloak redirects back to `/authCallback`
+(`pages/AuthCallback.tsx`), which completes the code exchange. `context/auth`
+publishes the session; `services/apiFetch.ts` renews the access token when it
+is within a minute of expiry, attaches it as a `Bearer` header on every API
+call, and normalizes error bodies (RFC 7807 `ProblemDetail` →
 `detail`/`message`/`title`) into a clean message for toasts.
+
+`components/SessionTimeout` signs the user out after 25 minutes without
+activity, warning at 20. That sits under the realm's 30-minute refresh-token
+lifetime, so "Stay logged in" always has a live refresh token to use. Same
+settings as nr-rept.
 
 ## Deployment
 
 Built to a static bundle and served by **Caddy**, which reverse-proxies
 `/api/*` to the backend Service on OpenShift (CI/CD in
-[`.github/workflows/`](../.github/workflows/)). Cognito redirect-URI slots are
-managed per PR preview — see the CI workflows.
+[`.github/workflows/`](../.github/workflows/)). PR previews use a fixed pool of
+hostnames (see the CI workflows); each needs `<host>/authCallback` and `<host>`
+registered as redirect URIs on the CSS integration.

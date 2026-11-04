@@ -158,7 +158,7 @@ export function canSeeWorkflowTab(user: FamLoginUser | null | undefined): boolea
  * Page access by role — the source of truth for both the route guard
  * (App.tsx) and which paths a role may load. Prefix-matched (exact or
  * `prefix + "/"`). Pages NOT listed — FSP detail (`/fsp/*`), `/org-select`,
- * `/auth/callback`, `/standards-search` — are open to any authenticated role.
+ * `/standards-search` — are open to any authenticated role.
  */
 const PAGE_ROLES: ReadonlyArray<{ prefix: string; roles: ROLE_TYPE[] }> = [
   { prefix: '/search', roles: INTERNAL_ROLES },
@@ -182,7 +182,7 @@ export function isPathAllowedForUser(
 }
 
 /**
- * Where to land the user on `/`, `/auth/callback`, or any page pulled out from
+ * Where to land the user on `/`, or any page pulled out from
  * under them. Internal roles → /search; client-tied roles (Submitter / View
  * Only) → /submission-history (a page both can load). Callers rely on this so
  * the user never lands on a screen their role can't open.

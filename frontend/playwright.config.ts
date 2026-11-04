@@ -22,9 +22,9 @@ export default defineConfig({
   // masquerading as "slow CI".
   timeout: 60_000,
   testDir: './e2e',
-  // Serial execution. We share one Cognito refresh token via storageState
-  // across runs; parallel workers race that refresh and intermittently leave
-  // some contexts stuck on the white `<Loading>` overlay.
+  // Serial execution. We share one rotating Keycloak refresh token across
+  // specs (see e2e/fixtures.ts); parallel workers race that renewal and
+  // intermittently leave some contexts stuck on the white `<Loading>` overlay.
   workers: 1,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
@@ -32,7 +32,11 @@ export default defineConfig({
   reporter: [['line'], ['list', { printSteps: true }], ['html', { open: 'never' }]],
   use: {
     baseURL,
-    trace: 'on-first-retry',
+    // Never trace in CI. Every trace embeds the context's storageState, i.e.
+    // the e2e account's Keycloak SSO cookies and tokens, and CI uploads
+    // playwright-report as an artifact on a public repo. Playwright offers no
+    // way to scrub it. Reproduce locally with traces instead.
+    trace: process.env.CI ? 'off' : 'on-first-retry',
     screenshot: 'only-on-failure',
   },
 
@@ -40,7 +44,12 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: /auth\.setup\.ts/,
-      use: { ...devices['Desktop Chrome'] },
+      // No trace, screenshot or video for sign-in. A trace records every
+      // action's arguments verbatim (Playwright redacts nothing), so a retried
+      // setup would write the IDIR password into playwright-report, which CI
+      // uploads as an artifact on a public repo. A screenshot can catch the
+      // MFA page. Debug sign-in locally instead.
+      use: { ...devices['Desktop Chrome'], trace: 'off', screenshot: 'off', video: 'off' },
     },
     {
       name: 'chromium',

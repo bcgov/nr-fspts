@@ -9,8 +9,8 @@ import { gotoProtected } from './utils';
  * while an editor (Administrator / Decision Maker / Submitter) must pass
  * the authorization gate.
  *
- * The probe is self-adapting: it reads the session's own
- * {@code cognito:groups} off the bearer and asserts the outcome that
+ * The probe is self-adapting: it reads the session's own FAM roles
+ * ({@code client_roles}) off the bearer and asserts the outcome that
  * matches that role — so it verifies enforcement whichever account runs
  * it (a Reviewer locally, an editor service account in CI).
  *
@@ -28,15 +28,19 @@ const WRITE_PATH = '/api/v1/fsp/submissions/validate';
 // so a DDM session is denied on this content-write probe.
 const EDIT_ROLES = ['FSPTS_ADMINISTRATOR', 'FSPTS_SUBMITTER'];
 
-/** A cognito group counts as an edit role if it equals or is an org-suffixed variant. */
-const isEditRole = (group: string): boolean =>
-  EDIT_ROLES.some((r) => group === r || group.startsWith(`${r}_`));
+/**
+ * A FAM role counts as an edit role if it equals one, or is a scoped or
+ * org-named variant (FSPTS_SUBMITTER_FOREST_CLIENT-00012345,
+ * FSPTS_ADMINISTRATOR_DPG). FAM: sidecars (per-grant expiry) never do.
+ */
+const isEditRole = (role: string): boolean =>
+  !role.startsWith('FAM:') && EDIT_ROLES.some((r) => role === r || role.startsWith(`${r}_`));
 
 function decodeGroups(bearer: string): string[] {
   const jwt = bearer.replace(/^Bearer /, '');
-  const payload = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toString());
-  const groups = payload['cognito:groups'];
-  return Array.isArray(groups) ? groups : [];
+  const payload = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString());
+  const roles = payload['client_roles'] ?? payload['resource_access']?.[payload['azp']]?.roles;
+  return Array.isArray(roles) ? roles : [];
 }
 
 interface Probe {

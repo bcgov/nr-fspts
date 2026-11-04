@@ -1,10 +1,11 @@
 # Roles & Security
 
-Authorization in FSPTS has three layers, all derived from the caller's Cognito
-JWT:
+Authorization in FSPTS has three layers, all derived from the caller's BC Gov
+SSO (Keycloak) access token:
 
-1. **Authentication** — the request carries a valid Cognito *access* token with
-   at least one FSPTS role.
+1. **Authentication** — the request carries a valid access token from the
+   standard realm, issued to FSP's own CSS client (`azp`), with at least one
+   FSPTS role.
 2. **Role capability** — does this role perform this *kind* of action at all?
    (e.g. edit content, take a workflow decision, administer.)
 3. **Per-FSP ownership** — may this user touch *this particular* FSP? (Scopes
@@ -15,8 +16,14 @@ truth** — every layer is enforced server-side.
 
 ## The six roles
 
-Roles are Cognito groups, canonical name `FSPTS_*` (an org suffix like
-`_DPG` is allowed and matched). Defined in
+Roles are FAM roles on the token's `client_roles` claim (falling back to
+`resource_access.<azp>.roles`), canonical name `FSPTS_*`. FAM writes a grant's
+scope into the role name: a client-tied grant is
+`FSPTS_SUBMITTER_FOREST_CLIENT-00012345`, and that scoped name is all the token
+carries (the bare `FSPTS_SUBMITTER` is absent). Names are parsed with FAM's own
+grammar (`FamRoles.parse`, mirrored by `authUtils.parseFamRole`); an
+organization-named role such as `FSPTS_ADMINISTRATOR_DPG` still canonicalises.
+FAM's `FAM:EXPIRES:…` bookkeeping roles are ignored. Defined in
 `backend/.../security/FsptsRoles.java` and `frontend/src/context/auth/types.ts`.
 
 | Role | Content edit ‡ | Amend / Extend / Replace | Workflow actions | Administration | FSP visibility |
@@ -112,7 +119,7 @@ This is resolved once in **`RequestUtil.getEffectiveRole()`** (backend) and
 mirrored by **`authUtils.highestRole()`** (frontend). Every downstream check
 derives from it:
 
-- **`CognitoGroupsAuthoritiesConverter`** grants only `ROLE_FSPTS_<effective>`,
+- **`FsptsAuthoritiesConverter`** grants only `ROLE_FSPTS_<effective>`,
   so the `@PreAuthorize` matrix sees one role.
 - **`RequestUtil.getCurrentLegacyRoles()`** emits one `FSP_*` role to the
   legacy procs — removing the `INSTR`-substring stacking ambiguity (e.g. the

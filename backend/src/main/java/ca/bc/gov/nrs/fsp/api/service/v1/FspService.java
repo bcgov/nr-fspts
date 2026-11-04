@@ -235,7 +235,7 @@ public class FspService {
   // Legacy-role mapping / client-number extraction moved to
   // RequestUtil.getCurrentLegacyRoles + RequestUtil.getCurrentClientNumber
   // so other services (e.g. ExtensionService) can reuse the same
-  // FAM-cognito → legacy-proc translation.
+  // FAM role → legacy-proc translation.
 
   public FspRequest getById(String fspId) {
     return getById(fspId, null);
@@ -1055,7 +1055,7 @@ public class FspService {
     // the value — so the prefixed string is safe here. The actual
     // authorization check goes through fsp_tombstone.user_may_access
     // which gates on role + client number, not username. Do NOT pass
-    // the 46-char Cognito subject ("idir_<guid>@idir") — the audit
+    // the long token subject ("<guid>@azureidir") — the audit
     // columns are VARCHAR2(30); the truncate inside the helper keeps
     // the prefixed form under that cap.
     String userId = RequestUtil.getCurrentAuditUserId();

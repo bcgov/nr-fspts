@@ -9,13 +9,13 @@
 #   1. BCGov VPN is connected. Compose can't route traffic to the Oracle
 #      host for you; the reachability comes from your host's routing table.
 #   2. backend/src/main/resources/application-local.properties exists. It's
-#      gitignored and holds the DB password + Cognito + IDIR config that
+#      gitignored and holds the DB password + Keycloak + IDIR config that
 #      the `local` profile reads.
 #   3. backend/src/main/resources/cert/jssecacerts exists (the Oracle
 #      truststore). Copy it from a running pod — the procedure is in the
 #      header comment of application-local.properties.
 #   4. frontend/.env exists. Copy frontend/.env.example and fill in the
-#      Cognito client IDs.
+#      Keycloak realm URI and client id.
 #
 # Usage:
 #   docker compose up                       # backend + frontend

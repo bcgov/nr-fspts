@@ -63,9 +63,14 @@ parameters:
     value: INFO
   - name: SPRING_JPA_SHOW_SQL
     value: "false"
-  - name: AWS_COGNITO_ISSUER_URI
+  # BC Gov SSO (Keycloak) standard realm, e.g.
+  # https://test.loginproxy.gov.bc.ca/auth/realms/standard
+  - name: KEYCLOAK_ISSUER_URI
     required: true
-  - name: COGNITO_USERINFO_URI
+  # FSP's CSS integration client id. Tokens must carry it as `azp` or the API
+  # refuses them (AuthorizedPartyValidator). Required on purpose: a blank value
+  # would accept any token the shared realm signs, for any client.
+  - name: KEYCLOAK_CLIENT_ID
     required: true
   # nr-user-lookup-api (IDIR/BCeID lookups) — replaces the retired FAM
   # identity-lookup. Not required so PR previews (which skip the Keycloak
@@ -91,7 +96,7 @@ parameters:
     required: false
     value: ""
   # ClamAV virus scanning — clamd reached over raw TCP (INSTREAM). Plain
-  # container env (non-sensitive, like AWS_COGNITO_ISSUER_URI); no Secret.
+  # container env (non-sensitive, like KEYCLOAK_ISSUER_URI); no Secret.
   - name: CLAMAV_ENABLED
     required: false
     value: "true"
@@ -212,10 +217,10 @@ objects:
                   value: oracle
                 - name: SERVER_PORT
                   value: "8080"
-                - name: AWS_COGNITO_ISSUER_URI
-                  value: ${AWS_COGNITO_ISSUER_URI}
-                - name: COGNITO_USERINFO_URI
-                  value: ${COGNITO_USERINFO_URI}
+                - name: KEYCLOAK_ISSUER_URI
+                  value: ${KEYCLOAK_ISSUER_URI}
+                - name: KEYCLOAK_CLIENT_ID
+                  value: ${KEYCLOAK_CLIENT_ID}
                 - name: USER_LOOKUP_BASE_URL
                   value: ${USER_LOOKUP_BASE_URL}
                 - name: USER_LOOKUP_TOKEN_URL
@@ -453,7 +458,7 @@ objects:
         - Ingress
 
   # ── NetworkPolicy: egress — the backend must make outbound connections ──
-  # Oracle (external), Cognito + user-lookup (external HTTPS), SMTP, and clamd
+  # Oracle (external), Keycloak + user-lookup (external HTTPS), SMTP, and clamd
   # (in-cluster, another namespace). Applied unconditionally: NetworkPolicy
   # egress is all-or-nothing per pod, so a narrow allow-list would silently
   # break DB / external access wherever the namespace baseline doesn't already

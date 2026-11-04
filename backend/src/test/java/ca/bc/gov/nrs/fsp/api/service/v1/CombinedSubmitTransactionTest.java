@@ -70,7 +70,7 @@ class CombinedSubmitTransactionTest {
   void authenticate() {
     Jwt jwt = Jwt.withTokenValue("token")
         .header("alg", "none")
-        .claim("cognito:groups", List.of("FSPTS_SUBMITTER"))
+        .claim("client_roles", List.of("FSPTS_SUBMITTER"))
         .build();
     SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
   }

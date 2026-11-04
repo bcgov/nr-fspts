@@ -28,34 +28,23 @@ parameters:
     value: INFO
   # Runtime VITE_* config (rendered into /srv/config.js by the entrypoint
   # and read at SPA boot via src/env.ts — see docker-entrypoint.sh).
-  # Cognito (FAM via AWS Amplify):
-  - name: VITE_USER_POOLS_ID
-    description: Cognito user pool ID (e.g. ca-central-1_AbCdEf123)
+  # BC Gov SSO (Keycloak). The issuer URI is all oidc-client-ts needs — it
+  # discovers the authorize, token and end-session endpoints from it, which is
+  # why the three VITE_LOGOUT_* variables that drove the old Cognito logout
+  # chain are gone rather than renamed.
+  - name: VITE_KEYCLOAK_URL
+    description: Realm issuer URI, e.g. https://test.loginproxy.gov.bc.ca/auth/realms/standard
     required: true
-  - name: VITE_USER_POOLS_WEB_CLIENT_ID
-    description: Cognito app-client ID (public)
+  # Must match KEYCLOAK_CLIENT_ID on the backend: it is checked there as the
+  # token's `azp`. Both are fed from the same CI variable.
+  - name: VITE_KEYCLOAK_CLIENT_ID
+    description: FSP's CSS integration client id (public client, no secret)
     required: true
-  # Federated logout chain (Cognito fires LAST: Siteminder → Keycloak →
-  # Cognito → app) — see docs/architecture.md → Federated logout and
-  # src/context/auth/logoutChain.ts. Plain (un-encoded) values; the app nests
-  # + URL-encodes them at runtime. All three are optional: leave any unset and
-  # logout falls back to the plain Amplify sign-out (back to the app origin).
-  - name: VITE_LOGOUT_SITEMINDER_URL
-    description: Siteminder logoff.cgi base — test https://logontest7.gov.bc.ca/clp-cgi/logoff.cgi, prod https://logon7.gov.bc.ca/clp-cgi/logoff.cgi
-  - name: VITE_LOGOUT_KEYCLOAK_URL
-    description: Keycloak end-session URL — <loginproxy-host>/auth/realms/standard/protocol/openid-connect/logout
-  - name: VITE_LOGOUT_KEYCLOAK_CLIENT_ID
-    description: Cognito's client id IN Keycloak (FAM-provided, per env)
   - name: VITE_API_BASE_URL
     description: Browser-facing API base path; usually '/api'
     value: /api
   - name: VITE_APP_NAME
     value: Forest Stewardship Plan Tracking System
-  # VITE_ZONE drives the Cognito identity_provider prefix (DEV-IDIR /
-  # TEST-IDIR / IDIR). Numeric zones (PR previews) fall back to TEST in
-  # AuthProvider so they don't try to call <PR>-IDIR.
-  - name: VITE_ZONE
-    value: dev
   # Public FOM site base for the "Associated FOMs" links. Point at the same
   # host the backend's FOM_API_URL uses: test FOM on TEST, prod on PROD.
   # Supply per-env via the GitHub repo variable VITE_FOM_PUBLIC_URL.
@@ -132,22 +121,14 @@ objects:
                   value: /tmp
                 - name: XDG_CONFIG_HOME
                   value: /tmp
-                - name: VITE_USER_POOLS_ID
-                  value: ${VITE_USER_POOLS_ID}
-                - name: VITE_USER_POOLS_WEB_CLIENT_ID
-                  value: ${VITE_USER_POOLS_WEB_CLIENT_ID}
-                - name: VITE_LOGOUT_SITEMINDER_URL
-                  value: ${VITE_LOGOUT_SITEMINDER_URL}
-                - name: VITE_LOGOUT_KEYCLOAK_URL
-                  value: ${VITE_LOGOUT_KEYCLOAK_URL}
-                - name: VITE_LOGOUT_KEYCLOAK_CLIENT_ID
-                  value: ${VITE_LOGOUT_KEYCLOAK_CLIENT_ID}
+                - name: VITE_KEYCLOAK_URL
+                  value: ${VITE_KEYCLOAK_URL}
+                - name: VITE_KEYCLOAK_CLIENT_ID
+                  value: ${VITE_KEYCLOAK_CLIENT_ID}
                 - name: VITE_API_BASE_URL
                   value: ${VITE_API_BASE_URL}
                 - name: VITE_APP_NAME
                   value: ${VITE_APP_NAME}
-                - name: VITE_ZONE
-                  value: ${VITE_ZONE}
                 - name: VITE_FOM_PUBLIC_URL
                   value: ${VITE_FOM_PUBLIC_URL}
               volumeMounts:

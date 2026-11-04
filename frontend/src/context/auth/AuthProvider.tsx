@@ -1,198 +1,166 @@
-import { fetchAuthSession, signInWithRedirect, signOut } from 'aws-amplify/auth';
 import { useEffect, useMemo, useState, useCallback, useRef, type ReactNode } from 'react';
 
-import { env } from '@/env';
+import {
+  KC_IDP_HINTS,
+  ensureFreshUser,
+  forceRenew,
+  getUserManager,
+  loadStoredUser,
+  signOutEverywhere,
+} from '@/services/keycloak';
 
 import { AuthContext, type AuthContextType } from './AuthContext';
-import {
-  parseToken,
-  getStoredAccessToken,
-  clearStoredTokens,
-} from './authUtils';
-import { buildFederatedLogoutUrl } from './logoutChain';
+import { parseToken, type KeycloakProfile } from './authUtils';
 import type { FamLoginUser, LoginProvider } from './types';
 
 /**
- * Seconds before access-token expiry at which we consider it "stale" and
- * force a refresh on the next API call. Keeps a small buffer so the
- * token is still valid by the time the request reaches the server.
+ * BC Gov SSO (Keycloak) session for the SPA, via oidc-client-ts. Ported from
+ * nr-rept; FSP adds the IDIR / BCeID Business choice at sign-in.
  */
-const REFRESH_MARGIN_SECONDS = 30;
-
-/**
- * Minimum gap (ms) between two consecutive refresh attempts. Prevents
- * multiple near-simultaneous API calls from each triggering their own
- * refresh.
- */
-const MIN_REFRESH_GAP_MS = 5_000;
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FamLoginUser | undefined>(undefined);
+  const [accessToken, setAccessToken] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
 
-  // VITE_ZONE drives the Cognito identity_provider prefix (e.g. DEV-IDIR,
-  // TEST-IDIR, IDIR). Numeric zones (PR previews) fall back to TEST so
-  // we don't try to call a non-existent <PR>-IDIR provider.
-  const appEnv = isNaN(Number(env.VITE_ZONE)) ? (env.VITE_ZONE ?? 'TEST') : 'TEST';
+  // Guards against two near-simultaneous callers each starting their own
+  // renewal. A ref, because changing it must not re-render.
+  const renewInFlight = useRef<Promise<string | undefined> | null>(null);
 
-  // Track whether a refresh is already in flight to avoid concurrent calls.
-  const refreshInFlight = useRef(false);
-  const lastRefreshTime = useRef(0);
-
-  // ── Core session loader ────────────────────────────────────────────
-  const loadSession = useCallback(
-    async (forceRefresh = false): Promise<FamLoginUser | undefined> => {
-      const { tokens } = (await fetchAuthSession({ forceRefresh })) ?? {};
-      const idToken = tokens?.idToken;
-      if (!idToken) return undefined;
-      return parseToken(idToken);
+  /** Publishes a signed-in session, or clears it when the user is gone. */
+  const applyUser = useCallback(
+    (oidcUser: { access_token?: string; profile?: unknown } | null) => {
+      if (!oidcUser?.access_token) {
+        setUser(undefined);
+        setAccessToken(undefined);
+        return undefined;
+      }
+      setAccessToken(oidcUser.access_token);
+      setUser(parseToken(oidcUser.profile as KeycloakProfile));
+      return oidcUser.access_token;
     },
     [],
   );
 
   // ── Initial session bootstrap ──────────────────────────────────────
   // Users without any recognised FSPTS role are kept in state
-  // (isLoggedIn=true) so the routing layer can route them to a "no
-  // access" page rather than bouncing them back through Cognito.
-  const refreshUserState = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const parsed = await loadSession(false);
-      setUser(parsed);
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('[AuthProvider] error loading user:', error);
-      setUser(undefined);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [loadSession]);
-
-  // Bootstrap on mount. Runs once per page load; if the URL contains a
-  // ?code=&state= pair, Amplify.configure() (in main.tsx) has already
-  // exchanged it for tokens stored in localStorage by the time we get
-  // here, so fetchAuthSession() just reads them.
+  // (isLoggedIn=true) so the routing layer can route them to the "no
+  // access" page rather than bouncing them back through Keycloak.
   useEffect(() => {
-    refreshUserState();
-  }, [refreshUserState]);
+    let cancelled = false;
 
-  // ── On-demand token refresh ────────────────────────────────────────
-  // Called before each API request from the service layer. Checks the
-  // access token's `exp` claim; if it's about to expire, forces a
-  // refresh via the refresh token. If the refresh token has also
-  // expired, signs the user out.
-  //
-  // No background interval — the token is only refreshed when the user
-  // makes an API call, so idle users naturally time out once their
-  // refresh token expires.
-  const ensureFreshToken = useCallback(async (): Promise<string | undefined> => {
-    try {
-      const { tokens } = (await fetchAuthSession({ forceRefresh: false })) ?? {};
-      const accessToken = tokens?.accessToken;
-
-      if (!accessToken) {
-        await signOut();
-        setUser(undefined);
-        return undefined;
-      }
-
-      const exp = accessToken.payload?.exp;
-      if (!exp) {
-        return accessToken.toString();
-      }
-
-      const secondsRemaining = exp - Math.floor(Date.now() / 1000);
-
-      if (secondsRemaining > REFRESH_MARGIN_SECONDS) {
-        return accessToken.toString();
-      }
-
-      if (refreshInFlight.current) {
-        // Another refresh is already happening; wait a beat and read
-        // from storage so we don't race.
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        return getStoredAccessToken();
-      }
-
-      const now = Date.now();
-      if (now - lastRefreshTime.current < MIN_REFRESH_GAP_MS) {
-        return getStoredAccessToken();
-      }
-
-      refreshInFlight.current = true;
-      lastRefreshTime.current = now;
-
+    const bootstrap = async () => {
       try {
-        const parsed = await loadSession(true);
-        if (parsed) setUser(parsed);
-        return getStoredAccessToken();
+        const restored = await loadStoredUser(getUserManager());
+        if (!cancelled) applyUser(restored);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[AuthProvider] error loading user:', error);
+        if (!cancelled) applyUser(null);
       } finally {
-        refreshInFlight.current = false;
+        if (!cancelled) setIsLoading(false);
       }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.warn('[AuthProvider] Session expired — signing out.', error);
-      refreshInFlight.current = false;
-      await signOut();
-      setUser(undefined);
-      return undefined;
-    }
-  }, [loadSession]);
+    };
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyUser]);
 
   // ── Auth actions ───────────────────────────────────────────────────
 
-  const login = useCallback(
-    async (provider: LoginProvider) => {
-      // Cognito identity_provider names follow the pattern
-      // `<ENV>-<PROVIDER>` (e.g. DEV-IDIR, TEST-BCEIDBUSINESS). The
-      // env prefix is omitted in PROD.
-      const prefix = appEnv === 'PROD' ? '' : `${appEnv.toUpperCase()}-`;
-      const providerName = provider === 'idir' ? `${prefix}IDIR` : `${prefix}BCEIDBUSINESS`;
-      signInWithRedirect({ provider: { custom: providerName } });
-    },
-    [appEnv],
-  );
+  const login = useCallback((provider: LoginProvider) => {
+    void getUserManager().signinRedirect({
+      extraQueryParams: { kc_idp_hint: KC_IDP_HINTS[provider] },
+    });
+  }, []);
 
+  /**
+   * Ends the Siteminder and Keycloak sessions (see signOutEverywhere for why
+   * FSP chains through Siteminder where nr-rept doesn't).
+   *
+   * **The stored user is read before it is removed** so Keycloak gets an
+   * `id_token_hint`; clearing the tokens first sends a logout Keycloak can't
+   * attribute to a session, so the realm session survives and the next sign-in
+   * walks straight back in without a prompt.
+   *
+   * React state is not cleared before the redirect: that would briefly mount
+   * the Landing page, whose mount effect reads-and-clears the session-expired
+   * flag before the round trip returns, so the timeout notice would never show.
+   *
+   * **And it always finishes.** Callers invoke this as `void logout()`, so a
+   * redirect that throws would otherwise reject into nothing and leave a
+   * signed-out page over a live realm session. The catch drops this browser's
+   * tokens and goes to the sign-in screen instead.
+   */
   const logout = useCallback(async () => {
-    // Primary path: drive the federated logout chain ourselves so Cognito
-    // fires LAST (Siteminder → KC → Cognito → app). Amplify's signOut() would
-    // force Cognito first, which is what makes the app URL have to be
-    // registered on the Keycloak client — see logoutChain.ts. We clear the
-    // local tokens up front (so returning to the app reads as logged out), then
-    // navigate; the browser still carries the Cognito session cookie, so the
-    // chain's final Cognito /logout hop clears it server-side.
-    const chainUrl = buildFederatedLogoutUrl(window.location.origin);
-    if (chainUrl) {
-      clearStoredTokens();
-      // Deliberately NOT setUser(undefined) here: a full-page navigation is
-      // imminent and the app re-bootstraps from scratch on return, so the
-      // state update is pointless — and worse, it can momentarily mount
-      // LandingPage before the browser unloads, whose mount effect
-      // reads-and-clears the SESSION_EXPIRED_FLAG. That would consume the
-      // "session expired" banner signal before the timeout round-trip
-      // returns, so the yellow notice never shows. Leave state as-is and let
-      // the navigation take over.
-      window.location.assign(chainUrl);
-      return;
+    try {
+      await signOutEverywhere();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('[AuthProvider] sign-out redirect failed; clearing locally.', error);
+      await getUserManager()
+        .removeUser()
+        .catch(() => undefined);
+      applyUser(null);
+      window.location.assign(import.meta.env.BASE_URL || '/');
     }
-    // Fallback (chain not configured for this env): plain Amplify hosted-UI
-    // sign-out, which redirects through Cognito /logout back to the app origin
-    // (config.ts derives redirectSignOut from window.location.origin).
-    await signOut();
-    setUser(undefined);
-  }, []);
+  }, [applyUser]);
 
-  const userToken = useCallback((): string | undefined => {
-    return getStoredAccessToken();
-  }, []);
+  const userToken = useCallback((): string | undefined => accessToken, [accessToken]);
 
-  // Unconditional refresh (vs ensureFreshToken, which only refreshes when the
-  // access token is near expiry). Mints a fresh rotated refresh token, sliding
-  // the session. Throws if the refresh token has expired — the caller signs out.
+  /**
+   * Returns a usable access token, renewing first if it is at or near expiry.
+   *
+   * Called, throttled, on user activity by the idle guard. A no-op unless the
+   * token is nearly out, so it is cheap to call often.
+   *
+   * Concurrent callers share one renewal rather than each starting their own:
+   * every `signinSilent` rotates the refresh token, and racing rotations is how
+   * a session dies while somebody is using it.
+   */
+  const ensureFreshToken = useCallback(async (): Promise<string | undefined> => {
+    if (renewInFlight.current) {
+      return renewInFlight.current;
+    }
+
+    const attempt = (async () => {
+      try {
+        const fresh = await ensureFreshUser(getUserManager());
+        return applyUser(fresh);
+      } catch (error) {
+        // The refresh token is gone or was refused — the session is over.
+        // eslint-disable-next-line no-console
+        console.warn('[AuthProvider] Session expired — signing out.', error);
+        void logout();
+        return undefined;
+      } finally {
+        renewInFlight.current = null;
+      }
+    })();
+
+    renewInFlight.current = attempt;
+    return attempt;
+  }, [applyUser, logout]);
+
+  /**
+   * Unconditional renewal, backing the timeout dialog's "Stay logged in".
+   *
+   * Renews however much life the access token has left, because the point is
+   * the refresh token behind it: using it rotates it, which is what moves the
+   * thirty-minute ceiling. Throws when the refresh token has already expired —
+   * the caller then treats it as a real expiry.
+   */
   const forceRefreshSession = useCallback(async (): Promise<void> => {
-    const parsed = await loadSession(true);
-    setUser(parsed);
-  }, [loadSession]);
+    const renewed = await forceRenew(getUserManager());
+    applyUser(renewed);
+  }, [applyUser]);
+
+  /** Completes the redirect back from Keycloak. Used only by AuthCallback. */
+  const completeLogin = useCallback(async (): Promise<void> => {
+    const signedIn = await getUserManager().signinRedirectCallback();
+    applyUser(signedIn);
+  }, [applyUser]);
 
   const contextValue: AuthContextType = useMemo(
     () => ({
@@ -204,6 +172,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userToken,
       ensureFreshToken,
       forceRefreshSession,
+      completeLogin,
     }),
     [
       user,
@@ -213,6 +182,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userToken,
       ensureFreshToken,
       forceRefreshSession,
+      completeLogin,
     ],
   );
 

@@ -26,7 +26,7 @@ import org.springframework.util.StringUtils;
  *
  * <p>Authentication is handled entirely by {@link UserLookupClient}
  * via a Keycloak {@code client_credentials} service-account token — the
- * caller's Cognito JWT is no longer forwarded to the lookup API.
+ * caller's own token is no longer forwarded to the lookup API.
  *
  * <h3>Configuration</h3>
  * <ul>

@@ -25,7 +25,7 @@ import org.springframework.web.client.RestClient;
  * <p>Base path {@code /api/v1/user-lookup}. Every call carries a
  * Keycloak {@code client_credentials} bearer token minted from FSP's own
  * service account (see {@link ClientCredentialsTokenSource}); the caller's
- * Cognito JWT is <b>not</b> forwarded — nr-user-lookup-api only accepts
+ * own access token is <b>not</b> forwarded — nr-user-lookup-api only accepts
  * the service-account token whose default client scopes it validates.
  *
  * <h3>Configuration</h3>
