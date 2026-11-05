@@ -22,7 +22,7 @@ async function expectSearchOk(
   const [resp] = await Promise.all([
     page.waitForResponse(
       (r) => endpoint.test(r.url()) && r.request().method() === 'GET',
-      { timeout: 60_000 },
+      { timeout: 30_000 },
     ),
     trigger(),
   ]);

@@ -29,7 +29,7 @@ test.describe('Reports', () => {
         (r) =>
           /\/api\/v1\/fsp\/reports\/fsp-summary\b/.test(r.url()) &&
           r.request().method() === 'POST',
-        { timeout: 90_000 },
+        { timeout: 30_000 },
       ),
       page.getByRole('button', { name: 'Generate PDF report' }).click(),
     ]);

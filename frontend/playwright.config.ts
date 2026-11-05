@@ -15,12 +15,11 @@ import { baseURL, STORAGE_STATE } from './e2e/utils';
  * Override the target with E2E_BASE_URL (e.g. http://localhost:3000 for local).
  */
 export default defineConfig({
-  // 60s is a generous ceiling for a single test against the shared, slower
-  // TEST/preview infra — the proc-heavy flows still finish well under it.
+  // 30s ceiling per test attempt (and per individual wait in the specs).
   // Keeping it tight bounds the blast radius of any hang: with retries: 2 a
-  // stuck test now costs ~3 min instead of ~9, and fails legibly rather than
-  // masquerading as "slow CI".
-  timeout: 60_000,
+  // stuck test costs ~1.5 min, and fails legibly rather than masquerading as
+  // "slow CI". The sign-in setup project keeps its own longer budget below.
+  timeout: 30_000,
   testDir: './e2e',
   // Serial execution. We share one rotating Keycloak refresh token across
   // specs (see e2e/fixtures.ts); parallel workers race that renewal and
@@ -44,6 +43,9 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: /auth\.setup\.ts/,
+      // Sign-in spans Keycloak → Azure AD → TOTP, and the TOTP helper can
+      // wait up to ~30s for a fresh code window, so it can't fit in 30s.
+      timeout: 60_000,
       // No trace, screenshot or video for sign-in. A trace records every
       // action's arguments verbatim (Playwright redacts nothing), so a retried
       // setup would write the IDIR password into playwright-report, which CI
