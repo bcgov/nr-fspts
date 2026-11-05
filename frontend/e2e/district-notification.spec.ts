@@ -48,9 +48,9 @@ test.describe('District Notification', () => {
     }
 
     // ── Add ──
-    await page.getByRole('button', { name: 'Add user…' }).click();
+    await page.getByRole('button', { name: 'Add designate', exact: true }).click();
     const modal = page.getByRole('dialog');
-    await expect(modal.getByText('Find IDIR user')).toBeVisible();
+    await expect(modal.getByText('Search the IDIR directory for the user to add.')).toBeVisible();
 
     await modal.getByLabel('User ID').fill(designateQuery);
     await Promise.all([
@@ -69,7 +69,8 @@ test.describe('District Notification', () => {
           r.request().method() === 'POST',
         { timeout: 30_000 },
       ),
-      modal.getByRole('button', { name: 'Select' }).first().click(),
+      // Each result row's pick button is labelled "Add" ("Added" once taken).
+      modal.getByRole('button', { name: 'Add', exact: true }).first().click(),
     ]);
 
     await expect(designateRow).toBeVisible({ timeout: 30_000 });
@@ -77,7 +78,9 @@ test.describe('District Notification', () => {
     // ── Remove ──
     await designateRow.getByRole('button', { name: 'Remove' }).click();
     const confirm = page.getByRole('dialog');
-    await expect(confirm.getByText('Remove designate?')).toBeVisible();
+    await expect(
+      confirm.getByText('Are you sure you want to remove this designate?'),
+    ).toBeVisible();
     await Promise.all([
       page.waitForResponse(
         (r) =>

@@ -4,6 +4,18 @@ import { test as base } from '@playwright/test';
 
 import { SESSION_STORAGE_STATE, STORAGE_STATE } from './utils';
 
+/** Upper bound for each token-persistence call in teardown. */
+const TEARDOWN_STEP_MS = 5_000;
+
+/** Rejects if `promise` hasn't settled within `ms`. */
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
+
 /** The saved sessionStorage snapshot, or null when there isn't one yet. */
 const readSessionSnapshot = (): Record<string, string> | null => {
   try {
@@ -63,15 +75,22 @@ export const test = base.extend<{ persistRotatedTokens: void }>({
       await use();
 
       // Both may fail if a test tore its own context down; ignore and let the
-      // next test fall back to the prior snapshot.
-      const session = await page
-        .evaluate(() => JSON.stringify(window.sessionStorage))
-        .catch(() => null);
+      // next test fall back to the prior snapshot. They can also HANG rather
+      // than fail when the page is wedged (typically after a test timeout),
+      // and Playwright gives teardown a fresh full test-timeout budget — so an
+      // unbounded wait here turns a 30s failure into a 1m one. Cap each call.
+      const session = await withTimeout(
+        page.evaluate(() => JSON.stringify(window.sessionStorage)),
+        TEARDOWN_STEP_MS,
+      ).catch(() => null);
       if (session) {
         writeFileSync(SESSION_STORAGE_STATE, session);
       }
 
-      await context.storageState({ path: STORAGE_STATE }).catch(() => undefined);
+      await withTimeout(
+        context.storageState({ path: STORAGE_STATE }),
+        TEARDOWN_STEP_MS,
+      ).catch(() => undefined);
     },
     { auto: true },
   ],
