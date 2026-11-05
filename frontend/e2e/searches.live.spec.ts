@@ -49,7 +49,12 @@ test.describe('Search surfaces (live)', () => {
     await expectSearchOk(page, /\/api\/v1\/fsp\/inbox\b/, () =>
       page.locator('.fsp-inbox__form').getByRole('button', { name: 'Search', exact: true }).click(),
     );
-    await expect(page.getByText(/\bitems?\s+found\b/i)).toBeVisible({ timeout: 30_000 });
+    // Same two count-agnostic signals as FSP Search: "N items found" (>=1
+    // row) or the "No results found" empty state — the test account's inbox
+    // is often empty, which is still a successful query.
+    await expect(
+      page.getByText(/\b(items?|results?)\s+found\b/i).first(),
+    ).toBeVisible({ timeout: 30_000 });
   });
 
   test('Stocking Standards Search runs a query and renders results', async ({ page }) => {

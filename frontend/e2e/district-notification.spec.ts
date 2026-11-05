@@ -16,7 +16,13 @@ import { gotoPage, PAGES } from './helpers/nav';
  * Non-destructive: if the chosen user is ALREADY a designate on the
  * first org unit we skip rather than delete real configuration.
  */
-const designateQuery = process.env.E2E_DISTRICT_DESIGNATE ?? process.env.E2E_IDIR_USER ?? '';
+// E2E_IDIR_USER is the Azure AD sign-in UPN (e.g. FOO@gov.bc.ca), but the
+// IDIR directory search matches the bare username — strip any @domain.
+const designateQuery = (
+  process.env.E2E_DISTRICT_DESIGNATE ??
+  process.env.E2E_IDIR_USER ??
+  ''
+).replace(/@.*$/, '');
 
 test.describe('District Notification', () => {
   test.skip(
@@ -62,6 +68,11 @@ test.describe('District Notification', () => {
       modal.getByRole('button', { name: 'Search', exact: true }).click(),
     ]);
 
+    // Fail fast and legibly if the lookup came back empty, rather than
+    // timing out below waiting for a POST that can never fire.
+    const pickButton = modal.getByRole('button', { name: 'Add', exact: true }).first();
+    await expect(pickButton, `IDIR lookup for "${designateQuery}" returned no users`).toBeVisible();
+
     await Promise.all([
       page.waitForResponse(
         (r) =>
@@ -70,7 +81,7 @@ test.describe('District Notification', () => {
         { timeout: 30_000 },
       ),
       // Each result row's pick button is labelled "Add" ("Added" once taken).
-      modal.getByRole('button', { name: 'Add', exact: true }).first().click(),
+      pickButton.click(),
     ]);
 
     await expect(designateRow).toBeVisible({ timeout: 30_000 });
