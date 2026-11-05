@@ -80,7 +80,7 @@ const AmendmentReplacementSummaryModal: FC<Props> = ({ open, fsp, onClose }) => 
           <p className="amend-summary__card-title">Changes in this {noun}</p>
           <ul className="amend-summary__changes">
             <ChangeRow updated={stockingUpdated} label="Stocking standards" />
-            <ChangeRow updated={fduUpdated} label="FDU boundaries" />
+            <ChangeRow updated={fduUpdated} label="FDU" />
           </ul>
         </div>
 
