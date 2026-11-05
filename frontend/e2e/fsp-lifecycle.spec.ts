@@ -51,7 +51,7 @@ test.describe.serial('FSP lifecycle', () => {
 
     // Wait for the validation pass to come back clean (Upload step, s4).
     await expect(page.getByText('New FSP submission validated')).toBeVisible({
-      timeout: 60_000,
+      timeout: 30_000,
     });
 
     // Two-step wizard: advance to the Review step, then submit from there.
@@ -64,7 +64,7 @@ test.describe.serial('FSP lifecycle', () => {
           /\/api\/v1\/fsp\/submissions\b/.test(r.url()) &&
           !/\/validate\b/.test(r.url()) &&
           r.request().method() === 'POST',
-        { timeout: 90_000 },
+        { timeout: 30_000 },
       ),
       page.getByTestId('submit-button').click(),
     ]);
@@ -144,7 +144,7 @@ test.describe.serial('FSP lifecycle', () => {
         (r) =>
           new RegExp(`/api/v1/fsp/${fspId}/submit\\b`).test(r.url()) &&
           r.request().method() === 'POST',
-        { timeout: 60_000 },
+        { timeout: 30_000 },
       ),
       modal.getByRole('button', { name: 'Submit', exact: true }).click(),
     ]);
@@ -194,7 +194,7 @@ test.describe.serial('FSP lifecycle', () => {
         (r) =>
           new RegExp(`/api/v1/fsp/${fspId}`).test(r.url()) &&
           ['POST', 'PUT'].includes(r.request().method()),
-        { timeout: 60_000 },
+        { timeout: 30_000 },
       ),
       modal.getByRole('button', { name: /Create amendment/ }).click(),
     ]);
@@ -275,7 +275,7 @@ test.describe.serial('FSP lifecycle', () => {
         (r) =>
           new RegExp(`/api/v1/fsp/${fspId}/extensions/submit\\b`).test(r.url()) &&
           r.request().method() === 'POST',
-        { timeout: 60_000 },
+        { timeout: 30_000 },
       ),
       modal.getByRole('button', { name: /Submit request|Submitting/i }).click(),
     ]);

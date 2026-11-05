@@ -70,7 +70,7 @@ export const gotoProtected = async (page: Page, path: string): Promise<void> => 
 
   try {
     await page.goto(path);
-    await page.getByTestId('bc-header__header').waitFor({ timeout: 60_000 });
+    await page.getByTestId('bc-header__header').waitFor({ timeout: 30_000 });
   } catch (err) {
     const url = page.url();
     const title = await page.title().catch(() => '(unavailable)');

@@ -255,8 +255,8 @@ const AmendmentDescriptionModal: FC<Props> = ({
         <div className="amend-modal__questions">
           <div className="amend-modal__question">
             <span className="amend-modal__question-label">
-              Does this {noun} add a new FDU or materially change existing
-              FDU boundaries? (FPPR 29 (a) and (b))
+              Does this {noun} add a new FDU or materially change the
+              existing FDU? (FPPR 29 (a) and (b))
             </span>
             <RadioButtonGroup
               name={`${idp}-fdu`}

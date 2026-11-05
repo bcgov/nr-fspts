@@ -50,7 +50,9 @@ jobs:
       run:
         working-directory: frontend
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Up to 5 whole-suite attempts (see "Run Playwright"); a passing run is
+    # ~2 min, a failing one stops at its first hard failure.
+    timeout-minutes: 30
     permissions:
       contents: read
     strategy:
@@ -81,8 +83,26 @@ jobs:
           E2E_IDIR_PASSWORD: ${{ secrets.e2e_idir_password }}
           E2E_IDIR_TOTP_SECRET: ${{ secrets.e2e_idir_totp_secret }}
           CI: "true"
+          # Whole-suite attempts. The shared TEST/preview infra has transient
+          # outages (connection refused mid-redeploy, stuck auth overlay) that
+          # per-test retries can't ride out, so a failed run is re-run from
+          # scratch — including the IDIR sign-in — up to this many times.
+          # maxFailures: 1 (playwright.config.ts) keeps each failed attempt
+          # short. The uploaded report is from the last attempt.
+          E2E_RUN_ATTEMPTS: "5"
         run: |
-          npx playwright test --project="${{ matrix.project }}" --reporter=html,list
+          for attempt in $(seq 1 "$E2E_RUN_ATTEMPTS"); do
+            echo "::group::E2E attempt ${attempt}/${E2E_RUN_ATTEMPTS}"
+            if npx playwright test --project="${{ matrix.project }}" --reporter=html,list; then
+              echo "::endgroup::"
+              echo "E2E passed on attempt ${attempt}/${E2E_RUN_ATTEMPTS}."
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "::warning::E2E attempt ${attempt}/${E2E_RUN_ATTEMPTS} failed."
+          done
+          echo "::error::E2E failed on all ${E2E_RUN_ATTEMPTS} attempts."
+          exit 1
 
       - uses: actions/upload-artifact@v7
         if: (! cancelled())
