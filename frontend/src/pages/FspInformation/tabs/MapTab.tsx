@@ -19,6 +19,7 @@ import {useOrg} from '@/context/org/useOrg';
 import {safeErrorMessage} from '@/lib/errorMessage';
 import {type FspFduList, getFspExtent, getFspFduList,} from '@/services/fspSearch';
 import AddFduModal from '@/components/AddFduModal';
+import { openAppRouteInNewTab } from '@/utils/download';
 
 interface Props {
   fspId: string;
@@ -188,19 +189,17 @@ const MapTab: FC<Props> = ({
       });
       return;
     }
-    // Carry the BCeID active org into the new tab. `noopener` (below) gives
-    // the tab a FRESH sessionStorage, so without this a multi-org user would
-    // be re-prompted to pick an org before the map loads. OrgProvider adopts
+    // Carry the BCeID active org into the new tab explicitly too (belt and
+    // braces alongside the copied sessionStorage). OrgProvider adopts
     // this param on boot (and still validates it against the user's real org
     // list). Omitted for IDIR / single-org users where it's null.
     const orgParam = activeOrgClientNumber
       ? `&activeOrg=${encodeURIComponent(activeOrgClientNumber)}`
       : '';
     const url = `/fsp/map?fspId=${encodeURIComponent(fspId)}&amendmentNumber=${encodeURIComponent(amendmentNumber || '0')}${orgParam}`;
-    // NB: passing 'noopener' makes window.open return null even on success,
-    // so we don't inspect the return value — a genuine block is rare and the
-    // browser surfaces its own indicator for it.
-    window.open(url, '_blank', 'noopener,noreferrer');
+    // Not `noopener`: that would hand the tab an empty sessionStorage and
+    // therefore no Keycloak session (see openAppRouteInNewTab).
+    openAppRouteInNewTab(url);
   };
 
   const showFduTable = variant === 'fdu';

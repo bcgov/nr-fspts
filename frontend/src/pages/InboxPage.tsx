@@ -36,6 +36,7 @@ import {
   type FspSearchResult,
   type InboxRequest,
 } from '@/services/fspSearch';
+import { openAppRouteInNewTab } from '@/utils/download';
 import './InboxPage.scss';
 
 // Same SearchingIcon shim as SearchPage — Carbon's small Loading sized
@@ -208,7 +209,7 @@ const InboxPage: FC = () => {
   const [holderLoading, setHolderLoading] = useState(false);
 
   // Active BCeID org — carried into the Leaflet map tab so a multi-org user
-  // isn't re-prompted (the tab opens with noopener → fresh sessionStorage).
+  // isn't re-prompted (belt and braces alongside the copied sessionStorage).
   const { activeOrgClientNumber } = useOrg();
 
   useEffect(() => {
@@ -376,7 +377,8 @@ const InboxPage: FC = () => {
    * its own geometry from the query params, so this is a plain synchronous
    * window.open on the click gesture (no extent pre-fetch, no popup dance).
    * The active org is threaded through so a multi-org user isn't re-prompted
-   * in the noopener'd new tab (OrgProvider adopts + revalidates it).
+   * in the new tab (OrgProvider adopts + revalidates it). Opened via
+   * openAppRouteInNewTab so the tab inherits the Keycloak session.
    */
   const handleOpenMapView = useCallback(
     (fspId: string, amendNo: string) => {
@@ -384,7 +386,7 @@ const InboxPage: FC = () => {
         ? `&activeOrg=${encodeURIComponent(activeOrgClientNumber)}`
         : '';
       const url = `/fsp/map?fspId=${encodeURIComponent(fspId)}&amendmentNumber=${encodeURIComponent(amendNo || '0')}${orgParam}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+      openAppRouteInNewTab(url);
     },
     [activeOrgClientNumber],
   );
