@@ -34,7 +34,8 @@ const writePersisted = (value: string | null) => {
  * Seed the active org for this tab. Prefers the per-tab sessionStorage choice;
  * failing that, adopts an `activeOrg` query param.
  *
- * The param is the new-tab handoff for map links: those open with `noopener`,
+ * The param is the new-tab handoff for map links. They now inherit sessionStorage
+ * (openAppRouteInNewTab), but historically opened with `noopener`,
  * which gives the new tab a FRESH sessionStorage, so a multi-org BCeID user
  * would otherwise be re-prompted to pick an org before the map (and its
  * org-fenced geometry fetch) could load. The opener passes its active org in

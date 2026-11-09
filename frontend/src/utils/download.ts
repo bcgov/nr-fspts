@@ -26,3 +26,21 @@ export const openBlobInNewTab = (blob: Blob): void => {
   const url = window.URL.createObjectURL(blob);
   window.open(url, '_blank', 'noopener,noreferrer');
 };
+
+/**
+ * Opens one of OUR OWN signed-in routes (e.g. `/fsp/map`) in a new tab,
+ * carrying the session with it.
+ *
+ * The Keycloak tokens live in sessionStorage (services/keycloak.ts). A tab
+ * opened with `noopener` / `noreferrer` gets a FRESH, empty sessionStorage and
+ * so lands on the sign-in screen. Opened without them, the browser copies the
+ * opener's sessionStorage into the new tab — tokens, active org and all.
+ *
+ * The opener link is severed straight after (the copy has already happened at
+ * creation), so the new tab still can't script this one. Only for same-origin
+ * app routes — external links should keep `noopener,noreferrer`.
+ */
+export const openAppRouteInNewTab = (url: string): void => {
+  const tab = window.open(url, '_blank');
+  if (tab) tab.opener = null;
+};
