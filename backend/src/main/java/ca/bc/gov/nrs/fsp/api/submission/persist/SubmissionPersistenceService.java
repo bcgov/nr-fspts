@@ -229,7 +229,10 @@ public class SubmissionPersistenceService {
         ? 0
         : submission.getFspSubmissionMetadata().getAttachmentCount();
     attachmentService.persist(
-        attachments, fspIdLong, amendmentNumberLong, expectedAttachmentCount, userId);
+        attachments, fspIdLong, amendmentNumberLong, expectedAttachmentCount,
+        SubmissionAttachmentService.consolidatedIndFor(
+            amendmentNumberLong, plan.isLegalDocConsolidatedInd()),
+        userId);
 
     return saved;
   }

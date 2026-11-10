@@ -38,20 +38,22 @@ public class SubmissionAttachmentService {
   /** Legacy FSP_ATTACHMENT_TYPE_CODE used for unclassified uploads. */
   static final String DEFAULT_TYPE_CODE = "OTHR";
 
-  private static final String DEFAULT_CONSOLIDATED_IND = "N";
-
   private final Fsp400AttachmentsDao attachmentsDao;
 
   /**
    * Persist each uploaded file as an attachment on the (fspId,
    * amendmentNumber) being submitted. {@code expectedCount} is the
    * XML's {@code attachmentCount} — used to detect mismatch only.
+   * {@code consolidatedInd} is the plan-level consolidated indicator
+   * (see {@link #consolidatedIndFor}); legacy FSP_SUBMISSION_PROCESS
+   * stamped it on every attachment row the submission created.
    */
   public void persist(
       List<MultipartFile> files,
       long fspId,
       long amendmentNumber,
       int expectedCount,
+      String consolidatedInd,
       String userId)
       throws IOException {
     int actual = files == null ? 0 : files.size();
@@ -79,11 +81,21 @@ public class SubmissionAttachmentService {
           file.getOriginalFilename(),
           file.getSize(),
           "",                       // description — UI doesn't supply yet
-          DEFAULT_CONSOLIDATED_IND,
+          consolidatedInd,
           userId);
       attachmentsDao.saveAttachmentContent(created.createdAttachmentId(), file.getBytes());
       log.debug("Attached '{}' ({} bytes) → attachmentId={}",
           file.getOriginalFilename(), file.getSize(), created.createdAttachmentId());
     }
+  }
+
+  /**
+   * Legacy FSP_ACCUMULATE.accumulate_fsp rule for the XML's
+   * {@code legalDocConsolidatedInd}: an original plan (amendment 0) is
+   * always consolidated; otherwise the submitted value, defaulting to N.
+   */
+  static String consolidatedIndFor(long amendmentNumber, Boolean legalDocConsolidatedInd) {
+    if (amendmentNumber == 0L) return "Y";
+    return Boolean.TRUE.equals(legalDocConsolidatedInd) ? "Y" : "N";
   }
 }

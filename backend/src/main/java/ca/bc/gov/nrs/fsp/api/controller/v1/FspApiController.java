@@ -250,9 +250,11 @@ public class FspApiController implements FspApiEndpoint {
 
     @Override
     public ResponseEntity<AttachmentResponse> uploadAttachment(
-            String fspId, MultipartFile file, String typeCode, String description)
+            String fspId, MultipartFile file, String typeCode, String description,
+            Boolean consolidated)
             throws IOException {
-        return ResponseEntity.ok(attachmentsService.upload(fspId, file, typeCode, description));
+        return ResponseEntity.ok(
+                attachmentsService.upload(fspId, file, typeCode, description, consolidated));
     }
 
     @Override

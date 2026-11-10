@@ -36,7 +36,7 @@ class SubmissionAttachmentServiceTest {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "docx-bytes".getBytes()));
 
-    service.persist(files, 96L, 6L, /*expectedCount=*/ 2, "TESTUSR");
+    service.persist(files, 96L, 6L, /*expectedCount=*/ 2, "N", "TESTUSR");
 
     verify(dao).createAttachment(
         eq(96L), eq("6"), eq("OTHR"), eq("fdu-map.pdf"),
@@ -50,10 +50,10 @@ class SubmissionAttachmentServiceTest {
 
   @Test
   void noop_when_no_files_supplied() throws IOException {
-    service.persist(null, 96L, 6L, 0, "TESTUSR");
+    service.persist(null, 96L, 6L, 0, "N", "TESTUSR");
     verifyNoInteractions(dao);
 
-    service.persist(List.of(), 96L, 6L, 0, "TESTUSR");
+    service.persist(List.of(), 96L, 6L, 0, "N", "TESTUSR");
     verifyNoInteractions(dao);
   }
 
@@ -63,7 +63,7 @@ class SubmissionAttachmentServiceTest {
         new MockMultipartFile("attachments", "real.pdf", "application/pdf", "data".getBytes()),
         new MockMultipartFile("attachments", "empty.pdf", "application/pdf", new byte[0]));
 
-    service.persist(files, 96L, 6L, 2, "TESTUSR");
+    service.persist(files, 96L, 6L, 2, "N", "TESTUSR");
 
     verify(dao, times(1)).createAttachment(
         any(), any(), any(), eq("real.pdf"), any(), any(), any(), any());
@@ -76,10 +76,36 @@ class SubmissionAttachmentServiceTest {
     List<MultipartFile> files = List.of(
         new MockMultipartFile("attachments", "only.pdf", "application/pdf", "x".getBytes()));
 
-    service.persist(files, 96L, 6L, /*expectedCount=*/ 3, "TESTUSR");
+    service.persist(files, 96L, 6L, /*expectedCount=*/ 3, "N", "TESTUSR");
 
     verify(dao, times(1)).createAttachment(
         any(), any(), any(), eq("only.pdf"), any(), any(), any(), any());
     verify(dao, times(1)).saveAttachmentContent(any(), any());
+  }
+
+  @Test
+  void stamps_plan_consolidated_indicator_on_each_attachment() throws IOException {
+    List<MultipartFile> files = List.of(
+        new MockMultipartFile("attachments", "legal.pdf", "application/pdf", "x".getBytes()));
+
+    service.persist(files, 96L, 6L, 1, "Y", "TESTUSR");
+
+    verify(dao).createAttachment(
+        eq(96L), eq("6"), eq("OTHR"), eq("legal.pdf"), eq(1L), eq(""), eq("Y"), eq("TESTUSR"));
+  }
+
+  @Test
+  void consolidated_indicator_follows_legacy_accumulate_rule() {
+    // Original plan is always consolidated, whatever the XML says.
+    org.assertj.core.api.Assertions.assertThat(
+        SubmissionAttachmentService.consolidatedIndFor(0L, false)).isEqualTo("Y");
+    org.assertj.core.api.Assertions.assertThat(
+        SubmissionAttachmentService.consolidatedIndFor(0L, null)).isEqualTo("Y");
+    org.assertj.core.api.Assertions.assertThat(
+        SubmissionAttachmentService.consolidatedIndFor(4L, true)).isEqualTo("Y");
+    org.assertj.core.api.Assertions.assertThat(
+        SubmissionAttachmentService.consolidatedIndFor(4L, false)).isEqualTo("N");
+    org.assertj.core.api.Assertions.assertThat(
+        SubmissionAttachmentService.consolidatedIndFor(4L, null)).isEqualTo("N");
   }
 }
