@@ -282,7 +282,8 @@ public interface FspApiEndpoint {
             @PathVariable String fspId,
             @RequestParam("file") MultipartFile file,
             @RequestParam("typeCode") String typeCode,
-            @RequestParam(name = "description", required = false) String description)
+            @RequestParam(name = "description", required = false) String description,
+            @RequestParam(name = "consolidated", required = false) Boolean consolidated)
             throws IOException;
 
     @GetMapping(URL.ATTACHMENT_DOWNLOAD)

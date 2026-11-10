@@ -3,6 +3,7 @@ package ca.bc.gov.nrs.fsp.api.service.v1;
 import ca.bc.gov.nrs.fsp.api.dao.v1.Fsp400AttachmentsDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.FspAttachmentQueryDao;
 import ca.bc.gov.nrs.fsp.api.dao.v1.FspCodeListsDao;
+import ca.bc.gov.nrs.fsp.api.exception.ConflictFoundException;
 import ca.bc.gov.nrs.fsp.api.security.FspAccessGuard;
 import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentBlob;
 import ca.bc.gov.nrs.fsp.api.struct.v1.AttachmentResponse;
@@ -34,6 +35,8 @@ public class AttachmentsService {
 
   private static final String ALL_ATTACHES_IND = "Y";
   private static final String DEFAULT_CONSOLIDATED_IND = "N";
+  static final String LEGAL_DOC_EXISTS_MESSAGE =
+      "This version already has an FSP legal document. Delete it before adding another.";
 
   // Bucket → FSP_ATTACHMENT_TYPE_CODE.fsp_attachment_type_code. Matches
   // the per-bucket filter inside FSP_400_ATTACHMENTS.GET (see
@@ -99,15 +102,15 @@ public class AttachmentsService {
     // naturally when the front-end renders by category.
     Map<String, String> descriptions = codeListsDao.getFspAttachmentTypeCodeMap();
     List<AttachmentResponse> all = new ArrayList<>();
-    appendAll(all, get.legalDocs(),       categoryLabel(descriptions, TYPE_LEGAL_DOCS));
-    appendAll(all, get.amendDesc(),       categoryLabel(descriptions, TYPE_AMEND_DESC));
-    appendAll(all, get.stockStandards(),  categoryLabel(descriptions, TYPE_STOCK_STANDARDS));
-    appendAll(all, get.fduMap(),          categoryLabel(descriptions, TYPE_FDU_MAP));
-    appendAll(all, get.identAreas1961(),  categoryLabel(descriptions, TYPE_IDENT_AREAS_1961));
-    appendAll(all, get.identAreas1962(),  categoryLabel(descriptions, TYPE_IDENT_AREAS_1962));
-    appendAll(all, get.declaredAreas(),   categoryLabel(descriptions, TYPE_DECLARED_AREAS));
-    appendAll(all, get.supportingDocs(),  categoryLabel(descriptions, TYPE_SUPPORTING_DOCS));
-    appendAll(all, get.ddmDecision(),     categoryLabel(descriptions, TYPE_DDM_DECISION));
+    appendAll(all, get.legalDocs(), TYPE_LEGAL_DOCS, descriptions);
+    appendAll(all, get.amendDesc(), TYPE_AMEND_DESC, descriptions);
+    appendAll(all, get.stockStandards(), TYPE_STOCK_STANDARDS, descriptions);
+    appendAll(all, get.fduMap(), TYPE_FDU_MAP, descriptions);
+    appendAll(all, get.identAreas1961(), TYPE_IDENT_AREAS_1961, descriptions);
+    appendAll(all, get.identAreas1962(), TYPE_IDENT_AREAS_1962, descriptions);
+    appendAll(all, get.declaredAreas(), TYPE_DECLARED_AREAS, descriptions);
+    appendAll(all, get.supportingDocs(), TYPE_SUPPORTING_DOCS, descriptions);
+    appendAll(all, get.ddmDecision(), TYPE_DDM_DECISION, descriptions);
     setDeleteTargets(fspId, all);
     return all;
   }
@@ -127,7 +130,9 @@ public class AttachmentsService {
         Long.parseLong(fspId), Long.parseLong(latest));
     boolean priorVersionsAllowed = accessGuard.canDeleteFromPriorVersions();
     for (AttachmentResponse row : rows) {
-      if (linkedToLatest.contains(Long.valueOf(row.getFspAttachmentId()))) {
+      boolean onLatest = linkedToLatest.contains(Long.valueOf(row.getFspAttachmentId()));
+      row.setLinkedToLatest(onLatest);
+      if (onLatest) {
         row.setDeleteAmendmentNumber(latest);
       } else if (priorVersionsAllowed) {
         row.setDeleteAmendmentNumber(row.getFspAmendmentNumber());
@@ -155,6 +160,28 @@ public class AttachmentsService {
   public AttachmentResponse upload(
       String fspId, MultipartFile file, String typeCode, String description)
       throws IOException {
+    return upload(fspId, file, typeCode, description, null);
+  }
+
+  /**
+   * Legacy FSP400 consolidated-indicator rule. Only the FSP Legal Document
+   * carries the flag: on the original plan (amendment 0) it is always
+   * consolidated (legacy posted a hidden {@code Y}); on an amendment the
+   * user chooses via the "Consolidated" checkbox. Every other category is
+   * stored as {@code N}.
+   */
+  static String resolveConsolidatedInd(
+      String typeCode, String amendmentNumber, Boolean consolidated) {
+    if (!TYPE_LEGAL_DOCS.equals(typeCode)) return DEFAULT_CONSOLIDATED_IND;
+    if ("0".equals(amendmentNumber == null ? null : amendmentNumber.trim())) return "Y";
+    return Boolean.TRUE.equals(consolidated) ? "Y" : DEFAULT_CONSOLIDATED_IND;
+  }
+
+  @Transactional
+  public AttachmentResponse upload(
+      String fspId, MultipartFile file, String typeCode, String description,
+      Boolean consolidated)
+      throws IOException {
     // Ownership fence: the attachment proc doesn't thread the caller's
     // client number, so without this a submitter could attach to any
     // org's FSP. Resolves the latest amendment internally. Attachments use
@@ -173,6 +200,20 @@ public class AttachmentsService {
     // supporting letter could vanish after the extension was already
     // created. See AttachmentConstraints on why this counts bytes.
     AttachmentConstraints.validate(file.getOriginalFilename(), file.getSize());
+    // Resolve the FSP's current latest amendment number — the old
+    // hardcoded "1" tripped FAX_FSP_FK whenever the FSP's amendments
+    // didn't include 1 (e.g. original-only FSPs sitting at amendment 0).
+    String amendmentNumber = findLatestAmendmentNumber(fspId);
+    // Legacy FSP400 parity: one FSP Legal Document per version. The legacy
+    // page disabled the legal-doc upload row once a legal document was
+    // linked (Fsp400AttachmentsFieldManager.hasLegalAttachment); the user
+    // had to delete it before adding a replacement. Checked before reading /
+    // scanning the file so a refused upload costs nothing.
+    if (TYPE_LEGAL_DOCS.equals(typeCode)
+        && attachmentQueryDao.hasLegalDocument(
+            Long.parseLong(fspId), Long.parseLong(amendmentNumber))) {
+      throw new ConflictFoundException(LEGAL_DOC_EXISTS_MESSAGE);
+    }
     // Read the upload into heap ONCE and reuse it for both the scan and the
     // BLOB write. MultipartFile.getBytes() allocates a fresh full-size array
     // on every call, so calling it twice held 2x the file in heap at once —
@@ -182,15 +223,12 @@ public class AttachmentsService {
     // VirusDetectedException (→ 422) on rejection. No-op when
     // fsp.clamav.enabled=false.
     virusScanner.scanOrThrow(content, file.getOriginalFilename());
-    // Resolve the FSP's current latest amendment number — the old
-    // hardcoded "1" tripped FAX_FSP_FK whenever the FSP's amendments
-    // didn't include 1 (e.g. original-only FSPs sitting at amendment 0).
-    String amendmentNumber = findLatestAmendmentNumber(fspId);
     // Directory-prefixed audit user (IDIR\name / BCEID\name) so the
     // attachment row matches the legacy audit convention. Truncated
     // to 30 chars inside the helper so the prefix doesn't blow the
     // VARCHAR2(30) audit columns.
     String userId = RequestUtil.getCurrentAuditUserId();
+    String consolidatedInd = resolveConsolidatedInd(typeCode, amendmentNumber, consolidated);
     Fsp400AttachmentsDao.CreateAttachmentResult created = attachmentsDao.createAttachment(
         Long.valueOf(fspId),
         amendmentNumber,
@@ -198,7 +236,7 @@ public class AttachmentsService {
         file.getOriginalFilename(),
         file.getSize(),
         description == null ? "" : description.trim(),
-        DEFAULT_CONSOLIDATED_IND,
+        consolidatedInd,
         userId);
     attachmentsDao.saveAttachmentContent(created.createdAttachmentId(), content);
     return AttachmentResponse.builder()
@@ -206,7 +244,7 @@ public class AttachmentsService {
         .fspAmendmentNumber(amendmentNumber)
         .attachmentName(file.getOriginalFilename())
         .attachmentSize(String.valueOf(file.getSize()))
-        .consolidatedInd(DEFAULT_CONSOLIDATED_IND)
+        .consolidatedInd(consolidatedInd)
         .build();
   }
 
@@ -276,7 +314,9 @@ public class AttachmentsService {
   private static void appendAll(
       List<AttachmentResponse> sink,
       List<Fsp400AttachmentsDao.AttachmentRow> rows,
-      String category) {
+      String categoryCode,
+      Map<String, String> descriptions) {
+    String category = categoryLabel(descriptions, categoryCode);
     for (Fsp400AttachmentsDao.AttachmentRow row : rows) {
       sink.add(AttachmentResponse.builder()
           .fspAttachmentId(row.fspAttachmentId())
@@ -286,6 +326,7 @@ public class AttachmentsService {
           .attachmentSize(row.attachmentSize())
           .consolidatedInd(row.consolidatedInd())
           .category(category)
+          .categoryCode(categoryCode)
           .build());
     }
   }

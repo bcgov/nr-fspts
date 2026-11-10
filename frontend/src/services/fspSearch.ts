@@ -1535,8 +1535,12 @@ export interface FspAttachmentRow {
   attachmentSize: string | null;
   consolidatedInd: string | null;
   category: string | null;
+  /** FSP_ATTACHMENT_TYPE_CODE of the row's category (e.g. 'FSP' = legal document). */
+  categoryCode: string | null;
   /** Version a delete by this user acts on; null when they can't delete it. */
   deleteAmendmentNumber: string | null;
+  /** Linked to the plan's latest version; null when the user can't edit attachments. */
+  linkedToLatest: boolean | null;
 }
 
 export function getFspAttachments(fspId: string): Promise<FspAttachmentRow[]> {
@@ -1564,6 +1568,7 @@ export async function uploadFspAttachment(
   typeCode: string,
   file: File,
   description?: string,
+  consolidated?: boolean,
 ): Promise<void> {
   const form = new FormData();
   form.append('file', file);
@@ -1571,6 +1576,9 @@ export async function uploadFspAttachment(
   // @RequestParam convention; the file itself stays in the multipart body).
   const params = new URLSearchParams({ typeCode });
   if (description && description.trim()) params.set('description', description.trim());
+  // Only meaningful for the FSP Legal Document on an amendment — the
+  // backend forces Y on the original plan and N for other categories.
+  if (consolidated) params.set('consolidated', 'true');
   const res = await apiFetch(
     `/v1/fsp/${encodeURIComponent(fspId)}/attachments?${params.toString()}`,
     { method: 'POST', body: form },

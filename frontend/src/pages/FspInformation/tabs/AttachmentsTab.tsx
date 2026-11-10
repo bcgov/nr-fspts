@@ -1,5 +1,6 @@
 import {
   Button,
+  Checkbox,
   Loading,
   Select,
   SelectItem,
@@ -79,6 +80,10 @@ const formatSize = (value: string | null | undefined): string =>
   value && String(value).trim() !== '' ? `${value} KB` : '—';
 
 // Amendment 0 is the original plan — render "Original" rather than "0".
+// FSP_ATTACHMENT_TYPE_CODE of the FSP Legal Document — the only category
+// that carries the consolidated indicator (legacy FSP400 "Cons" column).
+const LEGAL_DOC_TYPE_CODE = 'FSP';
+
 const formatAmendment = (value: string | null | undefined): string => {
   if (value == null || value.trim() === '') return '—';
   return Number(value) === 0 ? 'Original' : value;
@@ -139,6 +144,20 @@ const AttachmentsTab: FC<Props> = ({
   const [selectedTypeCode, setSelectedTypeCode] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
+  // Legacy FSP400 rule: a legal document on the original plan is always
+  // consolidated; on an amendment the user decides.
+  const [consolidated, setConsolidated] = useState(false);
+  const isLegalDoc = selectedTypeCode === LEGAL_DOC_TYPE_CODE;
+  // Uploads always attach to the plan's LATEST version (the backend resolves
+  // it), whichever version is in view — so key the legal-doc rules off it.
+  const latestAmendment = useMemo(() => {
+    const max = amendments.reduce<number>((acc, a) => {
+      const n = Number.parseInt(a.code ?? '', 10);
+      return Number.isFinite(n) && n > acc ? n : acc;
+    }, -1);
+    return max >= 0 ? max : Number.parseInt(currentAmendment || '0', 10) || 0;
+  }, [amendments, currentAmendment]);
+  const isOriginalPlan = latestAmendment === 0;
   const [uploading, setUploading] = useState(false);
   // Add attachment stays enabled at all times; on click we surface the
   // required-field errors instead of pre-disabling the button.
@@ -150,6 +169,16 @@ const AttachmentsTab: FC<Props> = ({
   // category is a ministry review document — hide it from roles that may not
   // file one (only Administrator / Decision Maker / Reviewer keep it). Uses
   // the same category matcher the DDM decision modal files the letter under.
+  // Legacy FSP400: one FSP Legal Document per version — once the latest
+  // version has one, the legal-doc category can't be picked until it's deleted.
+  const latestHasLegalDoc = useMemo(
+    () =>
+      (rows ?? []).some(
+        (r) => r.categoryCode === LEGAL_DOC_TYPE_CODE && r.linkedToLatest === true,
+      ),
+    [rows],
+  );
+
   const visibleCategories = useMemo(() => {
     if (canAttachDecisionLetter(user)) return categories;
     const decisionLetter = findDecisionLetterCategory(categories);
@@ -216,6 +245,7 @@ const AttachmentsTab: FC<Props> = ({
     setSelectedTypeCode('');
     setSelectedFile(null);
     setDescription('');
+    setConsolidated(false);
     setShowValidation(false);
   };
 
@@ -283,7 +313,13 @@ const AttachmentsTab: FC<Props> = ({
     }
     setUploading(true);
     try {
-      await uploadFspAttachment(fspId, selectedTypeCode, selectedFile, description);
+      await uploadFspAttachment(
+        fspId,
+        selectedTypeCode,
+        selectedFile,
+        description,
+        isLegalDoc && !isOriginalPlan && consolidated,
+      );
       setModalOpen(false);
       resetDialog();
       refreshList();
@@ -459,13 +495,19 @@ const AttachmentsTab: FC<Props> = ({
                     : '— Select category —'
               }
             />
-            {visibleCategories.map((c) => (
-              <SelectItem
-                key={c.code ?? ''}
-                value={c.code ?? ''}
-                text={c.description ?? c.code ?? ''}
-              />
-            ))}
+            {visibleCategories.map((c) => {
+              const legalDocTaken =
+                c.code === LEGAL_DOC_TYPE_CODE && latestHasLegalDoc;
+              const label = c.description ?? c.code ?? '';
+              return (
+                <SelectItem
+                  key={c.code ?? ''}
+                  value={c.code ?? ''}
+                  disabled={legalDocTaken}
+                  text={legalDocTaken ? `${label} (already added to this version)` : label}
+                />
+              );
+            })}
           </Select>
           <DragDropFileInput
             label="File"
@@ -495,6 +537,20 @@ const AttachmentsTab: FC<Props> = ({
             onChange={(e) => setDescription(e.target.value)}
             disabled={uploading}
           />
+          {isLegalDoc && (
+            <Checkbox
+              id="attachment-consolidated"
+              labelText="Consolidated legal document"
+              helperText={
+                isOriginalPlan
+                  ? 'The original FSP legal document is always consolidated.'
+                  : 'Includes the original FSP and all amendments up to and including this one.'
+              }
+              checked={isOriginalPlan || consolidated}
+              disabled={uploading || isOriginalPlan}
+              onChange={(_, { checked }) => setConsolidated(checked)}
+            />
+          )}
         </Stack>
         <div className="fsp-species-modal__actions">
           <Button kind="tertiary" disabled={uploading} onClick={closeDialog}>

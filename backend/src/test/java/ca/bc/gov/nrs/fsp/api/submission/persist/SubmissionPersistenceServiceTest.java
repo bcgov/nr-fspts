@@ -74,7 +74,7 @@ class SubmissionPersistenceServiceTest {
     verify(fdu).persist(any(), fspIdCap.capture(), eq(1L), any());
     assertThat(fspIdCap.getValue()).isEqualTo(777L);
     verify(standards).persist(any(), eq(777L), eq(1L), any());
-    verify(attachments, times(1)).persist(any(), eq(777L), eq(1L), anyInt(), any());
+    verify(attachments, times(1)).persist(any(), eq(777L), eq(1L), anyInt(), any(), any());
   }
 
   @Test
@@ -96,7 +96,7 @@ class SubmissionPersistenceServiceTest {
     verify(fspService, never()).create(any());
     // Downstream services see the proc-assigned amendment (1), not the XML's 6
     verify(fdu).persist(any(), eq(96L), eq(1L), any());
-    verify(attachments).persist(any(), eq(96L), eq(1L), anyInt(), any());
+    verify(attachments).persist(any(), eq(96L), eq(1L), anyInt(), any(), any());
   }
 
   @Test
