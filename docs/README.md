@@ -12,6 +12,7 @@ start. These docs go deeper:
 | [fsp-dates.md](fsp-dates.md) | Figure out what an FSP date means — every plan/extension/OTBH/audit date, its DB column, and the legacy label it maps to |
 | [submissions.md](submissions.md) | Touch the XML / GeoJSON submission pipeline |
 | [submission-geojson-spec.md](submission-geojson-spec.md) | Hand a client the GeoJSON upload format spec |
+| [upload-validation.md](upload-validation.md) | Know exactly what each upload endpoint validates — attachment rules, submission parsing/geometry/business checks, error codes, and known gaps |
 | [virus-scanning.md](virus-scanning.md) | Work on the ClamAV upload scanning — config, fail-open policy, or the cross-namespace NetworkPolicy/secrets |
 | [reports.md](reports.md) | Work on the JasperReports PDF/CSV reporting (the one part that bypasses the proc layer) |
 | [notifications.md](notifications.md) | Touch email — the workflow event emails or the scheduled district-designate digest |
