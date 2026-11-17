@@ -10,7 +10,7 @@ Companion docs: [submissions.md](submissions.md) (submission pipeline),
 
 ## Overview
 
-FSP accepts files through seven multipart endpoints, all under `/api/v1/fsp`. Every one virus-scans the bytes before anything is stored. The five attachment endpoints also run the shared attachment rules (type, filename length, size); the two submission endpoints do not (see [Gaps](#gaps-and-recommendations)).
+FSP accepts files through seven multipart endpoints, all under `/api/v1/fsp`. Every one virus-scans the bytes before anything is stored. The five attachment endpoints also run the shared attachment rules (type, filename length, size); the two submission endpoints do not.
 
 There are two kinds of upload:
 
@@ -53,7 +53,7 @@ Attachments stop at the first failed gate; submissions collect every parse, geom
 
 ## Frontend validation
 
-The SPA rejects bad files at pick time, before any request is sent. These checks are for user experience only; the backend repeats every one that matters (except where [Gaps](#gaps-and-recommendations) says otherwise).
+The SPA rejects bad files at pick time, before any request is sent. These checks are for user experience only; the backend repeats the attachment rules on every attachment endpoint.
 
 ### Attachment rules (shared)
 
@@ -88,8 +88,8 @@ Set in `backend/src/main/resources/application.properties`. Breaching them retur
 | Setting | Value | Effect |
 | --- | --- | --- |
 | `spring.servlet.multipart.max-file-size` | 100 MB | Any single part over this is refused before our code runs |
-| `spring.servlet.multipart.max-request-size` | 500 MB | Whole multipart request cap |
-| `server.undertow.max-http-post-size` | 524,288,000 bytes (500 MB) | Matches the request cap |
+| `spring.servlet.multipart.max-request-size` | 100 MB | Whole multipart request cap |
+| `server.undertow.max-http-post-size` | 104,857,600 bytes (100 MB) | Matches the request cap |
 | `server.tomcat.max-http-form-post-size` / `max-swallow-size` | 524,288,000 bytes | Same, if run on Tomcat |
 
 The 100 MB part cap is deliberately looser than the 50 MB attachment rule, so an oversized attachment gets our friendly message rather than a container error.
@@ -242,7 +242,7 @@ Attachment uploads fail with one message; submissions fail with a list. Both go 
 
 | Failure | HTTP | Body | Raised by |
 | --- | --- | --- | --- |
-| Part over 100 MB / request over 500 MB | 413 | Spring `ProblemDetail` | `MaxUploadSizeExceededException` (parent handler) |
+| Part or whole request over 100 MB | 413 | Spring `ProblemDetail` | `MaxUploadSizeExceededException` (parent handler) |
 | Missing `file` part on attachment endpoints | 400 | Spring `ProblemDetail` | `MissingServletRequestPartException` |
 | Missing/empty `file` on submissions | 400 | `SubmissionValidationResult`, code `UPLOAD_MISSING` | `FspSubmissionController` |
 | Role or ownership check | 403 | `ApiError` | `@PreAuthorize`, `FspAccessGuard` |
@@ -256,22 +256,3 @@ On the frontend:
 
 - Toasts go through `NotificationProvider`, which runs `safeErrorMessage`. Any message over **240 characters**, containing a newline, or matching technical patterns ("Malformed JSON", "could not parse", and similar) is replaced with a generic fallback.
 - The submission page renders `errors[]` as a table with Issue (friendly label per code, for example `VIRUS_DETECTED` as "Virus detected"), File location (`path`) and Detail. Xerces `cvc-…:` prefixes are stripped from XSD messages. The table can be downloaded as CSV.
-
-## Gaps and recommendations
-
-The most important gap: attachments sent with `POST /submissions` skip the shared attachment rules. The SPA never sends them, so today only a direct API client can reach it. The rest are smaller. Ordered by risk:
-
-| # | Gap | Effect | Suggested fix |
-| --- | --- | --- | --- |
-| 1 | `SubmissionAttachmentService` never calls `AttachmentConstraints.validate` | Any file type is stored. A name over 50 bytes fails the insert with `ORA-12899` after validation, rolling back the whole submission as a generic 500. A mismatch with `attachmentCount` is only logged | Call `AttachmentConstraints.validate` on each part in `FspSubmissionController.submit`, before scanning |
-| 2 | Type check is by extension only | A renamed executable or HTML file named `x.pdf` passes. ClamAV catches known malware only | Check magic bytes: `%PDF-` for PDF, `D0 CF 11 E0` (OLE) for `.doc`, `PK` zip with `word/document.xml` for `.docx` |
-| 3 | clamd `StreamMaxLength` is not set anywhere in this repo | ClamAV's default limit is lower than our 50 MB rule (25 MB in stock `clamd.conf`). If the shared clamd uses it, larger valid files fail closed as "scanner could not verify" | Confirm the tools-namespace clamd config allows at least 100 MB |
-| 4 | Zero-byte attachments are accepted | An empty PDF is stored. Only the submission page rejects empty files | Add `size > 0` to both `AttachmentConstraints` files |
-| 5 | Downloads put the stored filename straight into `Content-Disposition: attachment; filename="…"` | A `"` in the name breaks the header; non-ASCII names are not RFC 5987 encoded | Build the header with Spring `ContentDisposition.attachment().filename(name, UTF_8)` |
-| 6 | Submission file has no app-level size cap | A 100 MB file is held in heap several times over (bytes, DOM/JAXB tree, JTS) | Enforce 50 MB server-side to match the SPA |
-| 7 | `StandardRegimeService.addAttachment` calls `file.getBytes()` twice | Holds 2× the file in heap; the DDM and extension paths were already fixed for this OOM | Read once into a local, as `AttachmentsService.upload` does |
-| 8 | Standards regime stores the client-sent `Content-Type` as `mimeType` | Unverified browser value persisted | Derive from the validated extension |
-| 9 | Contact email format is not checked | Only blank and over 120 characters are caught | Add a basic address check if the business wants it |
-| 10 | `StandardRegimeAttachmentModal` checks size before filename; other screens check filename first | Different first error for the same bad file | Switch the modal to `validateAttachmentFile` |
-
-Not gaps: the extension list being a hint on drag-and-drop (every pick is re-checked), and the submission page accepting any extension (the backend detects format from content).
