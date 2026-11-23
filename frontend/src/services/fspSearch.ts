@@ -2004,6 +2004,22 @@ export async function searchUsers(params: UserSearchParams): Promise<UserSearchR
 }
 
 /**
+ * GET /api/v1/fsp/users/{userId} — one IDIR user by EXACT username (name +
+ * email), or null when the user can't be resolved. Use this, not
+ * {@link searchUsers}, whenever the id is already known: the search is a
+ * partial match, so its first hit for "JDOE" can be "AJDOE".
+ */
+export async function getUser(userId: string): Promise<UserSummary | null> {
+  const res = await apiFetch(`/v1/fsp/users/${encodeURIComponent(userId)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new Error(detail || `User lookup failed (${res.status})`);
+  }
+  return res.json() as Promise<UserSummary>;
+}
+
+/**
  * POST /api/v1/fsp/users/resolve — batch-resolves user ids (IDIR or BCeID,
  * bare or {@code DIR\name}-prefixed) to display names. Returns a map keyed by
  * the exact ids sent; ids that couldn't be resolved are simply absent. Used

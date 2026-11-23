@@ -27,8 +27,8 @@ import {
   addDistrictDesignate,
   getDistrictDesignates,
   getOrgUnits,
+  getUser,
   removeDistrictDesignate,
-  searchUsers,
   type CodeOption,
   type NotificationDesignate,
   type UserSummary,
@@ -164,8 +164,10 @@ const DistrictNotificationPage: FC = () => {
     async (orgUnit: string, rows: NotificationDesignate[]) => {
       const lookups = await Promise.allSettled(
         rows.map((row) =>
-          searchUsers({ userId: stripIdirPrefix(row.designateIdir), size: 1 }).then(
-            (resp) => ({ idir: row.designateIdir, profile: resp.results[0] ?? null }),
+          // Exact lookup — a userId search is a partial match, so its first
+          // hit for JDOE could be AJDOE.
+          getUser(stripIdirPrefix(row.designateIdir)).then(
+            (profile) => ({ idir: row.designateIdir, profile }),
           ),
         ),
       );

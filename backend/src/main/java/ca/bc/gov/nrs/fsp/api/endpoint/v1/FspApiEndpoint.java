@@ -586,6 +586,11 @@ public interface FspApiEndpoint {
             @RequestParam(name = "lastName", required = false) String lastName,
             @RequestParam(name = "size", required = false, defaultValue = "0") int size);
 
+    @GetMapping(URL.USER_BY_ID)
+    @Operation(summary = "Look up one IDIR user by exact username via nr-user-lookup-api",
+            description = "404 when the user can't be resolved.")
+    ResponseEntity<UserSummary> getUser(@PathVariable String userId);
+
     @PostMapping(URL.USER_RESOLVE)
     @Operation(summary = "Resolve a batch of user ids (IDIR/BCeID) to display names")
     ResponseEntity<Map<String, String>> resolveUserNames(@RequestBody UserResolveRequest request);

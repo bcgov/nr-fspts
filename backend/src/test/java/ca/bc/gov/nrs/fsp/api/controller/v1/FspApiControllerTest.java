@@ -21,6 +21,7 @@ import ca.bc.gov.nrs.fsp.api.struct.v1.FspSearchResult;
 import ca.bc.gov.nrs.fsp.api.struct.v1.InboxRequest;
 import ca.bc.gov.nrs.fsp.api.struct.v1.NotificationDesignate;
 import ca.bc.gov.nrs.fsp.api.struct.v1.PageableResponse;
+import ca.bc.gov.nrs.fsp.api.struct.v1.UserSummary;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -354,5 +356,25 @@ class FspApiControllerTest {
         .andExpect(jsonPath("$[0].designateId").value("101"))
         .andExpect(jsonPath("$[0].designateIdir").value("IDIR\\JSMITH"))
         .andExpect(jsonPath("$[1].designateId").value("102"));
+  }
+
+  @Test
+  void getUser_returnsExactMatch() throws Exception {
+    when(userDirectoryService.findByUserId("JDOE")).thenReturn(Optional.of(
+        new UserSummary("JDOE", "Jane Doe", "Jane", "Doe", "jane.doe@example.com", "g1", null)));
+
+    mvc.perform(get("/api/v1/fsp/users/JDOE").with(jwt()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.userId").value("JDOE"))
+        .andExpect(jsonPath("$.displayName").value("Jane Doe"));
+    verify(userDirectoryService).findByUserId("JDOE");
+  }
+
+  @Test
+  void getUser_notFoundIs404() throws Exception {
+    when(userDirectoryService.findByUserId("NOBODY")).thenReturn(Optional.empty());
+
+    mvc.perform(get("/api/v1/fsp/users/NOBODY").with(jwt()))
+        .andExpect(status().isNotFound());
   }
 }
