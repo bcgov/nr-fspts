@@ -184,15 +184,19 @@ public final class URL {
   public static final String DISTRICT_DESIGNATES = "/admin/district-notifications";
   public static final String DISTRICT_DESIGNATE_BY_ID = "/admin/district-notifications/{designateId}";
 
-  // IDIR directory lookup via nr-user-lookup-api. Used by the
-  // UserSearchModal popup and to enrich designate rows with displayName
-  // + email server-side.
+  // IDIR directory search via nr-user-lookup-api (partial match). Used by the
+  // UserSearchModal picker only.
   public static final String USER_SEARCH = "/users/search";
 
   // Batch resolve of user ids (IDIR / BCeID) to display names. Used by the
   // front-end <UserName> component to enrich audit / decision-maker labels
   // and table cells that store a raw login.
   public static final String USER_RESOLVE = "/users/resolve";
+
+  // Exact single-user lookup by IDIR username (name + email). Use this, not
+  // USER_SEARCH, when the id is already known: the search is a partial
+  // ("contains") match, so its first hit for JDOE can be AJDOE.
+  public static final String USER_BY_ID = "/users/{userId}";
 
   // FSP XML submission — Phase 1 read-only validation endpoint. Replaces
   // the legacy ESF agent path that pulled XML off MOF_QUEUES.ESF_STATUS_Q.

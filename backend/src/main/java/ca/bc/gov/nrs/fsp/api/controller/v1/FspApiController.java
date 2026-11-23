@@ -520,6 +520,13 @@ public class FspApiController implements FspApiEndpoint {
     }
 
     @Override
+    public ResponseEntity<UserSummary> getUser(String userId) {
+        return userDirectoryService.findByUserId(userId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Override
     public ResponseEntity<Map<String, String>> resolveUserNames(UserResolveRequest request) {
         List<String> ids = request == null ? null : request.userIds();
         return ResponseEntity.ok(userDirectoryService.resolveDisplayNames(ids));
